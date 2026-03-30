@@ -12,6 +12,8 @@ import ParentDashboard from "./pages/ParentDashboard";
 import Booking from "./pages/Booking";
 import LiveSession from "./pages/LiveSession";
 import Profile from "./pages/Profile";
+import Rating from "./pages/Rating";
+import AITutor from "./pages/AITutor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +34,8 @@ const App = () => (
           <Route path="/booking" element={<Booking />} />
           <Route path="/session" element={<LiveSession />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/rating" element={<Rating />} />
+          <Route path="/ai-tutor" element={<AITutor />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
