@@ -30,7 +30,7 @@ const badges = [
 ];
 
 const StudentDashboard = () => (
-  <div className="min-h-screen bg-muted/30">
+  <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
     <Navbar />
     <div className="container py-8">
       {/* Welcome + Gamification */}
