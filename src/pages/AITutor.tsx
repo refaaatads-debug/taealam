@@ -92,6 +92,7 @@ const AITutor = () => {
           </CardContent>
         </Card>
       </div>
+      <BottomNav />
     </div>
   );
 };
