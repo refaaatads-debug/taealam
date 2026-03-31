@@ -179,6 +179,7 @@ const Booking = () => {
           )}
         </AnimatePresence>
       </div>
+      <BottomNav />
     </div>
   );
 };
