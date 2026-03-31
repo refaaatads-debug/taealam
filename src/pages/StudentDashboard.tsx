@@ -236,6 +236,7 @@ const StudentDashboard = () => (
         </div>
       </div>
     </div>
+    <BottomNav />
   </div>
 );
 

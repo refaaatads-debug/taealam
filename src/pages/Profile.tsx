@@ -109,6 +109,7 @@ const Profile = () => {
           </Card>
         </motion.div>
       </div>
+      <BottomNav />
     </div>
   );
 };

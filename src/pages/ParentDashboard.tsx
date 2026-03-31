@@ -158,6 +158,7 @@ const ParentDashboard = () => (
         </Card>
       </div>
     </div>
+    <BottomNav />
   </div>
 );
 

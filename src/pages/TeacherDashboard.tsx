@@ -184,6 +184,7 @@ const TeacherDashboard = () => (
         </Card>
       </div>
     </div>
+    <BottomNav />
   </div>
 );
 
