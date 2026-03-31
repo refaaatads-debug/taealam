@@ -13,7 +13,7 @@ const Profile = () => {
   const [notifications, setNotifications] = useState(true);
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
       <Navbar />
       <div className="container py-8 max-w-2xl">
         <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-2xl font-black text-foreground mb-8">الملف الشخصي</motion.h1>
