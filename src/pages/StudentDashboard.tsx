@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +30,7 @@ const badges = [
 ];
 
 const StudentDashboard = () => (
-  <div className="min-h-screen bg-muted/30">
+  <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
     <Navbar />
     <div className="container py-8">
       {/* Welcome + Gamification */}
@@ -235,6 +236,7 @@ const StudentDashboard = () => (
         </div>
       </div>
     </div>
+    <BottomNav />
   </div>
 );
 

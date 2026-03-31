@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -25,7 +26,7 @@ const notifications = [
 ];
 
 const ParentDashboard = () => (
-  <div className="min-h-screen bg-muted/30">
+  <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
     <Navbar />
     <div className="container py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -157,6 +158,7 @@ const ParentDashboard = () => (
         </Card>
       </div>
     </div>
+    <BottomNav />
   </div>
 );
 

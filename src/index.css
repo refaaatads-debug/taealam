@@ -176,6 +176,9 @@
     backdrop-filter: blur(30px) saturate(200%);
     background: hsl(var(--card) / 0.85);
   }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   .text-gradient {
     background: var(--gradient-cta);
     -webkit-background-clip: text;

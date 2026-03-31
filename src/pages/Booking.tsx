@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ const Booking = () => {
   const [step, setStep] = useState(1);
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
       <Navbar />
       <div className="container py-8 max-w-3xl">
         {/* Steps */}
@@ -178,6 +179,7 @@ const Booking = () => {
           )}
         </AnimatePresence>
       </div>
+      <BottomNav />
     </div>
   );
 };
