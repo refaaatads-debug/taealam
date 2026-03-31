@@ -26,7 +26,7 @@ const earningsData = [
 ];
 
 const TeacherDashboard = () => (
-  <div className="min-h-screen bg-muted/30">
+  <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
     <Navbar />
     <div className="container py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
