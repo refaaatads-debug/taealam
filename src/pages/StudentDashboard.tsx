@@ -268,11 +268,9 @@ const StudentDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {isConfirmed && (
-                            <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
-                              <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-4 w-4" /></Link>
-                            </Button>
-                          )}
+                          <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
+                            <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-4 w-4" /></Link>
+                          </Button>
                           {isToday && isConfirmed ? (
                             <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
                               <Link to="/session">انضم الآن</Link>
