@@ -149,6 +149,10 @@ const Login = () => {
   const handleSocialLogin = async (provider: "google" | "apple") => {
     setLoading(true);
     try {
+      // Save selected role before OAuth redirect (for new users)
+      if (!isLogin) {
+        localStorage.setItem("pending_role", role);
+      }
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: `${window.location.origin}/login`,
       });
