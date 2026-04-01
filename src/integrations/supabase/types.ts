@@ -857,6 +857,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_new_user_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "student" | "teacher" | "parent" | "admin"
