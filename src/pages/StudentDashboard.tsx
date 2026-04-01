@@ -12,6 +12,8 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Settings } from "lucide-react";
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
@@ -19,8 +21,10 @@ const StudentDashboard = () => {
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
+  const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
