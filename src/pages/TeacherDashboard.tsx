@@ -3,7 +3,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Clock, CheckCircle, XCircle, Star, BarChart3, Settings, AlertCircle } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Clock, CheckCircle, XCircle, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,7 +138,13 @@ const TeacherDashboard = () => {
     toast.success(action === "confirmed" ? "تم قبول الحجز!" : "تم رفض الحجز");
 
     if (action === "confirmed") {
-      fetchData(); // Refresh schedule
+      // Send welcome chat message
+      await supabase.from("chat_messages").insert({
+        booking_id: booking.id,
+        sender_id: user!.id,
+        content: `مرحباً! تم قبول الحجز 🎉 أنا جاهز للحصة يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. لا تتردد في أي استفسار!`,
+      });
+      fetchData();
     }
   };
 
@@ -274,11 +280,16 @@ const TeacherDashboard = () => {
                           </p>
                         </div>
                       </div>
-                      {isToday && (
-                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                          <Link to="/session">ابدأ الحصة</Link>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
+                          <Link to={`/chat?booking=${s.id}`}><MessageSquare className="h-4 w-4" /></Link>
                         </Button>
-                      )}
+                        {isToday && (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                            <Link to="/session">ابدأ الحصة</Link>
+                          </Button>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })
