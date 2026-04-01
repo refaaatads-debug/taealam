@@ -139,6 +139,25 @@ const AdminDashboard = () => {
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
   };
 
+  const changeUserRole = async (userId: string, newRole: string) => {
+    const { error } = await supabase.from("user_roles").update({ role: newRole as any }).eq("user_id", userId);
+    if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
+    setUserRolesMap(prev => new Map(prev).set(userId, newRole));
+    if (newRole === "teacher") {
+      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true }, { onConflict: "user_id" });
+    }
+    toast.success("تم تغيير الدور بنجاح");
+  };
+
+  const deleteUser = async (userId: string) => {
+    // Remove from profiles and user_roles (cascading handled by DB)
+    await supabase.from("user_roles").delete().eq("user_id", userId);
+    await supabase.from("teacher_profiles").delete().eq("user_id", userId);
+    await supabase.from("profiles").delete().eq("user_id", userId);
+    setAllUsers(prev => prev.filter(u => u.user_id !== userId));
+    toast.success("تم حذف بيانات المستخدم");
+  };
+
   const chartData = [
     { name: "يناير", حجوزات: 12, إيرادات: 2400 },
     { name: "فبراير", حجوزات: 19, إيرادات: 3800 },
