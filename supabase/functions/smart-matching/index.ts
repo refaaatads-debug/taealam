@@ -47,13 +47,6 @@ serve(async (req) => {
       subjectMap.get(ts.teacher_id)!.push(ts);
     }
 
-    if (budget_max) {
-      query = query.lte("hourly_rate", budget_max);
-    }
-
-    const { data: teachers, error } = await query;
-    if (error) throw error;
-
     // Filter by subject if provided
     let filtered = teachers || [];
     if (subject) {
