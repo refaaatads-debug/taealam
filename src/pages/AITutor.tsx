@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { checkRateLimit } from "@/lib/api";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
