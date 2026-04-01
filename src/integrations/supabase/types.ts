@@ -639,6 +639,7 @@ export type Database = {
       }
       teacher_profiles: {
         Row: {
+          available_days: string[] | null
           available_from: string | null
           available_to: string | null
           avg_rating: number | null
@@ -655,6 +656,7 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
+          available_days?: string[] | null
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null
@@ -671,6 +673,7 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
+          available_days?: string[] | null
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null

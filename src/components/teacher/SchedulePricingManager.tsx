@@ -4,10 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, DollarSign, Save, Loader2 } from "lucide-react";
+import { Clock, DollarSign, Save, Loader2, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+
+const WEEKDAYS = [
+  { key: "saturday", label: "السبت" },
+  { key: "sunday", label: "الأحد" },
+  { key: "monday", label: "الاثنين" },
+  { key: "tuesday", label: "الثلاثاء" },
+  { key: "wednesday", label: "الأربعاء" },
+  { key: "thursday", label: "الخميس" },
+  { key: "friday", label: "الجمعة" },
+];
 
 export default function SchedulePricingManager() {
   const { user } = useAuth();
@@ -16,28 +26,36 @@ export default function SchedulePricingManager() {
   const [hourlyRate, setHourlyRate] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableTo, setAvailableTo] = useState("");
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [bio, setBio] = useState("");
   const [yearsExperience, setYearsExperience] = useState("");
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
+    const fetchData = async () => {
       const { data } = await supabase
         .from("teacher_profiles")
-        .select("hourly_rate, available_from, available_to, bio, years_experience")
+        .select("hourly_rate, available_from, available_to, bio, years_experience, available_days")
         .eq("user_id", user.id)
         .single();
       if (data) {
         setHourlyRate(data.hourly_rate?.toString() || "0");
         setAvailableFrom(data.available_from || "");
         setAvailableTo(data.available_to || "");
+        setAvailableDays((data as any).available_days || []);
         setBio(data.bio || "");
         setYearsExperience(data.years_experience?.toString() || "0");
       }
       setLoading(false);
     };
-    fetch();
+    fetchData();
   }, [user]);
+
+  const toggleDay = (day: string) => {
+    setAvailableDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -48,9 +66,10 @@ export default function SchedulePricingManager() {
         hourly_rate: parseFloat(hourlyRate) || 0,
         available_from: availableFrom || null,
         available_to: availableTo || null,
+        available_days: availableDays,
         bio: bio || null,
         years_experience: parseInt(yearsExperience) || 0,
-      })
+      } as any)
       .eq("user_id", user.id);
 
     if (error) {
@@ -97,6 +116,30 @@ export default function SchedulePricingManager() {
             placeholder="مثال: 100"
             dir="ltr"
           />
+        </div>
+
+        {/* Available Days */}
+        <div className="space-y-2">
+          <Label className="text-sm font-bold flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            أيام التوفر
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAYS.map(day => (
+              <button
+                key={day.key}
+                type="button"
+                onClick={() => toggleDay(day.key)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all duration-200 ${
+                  availableDays.includes(day.key)
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                }`}
+              >
+                {day.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Available Times */}
