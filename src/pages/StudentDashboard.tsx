@@ -101,6 +101,17 @@ const StudentDashboard = () => {
         .eq("user_id", user.id)
         .single();
       setFreeTrialAvailable(!profileData?.free_trial_used);
+
+      // Check Stripe subscription status
+      try {
+        const { data: stripeSub } = await supabase.functions.invoke("check-subscription");
+        if (stripeSub && !stripeSub.error) {
+          setStripeSubscription(stripeSub);
+        }
+      } catch (e) {
+        console.log("Could not check stripe subscription");
+      }
+
       setLoading(false);
     };
 
