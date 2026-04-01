@@ -23,6 +23,7 @@ export default function NotificationBell() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const { play: playSound } = useNotificationSound();
 
   useEffect(() => {
     if (!user) return;
