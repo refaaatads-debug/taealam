@@ -1,17 +1,25 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Search, BookOpen, User, Brain } from "lucide-react";
+import { Home, Search, BookOpen, User, Brain, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
-
-const tabs = [
-  { icon: Home, label: "الرئيسية", to: "/" },
-  { icon: Search, label: "البحث", to: "/search" },
-  { icon: BookOpen, label: "حصصي", to: "/student" },
-  { icon: Brain, label: "AI مدرس", to: "/ai-tutor" },
-  { icon: User, label: "حسابي", to: "/profile" },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 const BottomNav = () => {
   const { pathname } = useLocation();
+  const { user, roles } = useAuth();
+
+  const isTeacher = roles.includes("teacher");
+
+  const tabs = [
+    { icon: Home, label: "الرئيسية", to: "/" },
+    { icon: Search, label: "البحث", to: "/search" },
+    ...(user
+      ? isTeacher
+        ? [{ icon: GraduationCap, label: "حصصي", to: "/teacher" }]
+        : [{ icon: BookOpen, label: "حصصي", to: "/student" }]
+      : [{ icon: BookOpen, label: "حصصي", to: "/student" }]),
+    { icon: Brain, label: "AI مدرس", to: "/ai-tutor" },
+    { icon: User, label: "حسابي", to: "/profile" },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden glass-strong border-t safe-area-bottom">

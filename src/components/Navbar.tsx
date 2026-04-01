@@ -20,14 +20,18 @@ const Navbar = () => {
   }, []);
 
   const isAdmin = roles.includes("admin");
+  const isTeacher = roles.includes("teacher");
+  const isStudent = roles.includes("student");
+  const isParent = roles.includes("parent");
 
   const links = [
     { label: "الرئيسية", to: "/" },
     { label: "ابحث عن مدرس", to: "/search" },
     { label: "الباقات", to: "/pricing" },
     ...(user ? [
-      { label: "لوحة الطالب", to: "/student" },
-      { label: "لوحة المعلم", to: "/teacher" },
+      ...(isStudent ? [{ label: "لوحة الطالب", to: "/student" }] : []),
+      ...(isTeacher ? [{ label: "لوحة المعلم", to: "/teacher" }] : []),
+      ...(isParent ? [{ label: "لوحة ولي الأمر", to: "/parent" }] : []),
       ...(isAdmin ? [{ label: "لوحة التحكم", to: "/admin" }] : []),
     ] : []),
   ];
