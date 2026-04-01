@@ -79,13 +79,21 @@ const AdminDashboard = () => {
         .limit(10);
       setRecentBookings(bookings ?? []);
 
-      // All users
+      // All users with roles
       const { data: users } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       setAllUsers(users ?? []);
+
+      // Fetch user roles
+      if (users && users.length > 0) {
+        const uids = users.map(u => u.user_id);
+        const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", uids);
+        const rMap = new Map((rolesData ?? []).map(r => [r.user_id, r.role]));
+        setUserRolesMap(rMap);
+      }
 
       // Violations
       const { data: viol } = await (supabase as any)
