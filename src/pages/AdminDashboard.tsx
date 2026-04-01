@@ -19,11 +19,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
+  const { user, roles: currentUserRoles } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
