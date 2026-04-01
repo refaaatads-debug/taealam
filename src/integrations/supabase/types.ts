@@ -422,6 +422,39 @@ export type Database = {
           },
         ]
       }
+      site_settings: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          key: string
+          label_ar: string | null
+          type: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          key: string
+          label_ar?: string | null
+          type?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          key?: string
+          label_ar?: string | null
+          type?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       student_badges: {
         Row: {
           badge_id: string
