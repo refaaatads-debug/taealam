@@ -129,10 +129,30 @@ const StudentDashboard = () => {
         filter: `student_id=eq.${user.id}`,
       }, () => {
         fetchData();
+        playSound();
+        toast.info("تم تحديث حجوزاتك! 📚");
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Realtime: listen for new notifications
+    const notifChannel = supabase
+      .channel("student-notifications-dashboard")
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        playSound();
+        const n = payload.new as any;
+        toast.info(n.title, { description: n.body });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(notifChannel);
+    };
   }, [user]);
 
   const displayName = profile?.full_name || "طالب";
