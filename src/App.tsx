@@ -20,6 +20,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Rating = lazy(() => import("./pages/Rating"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
