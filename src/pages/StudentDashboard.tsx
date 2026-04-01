@@ -4,6 +4,7 @@ import SmartMatchWidget from "@/components/SmartMatchWidget";
 import GamificationCard from "@/components/GamificationCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, ChevronLeft, Sparkles, MessageSquare, Gift, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
