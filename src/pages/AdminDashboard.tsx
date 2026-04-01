@@ -48,22 +48,74 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch counts
       const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
-        supabase.from("payment_records").select("amount").eq("status", "completed"),
+        supabase.from("payment_records").select("amount, created_at").eq("status", "completed"),
         (supabase as any).from("violations").select("id", { count: "exact", head: true }),
       ]);
 
-      const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
+      // Real bookings data for charts
+      const { data: allBookingsData } = await supabase.from("bookings").select("created_at, status, price");
+      
+      // Build monthly bookings chart
+      const monthMap = new Map<string, { bookings: number; revenue: number }>();
+      const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+      
+      (allBookingsData ?? []).forEach(b => {
+        const d = new Date(b.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
+        existing.bookings += 1;
+        existing.revenue += Number(b.price || 0);
+        monthMap.set(key, existing);
+      });
+
+      // Also add payment revenue
+      (paymentsRes.data ?? []).forEach((p: any) => {
+        const d = new Date(p.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
+        existing.revenue += Number(p.amount || 0);
+        monthMap.set(key, existing);
+      });
+
+      const sortedMonths = [...monthMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-6)
+        .map(([key, val]) => {
+          const monthIdx = parseInt(key.split("-")[1]);
+          return { name: arabicMonths[monthIdx], حجوزات: val.bookings, إيرادات: Math.round(val.revenue) };
+        });
+      setMonthlyBookings(sortedMonths);
+
+      // Booking status distribution
+      const statusCount = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+      (allBookingsData ?? []).forEach(b => {
+        if (b.status in statusCount) statusCount[b.status as keyof typeof statusCount]++;
+      });
+      setBookingStatusData([
+        { name: "معلقة", value: statusCount.pending },
+        { name: "مؤكدة", value: statusCount.confirmed },
+        { name: "مكتملة", value: statusCount.completed },
+        { name: "ملغاة", value: statusCount.cancelled },
+      ].filter(d => d.value > 0));
+
+      const revenue = (paymentsRes.data ?? []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const pendingCount = (allBookingsData ?? []).filter(b => b.status === "pending").length;
+      const completedCount = statusCount.completed;
+      const cancelledCount = statusCount.cancelled;
+
       setStats({
         users: profilesRes.count ?? 0,
         teachers: teachersRes.count ?? 0,
         bookings: bookingsRes.count ?? 0,
         revenue,
         violations: violationsRes.count ?? 0,
+        pendingTeachers: 0,
+        completedSessions: completedCount,
+        cancelledBookings: cancelledCount,
       });
 
       // Pending teachers
@@ -76,18 +128,33 @@ const AdminDashboard = () => {
 
       if (pendingRaw) {
         const userIds = pendingRaw.map(t => t.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds);
-        const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-        setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id) })));
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds);
+          const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+          setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id) })));
+        } else {
+          setPendingTeachers([]);
+        }
+        setStats(prev => ({ ...prev, pendingTeachers: pendingRaw.length }));
       }
 
-      // Recent bookings
+      // Recent bookings with user names
       const { data: bookings } = await supabase
         .from("bookings")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
-      setRecentBookings(bookings ?? []);
+      
+      if (bookings && bookings.length > 0) {
+        const studentIds = [...new Set(bookings.map(b => b.student_id))];
+        const teacherIds = [...new Set(bookings.map(b => b.teacher_id))];
+        const allIds = [...new Set([...studentIds, ...teacherIds])];
+        const { data: bProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", allIds);
+        const nameMap = new Map((bProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setRecentBookings(bookings.map(b => ({ ...b, student_name: nameMap.get(b.student_id) || "—", teacher_name: nameMap.get(b.teacher_id) || "—" })));
+      } else {
+        setRecentBookings([]);
+      }
 
       // All users with roles
       const { data: users } = await supabase
@@ -97,7 +164,6 @@ const AdminDashboard = () => {
         .limit(100);
       setAllUsers(users ?? []);
 
-      // Fetch user roles
       if (users && users.length > 0) {
         const uids = users.map(u => u.user_id);
         const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", uids);
@@ -113,9 +179,13 @@ const AdminDashboard = () => {
         .limit(50);
       if (viol) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
-        const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
-        const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
-        setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+        if (vUserIds.length > 0) {
+          const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
+          const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
+          setViolations(viol.map((v: any) => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+        } else {
+          setViolations([]);
+        }
       }
 
     } catch (e) {
