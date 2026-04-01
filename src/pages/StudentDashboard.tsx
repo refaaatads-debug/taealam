@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { Settings } from "lucide-react";
 
 const StudentDashboard = () => {
