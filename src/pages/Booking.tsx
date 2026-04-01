@@ -125,8 +125,26 @@ const Booking = () => {
         type: "booking",
       });
 
-      toast.success("تم إرسال طلب الحجز للمعلم!");
-      setStep(3);
+      // Redirect to Stripe Checkout for payment
+      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "";
+      const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke("create-session-checkout", {
+        body: {
+          booking_id: data.id,
+          amount: rate,
+          teacher_name: teacher?.full_name,
+          subject_name: subjectName,
+        },
+      });
+
+      if (checkoutError || !checkoutData?.url) {
+        // If payment fails, still show success for booking
+        toast.success("تم إرسال طلب الحجز! يمكنك الدفع لاحقاً.");
+        setStep(3);
+        return;
+      }
+
+      // Open Stripe Checkout
+      window.location.href = checkoutData.url;
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء الحجز");
     } finally {
