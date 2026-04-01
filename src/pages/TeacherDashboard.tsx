@@ -138,7 +138,13 @@ const TeacherDashboard = () => {
     toast.success(action === "confirmed" ? "تم قبول الحجز!" : "تم رفض الحجز");
 
     if (action === "confirmed") {
-      fetchData(); // Refresh schedule
+      // Send welcome chat message
+      await supabase.from("chat_messages").insert({
+        booking_id: booking.id,
+        sender_id: user!.id,
+        content: `مرحباً! تم قبول الحجز 🎉 أنا جاهز للحصة يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. لا تتردد في أي استفسار!`,
+      });
+      fetchData();
     }
   };
 
