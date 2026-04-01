@@ -65,6 +65,30 @@ const LiveSession = () => {
     setNewMessage("");
   };
 
+  const createZoomMeeting = async () => {
+    if (!bookingId) { toast.error("لا يوجد حجز محدد"); return; }
+    setZoomLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-zoom-meeting", {
+        body: { booking_id: bookingId },
+      });
+      if (error) throw error;
+      if (data?.meeting_link) {
+        setMeetingLink(data.meeting_link);
+        window.open(data.meeting_link, "_blank");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "خطأ في إنشاء اجتماع Zoom");
+    } finally {
+      setZoomLoading(false);
+    }
+  };
+
+  const joinZoom = () => {
+    if (meetingLink) window.open(meetingLink, "_blank");
+    else createZoomMeeting();
+  };
+
   const endSession = () => {
     clearInterval(timerRef.current);
     navigate("/rating");
