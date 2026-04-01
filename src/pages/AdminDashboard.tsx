@@ -214,6 +214,13 @@ const AdminDashboard = () => {
               <Clock className="h-4 w-4" />
               الحجوزات
             </TabsTrigger>
+            <TabsTrigger value="violations" className="rounded-lg gap-1.5">
+              <ShieldAlert className="h-4 w-4" />
+              المخالفات
+              {stats.violations > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{stats.violations}</Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
