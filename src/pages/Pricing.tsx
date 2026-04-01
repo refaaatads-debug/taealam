@@ -42,7 +42,7 @@ const Pricing = () => {
       const { data, error } = await supabase.functions.invoke("create-checkout", {
         body: {
           plan_id: plan.id,
-          success_url: `${window.location.origin}/student?payment=success`,
+          success_url: `${window.location.origin}/payment-success`,
           cancel_url: `${window.location.origin}/pricing?payment=cancelled`,
         },
       });
