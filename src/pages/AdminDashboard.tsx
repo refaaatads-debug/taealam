@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -20,10 +20,11 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accen
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0 });
+  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -35,11 +36,12 @@ const AdminDashboard = () => {
     setLoading(true);
     try {
       // Fetch counts
-      const [profilesRes, teachersRes, bookingsRes, paymentsRes] = await Promise.all([
+      const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
         supabase.from("payment_records").select("amount").eq("status", "completed"),
+        supabase.from("violations").select("id", { count: "exact", head: true }),
       ]);
 
       const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
@@ -48,6 +50,7 @@ const AdminDashboard = () => {
         teachers: teachersRes.count ?? 0,
         bookings: bookingsRes.count ?? 0,
         revenue,
+        violations: violationsRes.count ?? 0,
       });
 
       // Pending teachers
@@ -88,6 +91,19 @@ const AdminDashboard = () => {
         .order("created_at", { ascending: false })
         .limit(50);
       setAllUsers(users ?? []);
+
+      // Violations
+      const { data: viol } = await supabase
+        .from("violations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (viol) {
+        const vUserIds = [...new Set(viol.map(v => v.user_id))];
+        const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
+        const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+      }
 
     } catch (e) {
       console.error(e);
@@ -197,6 +213,13 @@ const AdminDashboard = () => {
             <TabsTrigger value="bookings" className="rounded-lg gap-1.5">
               <Clock className="h-4 w-4" />
               الحجوزات
+            </TabsTrigger>
+            <TabsTrigger value="violations" className="rounded-lg gap-1.5">
+              <ShieldAlert className="h-4 w-4" />
+              المخالفات
+              {stats.violations > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{stats.violations}</Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -352,6 +375,89 @@ const AdminDashboard = () => {
                         <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
                           {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
                         </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Violations Tab */}
+          <TabsContent value="violations" className="space-y-4">
+            <Card className="border-0 shadow-card">
+              <CardHeader>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-destructive" />
+                  المخالفات المكتشفة ({violations.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {violations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Shield className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                    <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
+                    <p className="text-sm text-muted-foreground">النظام يراقب المحادثات تلقائياً</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {violations.map((v: any) => (
+                      <div key={v.id} className={`p-4 rounded-xl border ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={`h-4 w-4 ${v.is_false_positive ? "text-muted-foreground" : "text-destructive"}`} />
+                            <span className="font-bold text-sm text-foreground">{v.user_name}</span>
+                            <Badge variant={v.is_false_positive ? "outline" : "destructive"} className="text-[10px]">
+                              {v.is_false_positive ? "إيجابي كاذب" : v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : "مخالفة"}
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(v.created_at).toLocaleDateString("ar-SA")} {new Date(v.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <p className="text-sm bg-muted/50 rounded-lg p-2 mb-2 text-foreground">{v.original_message || v.detected_text}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>المصدر: {v.source === "chat" ? "الدردشة" : v.source === "recording" ? "التسجيل" : v.source}</span>
+                            <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
+                          </div>
+                          <div className="flex gap-2">
+                            {!v.is_reviewed && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs h-7 rounded-lg"
+                                  onClick={async () => {
+                                    await supabase.from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                                    setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
+                                    toast.success("تم التحديد كإيجابي كاذب");
+                                  }}
+                                >
+                                  إيجابي كاذب
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="text-xs h-7 rounded-lg"
+                                  onClick={async () => {
+                                    await supabase.from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                                    setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
+                                    toast.success("تم تأكيد المخالفة");
+                                  }}
+                                >
+                                  تأكيد المخالفة
+                                </Button>
+                              </>
+                            )}
+                            {v.is_reviewed && (
+                              <Badge variant="outline" className="text-[10px]">
+                                <CheckCircle className="h-3 w-3 ml-1" />
+                                تمت المراجعة
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
