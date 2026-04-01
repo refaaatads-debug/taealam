@@ -52,13 +52,13 @@ describe("Booking Page", () => {
     expect(getByText("اختر مدرساً أولاً")).toBeInTheDocument();
   });
 
-  it("shows search link", async () => {
+  it("shows search button link", async () => {
     const Booking = (await import("@/pages/Booking")).default;
-    const { getByText } = render(
+    const { getAllByText } = render(
       <BrowserRouter>
         <Booking />
       </BrowserRouter>
     );
-    expect(getByText("ابحث عن مدرس")).toBeInTheDocument();
+    expect(getAllByText("ابحث عن مدرس").length).toBeGreaterThan(0);
   });
 });
