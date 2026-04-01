@@ -317,8 +317,21 @@ const Pricing = () => {
           </div>
         </motion.div>
 
+        {/* Payment Methods */}
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="mt-12 text-center">
+          <p className="text-sm text-muted-foreground mb-3">طرق الدفع المدعومة</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {["Visa", "Mastercard", "مدى", "Apple Pay"].map((method) => (
+              <div key={method} className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground">
+                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                {method}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
         {/* Bottom CTA */}
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mt-16 text-center">
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mt-10 text-center">
           <Card className="border-0 shadow-card overflow-hidden">
             <div className="gradient-hero p-8 md:p-12">
               <h3 className="text-2xl font-black text-primary-foreground mb-3">مستعد لبدء رحلتك التعليمية؟</h3>
