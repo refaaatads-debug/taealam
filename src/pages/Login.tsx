@@ -19,6 +19,7 @@ const roles: { id: Role; label: string; icon: typeof User; desc: string }[] = [
 ];
 
 const Login = () => {
+  const { user, roles, loading: authLoading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [showPass, setShowPass] = useState(false);
