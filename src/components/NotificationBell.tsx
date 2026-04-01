@@ -48,6 +48,7 @@ export default function NotificationBell() {
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
         (payload) => {
           setNotifications((prev) => [payload.new as Notification, ...prev.slice(0, 9)]);
+          playSound();
         }
       )
       .subscribe();
