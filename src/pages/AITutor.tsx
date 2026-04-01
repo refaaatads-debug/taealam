@@ -176,7 +176,6 @@ const AITutor = () => {
 };
 
 export default AITutor;
-import { Card, CardContent } from "@/components/ui/card";
 import { Brain, Send, Sparkles, BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
 
