@@ -18,6 +18,7 @@ import { Settings } from "lucide-react";
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
+  const { play: playSound } = useNotificationSound();
   const [stats, setStats] = useState({ bookings: 0, hours: 0, progress: 0, points: 0 });
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
