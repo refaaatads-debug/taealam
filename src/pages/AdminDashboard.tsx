@@ -41,7 +41,7 @@ const AdminDashboard = () => {
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
         supabase.from("payment_records").select("amount").eq("status", "completed"),
-        supabase.from("violations").select("id", { count: "exact", head: true }),
+        (supabase as any).from("violations").select("id", { count: "exact", head: true }),
       ]);
 
       const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
