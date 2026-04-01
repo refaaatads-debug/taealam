@@ -137,14 +137,20 @@ const Booking = () => {
       });
 
       if (checkoutError || !checkoutData?.url) {
-        // If payment fails, still show success for booking
         toast.success("تم إرسال طلب الحجز! يمكنك الدفع لاحقاً.");
         setStep(3);
         return;
       }
 
-      // Open Stripe Checkout
-      window.location.href = checkoutData.url;
+      // Open Stripe Checkout in new tab
+      toast.success("تم إنشاء الحجز! جاري فتح صفحة الدفع...");
+      const newWindow = window.open(checkoutData.url, "_blank");
+      if (!newWindow) {
+        // Popup blocked - fallback to showing link
+        toast.info("يرجى السماح بالنوافذ المنبثقة أو انقر الرابط", { duration: 10000 });
+        window.location.href = checkoutData.url;
+      }
+      setStep(3);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء الحجز");
     } finally {
