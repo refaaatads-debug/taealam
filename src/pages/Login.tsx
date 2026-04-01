@@ -43,7 +43,9 @@ const Login = () => {
     }
   }, [user, userRoles, authLoading, navigate]);
 
+  const redirectByRole = (userRole?: string) => {
     switch (userRole) {
+      case "admin": navigate("/admin"); break;
       case "teacher": navigate("/teacher"); break;
       case "parent": navigate("/parent"); break;
       default: navigate("/student");
