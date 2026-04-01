@@ -85,7 +85,7 @@ const AdminDashboard = () => {
       setAllUsers(users ?? []);
 
       // Violations
-      const { data: viol } = await supabase
+      const { data: viol } = await (supabase as any)
         .from("violations")
         .select("*")
         .order("created_at", { ascending: false })
