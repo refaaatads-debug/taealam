@@ -40,22 +40,20 @@ const Login = () => {
       if (!pendingRole) return;
       localStorage.removeItem("pending_role");
 
-      // Check if user already has a role
-      const { data: existing } = await supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1).single();
-      if (existing && existing.role !== "student") return; // already has a non-default role
-
-      if (pendingRole === "teacher" && (!existing || existing.role === "student")) {
-        // Update role to teacher via edge or direct update (trigger already set student)
-        // We need to update user metadata so the trigger logic can be re-evaluated
-        await supabase.auth.updateUser({ data: { role: pendingRole } });
-        // Directly update the role in user_roles since user just signed up
-        await supabase.from("user_roles").update({ role: pendingRole as any }).eq("user_id", user.id);
-        // Create teacher profile
-        await supabase.from("teacher_profiles").upsert({ user_id: user.id, hourly_rate: 0, is_approved: false }, { onConflict: "user_id" });
-        toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
-        // Refresh roles in context
-        window.location.href = "/teacher";
-        return;
+      if (pendingRole === "teacher") {
+        try {
+          // Use secure server-side function to update role
+          const { error } = await supabase.rpc("set_new_user_role", { _role: "teacher" });
+          if (error) {
+            console.log("Role update skipped:", error.message);
+          } else {
+            toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
+            window.location.href = "/teacher";
+            return;
+          }
+        } catch (e) {
+          console.error("Error setting role:", e);
+        }
       }
     };
     applyPendingRole();
