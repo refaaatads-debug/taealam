@@ -29,10 +29,13 @@ const Navbar = () => {
     { label: "ابحث عن مدرس", to: "/search" },
     { label: "الباقات", to: "/pricing" },
     ...(user ? [
-      ...(isStudent ? [{ label: "لوحة الطالب", to: "/student" }] : []),
-      ...(isTeacher ? [{ label: "لوحة المعلم", to: "/teacher" }] : []),
-      ...(isParent ? [{ label: "لوحة ولي الأمر", to: "/parent" }] : []),
-      ...(isAdmin ? [{ label: "لوحة التحكم", to: "/admin" }] : []),
+      ...(isAdmin
+        ? [{ label: "لوحة التحكم", to: "/admin" }]
+        : [
+            ...(isStudent ? [{ label: "لوحة الطالب", to: "/student" }] : []),
+            ...(isTeacher ? [{ label: "لوحة المعلم", to: "/teacher" }] : []),
+          ]
+      ),
     ] : []),
   ];
 
