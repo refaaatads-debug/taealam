@@ -41,7 +41,7 @@ const AdminDashboard = () => {
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
         supabase.from("payment_records").select("amount").eq("status", "completed"),
-        supabase.from("violations").select("id", { count: "exact", head: true }),
+        (supabase as any).from("violations").select("id", { count: "exact", head: true }),
       ]);
 
       const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
@@ -54,14 +54,6 @@ const AdminDashboard = () => {
       });
 
       // Pending teachers
-      const { data: pending } = await supabase
-        .from("teacher_profiles")
-        .select("*, profiles!teacher_profiles_user_id_fkey(full_name, avatar_url, phone)")
-        .eq("is_approved", false)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      // We can't use the FK join directly since there's no FK. Let's query separately.
       const { data: pendingRaw } = await supabase
         .from("teacher_profiles")
         .select("*")
@@ -93,13 +85,13 @@ const AdminDashboard = () => {
       setAllUsers(users ?? []);
 
       // Violations
-      const { data: viol } = await supabase
+      const { data: viol } = await (supabase as any)
         .from("violations")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50);
       if (viol) {
-        const vUserIds = [...new Set(viol.map(v => v.user_id))];
+        const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
         const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
         const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
         setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
@@ -429,7 +421,7 @@ const AdminDashboard = () => {
                                   variant="outline"
                                   className="text-xs h-7 rounded-lg"
                                   onClick={async () => {
-                                    await supabase.from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                                    await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
                                     setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
                                     toast.success("تم التحديد كإيجابي كاذب");
                                   }}
@@ -441,7 +433,7 @@ const AdminDashboard = () => {
                                   variant="destructive"
                                   className="text-xs h-7 rounded-lg"
                                   onClick={async () => {
-                                    await supabase.from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                                    await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
                                     setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
                                     toast.success("تم تأكيد المخالفة");
                                   }}

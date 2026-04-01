@@ -35,8 +35,8 @@ const LiveSession = () => {
   // Fetch meeting link from booking
   useEffect(() => {
     if (!bookingId) return;
-    supabase.from("bookings").select("meeting_link").eq("id", bookingId).single()
-      .then(({ data }) => {
+    (supabase as any).from("bookings").select("meeting_link").eq("id", bookingId).single()
+      .then(({ data }: any) => {
         if (data?.meeting_link) setMeetingLink(data.meeting_link);
       });
   }, [bookingId]);

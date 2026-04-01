@@ -16,19 +16,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get teachers with their subjects and profiles
+    // Get teachers
     let query = supabase
       .from("teacher_profiles")
-      .select(`
-        *,
-        profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
-        teacher_subjects!teacher_subjects_teacher_id_fkey(
-          subjects!teacher_subjects_subject_id_fkey(name)
-        )
-      `)
-      .eq("is_verified", true)
+      .select("*")
+      .eq("is_approved", true)
       .order("avg_rating", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (budget_max) {
       query = query.lte("hourly_rate", budget_max);
@@ -37,28 +31,48 @@ serve(async (req) => {
     const { data: teachers, error } = await query;
     if (error) throw error;
 
+    // Get profiles and subjects separately
+    const userIds = (teachers || []).map((t: any) => t.user_id);
+    const teacherIds = (teachers || []).map((t: any) => t.id);
+
+    const [profilesRes, subjectsRes] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
+      supabase.from("teacher_subjects").select("teacher_id, subject_id, subjects(name)").in("teacher_id", teacherIds),
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.user_id, p]));
+    const subjectMap = new Map<string, any[]>();
+    for (const ts of (subjectsRes.data ?? [])) {
+      if (!subjectMap.has(ts.teacher_id)) subjectMap.set(ts.teacher_id, []);
+      subjectMap.get(ts.teacher_id)!.push(ts);
+    }
+
     // Filter by subject if provided
     let filtered = teachers || [];
     if (subject) {
-      filtered = filtered.filter((t: any) =>
-        t.teacher_subjects?.some((ts: any) => ts.subjects?.name === subject)
-      );
+      filtered = filtered.filter((t: any) => {
+        const subs = subjectMap.get(t.id) || [];
+        return subs.some((ts: any) => ts.subjects?.name === subject);
+      });
     }
 
     // Score and rank teachers
     const scored = filtered.map((t: any) => {
       let score = 0;
-      score += (t.avg_rating || 0) * 20; // Max 100
-      score += Math.min((t.total_sessions || 0) / 10, 30); // Max 30 for experience
-      score += Math.min((t.total_reviews || 0) / 5, 20); // Max 20 for reviews
-      score += (t.years_experience || 0) * 2; // Experience bonus
+      score += (t.avg_rating || 0) * 20;
+      score += Math.min((t.total_sessions || 0) / 10, 30);
+      score += Math.min((t.total_reviews || 0) / 5, 20);
+      score += (t.years_experience || 0) * 2;
+
+      const profile = profileMap.get(t.user_id);
+      const subs = subjectMap.get(t.id) || [];
       
       return {
         id: t.id,
         user_id: t.user_id,
-        name: t.profiles?.full_name || "مدرس",
-        avatar_url: t.profiles?.avatar_url,
-        subject: t.teacher_subjects?.[0]?.subjects?.name || subject || "عام",
+        name: profile?.full_name || "مدرس",
+        avatar_url: profile?.avatar_url,
+        subject: subs[0]?.subjects?.name || subject || "عام",
         rating: t.avg_rating || 0,
         total_sessions: t.total_sessions || 0,
         total_reviews: t.total_reviews || 0,
