@@ -31,6 +31,10 @@ const AITutor = () => {
 
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
+    if (!checkRateLimit("ai-tutor", 15, 60000)) {
+      toast.error("تم تجاوز حد الطلبات، انتظر قليلاً");
+      return;
+    }
     const userMsg: Msg = { role: "user", content: text.trim() };
     const allMessages = [...messages, userMsg];
     setMessages(allMessages);
