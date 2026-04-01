@@ -36,11 +36,12 @@ const AdminDashboard = () => {
     setLoading(true);
     try {
       // Fetch counts
-      const [profilesRes, teachersRes, bookingsRes, paymentsRes] = await Promise.all([
+      const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
         supabase.from("payment_records").select("amount").eq("status", "completed"),
+        supabase.from("violations").select("id", { count: "exact", head: true }),
       ]);
 
       const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
@@ -49,6 +50,7 @@ const AdminDashboard = () => {
         teachers: teachersRes.count ?? 0,
         bookings: bookingsRes.count ?? 0,
         revenue,
+        violations: violationsRes.count ?? 0,
       });
 
       // Pending teachers
