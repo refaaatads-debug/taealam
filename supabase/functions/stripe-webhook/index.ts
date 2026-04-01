@@ -29,15 +29,59 @@ serve(async (req) => {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.user_id;
       const planId = session.metadata?.plan_id;
+      const bookingId = session.metadata?.booking_id;
       const sessionsCount = parseInt(session.metadata?.sessions_count ?? "0");
 
-      if (userId && planId) {
+      // Handle session booking payment
+      if (userId && bookingId) {
+        // Update booking status to confirmed
+        await adminClient.from("bookings")
+          .update({ status: "confirmed", session_status: "confirmed" })
+          .eq("id", bookingId);
+
         // Update payment record
         await adminClient.from("payment_records")
           .update({ status: "completed", stripe_payment_intent: session.payment_intent as string })
           .eq("stripe_session_id", session.id);
 
-        // Create/update subscription
+        // Notify student
+        await adminClient.from("notifications").insert({
+          user_id: userId,
+          title: "تم تأكيد حجزك! ✅",
+          body: "تم الدفع بنجاح وتم تأكيد حصتك. يمكنك الآن الانضمام للحصة في الموعد المحدد.",
+          type: "booking",
+        });
+
+        // Notify teacher
+        const { data: booking } = await adminClient.from("bookings")
+          .select("teacher_id, scheduled_at")
+          .eq("id", bookingId)
+          .single();
+
+        if (booking?.teacher_id) {
+          await adminClient.from("notifications").insert({
+            user_id: booking.teacher_id,
+            title: "حجز جديد مؤكد! 📚",
+            body: `لديك حصة جديدة مؤكدة بتاريخ ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
+            type: "booking",
+          });
+        }
+
+        await adminClient.from("system_logs").insert({
+          level: "info",
+          source: "stripe-webhook",
+          message: `Booking ${bookingId} confirmed for user ${userId}`,
+          metadata: { session_id: session.id, booking_id: bookingId, amount: session.amount_total },
+          user_id: userId,
+        });
+      }
+
+      // Handle subscription payment
+      if (userId && planId) {
+        await adminClient.from("payment_records")
+          .update({ status: "completed", stripe_payment_intent: session.payment_intent as string })
+          .eq("stripe_session_id", session.id);
+
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 30);
 
@@ -49,7 +93,6 @@ serve(async (req) => {
           is_active: true,
         });
 
-        // Notify user
         await adminClient.from("notifications").insert({
           user_id: userId,
           title: "تم تفعيل اشتراكك! 🎉",
@@ -57,7 +100,6 @@ serve(async (req) => {
           type: "payment",
         });
 
-        // Log
         await adminClient.from("system_logs").insert({
           level: "info",
           source: "stripe-webhook",
