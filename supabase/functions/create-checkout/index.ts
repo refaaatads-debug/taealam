@@ -70,6 +70,11 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
+      payment_method_options: {
+        card: {
+          setup_future_usage: "off_session",
+        },
+      },
       line_items: [{
         price_data: {
           currency: "sar",
