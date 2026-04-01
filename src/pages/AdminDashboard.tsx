@@ -295,7 +295,7 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto">
+          <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="rounded-lg gap-1.5">
               <BarChart3 className="h-4 w-4" />
               نظرة عامة
