@@ -28,6 +28,7 @@ const Pricing = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.from("subscription_plans").select("*").order("price").then(({ data }) => {
