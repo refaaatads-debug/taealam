@@ -57,9 +57,10 @@ serve(async (req) => {
     // Filter by subject if provided
     let filtered = teachers || [];
     if (subject) {
-      filtered = filtered.filter((t: any) =>
-        t.teacher_subjects?.some((ts: any) => ts.subjects?.name === subject)
-      );
+      filtered = filtered.filter((t: any) => {
+        const subs = subjectMap.get(t.id) || [];
+        return subs.some((ts: any) => ts.subjects?.name === subject);
+      });
     }
 
     // Score and rank teachers
