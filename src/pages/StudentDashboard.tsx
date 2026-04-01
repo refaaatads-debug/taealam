@@ -268,8 +268,11 @@ const StudentDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
-                            <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-4 w-4" /></Link>
+                          <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3" asChild>
+                            <Link to={`/chat?booking=${c.id}`}>
+                              <MessageSquare className="h-5 w-5" />
+                              <span className="text-xs font-medium">دردشة</span>
+                            </Link>
                           </Button>
                           {isToday && isConfirmed ? (
                             <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
