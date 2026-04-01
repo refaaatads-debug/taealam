@@ -77,23 +77,9 @@ const Login = () => {
         });
         if (error) throw error;
 
-        // If teacher role, show approval message
+        // Role is assigned automatically by DB trigger from metadata
         if (role === "teacher") {
-          // The default role trigger assigns 'student'. We need to update to 'teacher' and create teacher profile
-          if (data.user) {
-            // Update role to teacher (will be pending approval)
-            await supabase.from("user_roles").update({ role: "teacher" as any }).eq("user_id", data.user.id);
-            // Create teacher profile (unapproved by default)
-            await supabase.from("teacher_profiles").insert({
-              user_id: data.user.id,
-              hourly_rate: 0,
-              is_approved: false,
-            });
-          }
           toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
-        } else if (role === "parent" && data.user) {
-          await supabase.from("user_roles").update({ role: "parent" as any }).eq("user_id", data.user.id);
-          toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
         } else {
           toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
         }
