@@ -3,17 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock
+  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, ExternalLink, Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
+import { toast } from "sonner";
 
 const LiveSession = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get("booking");
   const [videoOn, setVideoOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
@@ -21,11 +24,22 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [meetingLink, setMeetingLink] = useState<string | null>(null);
+  const [zoomLoading, setZoomLoading] = useState(false);
   const [messages, setMessages] = useState([
     { sender: "أ. سارة", text: "أهلاً! جاهز نبدأ؟", time: "الآن", me: false },
   ]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
+
+  // Fetch meeting link from booking
+  useEffect(() => {
+    if (!bookingId) return;
+    supabase.from("bookings").select("meeting_link").eq("id", bookingId).single()
+      .then(({ data }) => {
+        if (data?.meeting_link) setMeetingLink(data.meeting_link);
+      });
+  }, [bookingId]);
 
   // Session timer
   useEffect(() => {
@@ -49,6 +63,30 @@ const LiveSession = () => {
       me: true,
     }]);
     setNewMessage("");
+  };
+
+  const createZoomMeeting = async () => {
+    if (!bookingId) { toast.error("لا يوجد حجز محدد"); return; }
+    setZoomLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-zoom-meeting", {
+        body: { booking_id: bookingId },
+      });
+      if (error) throw error;
+      if (data?.meeting_link) {
+        setMeetingLink(data.meeting_link);
+        window.open(data.meeting_link, "_blank");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "خطأ في إنشاء اجتماع Zoom");
+    } finally {
+      setZoomLoading(false);
+    }
+  };
+
+  const joinZoom = () => {
+    if (meetingLink) window.open(meetingLink, "_blank");
+    else createZoomMeeting();
   };
 
   const endSession = () => {
@@ -85,13 +123,25 @@ const LiveSession = () => {
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
         {/* Video Area */}
-        <div className={`flex-1 flex items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
+        <div className={`flex-1 flex flex-col items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           <div className="text-center text-primary-foreground">
             <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
               <Users className="h-14 w-14 text-primary-foreground/60" />
             </div>
             <p className="font-black text-xl mb-1">أ. سارة المحمدي</p>
-            <p className="text-sm opacity-60">الفيديو قيد التشغيل</p>
+            <p className="text-sm opacity-60 mb-4">الفيديو قيد التشغيل</p>
+            <Button
+              onClick={joinZoom}
+              disabled={zoomLoading}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 text-base font-bold shadow-lg"
+            >
+              {zoomLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin ml-2" />
+              ) : (
+                <ExternalLink className="h-5 w-5 ml-2" />
+              )}
+              {meetingLink ? "انضم عبر Zoom" : "إنشاء اجتماع Zoom"}
+            </Button>
           </div>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
             <div className="text-center">
