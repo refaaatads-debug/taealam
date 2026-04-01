@@ -657,6 +657,16 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Plans Tab */}
+          <TabsContent value="plans" className="space-y-4">
+            <PlansManagementTab />
+          </TabsContent>
+
+          {/* Site Content Tab */}
+          <TabsContent value="site" className="space-y-4">
+            <SiteSettingsTab />
+          </TabsContent>
         </Tabs>
       </div>
       <BottomNav />
