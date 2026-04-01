@@ -12,6 +12,8 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Settings } from "lucide-react";
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
@@ -19,8 +21,10 @@ const StudentDashboard = () => {
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
+  const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -97,6 +101,17 @@ const StudentDashboard = () => {
         .eq("user_id", user.id)
         .single();
       setFreeTrialAvailable(!profileData?.free_trial_used);
+
+      // Check Stripe subscription status
+      try {
+        const { data: stripeSub } = await supabase.functions.invoke("check-subscription");
+        if (stripeSub && !stripeSub.error) {
+          setStripeSubscription(stripeSub);
+        }
+      } catch (e) {
+        console.log("Could not check stripe subscription");
+      }
+
       setLoading(false);
     };
 
@@ -267,26 +282,58 @@ const StudentDashboard = () => {
             </Card>
 
             {/* Subscription Info */}
-            {subscription && (
+            {(subscription || stripeSubscription?.subscribed) && (
               <Card className="border-0 shadow-card">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-bold text-sm text-foreground">باقتي</span>
-                    <span className="text-xs text-secondary font-bold">{(subscription as any).subscription_plans?.name_ar}</span>
+                    <Badge className="bg-secondary/10 text-secondary border-0 text-xs">
+                      {stripeSubscription?.tier === "premium" ? "احترافية" : stripeSubscription?.tier === "standard" ? "متقدمة" : stripeSubscription?.tier === "basic" ? "أساسية" : (subscription as any)?.subscription_plans?.name_ar || "نشط"}
+                    </Badge>
                   </div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">الحصص المتبقية</span>
-                    <span className="font-black text-foreground">{subscription.sessions_remaining}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">تنتهي في</span>
-                    <span className="font-bold text-foreground">{new Date(subscription.ends_at).toLocaleDateString("ar-SA")}</span>
-                  </div>
-                  {subscription.sessions_remaining <= 2 && (
-                    <Button className="w-full mt-3 gradient-cta text-secondary-foreground rounded-xl" asChild>
-                      <Link to="/pricing">جدّد اشتراكك</Link>
-                    </Button>
+                  {subscription && (
+                    <>
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="text-muted-foreground">الحصص المتبقية</span>
+                        <span className="font-black text-foreground">{subscription.sessions_remaining}</span>
+                      </div>
+                    </>
                   )}
+                  {stripeSubscription?.subscription_end && (
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">ينتهي في</span>
+                      <span className="font-bold text-foreground">{new Date(stripeSubscription.subscription_end).toLocaleDateString("ar-SA")}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    {subscription?.sessions_remaining <= 2 && (
+                      <Button className="flex-1 gradient-cta text-secondary-foreground rounded-xl" size="sm" asChild>
+                        <Link to="/pricing">جدّد اشتراكك</Link>
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 rounded-xl"
+                      disabled={portalLoading}
+                      onClick={async () => {
+                        setPortalLoading(true);
+                        try {
+                          const { data, error } = await supabase.functions.invoke("customer-portal");
+                          if (error) throw error;
+                          if (data?.url) window.open(data.url, "_blank");
+                          else throw new Error("لم يتم إنشاء الرابط");
+                        } catch (e: any) {
+                          toast.error(e.message || "حدث خطأ");
+                        } finally {
+                          setPortalLoading(false);
+                        }
+                      }}
+                    >
+                      <Settings className="h-4 w-4 ml-1" />
+                      {portalLoading ? "جاري..." : "إدارة الاشتراك"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
