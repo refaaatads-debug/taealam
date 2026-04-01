@@ -20,6 +20,7 @@ interface ChatMessage {
 
 const Chat = () => {
   const { user } = useAuth();
+  const { play: playNotificationSound } = useNotificationSound();
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
