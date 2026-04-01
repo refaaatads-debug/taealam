@@ -108,6 +108,24 @@ const Pricing = () => {
         </motion.div>
 
         {/* Plans Grid */}
+        {loading ? (
+          <div className="grid md:grid-cols-3 gap-5 md:gap-6 mb-16">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="border-0 shadow-card">
+                <CardContent className="p-6 space-y-4">
+                  <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />
+                  <Skeleton className="h-6 w-24 mx-auto" />
+                  <Skeleton className="h-10 w-20 mx-auto" />
+                  <Skeleton className="h-3 w-32 mx-auto" />
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <Skeleton key={j} className="h-4 w-full" />
+                  ))}
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
         <div className="grid md:grid-cols-3 gap-5 md:gap-6 mb-16">
           {plans.map((plan, i) => {
             const Icon = tierIcons[plan.tier] || Star;
