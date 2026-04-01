@@ -301,8 +301,11 @@ const TeacherDashboard = () => {
             </CardContent>
           </Card>
 
+          {/* Schedule & Pricing Manager */}
+          <SchedulePricingManager />
+
           {/* Performance */}
-          <Card className="border-0 shadow-card lg:col-span-2">
+          <Card className="border-0 shadow-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 font-bold">
                 <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
