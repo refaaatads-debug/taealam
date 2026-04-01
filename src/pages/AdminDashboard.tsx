@@ -54,14 +54,6 @@ const AdminDashboard = () => {
       });
 
       // Pending teachers
-      const { data: pending } = await supabase
-        .from("teacher_profiles")
-        .select("*, profiles!teacher_profiles_user_id_fkey(full_name, avatar_url, phone)")
-        .eq("is_approved", false)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      // We can't use the FK join directly since there's no FK. Let's query separately.
       const { data: pendingRaw } = await supabase
         .from("teacher_profiles")
         .select("*")
