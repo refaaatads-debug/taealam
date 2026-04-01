@@ -30,6 +30,12 @@ const AdminDashboard = () => {
   const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  // Verify admin access
+  useEffect(() => {
+    if (!currentUserRoles.includes("admin")) {
+      navigate("/login");
+    }
+  }, [currentUserRoles, navigate]);
 
   useEffect(() => {
     fetchData();
