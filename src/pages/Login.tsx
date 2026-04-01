@@ -32,9 +32,38 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
 
+  // After OAuth callback, assign saved role if user is new
+  useEffect(() => {
+    const applyPendingRole = async () => {
+      if (!user) return;
+      const pendingRole = localStorage.getItem("pending_role");
+      if (!pendingRole) return;
+      localStorage.removeItem("pending_role");
+
+      if (pendingRole === "teacher") {
+        try {
+          // Use secure server-side function to update role
+          const { error } = await supabase.rpc("set_new_user_role", { _role: "teacher" });
+          if (error) {
+            console.log("Role update skipped:", error.message);
+          } else {
+            toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
+            window.location.href = "/teacher";
+            return;
+          }
+        } catch (e) {
+          console.error("Error setting role:", e);
+        }
+      }
+    };
+    applyPendingRole();
+  }, [user]);
+
   // Auto-redirect if already logged in
   useEffect(() => {
     if (!authLoading && user && userRoles.length > 0) {
+      // Don't redirect if there's a pending role being applied
+      if (localStorage.getItem("pending_role")) return;
       if (userRoles.includes("admin")) navigate("/admin");
       else if (userRoles.includes("teacher")) navigate("/teacher");
       else if (userRoles.includes("parent")) navigate("/parent");
@@ -118,6 +147,10 @@ const Login = () => {
   const handleSocialLogin = async (provider: "google" | "apple") => {
     setLoading(true);
     try {
+      // Save selected role before OAuth redirect (for new users)
+      if (!isLogin) {
+        localStorage.setItem("pending_role", role);
+      }
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: `${window.location.origin}/login`,
       });
