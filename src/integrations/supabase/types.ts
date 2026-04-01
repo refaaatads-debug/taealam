@@ -52,6 +52,7 @@ export type Database = {
           notes: string | null
           price: number | null
           scheduled_at: string
+          session_status: string | null
           status: Database["public"]["Enums"]["booking_status"]
           student_id: string
           subject_id: string | null
@@ -67,6 +68,7 @@ export type Database = {
           notes?: string | null
           price?: number | null
           scheduled_at: string
+          session_status?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           student_id: string
           subject_id?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           notes?: string | null
           price?: number | null
           scheduled_at?: string
+          session_status?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           student_id?: string
           subject_id?: string | null
@@ -197,27 +200,45 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          free_trial_used: boolean | null
           full_name: string
           id: string
+          level: string | null
+          notify_after_session: boolean | null
+          notify_before_session: boolean | null
+          notify_subscription_expiry: boolean | null
           phone: string | null
+          referral_code: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          free_trial_used?: boolean | null
           full_name?: string
           id?: string
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
           phone?: string | null
+          referral_code?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          free_trial_used?: boolean | null
           full_name?: string
           id?: string
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
           phone?: string | null
+          referral_code?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -263,8 +284,10 @@ export type Database = {
       }
       sessions: {
         Row: {
+          ai_report: string | null
           booking_id: string
           created_at: string
+          duration_minutes: number | null
           ended_at: string | null
           id: string
           recording_url: string | null
@@ -272,8 +295,10 @@ export type Database = {
           started_at: string | null
         }
         Insert: {
+          ai_report?: string | null
           booking_id: string
           created_at?: string
+          duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           recording_url?: string | null
@@ -281,8 +306,10 @@ export type Database = {
           started_at?: string | null
         }
         Update: {
+          ai_report?: string | null
           booking_id?: string
           created_at?: string
+          duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           recording_url?: string | null
@@ -327,6 +354,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      student_levels: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          max_points: number
+          min_points: number
+          name: string
+          name_ar: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          max_points: number
+          min_points?: number
+          name: string
+          name_ar: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          max_points?: number
+          min_points?: number
+          name?: string
+          name_ar?: string
+        }
+        Relationships: []
       }
       student_points: {
         Row: {
@@ -563,6 +623,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_warnings: {
+        Row: {
+          banned_until: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_banned: boolean | null
+          user_id: string
+          warning_count: number
+          warning_type: string
+        }
+        Insert: {
+          banned_until?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_banned?: boolean | null
+          user_id: string
+          warning_count?: number
+          warning_type?: string
+        }
+        Update: {
+          banned_until?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_banned?: boolean | null
+          user_id?: string
+          warning_count?: number
+          warning_type?: string
+        }
+        Relationships: []
       }
     }
     Views: {
