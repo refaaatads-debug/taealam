@@ -542,8 +542,13 @@ const AdminDashboard = () => {
                     {recentBookings.map((b) => (
                       <div key={b.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
                         <div>
-                          <p className="font-medium text-sm text-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</p>
-                          <p className="text-xs text-muted-foreground">{b.duration_minutes} دقيقة</p>
+                          <p className="font-medium text-sm text-foreground">
+                            {b.student_name} ← {b.teacher_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(b.scheduled_at).toLocaleDateString("ar-SA")} • {b.duration_minutes} دقيقة
+                            {b.price ? ` • ${b.price} ر.س` : ""}
+                          </p>
                         </div>
                         <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
                           {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
