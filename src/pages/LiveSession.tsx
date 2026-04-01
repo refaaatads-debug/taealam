@@ -54,15 +54,31 @@ const LiveSession = () => {
     return `${h}:${m}:${sec}`;
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!newMessage.trim()) return;
+    const msgText = newMessage;
     setMessages((prev) => [...prev, {
       sender: "أنت",
-      text: newMessage,
+      text: msgText,
       time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
       me: true,
     }]);
     setNewMessage("");
+
+    // Analyze message for violations in background
+    if (bookingId && user) {
+      supabase.functions.invoke("analyze-violations", {
+        body: {
+          messages: [{ text: msgText, sender_id: user.id }],
+          booking_id: bookingId,
+          source: "chat",
+        },
+      }).then(({ data }) => {
+        if (data?.violations_found > 0) {
+          toast.warning("⚠️ تم رصد محتوى مخالف. تجنب مشاركة معلومات اتصال خارجية.");
+        }
+      }).catch(() => {});
+    }
   };
 
   const createZoomMeeting = async () => {
