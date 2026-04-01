@@ -16,13 +16,19 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient() });
 
-    const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization") ?? "";
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "غير مصرح" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get("SUPABASE_ANON_KEY")!
     );
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "غير مصرح" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
