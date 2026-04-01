@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, DollarSign, Users, Clock, CheckCircle, XCircle, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
+import SchedulePricingManager from "@/components/teacher/SchedulePricingManager";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
