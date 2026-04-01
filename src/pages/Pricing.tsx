@@ -33,6 +33,7 @@ const Pricing = () => {
   useEffect(() => {
     supabase.from("subscription_plans").select("*").order("price").then(({ data }) => {
       if (data) setPlans(data);
+      setLoading(false);
     });
   }, []);
 
