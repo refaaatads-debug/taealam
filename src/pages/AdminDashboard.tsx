@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,21 +13,30 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
+  const { user, roles: currentUserRoles } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  // Verify admin access
+  useEffect(() => {
+    if (!currentUserRoles.includes("admin")) {
+      navigate("/login");
+    }
+  }, [currentUserRoles, navigate]);
 
   useEffect(() => {
     fetchData();
@@ -76,13 +86,21 @@ const AdminDashboard = () => {
         .limit(10);
       setRecentBookings(bookings ?? []);
 
-      // All users
+      // All users with roles
       const { data: users } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       setAllUsers(users ?? []);
+
+      // Fetch user roles
+      if (users && users.length > 0) {
+        const uids = users.map(u => u.user_id);
+        const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", uids);
+        const rMap = new Map((rolesData ?? []).map(r => [r.user_id, r.role]));
+        setUserRolesMap(rMap);
+      }
 
       // Violations
       const { data: viol } = await (supabase as any)
@@ -120,6 +138,25 @@ const AdminDashboard = () => {
     await supabase.from("user_roles").update({ role: "student" as any }).eq("user_id", userId);
     toast.success("تم رفض طلب المعلم");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
+  };
+
+  const changeUserRole = async (userId: string, newRole: string) => {
+    const { error } = await supabase.from("user_roles").update({ role: newRole as any }).eq("user_id", userId);
+    if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
+    setUserRolesMap(prev => new Map(prev).set(userId, newRole));
+    if (newRole === "teacher") {
+      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true }, { onConflict: "user_id" });
+    }
+    toast.success("تم تغيير الدور بنجاح");
+  };
+
+  const deleteUser = async (userId: string) => {
+    // Remove from profiles and user_roles (cascading handled by DB)
+    await supabase.from("user_roles").delete().eq("user_id", userId);
+    await supabase.from("teacher_profiles").delete().eq("user_id", userId);
+    await supabase.from("profiles").delete().eq("user_id", userId);
+    setAllUsers(prev => prev.filter(u => u.user_id !== userId));
+    toast.success("تم حذف بيانات المستخدم");
   };
 
   const chartData = [
@@ -306,7 +343,7 @@ const AdminDashboard = () => {
             <Card className="border-0 shadow-card">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-bold">المستخدمين</CardTitle>
+                  <CardTitle className="text-base font-bold">إدارة المستخدمين ({filteredUsers.length})</CardTitle>
                   <div className="relative w-64">
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -325,21 +362,59 @@ const AdminDashboard = () => {
                       <tr className="border-b text-muted-foreground">
                         <th className="text-right pb-3 font-medium">الاسم</th>
                         <th className="text-right pb-3 font-medium">الهاتف</th>
+                        <th className="text-right pb-3 font-medium">الدور</th>
                         <th className="text-right pb-3 font-medium">المستوى</th>
                         <th className="text-right pb-3 font-medium">التسجيل</th>
+                        <th className="text-right pb-3 font-medium">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {filteredUsers.map((u) => (
-                        <tr key={u.id} className="hover:bg-muted/30">
-                          <td className="py-3 font-medium text-foreground">{u.full_name || "—"}</td>
-                          <td className="py-3 text-muted-foreground" dir="ltr">{u.phone || "—"}</td>
-                          <td className="py-3">
-                            <Badge variant="outline" className="text-xs">{u.level || "bronze"}</Badge>
-                          </td>
-                          <td className="py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ar-SA")}</td>
-                        </tr>
-                      ))}
+                      {filteredUsers.map((u) => {
+                        const userRole = userRolesMap.get(u.user_id) || "student";
+                        const isCurrentUser = u.user_id === user?.id;
+                        return (
+                          <tr key={u.id} className="hover:bg-muted/30">
+                            <td className="py-3 font-medium text-foreground">{u.full_name || "—"}</td>
+                            <td className="py-3 text-muted-foreground" dir="ltr">{u.phone || "—"}</td>
+                            <td className="py-3">
+                              <Select
+                                value={userRole}
+                                onValueChange={(val) => changeUserRole(u.user_id, val)}
+                                disabled={isCurrentUser}
+                              >
+                                <SelectTrigger className="h-8 w-28 text-xs rounded-lg">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="student">طالب</SelectItem>
+                                  <SelectItem value="teacher">معلم</SelectItem>
+                                  <SelectItem value="admin">مسؤول</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="py-3">
+                              <Badge variant="outline" className="text-xs">{u.level || "bronze"}</Badge>
+                            </td>
+                            <td className="py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ar-SA")}</td>
+                            <td className="py-3">
+                              {!isCurrentUser && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    if (window.confirm(`هل أنت متأكد من حذف بيانات ${u.full_name}؟`)) {
+                                      deleteUser(u.user_id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
