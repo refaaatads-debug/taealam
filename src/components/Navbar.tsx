@@ -4,6 +4,7 @@ import { Menu, X, GraduationCap, User, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import NotificationBell from "@/components/NotificationBell";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -59,6 +60,7 @@ const Navbar = () => {
           <Button variant="ghost" size="icon" className="rounded-xl" asChild>
             <Link to="/search"><Search className="h-4 w-4" /></Link>
           </Button>
+          <NotificationBell />
           {user ? (
             <>
               <Button variant="ghost" size="icon" className="rounded-xl" asChild>
