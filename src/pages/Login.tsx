@@ -33,7 +33,16 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
 
-  const redirectByRole = (userRole?: string) => {
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && userRoles.length > 0) {
+      if (userRoles.includes("admin")) navigate("/admin");
+      else if (userRoles.includes("teacher")) navigate("/teacher");
+      else if (userRoles.includes("parent")) navigate("/parent");
+      else navigate("/student");
+    }
+  }, [user, userRoles, authLoading, navigate]);
+
     switch (userRole) {
       case "teacher": navigate("/teacher"); break;
       case "parent": navigate("/parent"); break;
