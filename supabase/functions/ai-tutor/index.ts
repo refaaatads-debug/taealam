@@ -1,15 +1,66 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Simple in-memory rate limiter per user
+const userRequests = new Map<string, number[]>();
+const RATE_LIMIT = 20; // max requests per minute
+const WINDOW_MS = 60_000;
+
+function checkRate(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = (userRequests.get(userId) ?? []).filter((t) => now - t < WINDOW_MS);
+  if (timestamps.length >= RATE_LIMIT) return false;
+  timestamps.push(now);
+  userRequests.set(userId, timestamps);
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages } = await req.json();
+    const { messages, conversation_id } = await req.json();
+
+    // Extract user from JWT
+    const authHeader = req.headers.get("authorization") ?? "";
+    let userId: string | null = null;
+
+    if (authHeader) {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { authorization: authHeader } } }
+      );
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+
+      // Rate limit authenticated users
+      if (userId && !checkRate(userId)) {
+        return new Response(JSON.stringify({ error: "تم تجاوز حد الطلبات، حاول بعد دقيقة" }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Save conversation if authenticated
+      if (userId && conversation_id) {
+        const adminClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        await adminClient.from("ai_conversations").upsert({
+          id: conversation_id,
+          user_id: userId,
+          messages: messages,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+      }
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -20,7 +71,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -52,6 +103,22 @@ serve(async (req) => {
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
+
+      // Log error
+      try {
+        const adminClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        await adminClient.from("system_logs").insert({
+          level: "error",
+          source: "ai-tutor",
+          message: `AI gateway error: ${response.status}`,
+          metadata: { body: t.substring(0, 500) },
+          user_id: userId,
+        });
+      } catch {}
+
       return new Response(JSON.stringify({ error: "خطأ في الاتصال بالذكاء الاصطناعي" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
