@@ -280,11 +280,16 @@ const TeacherDashboard = () => {
                           </p>
                         </div>
                       </div>
-                      {isToday && (
-                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                          <Link to="/session">ابدأ الحصة</Link>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
+                          <Link to={`/chat?booking=${s.id}`}><MessageSquare className="h-4 w-4" /></Link>
                         </Button>
-                      )}
+                        {isToday && (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                            <Link to="/session">ابدأ الحصة</Link>
+                          </Button>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })

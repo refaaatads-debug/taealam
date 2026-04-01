@@ -267,13 +267,20 @@ const StudentDashboard = () => {
                             {isPending && <p className="text-xs text-amber-600 font-semibold mt-0.5">⏳ في انتظار موافقة المعلم</p>}
                           </div>
                         </div>
-                        {isToday && isConfirmed ? (
-                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
-                            <Link to="/session">انضم الآن</Link>
-                          </Button>
-                        ) : isConfirmed ? (
-                          <Badge className="bg-secondary/10 text-secondary border-0 text-xs">مؤكدة ✓</Badge>
-                        ) : null}
+                        <div className="flex items-center gap-2">
+                          {isConfirmed && (
+                            <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
+                              <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-4 w-4" /></Link>
+                            </Button>
+                          )}
+                          {isToday && isConfirmed ? (
+                            <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
+                              <Link to="/session">انضم الآن</Link>
+                            </Button>
+                          ) : isConfirmed ? (
+                            <Badge className="bg-secondary/10 text-secondary border-0 text-xs">مؤكدة ✓</Badge>
+                          ) : null}
+                        </div>
                       </motion.div>
                     );
                   })
