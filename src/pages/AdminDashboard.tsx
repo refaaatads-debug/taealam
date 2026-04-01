@@ -433,7 +433,7 @@ const AdminDashboard = () => {
                                   variant="destructive"
                                   className="text-xs h-7 rounded-lg"
                                   onClick={async () => {
-                                    await supabase.from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                                    await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
                                     setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
                                     toast.success("تم تأكيد المخالفة");
                                   }}
