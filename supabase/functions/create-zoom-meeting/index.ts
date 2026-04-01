@@ -70,7 +70,7 @@ serve(async (req) => {
 
     const { data: booking } = await adminClient
       .from("bookings")
-      .select("*, profiles!bookings_student_id_fkey(full_name)")
+      .select("*")
       .eq("id", booking_id)
       .single();
 
