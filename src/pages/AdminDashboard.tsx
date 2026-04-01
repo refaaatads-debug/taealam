@@ -232,15 +232,8 @@ const AdminDashboard = () => {
     toast.success("تم حذف بيانات المستخدم");
   };
 
-  const chartData = [
-    { name: "يناير", حجوزات: 12, إيرادات: 2400 },
-    { name: "فبراير", حجوزات: 19, إيرادات: 3800 },
-    { name: "مارس", حجوزات: 28, إيرادات: 5600 },
-    { name: "أبريل", حجوزات: 35, إيرادات: 7000 },
-  ];
-
   const pieData = [
-    { name: "طلاب", value: stats.users - stats.teachers },
+    { name: "طلاب", value: Math.max(0, stats.users - stats.teachers) },
     { name: "معلمين", value: stats.teachers },
   ];
 
