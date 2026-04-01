@@ -9,7 +9,7 @@ import { CheckCircle, Star, Sparkles, Crown } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 
 const tierIcons: Record<string, typeof Star> = { basic: Star, standard: Sparkles, premium: Crown };
