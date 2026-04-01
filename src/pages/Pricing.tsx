@@ -139,10 +139,13 @@ const Pricing = () => {
 
                     <Button
                       onClick={() => handleSubscribe(plan)}
+                      disabled={checkoutLoading === plan.id}
                       className={`w-full h-12 rounded-xl font-bold ${isPopular ? "gradient-cta text-secondary-foreground shadow-button" : ""}`}
                       variant={isPopular ? "default" : "outline"}
                     >
-                      اشترك الآن
+                      {checkoutLoading === plan.id ? (
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : "اشترك الآن"}
                     </Button>
                   </CardContent>
                 </Card>
