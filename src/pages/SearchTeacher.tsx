@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,38 +6,109 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
-import teacher1 from "@/assets/teacher-1.jpg";
-import teacher2 from "@/assets/teacher-2.jpg";
-import teacher3 from "@/assets/teacher-3.jpg";
-import teacher4 from "@/assets/teacher-4.jpg";
-import teacher5 from "@/assets/teacher-5.jpg";
-import teacher6 from "@/assets/teacher-6.jpg";
-
-const allTeachers = [
-  { id: 1, name: "أ. سارة المحمدي", subject: "رياضيات", rating: 4.9, students: 320, price: 80, bio: "خبرة 8 سنوات في تدريس الرياضيات للمرحلة الثانوية", verified: true, available: true, img: teacher1 },
-  { id: 2, name: "أ. خالد العتيبي", subject: "فيزياء", rating: 4.8, students: 280, price: 90, bio: "حاصل على ماجستير فيزياء من جامعة الملك سعود", verified: true, available: true, img: teacher2 },
-  { id: 3, name: "أ. نورة الشهري", subject: "إنجليزي", rating: 4.9, students: 410, price: 70, bio: "معتمدة من IELTS مع خبرة 10 سنوات", verified: true, available: false, img: teacher3 },
-  { id: 4, name: "أ. أحمد الحربي", subject: "كيمياء", rating: 4.7, students: 195, price: 85, bio: "متخصص في الكيمياء العضوية والتحليلية", verified: true, available: true, img: teacher4 },
-  { id: 5, name: "أ. فاطمة العمري", subject: "عربي", rating: 4.8, students: 250, price: 65, bio: "متخصصة في النحو والصرف والبلاغة", verified: false, available: true, img: teacher5 },
-  { id: 6, name: "أ. عمر السبيعي", subject: "رياضيات", rating: 4.6, students: 180, price: 75, bio: "خبير في القدرات والتحصيلي", verified: true, available: true, img: teacher6 },
-];
+interface TeacherResult {
+  id: string;
+  user_id: string;
+  bio: string | null;
+  hourly_rate: number;
+  avg_rating: number;
+  total_sessions: number;
+  total_reviews: number;
+  is_verified: boolean;
+  years_experience: number;
+  available_from: string | null;
+  available_to: string | null;
+  profile?: { full_name: string; avatar_url: string | null };
+  subjects: string[];
+}
 
 const SearchTeacher = () => {
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("all");
   const [sort, setSort] = useState("rating");
+  const [teachers, setTeachers] = useState<TeacherResult[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = allTeachers
+  useEffect(() => {
+    fetchTeachers();
+    fetchSubjects();
+  }, []);
+
+  const fetchSubjects = async () => {
+    const { data } = await supabase.from("subjects").select("id, name").order("name");
+    if (data) setSubjects(data);
+  };
+
+  const fetchTeachers = async () => {
+    setLoading(true);
+    // Fetch approved teachers
+    const { data: teacherProfiles } = await supabase
+      .from("teacher_profiles")
+      .select("*")
+      .eq("is_approved", true)
+      .order("avg_rating", { ascending: false });
+
+    if (!teacherProfiles) { setLoading(false); return; }
+
+    // Fetch profiles for those teachers
+    const userIds = teacherProfiles.map(t => t.user_id);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, avatar_url")
+      .in("user_id", userIds);
+    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+
+    // Fetch teacher subjects
+    const teacherIds = teacherProfiles.map(t => t.id);
+    const { data: teacherSubjects } = await supabase
+      .from("teacher_subjects")
+      .select("teacher_id, subjects(name)")
+      .in("teacher_id", teacherIds);
+
+    const subjectMap = new Map<string, string[]>();
+    (teacherSubjects ?? []).forEach((ts: any) => {
+      const existing = subjectMap.get(ts.teacher_id) || [];
+      if (ts.subjects?.name) existing.push(ts.subjects.name);
+      subjectMap.set(ts.teacher_id, existing);
+    });
+
+    const result: TeacherResult[] = teacherProfiles.map(t => ({
+      ...t,
+      avg_rating: Number(t.avg_rating) || 0,
+      total_sessions: t.total_sessions || 0,
+      total_reviews: t.total_reviews || 0,
+      is_verified: t.is_verified || false,
+      years_experience: t.years_experience || 0,
+      profile: profileMap.get(t.user_id) || { full_name: "معلم", avatar_url: null },
+      subjects: subjectMap.get(t.id) || [],
+    }));
+
+    setTeachers(result);
+    setLoading(false);
+  };
+
+  const filtered = teachers
     .filter((t) => {
-      const matchSearch = t.name.includes(search) || t.subject.includes(search);
-      const matchSubject = subject === "all" || t.subject === subject;
+      const name = t.profile?.full_name || "";
+      const matchSearch = name.includes(search) || t.subjects.some(s => s.includes(search));
+      const matchSubject = subject === "all" || t.subjects.includes(subject);
       return matchSearch && matchSubject;
     })
-    .sort((a, b) => sort === "rating" ? b.rating - a.rating : a.price - b.price);
+    .sort((a, b) => sort === "rating" ? b.avg_rating - a.avg_rating : a.hourly_rate - b.hourly_rate);
+
+  const isAvailableNow = (t: TeacherResult) => {
+    if (!t.available_from || !t.available_to) return false;
+    const now = new Date();
+    const h = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
+    return h >= t.available_from && h <= t.available_to;
+  };
 
   return (
     <div className="min-h-screen flex flex-col pb-16 md:pb-0">
@@ -50,7 +121,7 @@ const SearchTeacher = () => {
         <div className="container relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-foreground mb-2">ابحث عن مدرسك المثالي</h1>
-            <p className="text-primary-foreground/70 mb-5 md:mb-6 text-sm md:text-base">أكثر من 500 مدرس معتمد في أكثر من 50 مادة</p>
+            <p className="text-primary-foreground/70 mb-5 md:mb-6 text-sm md:text-base">أكثر من {teachers.length} مدرس معتمد</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
@@ -69,11 +140,9 @@ const SearchTeacher = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع المواد</SelectItem>
-                  <SelectItem value="رياضيات">رياضيات</SelectItem>
-                  <SelectItem value="فيزياء">فيزياء</SelectItem>
-                  <SelectItem value="كيمياء">كيمياء</SelectItem>
-                  <SelectItem value="إنجليزي">إنجليزي</SelectItem>
-                  <SelectItem value="عربي">عربي</SelectItem>
+                  {subjects.map(s => (
+                    <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={sort} onValueChange={setSort}>
@@ -95,62 +164,88 @@ const SearchTeacher = () => {
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <p className="text-muted-foreground font-medium text-sm md:text-base">{filtered.length} مدرس متاح</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {filtered.map((t, i) => (
-            <motion.div key={t.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card className="shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1.5 border-0 group overflow-hidden h-full">
-                <CardContent className="p-0">
-                  <div className="p-4 md:p-5 pb-0">
-                    <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                      <div className="relative">
-                        <img
-                          src={t.img}
-                          alt={t.name}
-                          className="w-14 h-14 md:w-16 md:h-16 rounded-2xl object-cover shrink-0"
-                          loading="lazy"
-                          width={64}
-                          height={64}
-                        />
-                        {t.available && (
-                          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-success border-2 border-card" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <h3 className="font-bold text-foreground text-sm md:text-base truncate">{t.name}</h3>
-                          {t.verified && <CheckCircle className="h-4 w-4 text-secondary fill-secondary/20 shrink-0" />}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground mb-1">
-                          <BookOpen className="h-3.5 w-3.5" />
-                          <span>{t.subject}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs">
-                          <span className="flex items-center gap-1 font-bold text-foreground">
-                            <Star className="h-3.5 w-3.5 fill-gold text-gold" />{t.rating}
-                          </span>
-                          <span className="text-muted-foreground">{t.students} طالب</span>
-                        </div>
-                      </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="border-0 shadow-card">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex gap-3">
+                    <Skeleton className="w-16 h-16 rounded-2xl" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-24" />
                     </div>
-                    <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed">{t.bio}</p>
                   </div>
-                  <div className="p-4 md:p-5 pt-0">
-                    <div className="flex items-center justify-between mb-3 md:mb-4 pt-3 border-t">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        {t.available ? <span className="text-success font-semibold">متاح الآن</span> : <span>غير متاح حالياً</span>}
-                      </div>
-                      <span className="text-base md:text-lg font-black text-primary">{t.price} <span className="text-[10px] md:text-xs text-muted-foreground font-normal">ر.س/ساعة</span></span>
-                    </div>
-                    <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl h-10 md:h-11" asChild>
-                      <Link to="/booking">احجز الآن</Link>
-                    </Button>
-                  </div>
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
                 </CardContent>
               </Card>
-            </motion.div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16">
+            <Users className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-lg font-bold text-foreground mb-1">لا يوجد مدرسين</p>
+            <p className="text-sm text-muted-foreground">جرب تغيير معايير البحث</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {filtered.map((t, i) => {
+              const available = isAvailableNow(t);
+              return (
+                <motion.div key={t.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <Card className="shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1.5 border-0 group overflow-hidden h-full">
+                    <CardContent className="p-0">
+                      <div className="p-4 md:p-5 pb-0">
+                        <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
+                          <div className="relative">
+                            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl gradient-hero flex items-center justify-center shrink-0">
+                              <Users className="h-7 w-7 text-primary-foreground/70" />
+                            </div>
+                            {available && (
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-card" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <h3 className="font-bold text-foreground text-sm md:text-base truncate">{t.profile?.full_name}</h3>
+                              {t.is_verified && <CheckCircle className="h-4 w-4 text-secondary fill-secondary/20 shrink-0" />}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground mb-1">
+                              <BookOpen className="h-3.5 w-3.5" />
+                              <span>{t.subjects.join("، ") || "عام"}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="flex items-center gap-1 font-bold text-foreground">
+                                <Star className="h-3.5 w-3.5 fill-gold text-gold" />{t.avg_rating.toFixed(1)}
+                              </span>
+                              <span className="text-muted-foreground">{t.total_sessions} حصة</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed line-clamp-2">{t.bio || `مدرس خبرة ${t.years_experience} سنوات`}</p>
+                      </div>
+                      <div className="p-4 md:p-5 pt-0">
+                        <div className="flex items-center justify-between mb-3 md:mb-4 pt-3 border-t">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            {available ? <span className="text-green-600 font-semibold">متاح الآن</span> : <span>خبرة {t.years_experience} سنوات</span>}
+                          </div>
+                          <span className="text-base md:text-lg font-black text-primary">{t.hourly_rate} <span className="text-[10px] md:text-xs text-muted-foreground font-normal">ر.س/ساعة</span></span>
+                        </div>
+                        <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl h-10 md:h-11" asChild>
+                          <Link to={`/booking?teacher=${t.user_id}`}>احجز الآن</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <Footer />
       <BottomNav />
