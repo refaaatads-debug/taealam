@@ -16,19 +16,36 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get teachers with their subjects and profiles
+    // Get teachers
     let query = supabase
       .from("teacher_profiles")
-      .select(`
-        *,
-        profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
-        teacher_subjects!teacher_subjects_teacher_id_fkey(
-          subjects!teacher_subjects_subject_id_fkey(name)
-        )
-      `)
-      .eq("is_verified", true)
+      .select("*")
+      .eq("is_approved", true)
       .order("avg_rating", { ascending: false })
-      .limit(10);
+      .limit(20);
+
+    if (budget_max) {
+      query = query.lte("hourly_rate", budget_max);
+    }
+
+    const { data: teachers, error } = await query;
+    if (error) throw error;
+
+    // Get profiles and subjects separately
+    const userIds = (teachers || []).map((t: any) => t.user_id);
+    const teacherIds = (teachers || []).map((t: any) => t.id);
+
+    const [profilesRes, subjectsRes] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
+      supabase.from("teacher_subjects").select("teacher_id, subject_id, subjects(name)").in("teacher_id", teacherIds),
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.user_id, p]));
+    const subjectMap = new Map<string, any[]>();
+    for (const ts of (subjectsRes.data ?? [])) {
+      if (!subjectMap.has(ts.teacher_id)) subjectMap.set(ts.teacher_id, []);
+      subjectMap.get(ts.teacher_id)!.push(ts);
+    }
 
     if (budget_max) {
       query = query.lte("hourly_rate", budget_max);
