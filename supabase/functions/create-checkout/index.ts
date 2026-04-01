@@ -7,6 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const TIER_PRICE_MAP: Record<string, string> = {
+  basic: "price_1THIkVQYkuo9PgsE3JqR2Fco",
+  standard: "price_1THIlwQYkuo9PgsEf0saZDzS",
+  premium: "price_1THImqQYkuo9PgsEqj8ur9ms",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -16,7 +22,7 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+    const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     if (!token) {
       return new Response(JSON.stringify({ error: "غير مصرح" }), {
@@ -54,40 +60,26 @@ serve(async (req) => {
       });
     }
 
+    const priceId = TIER_PRICE_MAP[plan.tier];
+    if (!priceId) {
+      return new Response(JSON.stringify({ error: "لا يوجد سعر مرتبط بهذه الباقة" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check for existing Stripe customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId: string;
+    let customerId: string | undefined;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
-    } else {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: { user_id: user.id },
-      });
-      customerId = customer.id;
     }
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      payment_method_types: ["card"],
-      payment_method_options: {
-        card: {
-          setup_future_usage: "off_session",
-        },
-      },
-      line_items: [{
-        price_data: {
-          currency: "sar",
-          product_data: {
-            name: plan.name_ar,
-            description: `باقة ${plan.name_ar} - ${plan.sessions_count} حصة`,
-          },
-          unit_amount: Math.round(Number(plan.price) * 100),
-        },
-        quantity: 1,
-      }],
-      mode: "payment",
-      success_url: success_url || `${req.headers.get("origin")}/student?payment=success`,
+      customer_email: customerId ? undefined : user.email,
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: "subscription",
+      success_url: success_url || `${req.headers.get("origin")}/payment-success`,
       cancel_url: cancel_url || `${req.headers.get("origin")}/pricing?payment=cancelled`,
       metadata: {
         user_id: user.id,
