@@ -15,6 +15,8 @@ import { toast } from "sonner";
 const LiveSession = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get("booking");
   const [videoOn, setVideoOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
@@ -22,11 +24,22 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [meetingLink, setMeetingLink] = useState<string | null>(null);
+  const [zoomLoading, setZoomLoading] = useState(false);
   const [messages, setMessages] = useState([
     { sender: "أ. سارة", text: "أهلاً! جاهز نبدأ؟", time: "الآن", me: false },
   ]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
+
+  // Fetch meeting link from booking
+  useEffect(() => {
+    if (!bookingId) return;
+    supabase.from("bookings").select("meeting_link").eq("id", bookingId).single()
+      .then(({ data }) => {
+        if (data?.meeting_link) setMeetingLink(data.meeting_link);
+      });
+  }, [bookingId]);
 
   // Session timer
   useEffect(() => {
