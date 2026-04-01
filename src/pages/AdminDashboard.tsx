@@ -200,10 +200,14 @@ const AdminDashboard = () => {
       .from("teacher_profiles")
       .update({ is_approved: true, is_verified: true })
       .eq("id", teacherId);
-    if (error) { toast.error("حدث خطأ"); return; }
+    if (error) { 
+      console.error("Approve teacher error:", error);
+      toast.error("حدث خطأ: " + error.message); 
+      return; 
+    }
     toast.success("تمت الموافقة على المعلم!");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
-    setStats(prev => ({ ...prev, teachers: prev.teachers }));
+    setStats(prev => ({ ...prev, pendingTeachers: Math.max(0, prev.pendingTeachers - 1) }));
   };
 
   const rejectTeacher = async (teacherId: string, userId: string) => {
