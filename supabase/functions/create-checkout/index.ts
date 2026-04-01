@@ -16,11 +16,11 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16", httpClient: Stripe.createFetchHttpClient() });
 
-    const authHeader = req.headers.get("authorization") ?? "";
+    const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization") ?? "";
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } } }
     );
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
