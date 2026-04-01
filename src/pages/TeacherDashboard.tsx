@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, DollarSign, Users, Clock, CheckCircle, XCircle, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
+import SchedulePricingManager from "@/components/teacher/SchedulePricingManager";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -281,8 +282,11 @@ const TeacherDashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0" asChild>
-                          <Link to={`/chat?booking=${s.id}`}><MessageSquare className="h-4 w-4" /></Link>
+                        <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3" asChild>
+                          <Link to={`/chat?booking=${s.id}`}>
+                            <MessageSquare className="h-5 w-5" />
+                            <span className="text-xs font-medium">دردشة</span>
+                          </Link>
                         </Button>
                         {isToday && (
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
@@ -297,8 +301,11 @@ const TeacherDashboard = () => {
             </CardContent>
           </Card>
 
+          {/* Schedule & Pricing Manager */}
+          <SchedulePricingManager />
+
           {/* Performance */}
-          <Card className="border-0 shadow-card lg:col-span-2">
+          <Card className="border-0 shadow-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 font-bold">
                 <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">

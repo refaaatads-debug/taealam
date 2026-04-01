@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,7 @@ interface ChatMessage {
 
 const Chat = () => {
   const { user } = useAuth();
+  const { play: playNotificationSound } = useNotificationSound();
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -76,6 +78,10 @@ const Chat = () => {
         const newMsg = payload.new as ChatMessage;
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev;
+          // Play sound for messages from others
+          if (newMsg.sender_id !== user?.id) {
+            playNotificationSound();
+          }
           return [...prev, newMsg];
         });
       })
