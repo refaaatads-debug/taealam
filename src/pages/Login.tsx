@@ -10,12 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
 
-type Role = "student" | "teacher" | "parent";
+type Role = "student" | "teacher";
 
 const roles: { id: Role; label: string; icon: typeof User; desc: string }[] = [
   { id: "student", label: "طالب", icon: User, desc: "أبحث عن مدرس" },
   { id: "teacher", label: "معلم", icon: BookOpen, desc: "أريد التدريس" },
-  { id: "parent", label: "ولي أمر", icon: UsersIcon, desc: "متابعة أبنائي" },
 ];
 
 const Login = () => {
@@ -165,7 +164,7 @@ const Login = () => {
                 {!isLogin && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-5">
                     <p className="text-xs font-semibold text-muted-foreground mb-2">أنا...</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {roles.map((r) => (
                         <button key={r.id} onClick={() => setRole(r.id)}
                           className={`p-3 rounded-xl text-center transition-all duration-200 border-2 ${role === r.id ? "border-secondary bg-accent shadow-sm" : "border-border hover:border-secondary/30 bg-muted/30"}`}>
