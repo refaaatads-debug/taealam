@@ -32,7 +32,19 @@ const StudentDashboard = () => {
         .gte("scheduled_at", new Date().toISOString())
         .order("scheduled_at")
         .limit(5);
-      setUpcomingClasses(upcoming || []);
+
+      // Enrich with teacher names
+      if (upcoming && upcoming.length > 0) {
+        const teacherIds = [...new Set(upcoming.map(b => b.teacher_id))];
+        const { data: teacherProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", teacherIds);
+        const tMap = new Map((teacherProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setUpcomingClasses(upcoming.map(b => ({ ...b, teacher_name: tMap.get(b.teacher_id) || "معلم" })));
+      } else {
+        setUpcomingClasses([]);
+      }
 
       // Fetch past bookings
       const { data: past } = await supabase
@@ -84,6 +96,21 @@ const StudentDashboard = () => {
     };
 
     fetchData();
+
+    // Realtime: refresh when booking status changes
+    const channel = supabase
+      .channel("student-bookings")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "bookings",
+        filter: `student_id=eq.${user.id}`,
+      }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const displayName = profile?.full_name || "طالب";
