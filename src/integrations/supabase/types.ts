@@ -226,6 +226,69 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_records: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          metadata: Json | null
+          payment_type: string | null
+          plan_id: string | null
+          status: string | null
+          stripe_payment_intent: string | null
+          stripe_session_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_payment_intent?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_payment_intent?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_records_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_records_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -547,6 +610,7 @@ export type Database = {
           created_at: string
           hourly_rate: number
           id: string
+          is_approved: boolean | null
           is_verified: boolean | null
           total_reviews: number | null
           total_sessions: number | null
@@ -562,6 +626,7 @@ export type Database = {
           created_at?: string
           hourly_rate?: number
           id?: string
+          is_approved?: boolean | null
           is_verified?: boolean | null
           total_reviews?: number | null
           total_sessions?: number | null
@@ -577,6 +642,7 @@ export type Database = {
           created_at?: string
           hourly_rate?: number
           id?: string
+          is_approved?: boolean | null
           is_verified?: boolean | null
           total_reviews?: number | null
           total_sessions?: number | null
