@@ -102,6 +102,26 @@ const Chat = () => {
 
     if (error) {
       setNewMessage(content);
+    } else {
+      // Send notification to the other party
+      try {
+        const { data: booking } = await supabase
+          .from("bookings")
+          .select("student_id, teacher_id")
+          .eq("id", bookingId)
+          .single();
+        if (booking) {
+          const recipientId = booking.student_id === user.id ? booking.teacher_id : booking.student_id;
+          await supabase.from("notifications").insert({
+            user_id: recipientId,
+            title: "رسالة جديدة 💬",
+            body: content.length > 50 ? content.slice(0, 50) + "..." : content,
+            type: "chat_message",
+          });
+        }
+      } catch (e) {
+        // Non-critical, ignore
+      }
     }
     setSending(false);
   };
