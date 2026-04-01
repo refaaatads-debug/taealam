@@ -92,6 +92,19 @@ const AdminDashboard = () => {
         .limit(50);
       setAllUsers(users ?? []);
 
+      // Violations
+      const { data: viol } = await supabase
+        .from("violations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (viol) {
+        const vUserIds = [...new Set(viol.map(v => v.user_id))];
+        const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
+        const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+      }
+
     } catch (e) {
       console.error(e);
     } finally {
