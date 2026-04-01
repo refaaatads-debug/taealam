@@ -322,6 +322,14 @@ const AdminDashboard = () => {
                 <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{stats.violations}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="plans" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              الباقات
+            </TabsTrigger>
+            <TabsTrigger value="site" className="rounded-lg gap-1.5">
+              <Settings className="h-4 w-4" />
+              المحتوى
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
