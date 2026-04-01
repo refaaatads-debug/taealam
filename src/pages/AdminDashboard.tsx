@@ -20,10 +20,11 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accen
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0 });
+  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
