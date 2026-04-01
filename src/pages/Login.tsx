@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Users as UsersIcon } from "lucide-react";
+import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Users as UsersIcon, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -31,16 +31,30 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
 
+  const redirectByRole = (userRole?: string) => {
+    switch (userRole) {
+      case "teacher": navigate("/teacher"); break;
+      case "parent": navigate("/parent"); break;
+      default: navigate("/student");
+    }
+  };
+
   const handleEmailAuth = async () => {
     setLoading(true);
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        // Fetch role to redirect correctly
+        const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).limit(1).single();
         toast.success("تم تسجيل الدخول بنجاح!");
-        navigate("/student");
+        redirectByRole(roleData?.role);
       } else {
-        const { error } = await supabase.auth.signUp({
+        if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
+        if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
+
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -49,7 +63,27 @@ const Login = () => {
           },
         });
         if (error) throw error;
-        toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
+
+        // If teacher role, show approval message
+        if (role === "teacher") {
+          // The default role trigger assigns 'student'. We need to update to 'teacher' and create teacher profile
+          if (data.user) {
+            // Update role to teacher (will be pending approval)
+            await supabase.from("user_roles").update({ role: "teacher" as any }).eq("user_id", data.user.id);
+            // Create teacher profile (unapproved by default)
+            await supabase.from("teacher_profiles").insert({
+              user_id: data.user.id,
+              hourly_rate: 0,
+              is_approved: false,
+            });
+          }
+          toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
+        } else if (role === "parent" && data.user) {
+          await supabase.from("user_roles").update({ role: "parent" as any }).eq("user_id", data.user.id);
+          toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
+        } else {
+          toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
+        }
       }
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -68,10 +102,13 @@ const Login = () => {
         setOtpSent(true);
         toast.success("تم إرسال رمز التحقق!");
       } else {
-        const { error } = await supabase.auth.verifyOtp({ phone: formattedPhone, token: otp, type: "sms" });
+        const { data, error } = await supabase.auth.verifyOtp({ phone: formattedPhone, token: otp, type: "sms" });
         if (error) throw error;
         toast.success("تم التحقق بنجاح!");
-        navigate("/student");
+        if (data.user) {
+          const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).limit(1).single();
+          redirectByRole(roleData?.role);
+        }
       }
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -139,6 +176,12 @@ const Login = () => {
                         </button>
                       ))}
                     </div>
+                    {role === "teacher" && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+                        <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0" />
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400">حساب المعلم يحتاج موافقة الإدارة قبل التفعيل</p>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -177,18 +220,18 @@ const Login = () => {
 
               <form className="space-y-3.5" onSubmit={handleSubmit}>
                 {!isLogin && method === "email" && (
-                  <Input placeholder="الاسم الكامل" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" />
+                  <Input placeholder="الاسم الكامل" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required />
                 )}
                 {method === "email" ? (
-                  <Input type="email" placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" />
+                  <Input type="email" placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required />
                 ) : (
-                  <Input type="tel" placeholder="05X XXX XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" dir="ltr" />
+                  <Input type="tel" placeholder="05X XXX XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" dir="ltr" required />
                 )}
 
                 {method === "email" && (
                   <div className="relative">
                     <Input type={showPass ? "text" : "password"} placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="h-12 text-right pl-12 rounded-xl bg-muted/30 border-border/50 focus:border-secondary" />
+                      className="h-12 text-right pl-12 rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required minLength={6} />
                     <button type="button" onClick={() => setShowPass(!showPass)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                       {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
