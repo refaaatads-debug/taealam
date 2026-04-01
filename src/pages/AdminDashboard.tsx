@@ -320,22 +320,44 @@ const AdminDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
+            {/* Extra stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "طلبات معلمين معلقة", value: stats.pendingTeachers, icon: UserCheck, color: "text-orange-500" },
+                { label: "حصص مكتملة", value: stats.completedSessions, icon: CheckCircle, color: "text-green-600" },
+                { label: "حجوزات ملغاة", value: stats.cancelledBookings, icon: XCircle, color: "text-destructive" },
+                { label: "المخالفات", value: stats.violations, icon: ShieldAlert, color: "text-destructive" },
+              ].map((s, i) => (
+                <Card key={i} className="border-0 shadow-card">
+                  <CardContent className="p-4">
+                    <s.icon className={`h-5 w-5 ${s.color} mb-2`} />
+                    <p className="text-2xl font-black text-foreground">{s.value}</p>
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="border-0 shadow-card">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold">الحجوزات والإيرادات</CardTitle>
+                  <CardTitle className="text-base font-bold">الحجوزات والإيرادات الشهرية</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {monthlyBookings.length === 0 ? (
+                    <p className="text-center py-12 text-muted-foreground">لا توجد بيانات بعد</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={monthlyBookings}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
 
@@ -355,6 +377,24 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {bookingStatusData.length > 0 && (
+              <Card className="border-0 shadow-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold">حالة الحجوزات</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                        {bookingStatusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Teachers Tab */}
