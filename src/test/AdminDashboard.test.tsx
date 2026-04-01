@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -11,8 +11,6 @@ vi.mock("@/integrations/supabase/client", () => ({
           error: null,
           order: () => ({
             limit: () => ({ data: [], error: null }),
-            data: [],
-            error: null,
           }),
         }),
         order: () => ({
@@ -55,11 +53,11 @@ vi.mock("framer-motion", () => ({
 describe("AdminDashboard Page", () => {
   it("renders admin dashboard title", async () => {
     const AdminDashboard = (await import("@/pages/AdminDashboard")).default;
-    render(
+    const { getByText } = render(
       <BrowserRouter>
         <AdminDashboard />
       </BrowserRouter>
     );
-    expect(screen.getByText("لوحة التحكم")).toBeInTheDocument();
+    expect(getByText("لوحة التحكم")).toBeInTheDocument();
   });
 });

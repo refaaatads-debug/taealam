@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -33,23 +33,23 @@ vi.mock("framer-motion", () => ({
 }));
 
 describe("Booking Page", () => {
-  it("shows 'choose teacher' message when no teacher param", async () => {
+  it("shows choose teacher message when no teacher param", async () => {
     const Booking = (await import("@/pages/Booking")).default;
-    render(
+    const { getByText } = render(
       <BrowserRouter>
         <Booking />
       </BrowserRouter>
     );
-    expect(screen.getByText("اختر مدرساً أولاً")).toBeInTheDocument();
+    expect(getByText("اختر مدرساً أولاً")).toBeInTheDocument();
   });
 
-  it("shows search link when no teacher selected", async () => {
+  it("shows search link", async () => {
     const Booking = (await import("@/pages/Booking")).default;
-    render(
+    const { getByText } = render(
       <BrowserRouter>
         <Booking />
       </BrowserRouter>
     );
-    expect(screen.getByText("ابحث عن مدرس")).toBeInTheDocument();
+    expect(getByText("ابحث عن مدرس")).toBeInTheDocument();
   });
 });
