@@ -60,6 +60,7 @@ const Navbar = () => {
           <Button variant="ghost" size="icon" className="rounded-xl" asChild>
             <Link to="/search"><Search className="h-4 w-4" /></Link>
           </Button>
+          <NotificationBell />
           {user ? (
             <>
               <Button variant="ghost" size="icon" className="rounded-xl" asChild>
