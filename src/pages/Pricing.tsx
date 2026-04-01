@@ -30,26 +30,34 @@ const Pricing = () => {
     });
   }, []);
 
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
   const handleSubscribe = async (plan: any) => {
     if (!user) {
       navigate("/login");
       return;
     }
-    const endsAt = new Date();
-    endsAt.setMonth(endsAt.getMonth() + 1);
 
-    const { error } = await supabase.from("user_subscriptions").insert({
-      user_id: user.id,
-      plan_id: plan.id,
-      sessions_remaining: plan.sessions_count,
-      ends_at: endsAt.toISOString(),
-    });
+    setCheckoutLoading(plan.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: {
+          plan_id: plan.id,
+          success_url: `${window.location.origin}/student?payment=success`,
+          cancel_url: `${window.location.origin}/pricing?payment=cancelled`,
+        },
+      });
 
-    if (error) {
-      toast.error("حدث خطأ أثناء الاشتراك");
-    } else {
-      toast.success(`تم الاشتراك في باقة ${plan.name_ar} بنجاح!`);
-      navigate("/student");
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("لم يتم إنشاء رابط الدفع");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "حدث خطأ أثناء إنشاء جلسة الدفع");
+    } finally {
+      setCheckoutLoading(null);
     }
   };
 
@@ -131,10 +139,13 @@ const Pricing = () => {
 
                     <Button
                       onClick={() => handleSubscribe(plan)}
+                      disabled={checkoutLoading === plan.id}
                       className={`w-full h-12 rounded-xl font-bold ${isPopular ? "gradient-cta text-secondary-foreground shadow-button" : ""}`}
                       variant={isPopular ? "default" : "outline"}
                     >
-                      اشترك الآن
+                      {checkoutLoading === plan.id ? (
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : "اشترك الآن"}
                     </Button>
                   </CardContent>
                 </Card>

@@ -20,6 +20,7 @@ const Profile = lazy(() => import("./pages/Profile"));
 const Rating = lazy(() => import("./pages/Rating"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/rating" element={<ProtectedRoute><Rating /></ProtectedRoute>} />
               <Route path="/ai-tutor" element={<ProtectedRoute><AITutor /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

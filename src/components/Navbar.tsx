@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, GraduationCap, User, Search, LogOut } from "lucide-react";
+import { Menu, X, GraduationCap, User, Search, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,13 +11,15 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, roles, signOut } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const isAdmin = roles.includes("admin");
 
   const links = [
     { label: "الرئيسية", to: "/" },
@@ -26,6 +28,7 @@ const Navbar = () => {
     ...(user ? [
       { label: "لوحة الطالب", to: "/student" },
       { label: "لوحة المعلم", to: "/teacher" },
+      ...(isAdmin ? [{ label: "لوحة التحكم", to: "/admin" }] : []),
     ] : []),
   ];
 
