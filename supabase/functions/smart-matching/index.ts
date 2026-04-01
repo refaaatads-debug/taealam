@@ -66,17 +66,20 @@ serve(async (req) => {
     // Score and rank teachers
     const scored = filtered.map((t: any) => {
       let score = 0;
-      score += (t.avg_rating || 0) * 20; // Max 100
-      score += Math.min((t.total_sessions || 0) / 10, 30); // Max 30 for experience
-      score += Math.min((t.total_reviews || 0) / 5, 20); // Max 20 for reviews
-      score += (t.years_experience || 0) * 2; // Experience bonus
+      score += (t.avg_rating || 0) * 20;
+      score += Math.min((t.total_sessions || 0) / 10, 30);
+      score += Math.min((t.total_reviews || 0) / 5, 20);
+      score += (t.years_experience || 0) * 2;
+
+      const profile = profileMap.get(t.user_id);
+      const subs = subjectMap.get(t.id) || [];
       
       return {
         id: t.id,
         user_id: t.user_id,
-        name: t.profiles?.full_name || "مدرس",
-        avatar_url: t.profiles?.avatar_url,
-        subject: t.teacher_subjects?.[0]?.subjects?.name || subject || "عام",
+        name: profile?.full_name || "مدرس",
+        avatar_url: profile?.avatar_url,
+        subject: subs[0]?.subjects?.name || subject || "عام",
         rating: t.avg_rating || 0,
         total_sessions: t.total_sessions || 0,
         total_reviews: t.total_reviews || 0,
