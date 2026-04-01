@@ -542,7 +542,7 @@ const Index = () => {
             <p className="text-lg md:text-xl opacity-85 mb-8 max-w-lg mx-auto">سجّل مجاناً واحصل على أول حصة بخصم 50% — لا تحتاج بطاقة دفع</p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <SmartCTA user={user} />
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 text-base md:text-lg rounded-2xl h-14 md:h-16 backdrop-blur-sm font-bold" asChild>
+              <Button size="lg" variant="outline" className="border-2 border-white text-white bg-white/20 hover:bg-white/30 text-base md:text-lg rounded-2xl h-14 md:h-16 backdrop-blur-md font-black shadow-lg" asChild>
                 <Link to="/search">تصفح المدرسين</Link>
               </Button>
             </div>
