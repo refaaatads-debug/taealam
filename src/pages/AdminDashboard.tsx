@@ -23,7 +23,7 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accen
 const AdminDashboard = () => {
   const { user, roles: currentUserRoles } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0 });
+  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0, pendingTeachers: 0, completedSessions: 0, cancelledBookings: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -31,6 +31,9 @@ const AdminDashboard = () => {
   const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
+  const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
@@ -45,22 +48,74 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch counts
       const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
-        supabase.from("payment_records").select("amount").eq("status", "completed"),
+        supabase.from("payment_records").select("amount, created_at").eq("status", "completed"),
         (supabase as any).from("violations").select("id", { count: "exact", head: true }),
       ]);
 
-      const revenue = (paymentsRes.data ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
+      // Real bookings data for charts
+      const { data: allBookingsData } = await supabase.from("bookings").select("created_at, status, price");
+      
+      // Build monthly bookings chart
+      const monthMap = new Map<string, { bookings: number; revenue: number }>();
+      const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+      
+      (allBookingsData ?? []).forEach(b => {
+        const d = new Date(b.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
+        existing.bookings += 1;
+        existing.revenue += Number(b.price || 0);
+        monthMap.set(key, existing);
+      });
+
+      // Also add payment revenue
+      (paymentsRes.data ?? []).forEach((p: any) => {
+        const d = new Date(p.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
+        existing.revenue += Number(p.amount || 0);
+        monthMap.set(key, existing);
+      });
+
+      const sortedMonths = [...monthMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-6)
+        .map(([key, val]) => {
+          const monthIdx = parseInt(key.split("-")[1]);
+          return { name: arabicMonths[monthIdx], حجوزات: val.bookings, إيرادات: Math.round(val.revenue) };
+        });
+      setMonthlyBookings(sortedMonths);
+
+      // Booking status distribution
+      const statusCount = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+      (allBookingsData ?? []).forEach(b => {
+        if (b.status in statusCount) statusCount[b.status as keyof typeof statusCount]++;
+      });
+      setBookingStatusData([
+        { name: "معلقة", value: statusCount.pending },
+        { name: "مؤكدة", value: statusCount.confirmed },
+        { name: "مكتملة", value: statusCount.completed },
+        { name: "ملغاة", value: statusCount.cancelled },
+      ].filter(d => d.value > 0));
+
+      const revenue = (paymentsRes.data ?? []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+      const pendingCount = (allBookingsData ?? []).filter(b => b.status === "pending").length;
+      const completedCount = statusCount.completed;
+      const cancelledCount = statusCount.cancelled;
+
       setStats({
         users: profilesRes.count ?? 0,
         teachers: teachersRes.count ?? 0,
         bookings: bookingsRes.count ?? 0,
         revenue,
         violations: violationsRes.count ?? 0,
+        pendingTeachers: 0,
+        completedSessions: completedCount,
+        cancelledBookings: cancelledCount,
       });
 
       // Pending teachers
@@ -73,18 +128,33 @@ const AdminDashboard = () => {
 
       if (pendingRaw) {
         const userIds = pendingRaw.map(t => t.user_id);
-        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds);
-        const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-        setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id) })));
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds);
+          const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
+          setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id) })));
+        } else {
+          setPendingTeachers([]);
+        }
+        setStats(prev => ({ ...prev, pendingTeachers: pendingRaw.length }));
       }
 
-      // Recent bookings
+      // Recent bookings with user names
       const { data: bookings } = await supabase
         .from("bookings")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
-      setRecentBookings(bookings ?? []);
+      
+      if (bookings && bookings.length > 0) {
+        const studentIds = [...new Set(bookings.map(b => b.student_id))];
+        const teacherIds = [...new Set(bookings.map(b => b.teacher_id))];
+        const allIds = [...new Set([...studentIds, ...teacherIds])];
+        const { data: bProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", allIds);
+        const nameMap = new Map((bProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setRecentBookings(bookings.map(b => ({ ...b, student_name: nameMap.get(b.student_id) || "—", teacher_name: nameMap.get(b.teacher_id) || "—" })));
+      } else {
+        setRecentBookings([]);
+      }
 
       // All users with roles
       const { data: users } = await supabase
@@ -94,7 +164,6 @@ const AdminDashboard = () => {
         .limit(100);
       setAllUsers(users ?? []);
 
-      // Fetch user roles
       if (users && users.length > 0) {
         const uids = users.map(u => u.user_id);
         const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", uids);
@@ -110,9 +179,13 @@ const AdminDashboard = () => {
         .limit(50);
       if (viol) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
-        const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
-        const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
-        setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+        if (vUserIds.length > 0) {
+          const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
+          const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
+          setViolations(viol.map((v: any) => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+        } else {
+          setViolations([]);
+        }
       }
 
     } catch (e) {
@@ -159,15 +232,8 @@ const AdminDashboard = () => {
     toast.success("تم حذف بيانات المستخدم");
   };
 
-  const chartData = [
-    { name: "يناير", حجوزات: 12, إيرادات: 2400 },
-    { name: "فبراير", حجوزات: 19, إيرادات: 3800 },
-    { name: "مارس", حجوزات: 28, إيرادات: 5600 },
-    { name: "أبريل", حجوزات: 35, إيرادات: 7000 },
-  ];
-
   const pieData = [
-    { name: "طلاب", value: stats.users - stats.teachers },
+    { name: "طلاب", value: Math.max(0, stats.users - stats.teachers) },
     { name: "معلمين", value: stats.teachers },
   ];
 
@@ -254,22 +320,44 @@ const AdminDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
+            {/* Extra stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "طلبات معلمين معلقة", value: stats.pendingTeachers, icon: UserCheck, color: "text-orange-500" },
+                { label: "حصص مكتملة", value: stats.completedSessions, icon: CheckCircle, color: "text-green-600" },
+                { label: "حجوزات ملغاة", value: stats.cancelledBookings, icon: XCircle, color: "text-destructive" },
+                { label: "المخالفات", value: stats.violations, icon: ShieldAlert, color: "text-destructive" },
+              ].map((s, i) => (
+                <Card key={i} className="border-0 shadow-card">
+                  <CardContent className="p-4">
+                    <s.icon className={`h-5 w-5 ${s.color} mb-2`} />
+                    <p className="text-2xl font-black text-foreground">{s.value}</p>
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="border-0 shadow-card">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold">الحجوزات والإيرادات</CardTitle>
+                  <CardTitle className="text-base font-bold">الحجوزات والإيرادات الشهرية</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {monthlyBookings.length === 0 ? (
+                    <p className="text-center py-12 text-muted-foreground">لا توجد بيانات بعد</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={monthlyBookings}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
 
@@ -289,6 +377,24 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {bookingStatusData.length > 0 && (
+              <Card className="border-0 shadow-card">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold">حالة الحجوزات</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                        {bookingStatusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Teachers Tab */}
@@ -436,8 +542,13 @@ const AdminDashboard = () => {
                     {recentBookings.map((b) => (
                       <div key={b.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
                         <div>
-                          <p className="font-medium text-sm text-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</p>
-                          <p className="text-xs text-muted-foreground">{b.duration_minutes} دقيقة</p>
+                          <p className="font-medium text-sm text-foreground">
+                            {b.student_name} ← {b.teacher_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(b.scheduled_at).toLocaleDateString("ar-SA")} • {b.duration_minutes} دقيقة
+                            {b.price ? ` • ${b.price} ر.س` : ""}
+                          </p>
                         </div>
                         <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
                           {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
