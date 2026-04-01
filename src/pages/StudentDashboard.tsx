@@ -4,6 +4,7 @@ import SmartMatchWidget from "@/components/SmartMatchWidget";
 import GamificationCard from "@/components/GamificationCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, ChevronLeft, Sparkles, MessageSquare, Gift, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -32,7 +33,19 @@ const StudentDashboard = () => {
         .gte("scheduled_at", new Date().toISOString())
         .order("scheduled_at")
         .limit(5);
-      setUpcomingClasses(upcoming || []);
+
+      // Enrich with teacher names
+      if (upcoming && upcoming.length > 0) {
+        const teacherIds = [...new Set(upcoming.map(b => b.teacher_id))];
+        const { data: teacherProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", teacherIds);
+        const tMap = new Map((teacherProfiles ?? []).map(p => [p.user_id, p.full_name]));
+        setUpcomingClasses(upcoming.map(b => ({ ...b, teacher_name: tMap.get(b.teacher_id) || "معلم" })));
+      } else {
+        setUpcomingClasses([]);
+      }
 
       // Fetch past bookings
       const { data: past } = await supabase
@@ -84,6 +97,21 @@ const StudentDashboard = () => {
     };
 
     fetchData();
+
+    // Realtime: refresh when booking status changes
+    const channel = supabase
+      .channel("student-bookings")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "bookings",
+        filter: `student_id=eq.${user.id}`,
+      }, () => {
+        fetchData();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const displayName = profile?.full_name || "طالب";
@@ -192,22 +220,27 @@ const StudentDashboard = () => {
                     const isToday = new Date(c.scheduled_at).toDateString() === new Date().toDateString();
                     const time = new Date(c.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
                     const date = isToday ? "اليوم" : new Date(c.scheduled_at).toLocaleDateString("ar-SA", { weekday: "long" });
+                    const isPending = c.status === "pending";
+                    const isConfirmed = c.status === "confirmed";
                     return (
-                      <motion.div key={c.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }} className={`flex items-center justify-between p-4 rounded-2xl transition-colors ${isToday ? "bg-accent border border-secondary/20" : "bg-muted/50"}`}>
+                      <motion.div key={c.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }} className={`flex items-center justify-between p-4 rounded-2xl transition-colors ${isToday && isConfirmed ? "bg-accent border border-secondary/20" : isPending ? "bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/50" : "bg-muted/50"}`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isToday ? "gradient-cta text-secondary-foreground" : "bg-card"}`}>
-                            <BookOpen className={`h-5 w-5 ${!isToday ? "text-primary" : ""}`} />
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isToday && isConfirmed ? "gradient-cta text-secondary-foreground" : "bg-card"}`}>
+                            <BookOpen className={`h-5 w-5 ${!(isToday && isConfirmed) ? "text-primary" : ""}`} />
                           </div>
                           <div>
-                            <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"}</p>
+                            <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"} - {c.teacher_name || "معلم"}</p>
                             <p className="text-xs text-muted-foreground">{date} • {time}</p>
+                            {isPending && <p className="text-xs text-amber-600 font-semibold mt-0.5">⏳ في انتظار موافقة المعلم</p>}
                           </div>
                         </div>
-                        {isToday && (
+                        {isToday && isConfirmed ? (
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
                             <Link to="/session">انضم الآن</Link>
                           </Button>
-                        )}
+                        ) : isConfirmed ? (
+                          <Badge className="bg-secondary/10 text-secondary border-0 text-xs">مؤكدة ✓</Badge>
+                        ) : null}
                       </motion.div>
                     );
                   })
