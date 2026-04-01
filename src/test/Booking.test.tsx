@@ -22,7 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { id: "u1", user_metadata: { full_name: "Test" } }, profile: { full_name: "Test" } }),
+  useAuth: () => ({ user: { id: "u1", user_metadata: { full_name: "Test" } }, profile: { full_name: "Test" }, roles: ["student"], signOut: vi.fn() }),
 }));
 
 vi.mock("framer-motion", () => ({

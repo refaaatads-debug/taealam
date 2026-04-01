@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { id: "admin1" }, profile: { full_name: "Admin" } }),
+  useAuth: () => ({ user: { id: "admin1" }, profile: { full_name: "Admin" }, roles: ["admin"], signOut: vi.fn() }),
 }));
 
 vi.mock("recharts", () => ({

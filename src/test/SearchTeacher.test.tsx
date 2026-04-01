@@ -31,7 +31,7 @@ vi.mock("framer-motion", () => ({
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: null, profile: null }),
+  useAuth: () => ({ user: null, profile: null, roles: [], signOut: vi.fn() }),
 }));
 
 describe("SearchTeacher Page", () => {
