@@ -79,6 +79,7 @@ export type Database = {
           created_at: string
           duration_minutes: number
           id: string
+          meeting_link: string | null
           notes: string | null
           price: number | null
           scheduled_at: string
@@ -95,6 +96,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          meeting_link?: string | null
           notes?: string | null
           price?: number | null
           scheduled_at: string
@@ -111,6 +113,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          meeting_link?: string | null
           notes?: string | null
           price?: number | null
           scheduled_at?: string
