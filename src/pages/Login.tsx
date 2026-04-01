@@ -256,7 +256,7 @@ const Login = () => {
                 )}
 
                 {isLogin && method === "email" && (
-                  <p className="text-sm text-secondary text-left cursor-pointer hover:underline font-medium">نسيت كلمة المرور؟</p>
+                  <Link to="/forgot-password" className="text-sm text-secondary text-left block cursor-pointer hover:underline font-medium">نسيت كلمة المرور؟</Link>
                 )}
 
                 <Button type="submit" disabled={loading} className="w-full h-12 gradient-cta shadow-button text-secondary-foreground text-base rounded-xl font-bold">
