@@ -22,6 +22,8 @@ const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
