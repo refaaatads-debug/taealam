@@ -134,7 +134,7 @@ const Login = () => {
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/login`,
       });
       if (result.error) throw result.error;
     } catch (e: any) {
