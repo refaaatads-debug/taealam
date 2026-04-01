@@ -10,12 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
 
-type Role = "student" | "teacher" | "parent";
+type Role = "student" | "teacher";
 
 const roles: { id: Role; label: string; icon: typeof User; desc: string }[] = [
   { id: "student", label: "طالب", icon: User, desc: "أبحث عن مدرس" },
   { id: "teacher", label: "معلم", icon: BookOpen, desc: "أريد التدريس" },
-  { id: "parent", label: "ولي أمر", icon: UsersIcon, desc: "متابعة أبنائي" },
 ];
 
 const Login = () => {
