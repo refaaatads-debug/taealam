@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ const roles: { id: Role; label: string; icon: typeof User; desc: string }[] = [
 ];
 
 const Login = () => {
+  const { user, roles: userRoles, loading: authLoading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [showPass, setShowPass] = useState(false);
@@ -31,8 +33,19 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
 
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && userRoles.length > 0) {
+      if (userRoles.includes("admin")) navigate("/admin");
+      else if (userRoles.includes("teacher")) navigate("/teacher");
+      else if (userRoles.includes("parent")) navigate("/parent");
+      else navigate("/student");
+    }
+  }, [user, userRoles, authLoading, navigate]);
+
   const redirectByRole = (userRole?: string) => {
     switch (userRole) {
+      case "admin": navigate("/admin"); break;
       case "teacher": navigate("/teacher"); break;
       case "parent": navigate("/parent"); break;
       default: navigate("/student");
@@ -121,7 +134,7 @@ const Login = () => {
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/login`,
       });
       if (result.error) throw result.error;
     } catch (e: any) {
