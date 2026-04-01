@@ -4,6 +4,7 @@ import { Menu, X, GraduationCap, User, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import NotificationBell from "@/components/NotificationBell";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
