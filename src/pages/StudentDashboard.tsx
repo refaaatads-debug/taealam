@@ -20,6 +20,7 @@ const StudentDashboard = () => {
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
