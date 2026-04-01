@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
