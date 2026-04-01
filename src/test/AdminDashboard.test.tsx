@@ -2,26 +2,30 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 
+const chainable = (terminal = { data: [], error: null, count: 0 }) => {
+  const fn: any = () => chainable(terminal);
+  fn.select = () => chainable(terminal);
+  fn.insert = () => chainable(terminal);
+  fn.update = () => chainable(terminal);
+  fn.eq = () => chainable(terminal);
+  fn.in = () => chainable(terminal);
+  fn.order = () => chainable(terminal);
+  fn.limit = () => Promise.resolve(terminal);
+  fn.single = () => Promise.resolve(terminal);
+  fn.gte = () => chainable(terminal);
+  fn.lte = () => chainable(terminal);
+  fn.then = (resolve: any) => Promise.resolve(terminal).then(resolve);
+  fn.data = terminal.data;
+  fn.error = terminal.error;
+  fn.count = terminal.count;
+  return fn;
+};
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          data: [],
-          error: null,
-          order: () => ({
-            limit: () => ({ data: [], error: null }),
-          }),
-        }),
-        order: () => ({
-          limit: () => ({ data: [], error: null }),
-        }),
-        limit: () => ({ data: [], error: null }),
-        in: () => ({ data: [], error: null }),
-        count: 0,
-        head: true,
-      }),
-    }),
+    from: () => chainable(),
+    channel: () => ({ on: () => ({ subscribe: () => ({}) }), unsubscribe: vi.fn() }),
+    removeChannel: vi.fn(),
   },
 }));
 
