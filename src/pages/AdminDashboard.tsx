@@ -91,7 +91,7 @@ const AdminDashboard = () => {
         .order("created_at", { ascending: false })
         .limit(50);
       if (viol) {
-        const vUserIds = [...new Set(viol.map(v => v.user_id))];
+        const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
         const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
         const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
         setViolations(viol.map(v => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
