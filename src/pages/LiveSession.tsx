@@ -123,13 +123,25 @@ const LiveSession = () => {
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
         {/* Video Area */}
-        <div className={`flex-1 flex items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
+        <div className={`flex-1 flex flex-col items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           <div className="text-center text-primary-foreground">
             <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
               <Users className="h-14 w-14 text-primary-foreground/60" />
             </div>
             <p className="font-black text-xl mb-1">أ. سارة المحمدي</p>
-            <p className="text-sm opacity-60">الفيديو قيد التشغيل</p>
+            <p className="text-sm opacity-60 mb-4">الفيديو قيد التشغيل</p>
+            <Button
+              onClick={joinZoom}
+              disabled={zoomLoading}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 text-base font-bold shadow-lg"
+            >
+              {zoomLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin ml-2" />
+              ) : (
+                <ExternalLink className="h-5 w-5 ml-2" />
+              )}
+              {meetingLink ? "انضم عبر Zoom" : "إنشاء اجتماع Zoom"}
+            </Button>
           </div>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
             <div className="text-center">
