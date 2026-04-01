@@ -26,6 +26,7 @@ const StudentDashboard = () => {
     if (!user) return;
 
     const fetchData = async () => {
+      setLoading(true);
       // Fetch upcoming bookings
       const { data: upcoming } = await supabase
         .from("bookings")
