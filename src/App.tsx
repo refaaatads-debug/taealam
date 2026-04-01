@@ -25,6 +25,7 @@ const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Chat = lazy(() => import("./pages/Chat"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
