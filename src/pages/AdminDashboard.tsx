@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
+import PlansManagementTab from "@/components/admin/PlansManagementTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -293,7 +295,7 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto">
+          <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="rounded-lg gap-1.5">
               <BarChart3 className="h-4 w-4" />
               نظرة عامة
@@ -319,6 +321,14 @@ const AdminDashboard = () => {
               {stats.violations > 0 && (
                 <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{stats.violations}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              الباقات
+            </TabsTrigger>
+            <TabsTrigger value="site" className="rounded-lg gap-1.5">
+              <Settings className="h-4 w-4" />
+              المحتوى
             </TabsTrigger>
           </TabsList>
 
@@ -646,6 +656,16 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Plans Tab */}
+          <TabsContent value="plans" className="space-y-4">
+            <PlansManagementTab />
+          </TabsContent>
+
+          {/* Site Content Tab */}
+          <TabsContent value="site" className="space-y-4">
+            <SiteSettingsTab />
           </TabsContent>
         </Tabs>
       </div>
