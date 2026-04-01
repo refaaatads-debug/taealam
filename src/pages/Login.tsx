@@ -164,7 +164,7 @@ const Login = () => {
                 {!isLogin && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-5">
                     <p className="text-xs font-semibold text-muted-foreground mb-2">أنا...</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {roles.map((r) => (
                         <button key={r.id} onClick={() => setRole(r.id)}
                           className={`p-3 rounded-xl text-center transition-all duration-200 border-2 ${role === r.id ? "border-secondary bg-accent shadow-sm" : "border-border hover:border-secondary/30 bg-muted/30"}`}>
