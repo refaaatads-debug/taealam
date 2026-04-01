@@ -8,14 +8,17 @@ const BottomNav = () => {
   const { user, roles } = useAuth();
 
   const isTeacher = roles.includes("teacher");
+  const isAdmin = roles.includes("admin");
 
   const tabs = [
     { icon: Home, label: "الرئيسية", to: "/" },
     { icon: Search, label: "البحث", to: "/search" },
     ...(user
-      ? isTeacher
-        ? [{ icon: GraduationCap, label: "حصصي", to: "/teacher" }]
-        : [{ icon: BookOpen, label: "حصصي", to: "/student" }]
+      ? isAdmin
+        ? [{ icon: Shield, label: "الإدارة", to: "/admin" }]
+        : isTeacher
+          ? [{ icon: GraduationCap, label: "حصصي", to: "/teacher" }]
+          : [{ icon: BookOpen, label: "حصصي", to: "/student" }]
       : [{ icon: BookOpen, label: "حصصي", to: "/student" }]),
     { icon: Brain, label: "AI مدرس", to: "/ai-tutor" },
     { icon: User, label: "حسابي", to: "/profile" },
