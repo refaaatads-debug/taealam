@@ -78,6 +78,10 @@ const Chat = () => {
         const newMsg = payload.new as ChatMessage;
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev;
+          // Play sound for messages from others
+          if (newMsg.sender_id !== user?.id) {
+            playNotificationSound();
+          }
           return [...prev, newMsg];
         });
       })
