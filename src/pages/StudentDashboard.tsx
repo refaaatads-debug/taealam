@@ -158,6 +158,19 @@ const StudentDashboard = () => {
         )}
 
         {/* Stats */}
+        {loading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="border-0 shadow-card">
+                <CardContent className="p-5 space-y-3">
+                  <Skeleton className="w-10 h-10 rounded-xl" />
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-3 w-20" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { icon: CalendarCheck, label: "حصص مكتملة", value: stats.bookings.toString(), color: "text-primary", bg: "bg-primary/10" },
