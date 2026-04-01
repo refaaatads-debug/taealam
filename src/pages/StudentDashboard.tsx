@@ -97,6 +97,7 @@ const StudentDashboard = () => {
         .eq("user_id", user.id)
         .single();
       setFreeTrialAvailable(!profileData?.free_trial_used);
+      setLoading(false);
     };
 
     fetchData();
