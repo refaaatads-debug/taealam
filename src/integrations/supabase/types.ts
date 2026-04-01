@@ -786,6 +786,65 @@ export type Database = {
         }
         Relationships: []
       }
+      violations: {
+        Row: {
+          booking_id: string | null
+          confidence_score: number | null
+          created_at: string
+          detected_text: string
+          id: string
+          is_false_positive: boolean | null
+          is_reviewed: boolean | null
+          original_message: string | null
+          review_notes: string | null
+          reviewed_by: string | null
+          source: string
+          timestamp_in_session: number | null
+          user_id: string
+          violation_type: string
+        }
+        Insert: {
+          booking_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_text: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_reviewed?: boolean | null
+          original_message?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          source?: string
+          timestamp_in_session?: number | null
+          user_id: string
+          violation_type?: string
+        }
+        Update: {
+          booking_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_text?: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_reviewed?: boolean | null
+          original_message?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          source?: string
+          timestamp_in_session?: number | null
+          user_id?: string
+          violation_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "violations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
