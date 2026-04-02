@@ -209,48 +209,8 @@ const TeacherDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Requests */}
-          <Card className="border-0 shadow-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <CalendarCheck className="h-4 w-4 text-primary" />
-                </div>
-                طلبات الحجز
-                {requests.length > 0 && <Badge className="mr-auto bg-destructive/10 text-destructive border-0 text-xs">{requests.length} جديد</Badge>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {requests.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">لا توجد طلبات حجز جديدة</p>
-              ) : (
-                requests.map((r: any) => (
-                  <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center border">
-                        <Users className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-foreground">{r.student_profile?.full_name || "طالب"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {r.subjects?.name || "حصة"} • {new Date(r.scheduled_at).toLocaleDateString("ar-SA")} • {new Date(r.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{r.duration_minutes} دقيقة • {r.price} ر.س</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button size="icon" className="h-9 w-9 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary border-0" onClick={() => handleBookingAction(r, "confirmed")}>
-                        <CheckCircle className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" className="h-9 w-9 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive border-0" onClick={() => handleBookingAction(r, "cancelled")}>
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          {/* Booking Requests (Broadcast Model) */}
+          <BookingRequests />
 
           {/* Schedule */}
           <Card className="border-0 shadow-card">
