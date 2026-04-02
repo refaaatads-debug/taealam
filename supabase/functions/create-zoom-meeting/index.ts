@@ -12,10 +12,13 @@ async function getZoomAccessToken(): Promise<string> {
   const clientSecret = Deno.env.get("ZOOM_CLIENT_SECRET");
 
   if (!accountId || !clientId || !clientSecret) {
-    throw new Error("Zoom credentials not configured");
+    throw new Error("Zoom credentials not configured. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET.");
   }
 
   const credentials = btoa(`${clientId}:${clientSecret}`);
+  
+  console.log("Requesting Zoom access token...");
+  
   const resp = await fetch(
     `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${accountId}`,
     {
@@ -26,11 +29,13 @@ async function getZoomAccessToken(): Promise<string> {
 
   if (!resp.ok) {
     const err = await resp.text();
-    throw new Error(`Zoom token error: ${err}`);
+    console.error("Zoom token error response:", err);
+    throw new Error(`Zoom token error (${resp.status}): ${err}`);
   }
 
-  const { access_token } = await resp.json();
-  return access_token;
+  const data = await resp.json();
+  console.log("Zoom token obtained successfully");
+  return data.access_token;
 }
 
 serve(async (req) => {
@@ -68,25 +73,35 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: booking } = await adminClient
+    const { data: booking, error: bookingError } = await adminClient
       .from("bookings")
       .select("*")
       .eq("id", booking_id)
       .single();
 
-    if (!booking) {
+    if (bookingError || !booking) {
+      console.error("Booking fetch error:", bookingError);
       return new Response(JSON.stringify({ error: "الحجز غير موجود" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Verify user is part of this booking
+    if (user.id !== booking.student_id && user.id !== booking.teacher_id) {
+      return new Response(JSON.stringify({ error: "غير مصرح بالوصول لهذا الحجز" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // If meeting link already exists, return it
     if (booking.meeting_link) {
+      console.log("Returning existing meeting link");
       return new Response(JSON.stringify({ meeting_link: booking.meeting_link }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("Creating new Zoom meeting for booking:", booking_id);
     const accessToken = await getZoomAccessToken();
 
     const meetingResp = await fetch("https://api.zoom.us/v2/users/me/meetings", {
@@ -97,7 +112,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         topic: `حصة تعليمية - ${booking_id.slice(0, 8)}`,
-        type: 2, // Scheduled meeting
+        type: 2,
         start_time: booking.scheduled_at,
         duration: booking.duration_minutes || 60,
         timezone: "Asia/Riyadh",
@@ -112,16 +127,22 @@ serve(async (req) => {
 
     if (!meetingResp.ok) {
       const err = await meetingResp.text();
-      throw new Error(`Zoom API error: ${err}`);
+      console.error("Zoom meeting creation error:", err);
+      throw new Error(`Zoom API error (${meetingResp.status}): ${err}`);
     }
 
     const meeting = await meetingResp.json();
+    console.log("Zoom meeting created successfully:", meeting.id);
 
     // Save meeting link to booking
-    await adminClient
+    const { error: updateError } = await adminClient
       .from("bookings")
       .update({ meeting_link: meeting.join_url })
       .eq("id", booking_id);
+
+    if (updateError) {
+      console.error("Failed to save meeting link:", updateError);
+    }
 
     return new Response(JSON.stringify({
       meeting_link: meeting.join_url,
@@ -132,7 +153,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Zoom error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "خطأ" }), {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "خطأ في إنشاء اجتماع Zoom" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

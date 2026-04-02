@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, DollarSign, Save, Loader2, CalendarDays } from "lucide-react";
+import { Clock, Save, Loader2, CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -23,7 +23,6 @@ export default function SchedulePricingManager() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [hourlyRate, setHourlyRate] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableTo, setAvailableTo] = useState("");
   const [availableDays, setAvailableDays] = useState<string[]>([]);
@@ -35,11 +34,10 @@ export default function SchedulePricingManager() {
     const fetchData = async () => {
       const { data } = await supabase
         .from("teacher_profiles")
-        .select("hourly_rate, available_from, available_to, bio, years_experience, available_days")
+        .select("available_from, available_to, bio, years_experience, available_days")
         .eq("user_id", user.id)
         .single();
       if (data) {
-        setHourlyRate(data.hourly_rate?.toString() || "0");
         setAvailableFrom(data.available_from || "");
         setAvailableTo(data.available_to || "");
         setAvailableDays((data as any).available_days || []);
@@ -63,7 +61,6 @@ export default function SchedulePricingManager() {
     const { error } = await supabase
       .from("teacher_profiles")
       .update({
-        hourly_rate: parseFloat(hourlyRate) || 0,
         available_from: availableFrom || null,
         available_to: availableTo || null,
         available_days: availableDays,
@@ -97,27 +94,10 @@ export default function SchedulePricingManager() {
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <Clock className="h-4 w-4 text-primary" />
           </div>
-          المواعيد والأسعار
+          المواعيد والإعدادات
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Hourly Rate */}
-        <div className="space-y-2">
-          <Label className="text-sm font-bold flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-secondary" />
-            سعر الساعة (ر.س)
-          </Label>
-          <Input
-            type="number"
-            min="0"
-            value={hourlyRate}
-            onChange={(e) => setHourlyRate(e.target.value)}
-            className="rounded-xl"
-            placeholder="مثال: 100"
-            dir="ltr"
-          />
-        </div>
-
         {/* Available Days */}
         <div className="space-y-2">
           <Label className="text-sm font-bold flex items-center gap-2">
