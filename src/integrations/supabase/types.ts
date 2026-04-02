@@ -74,6 +74,56 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          duration_minutes: number
+          id: string
+          price: number | null
+          scheduled_at: string
+          status: string
+          student_id: string
+          subject_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          price?: number | null
+          scheduled_at: string
+          status?: string
+          student_id: string
+          subject_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          price?: number | null
+          scheduled_at?: string
+          status?: string
+          student_id?: string
+          subject_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_requests_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string
