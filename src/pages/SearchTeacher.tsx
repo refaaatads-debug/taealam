@@ -236,7 +236,7 @@ const SearchTeacher = () => {
                           <span className="text-base md:text-lg font-black text-primary">{t.hourly_rate} <span className="text-[10px] md:text-xs text-muted-foreground font-normal">ر.س/ساعة</span></span>
                         </div>
                         <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl h-10 md:h-11" asChild>
-                          <Link to={`/booking?teacher=${t.user_id}`}>احجز الآن</Link>
+                          <Link to="/booking">اطلب حصة</Link>
                         </Button>
                       </div>
                     </CardContent>
