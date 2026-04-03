@@ -3,7 +3,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Clock, CheckCircle, XCircle, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
 import SchedulePricingManager from "@/components/teacher/SchedulePricingManager";
 import BookingRequests from "@/components/teacher/BookingRequests";
 import { motion } from "framer-motion";
@@ -16,9 +16,9 @@ import { toast } from "sonner";
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
-  const [requests, setRequests] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
+  const [openRequestsCount, setOpenRequestsCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -28,7 +28,7 @@ const TeacherDashboard = () => {
     const channel = supabase
       .channel("teacher-bookings")
       .on("postgres_changes", {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "bookings",
         filter: `teacher_id=eq.${user.id}`,
@@ -52,27 +52,13 @@ const TeacherDashboard = () => {
       .single();
     setTeacherProfile(tp);
 
-    // Fetch pending booking requests
-    const { data: pending } = await supabase
-      .from("bookings")
-      .select("*, subjects(name)")
-      .eq("teacher_id", user.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    // Enrich with student names
-    if (pending && pending.length > 0) {
-      const studentIds = [...new Set(pending.map(b => b.student_id))];
-      const { data: studentProfiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", studentIds);
-      const profileMap = new Map((studentProfiles ?? []).map(p => [p.user_id, p]));
-      setRequests(pending.map(b => ({ ...b, student_profile: profileMap.get(b.student_id) })));
-    } else {
-      setRequests([]);
-    }
+    // Count open booking requests (for subtitle)
+    const { count: reqCount } = await supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open")
+      .gte("expires_at", new Date().toISOString());
+    setOpenRequestsCount(reqCount || 0);
 
     // Fetch upcoming schedule (confirmed bookings)
     const now = new Date().toISOString();
@@ -119,37 +105,6 @@ const TeacherDashboard = () => {
     });
   };
 
-  const handleBookingAction = async (booking: any, action: "confirmed" | "cancelled") => {
-    const { error } = await supabase.from("bookings").update({ status: action }).eq("id", booking.id);
-    if (error) { toast.error("حدث خطأ"); return; }
-
-    // Notify student
-    const statusText = action === "confirmed" ? "تم قبول حجزك ✅" : "تم رفض طلب الحجز ❌";
-    const bodyText = action === "confirmed"
-      ? `تم قبول حجزك مع ${profile?.full_name || "المعلم"} يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. جهّز نفسك!`
-      : `عذراً، تم رفض طلب الحجز. يمكنك حجز مدرس آخر.`;
-
-    await supabase.from("notifications").insert({
-      user_id: booking.student_id,
-      title: statusText,
-      body: bodyText,
-      type: "booking",
-    });
-
-    setRequests(prev => prev.filter(r => r.id !== booking.id));
-    toast.success(action === "confirmed" ? "تم قبول الحجز!" : "تم رفض الحجز");
-
-    if (action === "confirmed") {
-      // Send welcome chat message
-      await supabase.from("chat_messages").insert({
-        booking_id: booking.id,
-        sender_id: user!.id,
-        content: `مرحباً! تم قبول الحجز 🎉 أنا جاهز للحصة يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. لا تتردد في أي استفسار!`,
-      });
-      fetchData();
-    }
-  };
-
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
 
@@ -161,7 +116,7 @@ const TeacherDashboard = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl md:text-3xl font-black text-foreground">مرحباً، {displayName} 👋</h1>
             <p className="text-muted-foreground">
-              {isApproved ? `لديك ${requests.length} طلب حجز و ${schedule.length} حصة قادمة` : "حسابك في انتظار الموافقة"}
+              {isApproved ? `لديك ${openRequestsCount} طلب متاح و ${schedule.length} حصة قادمة` : "حسابك في انتظار الموافقة"}
             </p>
           </motion.div>
           <Button variant="outline" className="rounded-xl gap-2" asChild>
