@@ -1,16 +1,19 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface TeacherResult {
   id: string;
@@ -28,7 +31,11 @@ interface TeacherResult {
   subjects: string[];
 }
 
+const timeSlots = ["3:00 م", "4:00 م", "5:00 م", "6:00 م", "7:00 م", "8:00 م", "9:00 م"];
+
 const SearchTeacher = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("all");
   const [sort, setSort] = useState("rating");
@@ -36,10 +43,39 @@ const SearchTeacher = () => {
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Quick booking form state
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedDay, setSelectedDay] = useState(0);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [teacherCount, setTeacherCount] = useState(0);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return {
+      label: d.toLocaleDateString("ar-SA", { weekday: "short" }),
+      date: d.getDate().toString(),
+      fullDate: d,
+    };
+  });
+
   useEffect(() => {
     fetchTeachers();
     fetchSubjects();
   }, []);
+
+  useEffect(() => {
+    if (!selectedSubject) { setTeacherCount(0); return; }
+    const countTeachers = async () => {
+      const { count } = await supabase
+        .from("teacher_subjects")
+        .select("teacher_id", { count: "exact", head: true })
+        .eq("subject_id", selectedSubject);
+      setTeacherCount(count || 0);
+    };
+    countTeachers();
+  }, [selectedSubject]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase.from("subjects").select("id, name").order("name");
@@ -48,7 +84,6 @@ const SearchTeacher = () => {
 
   const fetchTeachers = async () => {
     setLoading(true);
-    // Fetch approved teachers
     const { data: teacherProfiles } = await supabase
       .from("teacher_profiles")
       .select("*")
@@ -57,7 +92,6 @@ const SearchTeacher = () => {
 
     if (!teacherProfiles) { setLoading(false); return; }
 
-    // Fetch profiles for those teachers
     const userIds = teacherProfiles.map(t => t.user_id);
     const { data: profiles } = await supabase
       .from("profiles")
@@ -65,7 +99,6 @@ const SearchTeacher = () => {
       .in("user_id", userIds);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
 
-    // Fetch teacher subjects
     const teacherIds = teacherProfiles.map(t => t.id);
     const { data: teacherSubjects } = await supabase
       .from("teacher_subjects")
@@ -108,6 +141,65 @@ const SearchTeacher = () => {
     const now = new Date();
     const h = now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0");
     return h >= t.available_from && h <= t.available_to;
+  };
+
+  const handleQuickBooking = async () => {
+    if (!user) { navigate("/login"); return; }
+    if (!selectedSubject || !selectedTime) return;
+    setBookingLoading(true);
+    try {
+      const day = days[selectedDay].fullDate;
+      const parts = selectedTime.split(":");
+      let hour = parseInt(parts[0]);
+      if (selectedTime.includes("م") && hour !== 12) hour += 12;
+      if (selectedTime.includes("ص") && hour === 12) hour = 0;
+      const scheduled = new Date(day);
+      scheduled.setHours(hour, 0, 0, 0);
+
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
+      const { error } = await supabase.from("booking_requests" as any).insert({
+        student_id: user.id,
+        subject_id: selectedSubject,
+        scheduled_at: scheduled.toISOString(),
+        duration_minutes: 60,
+        status: "open",
+        expires_at: expiresAt,
+      } as any);
+
+      if (error) throw error;
+
+      // Notify teachers
+      const { data: teacherSubjectsData } = await supabase
+        .from("teacher_subjects")
+        .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
+        .eq("subject_id", selectedSubject);
+
+      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
+
+      if (teacherSubjectsData) {
+        const notifications = (teacherSubjectsData as any[])
+          .filter((ts: any) => ts.teacher_profiles?.is_approved)
+          .map((ts: any) => ({
+            user_id: ts.teacher_profiles.user_id,
+            title: `📚 طلب حصة جديد - ${subjectName}`,
+            body: `طالب يبحث عن معلم ${subjectName} يوم ${days[selectedDay].label} الساعة ${selectedTime}. سارع بالقبول!`,
+            type: "booking_request",
+          }));
+
+        if (notifications.length > 0) {
+          await supabase.from("notifications").insert(notifications);
+        }
+      }
+
+      toast.success(`تم إرسال طلبك لـ ${teacherCount} معلم متخصص! 🎉`);
+      setSelectedSubject("");
+      setSelectedTime(null);
+    } catch (e: any) {
+      toast.error(e.message || "حدث خطأ");
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   return (
@@ -161,6 +253,97 @@ const SearchTeacher = () => {
       </div>
 
       <div className="container py-6 md:py-8 flex-1">
+        {/* Quick Booking Form */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
+          <Card className="border-0 shadow-card overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2 font-bold">
+                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <CalendarCheck className="h-4 w-4 text-secondary" />
+                </div>
+                اطلب حصة سريعة
+                <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs">أسرع طريقة</Badge>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
+                {/* Subject */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5" /> اختر المادة
+                  </p>
+                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="المادة الدراسية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedSubject && teacherCount > 0 && (
+                    <p className="text-[11px] text-secondary mt-1 font-semibold">✅ {teacherCount} معلم متخصص</p>
+                  )}
+                </div>
+
+                {/* Day */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم</p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {days.map((d, i) => (
+                      <button key={i} onClick={() => setSelectedDay(i)}
+                        className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                        <span className="text-[10px] opacity-80">{d.label}</span>
+                        <span className="text-sm font-black">{d.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Time */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5" /> اختر الساعة
+                  </p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {timeSlots.map((t) => (
+                      <button key={t} onClick={() => setSelectedTime(t)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${selectedTime === t ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <div>
+                  <Button
+                    className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
+                    disabled={!selectedTime || !selectedSubject || bookingLoading}
+                    onClick={handleQuickBooking}
+                  >
+                    {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                      <>
+                        إرسال الطلب
+                        <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-sm font-bold text-muted-foreground">أو اختر معلم محدد</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <p className="text-muted-foreground font-medium text-sm md:text-base">{filtered.length} مدرس متاح</p>
         </div>
@@ -205,7 +388,7 @@ const SearchTeacher = () => {
                               <Users className="h-7 w-7 text-primary-foreground/70" />
                             </div>
                             {available && (
-                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-card" />
+                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-secondary border-2 border-card" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -231,12 +414,12 @@ const SearchTeacher = () => {
                         <div className="flex items-center justify-between mb-3 md:mb-4 pt-3 border-t">
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" />
-                            {available ? <span className="text-green-600 font-semibold">متاح الآن</span> : <span>خبرة {t.years_experience} سنوات</span>}
+                            {available ? <span className="text-secondary font-semibold">متاح الآن</span> : <span>خبرة {t.years_experience} سنوات</span>}
                           </div>
                           <span className="text-base md:text-lg font-black text-primary">{t.hourly_rate} <span className="text-[10px] md:text-xs text-muted-foreground font-normal">ر.س/ساعة</span></span>
                         </div>
                         <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl h-10 md:h-11" asChild>
-                          <Link to="/booking">اطلب حصة</Link>
+                          <Link to={`/booking?teacher=${t.user_id}`}>احجز مع هذا المعلم</Link>
                         </Button>
                       </div>
                     </CardContent>
