@@ -105,37 +105,6 @@ const TeacherDashboard = () => {
     });
   };
 
-  const handleBookingAction = async (booking: any, action: "confirmed" | "cancelled") => {
-    const { error } = await supabase.from("bookings").update({ status: action }).eq("id", booking.id);
-    if (error) { toast.error("حدث خطأ"); return; }
-
-    // Notify student
-    const statusText = action === "confirmed" ? "تم قبول حجزك ✅" : "تم رفض طلب الحجز ❌";
-    const bodyText = action === "confirmed"
-      ? `تم قبول حجزك مع ${profile?.full_name || "المعلم"} يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. جهّز نفسك!`
-      : `عذراً، تم رفض طلب الحجز. يمكنك حجز مدرس آخر.`;
-
-    await supabase.from("notifications").insert({
-      user_id: booking.student_id,
-      title: statusText,
-      body: bodyText,
-      type: "booking",
-    });
-
-    setRequests(prev => prev.filter(r => r.id !== booking.id));
-    toast.success(action === "confirmed" ? "تم قبول الحجز!" : "تم رفض الحجز");
-
-    if (action === "confirmed") {
-      // Send welcome chat message
-      await supabase.from("chat_messages").insert({
-        booking_id: booking.id,
-        sender_id: user!.id,
-        content: `مرحباً! تم قبول الحجز 🎉 أنا جاهز للحصة يوم ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}. لا تتردد في أي استفسار!`,
-      });
-      fetchData();
-    }
-  };
-
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
 
@@ -147,7 +116,7 @@ const TeacherDashboard = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl md:text-3xl font-black text-foreground">مرحباً، {displayName} 👋</h1>
             <p className="text-muted-foreground">
-              {isApproved ? `لديك ${requests.length} طلب حجز و ${schedule.length} حصة قادمة` : "حسابك في انتظار الموافقة"}
+              {isApproved ? `لديك ${openRequestsCount} طلب متاح و ${schedule.length} حصة قادمة` : "حسابك في انتظار الموافقة"}
             </p>
           </motion.div>
           <Button variant="outline" className="rounded-xl gap-2" asChild>
