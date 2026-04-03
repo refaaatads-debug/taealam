@@ -58,6 +58,10 @@ const Booking = () => {
       if (data) setSubjects(data);
     };
     fetchSubjects();
+    if (directTeacherId) {
+      supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single()
+        .then(({ data }) => { if (data) setDirectTeacherName(data.full_name); });
+    }
   }, []);
 
   // Count available teachers for selected subject
