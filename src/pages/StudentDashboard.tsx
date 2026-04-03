@@ -2,6 +2,7 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
 import GamificationCard from "@/components/GamificationCard";
+import PendingBookingRequests from "@/components/student/PendingBookingRequests";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
