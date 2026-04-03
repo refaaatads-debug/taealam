@@ -204,9 +204,9 @@ const Booking = () => {
                     <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
                       <CalendarCheck className="h-4 w-4 text-secondary" />
                     </div>
-                    اختر المادة والموعد المناسب
+                    {directTeacherId ? `حجز حصة مع ${directTeacherName || "المعلم"}` : "اختر المادة والموعد المناسب"}
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">سيتم إرسال طلبك لجميع المعلمين المتخصصين وأول معلم يقبل سيكون معلمك</p>
+                  <p className="text-sm text-muted-foreground">{directTeacherId ? "اختر المادة والموعد للحجز مباشرة مع هذا المعلم" : "سيتم إرسال طلبك لجميع المعلمين المتخصصين وأول معلم يقبل سيكون معلمك"}</p>
                 </CardHeader>
                 <CardContent>
                   {/* Subject Selection */}
