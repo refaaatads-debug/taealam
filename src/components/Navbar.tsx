@@ -67,9 +67,11 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="rounded-xl" asChild>
-            <Link to="/search"><Search className="h-4 w-4" /></Link>
-          </Button>
+          {!isAdmin && !isTeacher && (
+            <Button variant="ghost" size="icon" className="rounded-xl" asChild>
+              <Link to="/search"><Search className="h-4 w-4" /></Link>
+            </Button>
+          )}
           <NotificationBell />
           {user ? (
             <>

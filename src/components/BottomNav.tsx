@@ -12,7 +12,7 @@ const BottomNav = () => {
 
   const tabs = [
     { icon: Home, label: "الرئيسية", to: "/" },
-    { icon: Search, label: "البحث", to: "/search" },
+    ...(!isAdmin && !isTeacher ? [{ icon: Search, label: "البحث", to: "/search" }] : []),
     ...(user
       ? isAdmin
         ? [{ icon: Shield, label: "الإدارة", to: "/admin" }]
@@ -20,7 +20,7 @@ const BottomNav = () => {
           ? [{ icon: GraduationCap, label: "حصصي", to: "/teacher" }]
           : [{ icon: BookOpen, label: "حصصي", to: "/student" }]
       : [{ icon: BookOpen, label: "حصصي", to: "/student" }]),
-    { icon: Brain, label: "AI مدرس", to: "/ai-tutor" },
+    ...(!isAdmin ? [{ icon: Brain, label: "AI مدرس", to: "/ai-tutor" }] : []),
     { icon: User, label: "حسابي", to: "/profile" },
   ];
 
