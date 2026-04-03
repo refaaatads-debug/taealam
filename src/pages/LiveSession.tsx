@@ -108,8 +108,8 @@ const LiveSession = () => {
 
     // Wait for JitsiMeetExternalAPI to load
     const initJitsi = () => {
-      if (!(window as any).JitsiMeetExternalAPI) {
-        setTimeout(initJitsi, 500);
+      if (!(window as any).JitsiMeetExternalAPI || !jitsiContainerRef.current) {
+        setTimeout(initJitsi, 300);
         return;
       }
 
