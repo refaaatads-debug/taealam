@@ -96,46 +96,81 @@ const Booking = () => {
       const scheduledAt = getScheduledAt();
       if (!scheduledAt) throw new Error("وقت غير صالح");
 
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      if (directTeacherId) {
+        // Direct booking with specific teacher
+        const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
+          student_id: user.id,
+          teacher_id: directTeacherId,
+          subject_id: selectedSubject,
+          scheduled_at: scheduledAt.toISOString(),
+          duration_minutes: 60,
+          status: "confirmed",
+        }).select("id").single();
 
-      // Create open booking request with expiry
-      const { data: request, error } = await supabase.from("booking_requests" as any).insert({
-        student_id: user.id,
-        subject_id: selectedSubject,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: 60,
-        status: "open",
-        expires_at: expiresAt,
-      } as any).select("id").single();
+        if (bookingError) throw bookingError;
 
-      if (error) throw error;
+        // Notify teacher
+        await supabase.from("notifications").insert({
+          user_id: directTeacherId,
+          title: "📚 حجز حصة جديد!",
+          body: `طالب حجز حصة ${subjects.find(s => s.id === selectedSubject)?.name || "مادة"} يوم ${days[selectedDay].label} الساعة ${selectedTime}`,
+          type: "booking",
+        });
 
-      // Get all teachers for this subject and notify them
-      const { data: teacherSubjects } = await supabase
-        .from("teacher_subjects")
-        .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
-        .eq("subject_id", selectedSubject);
+        // Create chat message
+        await supabase.from("chat_messages").insert({
+          booking_id: booking.id,
+          sender_id: user.id,
+          content: `مرحباً! حجزت حصة معك 🎉`,
+        });
 
-      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
-      const dayLabel = days[selectedDay].label;
+        try {
+          await supabase.functions.invoke("create-zoom-meeting", { body: { booking_id: booking.id } });
+        } catch { console.log("Zoom will be created later"); }
 
-      if (teacherSubjects) {
-        const notifications = (teacherSubjects as any[])
-          .filter((ts: any) => ts.teacher_profiles?.is_approved)
-          .map((ts: any) => ({
-            user_id: ts.teacher_profiles.user_id,
-            title: `📚 طلب حصة جديد - ${subjectName}`,
-            body: `طالب يبحث عن معلم ${subjectName} يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
-            type: "booking_request",
-          }));
+        toast.success("تم حجز الحصة بنجاح! 🎉");
+        setStep(3);
+      } else {
+        // Broadcast request to all teachers
+        const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
 
-        if (notifications.length > 0) {
-          await supabase.from("notifications").insert(notifications);
+        const { error } = await supabase.from("booking_requests" as any).insert({
+          student_id: user.id,
+          subject_id: selectedSubject,
+          scheduled_at: scheduledAt.toISOString(),
+          duration_minutes: 60,
+          status: "open",
+          expires_at: expiresAt,
+        } as any);
+
+        if (error) throw error;
+
+        const { data: teacherSubjects } = await supabase
+          .from("teacher_subjects")
+          .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
+          .eq("subject_id", selectedSubject);
+
+        const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
+        const dayLabel = days[selectedDay].label;
+
+        if (teacherSubjects) {
+          const notifications = (teacherSubjects as any[])
+            .filter((ts: any) => ts.teacher_profiles?.is_approved)
+            .map((ts: any) => ({
+              user_id: ts.teacher_profiles.user_id,
+              title: `📚 طلب حصة جديد - ${subjectName}`,
+              body: `طالب يبحث عن معلم ${subjectName} يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
+              type: "booking_request",
+            }));
+
+          if (notifications.length > 0) {
+            await supabase.from("notifications").insert(notifications);
+          }
         }
-      }
 
-      toast.success("تم إرسال طلبك لجميع المعلمين المتخصصين! 🎉");
-      setStep(3);
+        toast.success("تم إرسال طلبك لجميع المعلمين المتخصصين! 🎉");
+        setStep(3);
+      }
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
     } finally {
