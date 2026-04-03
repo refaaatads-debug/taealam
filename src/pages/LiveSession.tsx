@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, ExternalLink, Loader2
+  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,7 +13,7 @@ import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 
 const LiveSession = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
@@ -24,11 +24,12 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [meetingLink, setMeetingLink] = useState<string | null>(null);
-  const [zoomLoading, setZoomLoading] = useState(false);
+  const [meetingStarted, setMeetingStarted] = useState(false);
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
+  const jitsiContainerRef = useRef<HTMLDivElement>(null);
+  const jitsiApiRef = useRef<any>(null);
 
   // Booking data
   const [bookingData, setBookingData] = useState<any>(null);
@@ -43,20 +44,18 @@ const LiveSession = () => {
         .from("bookings")
         .select("*, subjects(name)")
         .eq("id", bookingId)
-        .single();
+        .maybeSingle();
 
       if (!booking) return;
       setBookingData(booking);
       setSubjectName(booking.subjects?.name || "");
-      if (booking.meeting_link) setMeetingLink(booking.meeting_link);
 
-      // Determine who the "other" person is
       const otherId = user.id === booking.student_id ? booking.teacher_id : booking.student_id;
       const { data: otherProfile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("user_id", otherId)
-        .single();
+        .maybeSingle();
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
     };
     fetchBooking();
@@ -68,11 +67,108 @@ const LiveSession = () => {
     return () => clearInterval(timerRef.current);
   }, []);
 
+  // Load Jitsi Meet API script
+  useEffect(() => {
+    if (document.getElementById("jitsi-script")) return;
+    const script = document.createElement("script");
+    script.id = "jitsi-script";
+    script.src = "https://8x8.vc/vpaas-magic-cookie-ef5ce88c523d41a599c8b1dc5b3ab765/external_api.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
+
+  // Cleanup Jitsi on unmount
+  useEffect(() => {
+    return () => {
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose();
+        jitsiApiRef.current = null;
+      }
+    };
+  }, []);
+
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
     const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
     return `${h}:${m}:${sec}`;
+  };
+
+  const startMeeting = () => {
+    if (!bookingId || !jitsiContainerRef.current) {
+      toast.error("لا يوجد حجز محدد");
+      return;
+    }
+
+    // Clean room name from booking ID
+    const roomName = `taealam-${bookingId.replace(/-/g, "")}`;
+    const displayName = profile?.full_name || "مشارك";
+
+    // Wait for JitsiMeetExternalAPI to load
+    const initJitsi = () => {
+      if (!(window as any).JitsiMeetExternalAPI) {
+        setTimeout(initJitsi, 500);
+        return;
+      }
+
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose();
+      }
+
+      const api = new (window as any).JitsiMeetExternalAPI("meet.jit.si", {
+        roomName,
+        parentNode: jitsiContainerRef.current,
+        width: "100%",
+        height: "100%",
+        configOverwrite: {
+          startWithAudioMuted: !micOn,
+          startWithVideoMuted: !videoOn,
+          prejoinPageEnabled: false,
+          disableDeepLinking: true,
+          toolbarButtons: [],
+          hideConferenceSubject: true,
+          hideConferenceTimer: true,
+          disableProfile: true,
+          enableClosePage: false,
+          disableRemoteMute: false,
+          remoteVideoMenu: { disableKick: true },
+          notifications: [],
+          disableThirdPartyRequests: true,
+        },
+        interfaceConfigOverwrite: {
+          SHOW_CHROME_EXTENSION_BANNER: false,
+          MOBILE_APP_PROMO: false,
+          HIDE_INVITE_MORE_HEADER: true,
+          TOOLBAR_BUTTONS: [],
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_WATERMARK_FOR_GUESTS: false,
+          SHOW_BRAND_WATERMARK: false,
+          FILM_STRIP_MAX_HEIGHT: 0,
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+          DISABLE_PRESENCE_STATUS: true,
+          DEFAULT_BACKGROUND: "#1a1a2e",
+        },
+        userInfo: {
+          displayName,
+        },
+      });
+
+      api.addListener("readyToClose", () => {
+        endSession();
+      });
+
+      jitsiApiRef.current = api;
+      setMeetingStarted(true);
+
+      // Update session start time
+      supabase
+        .from("sessions")
+        .update({ started_at: new Date().toISOString() })
+        .eq("booking_id", bookingId)
+        .then(() => {});
+    };
+
+    initJitsi();
   };
 
   const sendMessage = async () => {
@@ -101,33 +197,32 @@ const LiveSession = () => {
     }
   };
 
-  const createZoomMeeting = async () => {
-    if (!bookingId) { toast.error("لا يوجد حجز محدد"); return; }
-    setZoomLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("create-zoom-meeting", {
-        body: { booking_id: bookingId },
-      });
-      if (error) throw error;
-      if (data?.meeting_link) {
-        setMeetingLink(data.meeting_link);
-        window.open(data.meeting_link, "_blank");
-      }
-    } catch (e: any) {
-      toast.error(e.message || "خطأ في إنشاء اجتماع Zoom");
-    } finally {
-      setZoomLoading(false);
+  const toggleMic = () => {
+    setMicOn(!micOn);
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand("toggleAudio");
     }
   };
 
-  const joinZoom = () => {
-    if (meetingLink) window.open(meetingLink, "_blank");
-    else createZoomMeeting();
+  const toggleVideo = () => {
+    setVideoOn(!videoOn);
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand("toggleVideo");
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.executeCommand("toggleShareScreen");
+    }
   };
 
   const endSession = async () => {
     clearInterval(timerRef.current);
-    // Mark booking as completed
+    if (jitsiApiRef.current) {
+      jitsiApiRef.current.dispose();
+      jitsiApiRef.current = null;
+    }
     if (bookingId) {
       try {
         await supabase
@@ -135,7 +230,6 @@ const LiveSession = () => {
           .update({ status: "completed", session_status: "completed" })
           .eq("id", bookingId);
         
-        // Update session end time
         await supabase
           .from("sessions")
           .update({ ended_at: new Date().toISOString() })
@@ -179,42 +273,47 @@ const LiveSession = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
-        <div className={`flex-1 flex flex-col items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
-          <div className="text-center text-primary-foreground">
-            <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
-              <Users className="h-14 w-14 text-primary-foreground/60" />
+        <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
+          {/* Jitsi container or start screen */}
+          {meetingStarted ? (
+            <div ref={jitsiContainerRef} className="absolute inset-0 w-full h-full" />
+          ) : (
+            <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center">
+              <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
+                <Users className="h-14 w-14 text-primary-foreground/60" />
+              </div>
+              <p className="font-black text-xl mb-1">{otherName}</p>
+              <p className="text-sm opacity-60 mb-6">جاهز لبدء الحصة</p>
+              {!bookingId ? (
+                <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
+              ) : (
+                <Button
+                  onClick={startMeeting}
+                  className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2"
+                >
+                  <Video className="h-6 w-6" />
+                  ابدأ الحصة الآن
+                </Button>
+              )}
             </div>
-            <p className="font-black text-xl mb-1">{otherName}</p>
-            <p className="text-sm opacity-60 mb-4">الفيديو قيد التشغيل</p>
-            {!bookingId ? (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
-            ) : (
-              <Button
-                onClick={joinZoom}
-                disabled={zoomLoading}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 text-base font-bold shadow-lg"
-              >
-                {zoomLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin ml-2" />
-                ) : (
-                  <ExternalLink className="h-5 w-5 ml-2" />
-                )}
-                {meetingLink ? "انضم عبر Zoom" : "إنشاء اجتماع Zoom"}
-              </Button>
-            )}
-          </div>
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-xs text-primary-foreground font-bold">أنت</p>
-              {!videoOn && <VideoOff className="h-5 w-5 text-primary-foreground/50 mx-auto mt-1" />}
-            </div>
-          </motion.div>
+          )}
+
+          {/* Self view overlay (only when meeting not started) */}
+          {!meetingStarted && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-xs text-primary-foreground font-bold">أنت</p>
+                {!videoOn && <VideoOff className="h-5 w-5 text-primary-foreground/50 mx-auto mt-1" />}
+              </div>
+            </motion.div>
+          )}
+
           {handRaised && (
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-gold text-gold-foreground px-4 py-2 rounded-xl font-bold text-sm shadow-lg">
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-gold text-gold-foreground px-4 py-2 rounded-xl font-bold text-sm shadow-lg z-20">
               <Hand className="h-4 w-4 inline ml-1" /> رفعت يدك
             </motion.div>
           )}
-          <div className="absolute top-4 left-4 bg-primary-foreground/10 backdrop-blur-sm rounded-xl px-3 py-1.5 flex items-center gap-2">
+          <div className="absolute top-4 left-4 bg-primary-foreground/10 backdrop-blur-sm rounded-xl px-3 py-1.5 flex items-center gap-2 z-20">
             <Clock className="h-3.5 w-3.5 text-primary-foreground/60" />
             <span className="text-xs font-mono text-primary-foreground/80">{formatTime(elapsed)}</span>
           </div>
@@ -286,16 +385,16 @@ const LiveSession = () => {
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-2 md:gap-3 p-4 glass-strong border-t border-border/10">
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micOn ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={() => setMicOn(!micOn)}>
+        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micOn ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
           {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
         </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${videoOn ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={() => setVideoOn(!videoOn)}>
+        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${videoOn ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleVideo}>
           {videoOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
         </Button>
         <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }}>
           <PenTool className="h-5 w-5" />
         </Button>
-        <Button size="icon" className="rounded-xl h-12 w-12 bg-card/20 hover:bg-card/30 text-card border-0">
+        <Button size="icon" className="rounded-xl h-12 w-12 bg-card/20 hover:bg-card/30 text-card border-0" onClick={toggleScreenShare}>
           <Monitor className="h-5 w-5" />
         </Button>
         <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setChatOpen(!chatOpen)}>
