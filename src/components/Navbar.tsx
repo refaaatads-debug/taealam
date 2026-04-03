@@ -26,8 +26,8 @@ const Navbar = () => {
 
   const links = [
     { label: "الرئيسية", to: "/" },
-    { label: "ابحث عن مدرس", to: "/search" },
-    { label: "الباقات", to: "/pricing" },
+    ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
+    ...(!isAdmin ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(user ? [
       ...(isAdmin
         ? [{ label: "لوحة التحكم", to: "/admin" }]
