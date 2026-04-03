@@ -26,8 +26,8 @@ const Navbar = () => {
 
   const links = [
     { label: "الرئيسية", to: "/" },
-    { label: "ابحث عن مدرس", to: "/search" },
-    { label: "الباقات", to: "/pricing" },
+    ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
+    ...(!isAdmin ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(user ? [
       ...(isAdmin
         ? [{ label: "لوحة التحكم", to: "/admin" }]
@@ -67,9 +67,11 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="rounded-xl" asChild>
-            <Link to="/search"><Search className="h-4 w-4" /></Link>
-          </Button>
+          {!isAdmin && !isTeacher && (
+            <Button variant="ghost" size="icon" className="rounded-xl" asChild>
+              <Link to="/search"><Search className="h-4 w-4" /></Link>
+            </Button>
+          )}
           <NotificationBell />
           {user ? (
             <>
