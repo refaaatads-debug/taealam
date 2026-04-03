@@ -95,10 +95,12 @@ const LiveSession = () => {
   };
 
   const startMeeting = () => {
-    if (!bookingId || !jitsiContainerRef.current) {
+    if (!bookingId) {
       toast.error("لا يوجد حجز محدد");
       return;
     }
+    // Set meetingStarted first so the container div renders
+    setMeetingStarted(true);
 
     // Clean room name from booking ID
     const roomName = `taealam-${bookingId.replace(/-/g, "")}`;
@@ -106,8 +108,8 @@ const LiveSession = () => {
 
     // Wait for JitsiMeetExternalAPI to load
     const initJitsi = () => {
-      if (!(window as any).JitsiMeetExternalAPI) {
-        setTimeout(initJitsi, 500);
+      if (!(window as any).JitsiMeetExternalAPI || !jitsiContainerRef.current) {
+        setTimeout(initJitsi, 300);
         return;
       }
 
@@ -158,7 +160,6 @@ const LiveSession = () => {
       });
 
       jitsiApiRef.current = api;
-      setMeetingStarted(true);
 
       // Update session start time
       supabase
