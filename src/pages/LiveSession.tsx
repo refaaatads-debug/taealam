@@ -160,7 +160,6 @@ const LiveSession = () => {
       });
 
       jitsiApiRef.current = api;
-      setMeetingStarted(true);
 
       // Update session start time
       supabase
