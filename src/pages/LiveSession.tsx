@@ -6,7 +6,7 @@ import {
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, ExternalLink, Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
@@ -26,20 +26,41 @@ const LiveSession = () => {
   const [elapsed, setElapsed] = useState(0);
   const [meetingLink, setMeetingLink] = useState<string | null>(null);
   const [zoomLoading, setZoomLoading] = useState(false);
-  const [messages, setMessages] = useState([
-    { sender: "أ. سارة", text: "أهلاً! جاهز نبدأ؟", time: "الآن", me: false },
-  ]);
+  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
 
-  // Fetch meeting link from booking
+  // Booking data
+  const [bookingData, setBookingData] = useState<any>(null);
+  const [otherName, setOtherName] = useState("المشارك");
+  const [subjectName, setSubjectName] = useState("");
+
+  // Fetch booking details
   useEffect(() => {
-    if (!bookingId) return;
-    (supabase as any).from("bookings").select("meeting_link").eq("id", bookingId).single()
-      .then(({ data }: any) => {
-        if (data?.meeting_link) setMeetingLink(data.meeting_link);
-      });
-  }, [bookingId]);
+    if (!bookingId || !user) return;
+    const fetchBooking = async () => {
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("id", bookingId)
+        .single();
+
+      if (!booking) return;
+      setBookingData(booking);
+      setSubjectName(booking.subjects?.name || "");
+      if (booking.meeting_link) setMeetingLink(booking.meeting_link);
+
+      // Determine who the "other" person is
+      const otherId = user.id === booking.student_id ? booking.teacher_id : booking.student_id;
+      const { data: otherProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", otherId)
+        .single();
+      if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
+    };
+    fetchBooking();
+  }, [bookingId, user]);
 
   // Session timer
   useEffect(() => {
@@ -65,7 +86,6 @@ const LiveSession = () => {
     }]);
     setNewMessage("");
 
-    // Analyze message for violations in background
     if (bookingId && user) {
       supabase.functions.invoke("analyze-violations", {
         body: {
@@ -105,10 +125,31 @@ const LiveSession = () => {
     else createZoomMeeting();
   };
 
-  const endSession = () => {
+  const endSession = async () => {
     clearInterval(timerRef.current);
-    navigate("/rating");
+    // Mark booking as completed
+    if (bookingId) {
+      try {
+        await supabase
+          .from("bookings")
+          .update({ status: "completed", session_status: "completed" })
+          .eq("id", bookingId);
+        
+        // Update session end time
+        await supabase
+          .from("sessions")
+          .update({ ended_at: new Date().toISOString() })
+          .eq("booking_id", bookingId);
+
+        toast.success("تم إنهاء الحصة بنجاح ✅");
+      } catch (e) {
+        console.error("Error ending session:", e);
+      }
+    }
+    navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
   };
+
+  const displayTitle = subjectName ? `${subjectName} - ${otherName}` : otherName;
 
   return (
     <div className="h-screen bg-foreground flex flex-col">
@@ -119,7 +160,7 @@ const LiveSession = () => {
             <Users className="h-4 w-4 text-secondary-foreground" />
           </div>
           <div>
-            <p className="text-sm font-bold text-card">رياضيات - أ. سارة المحمدي</p>
+            <p className="text-sm font-bold text-card">{displayTitle}</p>
             <div className="flex items-center gap-2">
               <span className="text-xs text-card/60">● مباشر</span>
               <span className="text-xs text-card/60 font-mono">{formatTime(elapsed)}</span>
@@ -138,26 +179,29 @@ const LiveSession = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Video Area */}
         <div className={`flex-1 flex flex-col items-center justify-center gradient-hero relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           <div className="text-center text-primary-foreground">
             <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
               <Users className="h-14 w-14 text-primary-foreground/60" />
             </div>
-            <p className="font-black text-xl mb-1">أ. سارة المحمدي</p>
+            <p className="font-black text-xl mb-1">{otherName}</p>
             <p className="text-sm opacity-60 mb-4">الفيديو قيد التشغيل</p>
-            <Button
-              onClick={joinZoom}
-              disabled={zoomLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 text-base font-bold shadow-lg"
-            >
-              {zoomLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin ml-2" />
-              ) : (
-                <ExternalLink className="h-5 w-5 ml-2" />
-              )}
-              {meetingLink ? "انضم عبر Zoom" : "إنشاء اجتماع Zoom"}
-            </Button>
+            {!bookingId ? (
+              <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
+            ) : (
+              <Button
+                onClick={joinZoom}
+                disabled={zoomLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-3 text-base font-bold shadow-lg"
+              >
+                {zoomLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin ml-2" />
+                ) : (
+                  <ExternalLink className="h-5 w-5 ml-2" />
+                )}
+                {meetingLink ? "انضم عبر Zoom" : "إنشاء اجتماع Zoom"}
+              </Button>
+            )}
           </div>
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
             <div className="text-center">
@@ -170,7 +214,6 @@ const LiveSession = () => {
               <Hand className="h-4 w-4 inline ml-1" /> رفعت يدك
             </motion.div>
           )}
-          {/* Session timer overlay */}
           <div className="absolute top-4 left-4 bg-primary-foreground/10 backdrop-blur-sm rounded-xl px-3 py-1.5 flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-primary-foreground/60" />
             <span className="text-xs font-mono text-primary-foreground/80">{formatTime(elapsed)}</span>
@@ -200,7 +243,7 @@ const LiveSession = () => {
                 <h3 className="font-bold text-foreground">تقرير الحصة</h3>
                 <button onClick={() => setShowReport(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors">✕</button>
               </div>
-              <SessionReport bookingId="demo" />
+              <SessionReport bookingId={bookingId || "demo"} />
             </motion.div>
           )}
         </AnimatePresence>

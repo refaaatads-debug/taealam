@@ -206,7 +206,7 @@ const TeacherDashboard = () => {
                         </Button>
                         {isToday && (
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                            <Link to="/session">ابدأ الحصة</Link>
+                            <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
                           </Button>
                         )}
                       </div>
