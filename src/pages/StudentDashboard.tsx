@@ -252,6 +252,9 @@ const StudentDashboard = () => {
               </Card>
             </motion.div>
 
+            {/* Pending Booking Requests with Countdown */}
+            <PendingBookingRequests />
+
             {/* Upcoming Classes */}
             <Card className="border-0 shadow-card">
               <CardHeader className="pb-3">
