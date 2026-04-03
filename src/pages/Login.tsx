@@ -152,7 +152,7 @@ const Login = () => {
         localStorage.setItem("pending_role", role);
       }
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: `${window.location.origin}/login`,
+        redirect_uri: window.location.origin,
       });
       if (result.error) throw result.error;
     } catch (e: any) {
