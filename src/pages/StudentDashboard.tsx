@@ -302,7 +302,7 @@ const StudentDashboard = () => {
                           </Button>
                           {isToday && isConfirmed ? (
                             <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
-                              <Link to="/session">انضم الآن</Link>
+                              <Link to={`/session?booking=${c.id}`}>انضم الآن</Link>
                             </Button>
                           ) : isConfirmed ? (
                             <Badge className="bg-secondary/10 text-secondary border-0 text-xs">مؤكدة ✓</Badge>
