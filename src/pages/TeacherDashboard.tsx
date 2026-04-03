@@ -16,9 +16,9 @@ import { toast } from "sonner";
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
-  const [requests, setRequests] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
+  const [openRequestsCount, setOpenRequestsCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -28,7 +28,7 @@ const TeacherDashboard = () => {
     const channel = supabase
       .channel("teacher-bookings")
       .on("postgres_changes", {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "bookings",
         filter: `teacher_id=eq.${user.id}`,
@@ -52,27 +52,13 @@ const TeacherDashboard = () => {
       .single();
     setTeacherProfile(tp);
 
-    // Fetch pending booking requests
-    const { data: pending } = await supabase
-      .from("bookings")
-      .select("*, subjects(name)")
-      .eq("teacher_id", user.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    // Enrich with student names
-    if (pending && pending.length > 0) {
-      const studentIds = [...new Set(pending.map(b => b.student_id))];
-      const { data: studentProfiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", studentIds);
-      const profileMap = new Map((studentProfiles ?? []).map(p => [p.user_id, p]));
-      setRequests(pending.map(b => ({ ...b, student_profile: profileMap.get(b.student_id) })));
-    } else {
-      setRequests([]);
-    }
+    // Count open booking requests (for subtitle)
+    const { count: reqCount } = await supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open")
+      .gte("expires_at", new Date().toISOString());
+    setOpenRequestsCount(reqCount || 0);
 
     // Fetch upcoming schedule (confirmed bookings)
     const now = new Date().toISOString();
