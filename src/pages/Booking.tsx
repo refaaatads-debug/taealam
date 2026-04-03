@@ -25,6 +25,8 @@ const WEEKDAYS = [
 const Booking = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const directTeacherId = searchParams.get("teacher");
 
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -33,6 +35,7 @@ const Booking = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
+  const [directTeacherName, setDirectTeacherName] = useState("");
 
   // Generate next 7 days
   const days = Array.from({ length: 7 }, (_, i) => {
