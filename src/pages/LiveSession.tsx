@@ -95,10 +95,12 @@ const LiveSession = () => {
   };
 
   const startMeeting = () => {
-    if (!bookingId || !jitsiContainerRef.current) {
+    if (!bookingId) {
       toast.error("لا يوجد حجز محدد");
       return;
     }
+    // Set meetingStarted first so the container div renders
+    setMeetingStarted(true);
 
     // Clean room name from booking ID
     const roomName = `taealam-${bookingId.replace(/-/g, "")}`;
