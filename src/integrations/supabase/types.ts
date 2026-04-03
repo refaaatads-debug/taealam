@@ -80,6 +80,7 @@ export type Database = {
           accepted_by: string | null
           created_at: string
           duration_minutes: number
+          expires_at: string | null
           id: string
           price: number | null
           scheduled_at: string
@@ -93,6 +94,7 @@ export type Database = {
           accepted_by?: string | null
           created_at?: string
           duration_minutes?: number
+          expires_at?: string | null
           id?: string
           price?: number | null
           scheduled_at: string
@@ -106,6 +108,7 @@ export type Database = {
           accepted_by?: string | null
           created_at?: string
           duration_minutes?: number
+          expires_at?: string | null
           id?: string
           price?: number | null
           scheduled_at?: string
