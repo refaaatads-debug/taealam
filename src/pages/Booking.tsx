@@ -89,13 +89,16 @@ const Booking = () => {
       const scheduledAt = getScheduledAt();
       if (!scheduledAt) throw new Error("وقت غير صالح");
 
-      // Create open booking request
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
+      // Create open booking request with expiry
       const { data: request, error } = await supabase.from("booking_requests" as any).insert({
         student_id: user.id,
         subject_id: selectedSubject,
         scheduled_at: scheduledAt.toISOString(),
         duration_minutes: 60,
         status: "open",
+        expires_at: expiresAt,
       } as any).select("id").single();
 
       if (error) throw error;
