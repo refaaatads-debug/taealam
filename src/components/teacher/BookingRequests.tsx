@@ -95,6 +95,20 @@ export default function BookingRequests() {
       fetchRequests();
       return;
     }
+
+    // Check if teacher already has an active/pending booking
+    const { data: activeBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("teacher_id", user.id)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", new Date().toISOString())
+      .limit(1);
+
+    if (activeBookings && activeBookings.length > 0) {
+      toast.error("لديك حصة نشطة بالفعل. أكمل الحصة الحالية أولاً قبل قبول حصة جديدة.");
+      return;
+    }
     setAccepting(request.id);
     try {
       const { error: updateError } = await supabase
