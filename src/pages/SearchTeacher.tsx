@@ -180,7 +180,7 @@ const SearchTeacher = () => {
       const scheduled = new Date(day);
       scheduled.setHours(hour, 0, 0, 0);
 
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 minutes
 
       const { error } = await supabase.from("booking_requests" as any).insert({
         student_id: user.id,
