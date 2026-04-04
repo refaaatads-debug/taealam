@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
 import SchedulePricingManager from "@/components/teacher/SchedulePricingManager";
 import BookingRequests from "@/components/teacher/BookingRequests";
+import WarningsSection from "@/components/teacher/WarningsSection";
+import WithdrawalSection from "@/components/teacher/WithdrawalSection";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
