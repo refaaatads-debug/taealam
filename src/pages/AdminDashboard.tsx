@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
+import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
+import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -325,6 +327,14 @@ const AdminDashboard = () => {
             <TabsTrigger value="plans" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               الباقات
+            </TabsTrigger>
+            <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              سحب الأرباح
+            </TabsTrigger>
+            <TabsTrigger value="teacher_payments" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              المدفوعات
             </TabsTrigger>
             <TabsTrigger value="site" className="rounded-lg gap-1.5">
               <Settings className="h-4 w-4" />
@@ -661,6 +671,16 @@ const AdminDashboard = () => {
           {/* Plans Tab */}
           <TabsContent value="plans" className="space-y-4">
             <PlansManagementTab />
+          </TabsContent>
+
+          {/* Withdrawal Requests Tab */}
+          <TabsContent value="withdrawals" className="space-y-4">
+            <WithdrawalRequestsTab />
+          </TabsContent>
+
+          {/* Teacher Payments Tab */}
+          <TabsContent value="teacher_payments" className="space-y-4">
+            <TeacherPaymentsTab />
           </TabsContent>
 
           {/* Site Content Tab */}

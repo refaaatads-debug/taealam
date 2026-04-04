@@ -236,6 +236,15 @@ const LiveSession = () => {
           .update({ ended_at: new Date().toISOString() })
           .eq("booking_id", bookingId);
 
+        // Auto-generate AI session report
+        try {
+          await supabase.functions.invoke("session-report", {
+            body: { booking_id: bookingId },
+          });
+        } catch (e) {
+          console.log("AI report will be generated later");
+        }
+
         toast.success("تم إنهاء الحصة بنجاح ✅");
       } catch (e) {
         console.error("Error ending session:", e);

@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare } from "lucide-react";
 import SchedulePricingManager from "@/components/teacher/SchedulePricingManager";
 import BookingRequests from "@/components/teacher/BookingRequests";
+import WarningsSection from "@/components/teacher/WarningsSection";
+import WithdrawalSection from "@/components/teacher/WithdrawalSection";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -220,6 +222,12 @@ const TeacherDashboard = () => {
           {/* Schedule & Pricing Manager */}
           <SchedulePricingManager />
 
+          {/* Withdrawal Section */}
+          <WithdrawalSection />
+
+          {/* Warnings */}
+          <WarningsSection />
+
           {/* Performance */}
           <Card className="border-0 shadow-card">
             <CardHeader className="pb-3">
@@ -240,7 +248,7 @@ const TeacherDashboard = () => {
                   <p className="text-2xl font-black text-foreground">{stats.rating.toFixed(1)}</p>
                   <p className="text-xs text-muted-foreground">متوسط التقييم</p>
                 </div>
-                <div className="bg-gold/5 rounded-2xl p-4 text-center">
+                <div className="bg-accent/30 rounded-2xl p-4 text-center">
                   <p className="text-2xl font-black text-foreground">{stats.earnings.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">إجمالي الأرباح (ر.س)</p>
                 </div>

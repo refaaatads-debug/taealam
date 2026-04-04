@@ -690,6 +690,44 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          payment_method: string | null
+          teacher_id: string
+          withdrawal_request_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          teacher_id: string
+          withdrawal_request_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          teacher_id?: string
+          withdrawal_request_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_payments_withdrawal_request_id_fkey"
+            columns: ["withdrawal_request_id"]
+            isOneToOne: false
+            referencedRelation: "withdrawal_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teacher_profiles: {
         Row: {
           available_days: string[] | null
@@ -933,6 +971,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      withdrawal_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          id: string
+          status: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          status?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          status?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

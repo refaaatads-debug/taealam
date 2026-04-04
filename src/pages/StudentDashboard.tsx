@@ -3,6 +3,7 @@ import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
 import GamificationCard from "@/components/GamificationCard";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
+import WarningsSection from "@/components/teacher/WarningsSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -254,6 +255,9 @@ const StudentDashboard = () => {
 
             {/* Pending Booking Requests with Countdown */}
             <PendingBookingRequests />
+
+            {/* Warnings */}
+            <WarningsSection />
 
             {/* Upcoming Classes */}
             <Card className="border-0 shadow-card">
