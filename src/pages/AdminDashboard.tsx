@@ -673,6 +673,16 @@ const AdminDashboard = () => {
             <PlansManagementTab />
           </TabsContent>
 
+          {/* Withdrawal Requests Tab */}
+          <TabsContent value="withdrawals" className="space-y-4">
+            <WithdrawalRequestsTab />
+          </TabsContent>
+
+          {/* Teacher Payments Tab */}
+          <TabsContent value="teacher_payments" className="space-y-4">
+            <TeacherPaymentsTab />
+          </TabsContent>
+
           {/* Site Content Tab */}
           <TabsContent value="site" className="space-y-4">
             <SiteSettingsTab />
