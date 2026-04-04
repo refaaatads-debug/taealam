@@ -328,6 +328,14 @@ const AdminDashboard = () => {
               <DollarSign className="h-4 w-4" />
               الباقات
             </TabsTrigger>
+            <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              سحب الأرباح
+            </TabsTrigger>
+            <TabsTrigger value="teacher_payments" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              المدفوعات
+            </TabsTrigger>
             <TabsTrigger value="site" className="rounded-lg gap-1.5">
               <Settings className="h-4 w-4" />
               المحتوى
