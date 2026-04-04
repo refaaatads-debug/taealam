@@ -256,6 +256,9 @@ const StudentDashboard = () => {
             {/* Pending Booking Requests with Countdown */}
             <PendingBookingRequests />
 
+            {/* Warnings */}
+            <WarningsSection />
+
             {/* Upcoming Classes */}
             <Card className="border-0 shadow-card">
               <CardHeader className="pb-3">

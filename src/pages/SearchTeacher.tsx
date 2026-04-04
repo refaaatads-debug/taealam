@@ -146,6 +146,30 @@ const SearchTeacher = () => {
   const handleQuickBooking = async () => {
     if (!user) { navigate("/login"); return; }
     if (!selectedSubject || !selectedTime) return;
+
+    // Check if student already has an active request or booking
+    const { data: activeRequests } = await supabase
+      .from("booking_requests" as any)
+      .select("id")
+      .eq("student_id", user.id)
+      .eq("status", "open");
+    
+    const { data: activeBookings } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("student_id", user.id)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", new Date().toISOString());
+
+    if ((activeRequests as any[] || []).length > 0) {
+      toast.error("لديك طلب حصة قيد الانتظار بالفعل. انتظر حتى يتم قبوله أو ينتهي.");
+      return;
+    }
+    if ((activeBookings || []).length > 0) {
+      toast.error("لديك حصة مؤكدة بالفعل. أكمل الحصة الحالية أولاً.");
+      return;
+    }
+
     setBookingLoading(true);
     try {
       const day = days[selectedDay].fullDate;

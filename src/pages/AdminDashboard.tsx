@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
+import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
+import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
