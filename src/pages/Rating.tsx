@@ -1,14 +1,66 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, CheckCircle, MessageSquare } from "lucide-react";
+import { Star, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const Rating = () => {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get("booking");
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
+  const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!rating || !bookingId || !user) return;
+    setSubmitting(true);
+    try {
+      // Get booking to find teacher_id
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("teacher_id")
+        .eq("id", bookingId)
+        .single();
+
+      if (!booking) throw new Error("لم يتم العثور على الحجز");
+
+      const { error } = await supabase.from("reviews").insert({
+        booking_id: bookingId,
+        student_id: user.id,
+        teacher_id: booking.teacher_id,
+        rating,
+        comment: comment.trim() || null,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.info("تم تقييم هذه الحصة مسبقاً");
+        } else {
+          throw error;
+        }
+      }
+
+      // Mark free trial as used if this was the first session
+      await supabase
+        .from("profiles")
+        .update({ free_trial_used: true })
+        .eq("user_id", user.id);
+
+      setSubmitted(true);
+      toast.success("شكراً لتقييمك! 🎉");
+    } catch (e: any) {
+      toast.error(e.message || "حدث خطأ أثناء إرسال التقييم");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (submitted) {
     return (
@@ -37,7 +89,7 @@ const Rating = () => {
         <Card className="border-0 shadow-card-hover">
           <CardContent className="p-8 text-center">
             <h2 className="text-2xl font-black text-foreground mb-2">كيف كانت الحصة؟</h2>
-            <p className="text-muted-foreground mb-6">قيّم حصتك مع أ. سارة المحمدي</p>
+            <p className="text-muted-foreground mb-6">قيّم تجربتك مع المعلم</p>
 
             <div className="flex justify-center gap-2 mb-8">
               {[1, 2, 3, 4, 5].map((s) => (
@@ -54,16 +106,18 @@ const Rating = () => {
             </div>
 
             <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
               placeholder="اكتب ملاحظاتك (اختياري)..."
               className="w-full p-4 rounded-xl bg-muted/30 border border-border/50 text-right text-sm resize-none h-24 mb-4 focus:outline-none focus:border-secondary"
             />
 
             <Button
               className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
-              disabled={rating === 0}
-              onClick={() => setSubmitted(true)}
+              disabled={rating === 0 || submitting}
+              onClick={handleSubmit}
             >
-              إرسال التقييم
+              {submitting ? "جاري الإرسال..." : "إرسال التقييم"}
             </Button>
             <Button variant="ghost" className="w-full mt-2 rounded-xl text-muted-foreground" asChild>
               <Link to="/student">تخطي</Link>
