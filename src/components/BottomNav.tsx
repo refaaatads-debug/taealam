@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Search, BookOpen, User, Brain, GraduationCap, Shield } from "lucide-react";
+import { Search, BookOpen, User, Brain, GraduationCap, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -9,17 +9,18 @@ const BottomNav = () => {
 
   const isTeacher = roles.includes("teacher");
   const isAdmin = roles.includes("admin");
+  const isStudent = !isTeacher && !isAdmin;
 
   const tabs = [
-    { icon: Home, label: "الرئيسية", to: "/" },
-    ...(!isAdmin && !isTeacher ? [{ icon: Search, label: "البحث", to: "/search" }] : []),
-    ...(user
-      ? isAdmin
+    // Students go directly to dashboard, no home page
+    ...(isStudent && user
+      ? [{ icon: BookOpen, label: "حصصي", to: "/student" }]
+      : isAdmin
         ? [{ icon: Shield, label: "الإدارة", to: "/admin" }]
         : isTeacher
           ? [{ icon: GraduationCap, label: "حصصي", to: "/teacher" }]
-          : [{ icon: BookOpen, label: "حصصي", to: "/student" }]
-      : [{ icon: BookOpen, label: "حصصي", to: "/student" }]),
+          : [{ icon: BookOpen, label: "حصصي", to: "/student" }]),
+    ...(!isAdmin && !isTeacher ? [{ icon: Search, label: "البحث", to: "/search" }] : []),
     ...(!isAdmin ? [{ icon: Brain, label: "AI مدرس", to: "/ai-tutor" }] : []),
     { icon: User, label: "حسابي", to: "/profile" },
   ];

@@ -4,11 +4,15 @@ import SmartMatchWidget from "@/components/SmartMatchWidget";
 import GamificationCard from "@/components/GamificationCard";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
+import SubscriptionBalance from "@/components/student/SubscriptionBalance";
+import SessionMaterials from "@/components/student/SessionMaterials";
+import UpcomingSchedule from "@/components/student/UpcomingSchedule";
+import CustomerServiceButton from "@/components/student/CustomerServiceButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, ChevronLeft, Sparkles, MessageSquare, Gift, Zap } from "lucide-react";
+import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, ChevronLeft, Sparkles, MessageSquare, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +20,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import { Settings } from "lucide-react";
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
@@ -28,7 +31,6 @@ const StudentDashboard = () => {
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +45,7 @@ const StudentDashboard = () => {
         .in("status", ["pending", "confirmed"])
         .gte("scheduled_at", new Date().toISOString())
         .order("scheduled_at")
-        .limit(5);
+        .limit(10);
 
       // Enrich with teacher names
       if (upcoming && upcoming.length > 0) {
@@ -84,7 +86,7 @@ const StudentDashboard = () => {
 
       setStats({
         bookings: bookingsCount || 0,
-        hours: Math.round((bookingsCount || 0) * 0.9),
+        hours: Math.round((bookingsCount || 0) * 0.75), // 45 min per session
         progress: Math.min(((bookingsCount || 0) / 20) * 100, 100),
         points: pointsData?.total_points || 0,
       });
@@ -98,13 +100,13 @@ const StudentDashboard = () => {
         .single();
       setSubscription(sub);
 
-      // Check free trial
+      // Check free trial - only show if no completed bookings
       const { data: profileData } = await supabase
         .from("profiles")
         .select("free_trial_used")
         .eq("user_id", user.id)
         .single();
-      setFreeTrialAvailable(!profileData?.free_trial_used);
+      setFreeTrialAvailable(!profileData?.free_trial_used && (bookingsCount || 0) === 0);
 
       // Check Stripe subscription status
       try {
@@ -112,7 +114,7 @@ const StudentDashboard = () => {
         if (stripeSub && !stripeSub.error) {
           setStripeSubscription(stripeSub);
         }
-      } catch (e) {
+      } catch {
         console.log("Could not check stripe subscription");
       }
 
@@ -162,6 +164,7 @@ const StudentDashboard = () => {
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
       <Navbar />
+      <CustomerServiceButton />
       <div className="container py-8">
         {/* Welcome */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -174,14 +177,14 @@ const StudentDashboard = () => {
           </motion.div>
         </div>
 
-        {/* Free Trial Banner */}
+        {/* Free Trial Banner - only if no completed sessions */}
         {freeTrialAvailable && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="border-0 shadow-card mb-6 overflow-hidden bg-gradient-to-l from-gold/10 via-gold/5 to-transparent border-gold/20">
               <CardContent className="p-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-xl bg-gold/10 flex items-center justify-center">
-                    <Gift className="h-6 w-6 text-gold" />
+                    <Zap className="h-6 w-6 text-gold" />
                   </div>
                   <div>
                     <p className="font-black text-foreground">🎁 حصة مجانية تجريبية!</p>
@@ -253,13 +256,19 @@ const StudentDashboard = () => {
               </Card>
             </motion.div>
 
-            {/* Pending Booking Requests with Countdown */}
+            {/* Subscription Balance */}
+            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
+
+            {/* Pending Booking Requests with Countdown + Cancel */}
             <PendingBookingRequests />
 
             {/* Warnings */}
             <WarningsSection />
 
-            {/* Upcoming Classes */}
+            {/* Upcoming Schedule Table */}
+            <UpcomingSchedule upcomingClasses={upcomingClasses} />
+
+            {/* Upcoming Classes Cards */}
             <Card className="border-0 shadow-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2 font-bold">
@@ -319,62 +328,8 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Subscription Info */}
-            {(subscription || stripeSubscription?.subscribed) && (
-              <Card className="border-0 shadow-card">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-sm text-foreground">باقتي</span>
-                    <Badge className="bg-secondary/10 text-secondary border-0 text-xs">
-                      {stripeSubscription?.tier === "premium" ? "احترافية" : stripeSubscription?.tier === "standard" ? "متقدمة" : stripeSubscription?.tier === "basic" ? "أساسية" : (subscription as any)?.subscription_plans?.name_ar || "نشط"}
-                    </Badge>
-                  </div>
-                  {subscription && (
-                    <>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">الحصص المتبقية</span>
-                        <span className="font-black text-foreground">{subscription.sessions_remaining}</span>
-                      </div>
-                    </>
-                  )}
-                  {stripeSubscription?.subscription_end && (
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">ينتهي في</span>
-                      <span className="font-bold text-foreground">{new Date(stripeSubscription.subscription_end).toLocaleDateString("ar-SA")}</span>
-                    </div>
-                  )}
-                  <div className="flex gap-2 mt-3">
-                    {subscription?.sessions_remaining <= 2 && (
-                      <Button className="flex-1 gradient-cta text-secondary-foreground rounded-xl" size="sm" asChild>
-                        <Link to="/pricing">جدّد اشتراكك</Link>
-                      </Button>
-                    )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1 rounded-xl"
-                      disabled={portalLoading}
-                      onClick={async () => {
-                        setPortalLoading(true);
-                        try {
-                          const { data, error } = await supabase.functions.invoke("customer-portal");
-                          if (error) throw error;
-                          if (data?.url) window.open(data.url, "_blank");
-                          else throw new Error("لم يتم إنشاء الرابط");
-                        } catch (e: any) {
-                          toast.error(e.message || "حدث خطأ");
-                        } finally {
-                          setPortalLoading(false);
-                        }
-                      }}
-                    >
-                      <Settings className="h-4 w-4 ml-1" />
-                      {portalLoading ? "جاري..." : "إدارة الاشتراك"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Session Materials (7-day retention with AI analysis) */}
+            <SessionMaterials />
 
             {/* Past Classes */}
             {pastClasses.length > 0 && (

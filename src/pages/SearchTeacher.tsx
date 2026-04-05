@@ -147,46 +147,43 @@ const SearchTeacher = () => {
     if (!user) { navigate("/login"); return; }
     if (!selectedSubject || !selectedTime) return;
 
-    // Check if student already has an active request or booking
-    const { data: activeRequests } = await supabase
-      .from("booking_requests" as any)
-      .select("id")
-      .eq("student_id", user.id)
-      .eq("status", "open");
-    
-    const { data: activeBookings } = await supabase
+    // Check for conflicting bookings at the same time only
+    const day = days[selectedDay].fullDate;
+    const parts = selectedTime.split(":");
+    let hour = parseInt(parts[0]);
+    if (selectedTime.includes("م") && hour !== 12) hour += 12;
+    if (selectedTime.includes("ص") && hour === 12) hour = 0;
+    const scheduled = new Date(day);
+    scheduled.setHours(hour, 0, 0, 0);
+    const scheduledEnd = new Date(scheduled.getTime() + 45 * 60 * 1000);
+
+    const { data: conflictingBookings } = await supabase
       .from("bookings")
-      .select("id")
+      .select("id, scheduled_at, duration_minutes")
       .eq("student_id", user.id)
       .in("status", ["pending", "confirmed"])
       .gte("scheduled_at", new Date().toISOString());
 
-    if ((activeRequests as any[] || []).length > 0) {
-      toast.error("لديك طلب حصة قيد الانتظار بالفعل. انتظر حتى يتم قبوله أو ينتهي.");
-      return;
-    }
-    if ((activeBookings || []).length > 0) {
-      toast.error("لديك حصة مؤكدة بالفعل. أكمل الحصة الحالية أولاً.");
+    const hasConflict = (conflictingBookings || []).some((b: any) => {
+      const bStart = new Date(b.scheduled_at).getTime();
+      const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
+      return scheduled.getTime() < bEnd && scheduledEnd.getTime() > bStart;
+    });
+
+    if (hasConflict) {
+      toast.error("لديك حصة محجوزة في نفس الموعد. اختر وقتاً آخر.");
       return;
     }
 
     setBookingLoading(true);
     try {
-      const day = days[selectedDay].fullDate;
-      const parts = selectedTime.split(":");
-      let hour = parseInt(parts[0]);
-      if (selectedTime.includes("م") && hour !== 12) hour += 12;
-      if (selectedTime.includes("ص") && hour === 12) hour = 0;
-      const scheduled = new Date(day);
-      scheduled.setHours(hour, 0, 0, 0);
-
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 minutes
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
       const { error } = await supabase.from("booking_requests" as any).insert({
         student_id: user.id,
         subject_id: selectedSubject,
         scheduled_at: scheduled.toISOString(),
-        duration_minutes: 60,
+        duration_minutes: 45,
         status: "open",
         expires_at: expiresAt,
       } as any);

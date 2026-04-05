@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2 } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import { toast } from "sonner";
 
 interface ChatMessage {
   id: string;
@@ -16,6 +17,9 @@ interface ChatMessage {
   content: string;
   is_filtered: boolean;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
 }
 
 const Chat = () => {
@@ -28,12 +32,13 @@ const Chat = () => {
   const [sending, setSending] = useState(false);
   const [otherName, setOtherName] = useState("المحادثة");
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!bookingId || !user) return;
 
-    // Fetch booking info to get the other party's name
     const fetchBookingInfo = async () => {
       const { data: booking } = await supabase
         .from("bookings")
@@ -52,21 +57,19 @@ const Chat = () => {
       }
     };
 
-    // Fetch existing messages
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("chat_messages")
         .select("*")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: true });
-      if (data) setMessages(data);
+      if (data) setMessages(data as ChatMessage[]);
       setLoading(false);
     };
 
     fetchBookingInfo();
     fetchMessages();
 
-    // Subscribe to new messages
     const channel = supabase
       .channel(`chat-${bookingId}`)
       .on("postgres_changes", {
@@ -78,7 +81,6 @@ const Chat = () => {
         const newMsg = payload.new as ChatMessage;
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev;
-          // Play sound for messages from others
           if (newMsg.sender_id !== user?.id) {
             playNotificationSound();
           }
@@ -109,7 +111,6 @@ const Chat = () => {
     if (error) {
       setNewMessage(content);
     } else {
-      // Send notification to the other party
       try {
         const { data: booking } = await supabase
           .from("bookings")
@@ -125,11 +126,79 @@ const Chat = () => {
             type: "chat_message",
           });
         }
-      } catch (e) {
-        // Non-critical, ignore
+      } catch {
+        // Non-critical
       }
     }
     setSending(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !bookingId || !user) return;
+
+    // Validate file type (PDF and JPG only)
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("يُسمح فقط بملفات PDF و JPG و PNG");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("حجم الملف يجب أن لا يتجاوز 10 ميجابايت");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${bookingId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("chat-files")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("chat-files")
+        .getPublicUrl(filePath);
+
+      const { error: msgError } = await supabase.from("chat_messages").insert({
+        booking_id: bookingId,
+        sender_id: user.id,
+        content: `📎 ${file.name}`,
+        file_url: urlData.publicUrl,
+        file_name: file.name,
+        file_type: file.type,
+      });
+
+      if (msgError) throw msgError;
+      toast.success("تم إرسال الملف بنجاح");
+    } catch (err: any) {
+      toast.error(err.message || "فشل في رفع الملف");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const renderFileMessage = (msg: ChatMessage) => {
+    if (!msg.file_url) return null;
+    const isImage = msg.file_type?.startsWith("image/");
+    if (isImage) {
+      return (
+        <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+          <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[200px] rounded-lg border" />
+        </a>
+      );
+    }
+    return (
+      <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mt-2 bg-muted/50 rounded-lg p-2 hover:bg-muted transition-colors">
+        <FileText className="h-5 w-5 text-primary" />
+        <span className="text-xs font-medium text-primary underline">{msg.file_name || "ملف"}</span>
+      </a>
+    );
   };
 
   if (!bookingId) {
@@ -189,6 +258,7 @@ const Chat = () => {
                       : "bg-muted text-foreground"
                 }`}>
                   <p className="text-sm leading-relaxed">{msg.content}</p>
+                  {renderFileMessage(msg)}
                   <p className={`text-[10px] mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                     {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -206,6 +276,23 @@ const Chat = () => {
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
           className="flex items-center gap-2 max-w-3xl mx-auto"
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="rounded-xl shrink-0"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+          </Button>
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}

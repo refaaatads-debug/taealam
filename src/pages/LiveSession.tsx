@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock
+  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -35,6 +35,10 @@ const LiveSession = () => {
   const [bookingData, setBookingData] = useState<any>(null);
   const [otherName, setOtherName] = useState("المشارك");
   const [subjectName, setSubjectName] = useState("");
+  const [sessionDuration, setSessionDuration] = useState(45); // default 45 min
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [subscriptionMinutes, setSubscriptionMinutes] = useState(0);
+  const [timeWarningShown, setTimeWarningShown] = useState(false);
 
   // Fetch booking details
   useEffect(() => {
@@ -49,6 +53,7 @@ const LiveSession = () => {
       if (!booking) return;
       setBookingData(booking);
       setSubjectName(booking.subjects?.name || "");
+      setSessionDuration(booking.duration_minutes || 45);
 
       const otherId = user.id === booking.student_id ? booking.teacher_id : booking.student_id;
       const { data: otherProfile } = await supabase
@@ -57,15 +62,50 @@ const LiveSession = () => {
         .eq("user_id", otherId)
         .maybeSingle();
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
+
+      // Check if student has active subscription
+      if (booking.used_subscription && booking.subscription_id) {
+        setHasSubscription(true);
+        const { data: sub } = await supabase
+          .from("user_subscriptions")
+          .select("sessions_remaining")
+          .eq("id", booking.subscription_id)
+          .single();
+        if (sub) {
+          setSubscriptionMinutes(sub.sessions_remaining * 45); // 45 min per session
+        }
+      }
     };
     fetchBooking();
   }, [bookingId, user]);
 
-  // Session timer
+  // Session timer with 45-min auto-close for non-subscription
   useEffect(() => {
-    timerRef.current = window.setInterval(() => setElapsed((p) => p + 1), 1000);
+    if (!meetingStarted) return;
+    timerRef.current = window.setInterval(() => {
+      setElapsed((p) => {
+        const next = p + 1;
+        const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+        const warningSeconds = maxSeconds - 5 * 60; // 5 min warning
+
+        // Warning at 5 min before end
+        if (next === warningSeconds && !timeWarningShown) {
+          setTimeWarningShown(true);
+          toast.warning("⚠️ تنبيه: متبقي 5 دقائق على انتهاء الحصة!", { duration: 10000 });
+        }
+
+        // Auto-close when time runs out
+        if (next >= maxSeconds) {
+          toast.error("انتهى وقت الحصة! سيتم إغلاق الجلسة تلقائياً.");
+          setTimeout(() => endSession(), 2000);
+          return maxSeconds;
+        }
+
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(timerRef.current);
-  }, []);
+  }, [meetingStarted, sessionDuration, hasSubscription, subscriptionMinutes]);
 
   // Load Jitsi Meet API script
   useEffect(() => {
@@ -94,19 +134,30 @@ const LiveSession = () => {
     return `${h}:${m}:${sec}`;
   };
 
+  const getRemainingTime = () => {
+    const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+    const remaining = Math.max(0, maxSeconds - elapsed);
+    return formatTime(remaining);
+  };
+
+  const getRemainingColor = () => {
+    const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+    const remaining = maxSeconds - elapsed;
+    if (remaining < 60) return "text-destructive";
+    if (remaining < 5 * 60) return "text-orange-500";
+    return "text-card/60";
+  };
+
   const startMeeting = () => {
     if (!bookingId) {
       toast.error("لا يوجد حجز محدد");
       return;
     }
-    // Set meetingStarted first so the container div renders
     setMeetingStarted(true);
 
-    // Clean room name from booking ID
     const roomName = `taealam-${bookingId.replace(/-/g, "")}`;
     const displayName = profile?.full_name || "مشارك";
 
-    // Wait for JitsiMeetExternalAPI to load
     const initJitsi = () => {
       if (!(window as any).JitsiMeetExternalAPI || !jitsiContainerRef.current) {
         setTimeout(initJitsi, 300);
@@ -161,7 +212,6 @@ const LiveSession = () => {
 
       jitsiApiRef.current = api;
 
-      // Update session start time
       supabase
         .from("sessions")
         .update({ started_at: new Date().toISOString() })
@@ -236,12 +286,27 @@ const LiveSession = () => {
           .update({ ended_at: new Date().toISOString() })
           .eq("booking_id", bookingId);
 
+        // Deduct subscription session if used
+        if (bookingData?.used_subscription && bookingData?.subscription_id) {
+          const { data: sub } = await supabase
+            .from("user_subscriptions")
+            .select("sessions_remaining")
+            .eq("id", bookingData.subscription_id)
+            .single();
+          if (sub && sub.sessions_remaining > 0) {
+            await supabase
+              .from("user_subscriptions")
+              .update({ sessions_remaining: sub.sessions_remaining - 1 })
+              .eq("id", bookingData.subscription_id);
+          }
+        }
+
         // Auto-generate AI session report
         try {
           await supabase.functions.invoke("session-report", {
             body: { booking_id: bookingId },
           });
-        } catch (e) {
+        } catch {
           console.log("AI report will be generated later");
         }
 
@@ -272,6 +337,14 @@ const LiveSession = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Remaining time indicator */}
+          {meetingStarted && (
+            <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
+              <Clock className="h-3 w-3" />
+              <span className="font-mono">{getRemainingTime()}</span>
+              <span className="hidden sm:inline">متبقي</span>
+            </span>
+          )}
           <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
             <span className="w-2 h-2 rounded-full bg-destructive" /> REC
           </span>
@@ -284,7 +357,6 @@ const LiveSession = () => {
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
-          {/* Jitsi container or start screen */}
           {meetingStarted ? (
             <div ref={jitsiContainerRef} className="absolute inset-0 w-full h-full" />
           ) : (
@@ -293,7 +365,8 @@ const LiveSession = () => {
                 <Users className="h-14 w-14 text-primary-foreground/60" />
               </div>
               <p className="font-black text-xl mb-1">{otherName}</p>
-              <p className="text-sm opacity-60 mb-6">جاهز لبدء الحصة</p>
+              <p className="text-sm opacity-60 mb-2">جاهز لبدء الحصة</p>
+              <p className="text-xs opacity-50 mb-6">مدة الحصة: {sessionDuration} دقيقة</p>
               {!bookingId ? (
                 <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
               ) : (
@@ -308,7 +381,6 @@ const LiveSession = () => {
             </div>
           )}
 
-          {/* Self view overlay (only when meeting not started) */}
           {!meetingStarted && (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-20 left-4 w-36 h-28 rounded-2xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/10 flex items-center justify-center">
               <div className="text-center">

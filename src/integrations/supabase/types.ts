@@ -201,6 +201,9 @@ export type Database = {
           booking_id: string
           content: string
           created_at: string
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
           id: string
           is_filtered: boolean | null
           sender_id: string
@@ -209,6 +212,9 @@ export type Database = {
           booking_id: string
           content: string
           created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           is_filtered?: boolean | null
           sender_id: string
@@ -217,6 +223,9 @@ export type Database = {
           booking_id?: string
           content?: string
           created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           is_filtered?: boolean | null
           sender_id?: string
