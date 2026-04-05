@@ -177,21 +177,13 @@ const SearchTeacher = () => {
 
     setBookingLoading(true);
     try {
-      const day = days[selectedDay].fullDate;
-      const parts = selectedTime.split(":");
-      let hour = parseInt(parts[0]);
-      if (selectedTime.includes("م") && hour !== 12) hour += 12;
-      if (selectedTime.includes("ص") && hour === 12) hour = 0;
-      const scheduled = new Date(day);
-      scheduled.setHours(hour, 0, 0, 0);
-
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 60 minutes
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
       const { error } = await supabase.from("booking_requests" as any).insert({
         student_id: user.id,
         subject_id: selectedSubject,
         scheduled_at: scheduled.toISOString(),
-        duration_minutes: 60,
+        duration_minutes: 45,
         status: "open",
         expires_at: expiresAt,
       } as any);
