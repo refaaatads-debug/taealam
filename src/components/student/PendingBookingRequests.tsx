@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, BookOpen, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CountdownTimer from "@/components/CountdownTimer";
+import { toast } from "sonner";
 
 interface PendingRequest {
   id: string;
@@ -19,6 +21,7 @@ interface PendingRequest {
 export default function PendingBookingRequests() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -51,7 +54,6 @@ export default function PendingBookingRequests() {
 
     if (!data || data.length === 0) { setRequests([]); return; }
 
-    // Filter expired
     const now = Date.now();
     const valid = (data as any[]).filter((r: any) => {
       if (!r.expires_at) return true;
@@ -74,6 +76,24 @@ export default function PendingBookingRequests() {
 
   const handleExpire = (id: string) => {
     setRequests(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleCancel = async (id: string) => {
+    setCancellingId(id);
+    try {
+      const { error } = await supabase
+        .from("booking_requests" as any)
+        .update({ status: "cancelled" } as any)
+        .eq("id", id)
+        .eq("student_id", user?.id);
+      if (error) throw error;
+      setRequests(prev => prev.filter(r => r.id !== id));
+      toast.success("تم إلغاء الطلب بنجاح");
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الطلب");
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   if (requests.length === 0) return null;
@@ -109,9 +129,21 @@ export default function PendingBookingRequests() {
                 <p className="text-xs text-muted-foreground mt-0.5">⏳ في انتظار قبول معلم</p>
               </div>
             </div>
-            {r.expires_at && (
-              <CountdownTimer expiresAt={r.expires_at} onExpire={() => handleExpire(r.id)} />
-            )}
+            <div className="flex items-center gap-2">
+              {r.expires_at && (
+                <CountdownTimer expiresAt={r.expires_at} onExpire={() => handleExpire(r.id)} />
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
+                disabled={cancellingId === r.id}
+                onClick={() => handleCancel(r.id)}
+                title="إلغاء الطلب"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </motion.div>
         ))}
       </CardContent>
