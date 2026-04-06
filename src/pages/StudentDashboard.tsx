@@ -8,6 +8,7 @@ import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
 import UpcomingSchedule from "@/components/student/UpcomingSchedule";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
+import NotificationsSection from "@/components/student/NotificationsSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -258,6 +259,9 @@ const StudentDashboard = () => {
 
             {/* Subscription Balance */}
             <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
+
+            {/* Notifications */}
+            <NotificationsSection />
 
             {/* Pending Booking Requests with Countdown + Cancel */}
             <PendingBookingRequests />
