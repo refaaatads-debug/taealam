@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -63,7 +64,11 @@ const SupportChat = () => {
         filter: `ticket_id=eq.${ticketId}`,
       }, (payload) => {
         const msg = payload.new as Message;
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          if (msg.sender_id !== user?.id) playSupportSound();
+          return [...prev, msg];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
