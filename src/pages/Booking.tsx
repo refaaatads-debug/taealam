@@ -31,9 +31,10 @@ const Booking = () => {
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
 
