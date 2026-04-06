@@ -30,6 +30,7 @@ const SupportTicketsTab = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { play: playSupportSound } = useNotificationSound();
 
   useEffect(() => { fetchTickets(); }, []);
 

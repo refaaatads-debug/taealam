@@ -46,6 +46,7 @@ const SupportChat = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { play: playSupportSound } = useNotificationSound();
 
   const backPath = roles.includes("teacher") ? "/teacher" : "/student";
 
