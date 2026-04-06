@@ -39,6 +39,7 @@ const AdminDashboard = () => {
   const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
+  const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
@@ -193,6 +194,20 @@ const AdminDashboard = () => {
         }
       }
 
+      // Fetch badge counts for tabs
+      const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
+        supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
+      ]);
+      setBadgeCounts({
+        withdrawals: withdrawalsRes.count ?? 0,
+        support: supportRes.count ?? 0,
+        pendingBookings: pendingBookingsRes.count ?? 0,
+        unreviewed: unreviewedRes.count ?? 0,
+      });
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -317,12 +332,15 @@ const AdminDashboard = () => {
             <TabsTrigger value="bookings" className="rounded-lg gap-1.5">
               <Clock className="h-4 w-4" />
               الحجوزات
+              {badgeCounts.pendingBookings > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.pendingBookings}</Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="violations" className="rounded-lg gap-1.5">
               <ShieldAlert className="h-4 w-4" />
               المخالفات
-              {stats.violations > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{stats.violations}</Badge>
+              {badgeCounts.unreviewed > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.unreviewed}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="plans" className="rounded-lg gap-1.5">
@@ -332,6 +350,9 @@ const AdminDashboard = () => {
             <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               سحب الأرباح
+              {badgeCounts.withdrawals > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.withdrawals}</Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="teacher_payments" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
@@ -344,6 +365,9 @@ const AdminDashboard = () => {
             <TabsTrigger value="support" className="rounded-lg gap-1.5">
               <MessageSquare className="h-4 w-4" />
               الدعم الفني
+              {badgeCounts.support > 0 && (
+                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.support}</Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
