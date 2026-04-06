@@ -150,7 +150,21 @@ export default function SessionMaterials() {
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t"
                       >
-                        <div className="p-4">
+                        <div className="p-4 space-y-3">
+                          {m.recording_url && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Play className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
+                              </div>
+                              <video
+                                src={m.recording_url}
+                                controls
+                                className="w-full rounded-xl max-h-64"
+                                preload="metadata"
+                              />
+                            </div>
+                          )}
                           {m.ai_report ? (
                             <div className="bg-accent/30 rounded-xl p-4">
                               <div className="flex items-center gap-2 mb-2">
