@@ -31,7 +31,19 @@ interface TeacherResult {
   subjects: string[];
 }
 
-const timeSlots = ["3:00 م", "4:00 م", "5:00 م", "6:00 م", "7:00 م", "8:00 م", "9:00 م"];
+const allTimeSlots = [
+  "8:00 ص", "9:00 ص", "10:00 ص", "11:00 ص", "12:00 م",
+  "1:00 م", "2:00 م", "3:00 م", "4:00 م", "5:00 م",
+  "6:00 م", "7:00 م", "8:00 م", "9:00 م", "10:00 م", "11:00 م",
+];
+
+const parseTimeSlotHour = (slot: string): number => {
+  const parts = slot.split(":");
+  let hour = parseInt(parts[0]);
+  if (slot.includes("م") && hour !== 12) hour += 12;
+  if (slot.includes("ص") && hour === 12) hour = 0;
+  return hour;
+};
 
 const SearchTeacher = () => {
   const { user } = useAuth();
@@ -149,10 +161,7 @@ const SearchTeacher = () => {
 
     // Check for conflicting bookings at the same time only
     const day = days[selectedDay].fullDate;
-    const parts = selectedTime.split(":");
-    let hour = parseInt(parts[0]);
-    if (selectedTime.includes("م") && hour !== 12) hour += 12;
-    if (selectedTime.includes("ص") && hour === 12) hour = 0;
+    const hour = parseTimeSlotHour(selectedTime);
     const scheduled = new Date(day);
     scheduled.setHours(hour, 0, 0, 0);
     const scheduledEnd = new Date(scheduled.getTime() + 45 * 60 * 1000);
@@ -329,12 +338,25 @@ const SearchTeacher = () => {
                     <Clock className="h-3.5 w-3.5" /> اختر الساعة
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
-                    {timeSlots.map((t) => (
-                      <button key={t} onClick={() => setSelectedTime(t)}
-                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${selectedTime === t ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                        {t}
-                      </button>
-                    ))}
+                    {allTimeSlots.map((t) => {
+                      const isToday = selectedDay === 0;
+                      const slotHour = parseTimeSlotHour(t);
+                      const currentHour = new Date().getHours();
+                      const isPast = isToday && slotHour <= currentHour;
+                      return (
+                        <button key={t} onClick={() => !isPast && setSelectedTime(t)}
+                          disabled={isPast}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                            isPast
+                              ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                              : selectedTime === t
+                                ? "gradient-cta text-secondary-foreground shadow-button"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}>
+                          {t}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
