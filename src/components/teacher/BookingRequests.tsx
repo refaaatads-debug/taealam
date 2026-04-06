@@ -133,6 +133,17 @@ export default function BookingRequests() {
 
       if (updateError) throw updateError;
 
+      // Find student's active subscription and deduct a session
+      const { data: activeSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, sessions_remaining")
+        .eq("user_id", request.student_id)
+        .eq("is_active", true)
+        .gt("sessions_remaining", 0)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
         student_id: request.student_id,
         teacher_id: user.id,
@@ -140,9 +151,19 @@ export default function BookingRequests() {
         scheduled_at: request.scheduled_at,
         duration_minutes: request.duration_minutes,
         status: "confirmed",
+        used_subscription: !!activeSub,
+        subscription_id: activeSub?.id || null,
       }).select("id").single();
 
       if (bookingError) throw bookingError;
+
+      // Deduct session from subscription
+      if (activeSub) {
+        await supabase
+          .from("user_subscriptions")
+          .update({ sessions_remaining: activeSub.sessions_remaining - 1 })
+          .eq("id", activeSub.id);
+      }
 
       await supabase.from("notifications").insert({
         user_id: request.student_id,
