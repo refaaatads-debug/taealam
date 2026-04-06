@@ -305,42 +305,80 @@ const Booking = () => {
 
                       {/* Days */}
                       <p className="text-sm font-semibold text-muted-foreground mb-2">
-                        اختر اليوم {directTeacherId && <span className="text-xs text-primary">(الأيام المتاحة فقط)</span>}
+                        اختر الأيام {directTeacherId && <span className="text-xs text-primary">(الأيام المتاحة فقط)</span>}
                       </p>
                       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                         {days.length === 0 ? (
                           <p className="text-sm text-muted-foreground py-3">لا توجد أيام متاحة</p>
                         ) : (
-                          days.map((d, i) => (
-                            <button key={i} onClick={() => { setSelectedDay(i); setSelectedTime(null); }}
-                              className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                              <span className="text-xs opacity-80">{d.label}</span>
-                              <span className="text-lg font-black">{d.date}</span>
-                            </button>
-                          ))
+                          days.map((d, i) => {
+                            const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                            return (
+                              <button key={i} onClick={() => setSelectedDay(i)}
+                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                                <span className="text-xs opacity-80">{d.label}</span>
+                                <span className="text-lg font-black">{d.date}</span>
+                                {daySlotCount > 0 && (
+                                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center">{daySlotCount}</span>
+                                )}
+                              </button>
+                            );
+                          })
                         )}
                       </div>
 
                       {/* Time Slots */}
                       <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 font-medium">
-                        <Clock className="h-4 w-4" /> اختر الساعة
+                        <Clock className="h-4 w-4" /> اختر الساعات
                         {directTeacherId && <span className="text-xs text-primary">(ساعات المعلم المتاحة)</span>}
+                        <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">
+                          <Package className="h-3 w-3 ml-1" />
+                          {selectedSlots.length}/{sessionsRemaining} حصة
+                        </Badge>
                       </p>
                       {timeSlots.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-3">المعلم لم يحدد ساعات عمل</p>
                       ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-6">
-                          {timeSlots.map((t) => (
-                            <button key={t} onClick={() => setSelectedTime(t)}
-                              className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${selectedTime === t ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                              {t}
-                            </button>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
+                          {timeSlots.map((t) => {
+                            const isToday = selectedDay === 0;
+                            const slotHour = parseTimeHour(t);
+                            const currentHour = new Date().getHours();
+                            const isPast = isToday && slotHour <= currentHour;
+                            const isSelected = selectedDay !== null && selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
+                            return (
+                              <button key={t} onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
+                                disabled={isPast}
+                                className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                                  isPast
+                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                                    : isSelected
+                                      ? "gradient-cta text-secondary-foreground shadow-button"
+                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}>
+                                {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Selected Slots Summary */}
+                      {selectedSlots.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-xl">
+                          {selectedSlots.map((s, i) => (
+                            <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs gap-1 pl-1.5">
+                              {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                              <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
                           ))}
                         </div>
                       )}
 
-                      <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={!selectedTime || !selectedSubject || selectedDay === null} onClick={() => setStep(2)}>
-                        متابعة للتأكيد
+                      <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
+                        متابعة للتأكيد ({selectedSlots.length} حصة)
                         <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                       </Button>
                     </>
@@ -358,32 +396,38 @@ const Booking = () => {
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                       <CheckCircle className="h-4 w-4 text-primary" />
                     </div>
-                    تأكيد الطلب
+                    تأكيد الطلب ({selectedSlots.length} حصة)
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="bg-muted/50 p-5 rounded-2xl text-sm">
+                  <div className="bg-muted/50 p-5 rounded-2xl text-sm space-y-2">
                     {directTeacherId && (
-                      <div className="flex justify-between mb-2">
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">المعلم</span>
                         <span className="text-foreground font-bold">{directTeacherName}</span>
                       </div>
                     )}
-                    <div className="flex justify-between mb-2">
+                    <div className="flex justify-between">
                       <span className="text-muted-foreground">المادة</span>
                       <span className="text-foreground font-bold">{(directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name}</span>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">اليوم</span>
-                      <span className="text-foreground font-bold">{selectedDay !== null && days[selectedDay] ? `${days[selectedDay].label} ${days[selectedDay].date}` : ""}</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">عدد الحصص</span>
+                      <span className="text-foreground font-bold">{selectedSlots.length} حصة</span>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">الوقت</span>
-                      <span className="text-foreground font-bold">{selectedTime}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">المدة</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">المدة لكل حصة</span>
                       <span className="text-foreground font-bold">60 دقيقة</span>
+                    </div>
+                    <div className="border-t pt-3 mt-2">
+                      <span className="text-muted-foreground text-xs block mb-2">المواعيد المختارة:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedSlots.map((s, i) => (
+                          <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs">
+                            {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                     {!directTeacherId && (
                       <div className="flex justify-between border-t pt-3 mt-3">
@@ -395,12 +439,12 @@ const Booking = () => {
 
                   <div className={`rounded-xl p-3 text-xs border ${directTeacherId ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400" : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"}`}>
                     {directTeacherId
-                      ? `سيتم إرسال طلبك للمعلم ${directTeacherName} فقط. يجب أن يقبل المعلم الطلب قبل بدء الحصة.`
-                      : "سيتم إرسال طلبك لجميع المعلمين المتخصصين في هذه المادة. أول معلم يقبل الطلب سيكون معلمك وسيتم إنشاء رابط Zoom تلقائياً."}
+                      ? `سيتم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName}. يجب أن يقبل المعلم كل طلب.`
+                      : `سيتم إرسال ${selectedSlots.length} طلب لجميع المعلمين المتخصصين. أول معلم يقبل كل طلب سيكون معلمك.`}
                   </div>
 
                   <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" onClick={handleSubmitRequest} disabled={loading}>
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : directTeacherId ? "إرسال الطلب للمعلم" : "إرسال الطلب للمعلمين"}
+                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : `إرسال ${selectedSlots.length} طلب`}
                   </Button>
                   <Button variant="ghost" className="w-full rounded-xl" onClick={() => setStep(1)}>
                     <ArrowLeft className="ml-2 h-4 w-4" /> رجوع
@@ -418,23 +462,20 @@ const Booking = () => {
                     <CheckCircle className="h-10 w-10 text-secondary" />
                   </motion.div>
                   <h2 className="text-2xl font-black text-foreground mb-2">
-                    {directTeacherId ? "تم إرسال الطلب! ⏳" : "تم إرسال الطلب! 🎉"}
+                    {directTeacherId ? "تم إرسال الطلبات! ⏳" : "تم إرسال الطلبات! 🎉"}
                   </h2>
                   <p className="text-muted-foreground mb-1">
                     {directTeacherId
-                      ? `تم إرسال طلبك للمعلم ${directTeacherName} - بانتظار القبول`
-                      : `تم إرسال طلبك لـ ${teacherCount} معلم متخصص`}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {selectedDay !== null && days[selectedDay] ? days[selectedDay].label : ""} • {selectedTime}
+                      ? `تم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName} - بانتظار القبول`
+                      : `تم إرسال ${selectedSlots.length} طلب لـ ${teacherCount} معلم متخصص`}
                   </p>
                   <p className="text-xs text-muted-foreground mb-8">سيتم إشعارك فور قبول المعلم</p>
                   <div className="flex gap-3 justify-center">
                     <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                       <Link to="/student">الذهاب للوحة التحكم</Link>
                     </Button>
-                    <Button variant="outline" className="rounded-xl" onClick={() => { setStep(1); setSelectedTime(null); setSelectedDay(null); }}>
-                      طلب حصة أخرى
+                    <Button variant="outline" className="rounded-xl" onClick={() => { setStep(1); setSelectedSlots([]); setSelectedDay(null); }}>
+                      طلب حصص أخرى
                     </Button>
                   </div>
                 </CardContent>
