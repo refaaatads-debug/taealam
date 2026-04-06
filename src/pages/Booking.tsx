@@ -138,83 +138,76 @@ const Booking = () => {
     countTeachers();
   }, [selectedSubject, directTeacherId]);
 
-  const getScheduledAt = () => {
-    if (!selectedTime || selectedDay === null || !days[selectedDay]) return null;
-    const day = days[selectedDay].fullDate;
-    const parts = selectedTime.split(":");
+  const parseTimeHour = (time: string): number => {
+    const parts = time.split(":");
     let hour = parseInt(parts[0]);
-    if (selectedTime.includes("م") && hour !== 12) hour += 12;
-    if (selectedTime.includes("ص") && hour === 12) hour = 0;
-    const scheduled = new Date(day);
-    scheduled.setHours(hour, 0, 0, 0);
-    return scheduled;
+    if (time.includes("م") && hour !== 12) hour += 12;
+    if (time.includes("ص") && hour === 12) hour = 0;
+    return hour;
+  };
+
+  const toggleSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => {
+      const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
+      if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (prev.length >= sessionsRemaining) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+        return prev;
+      }
+      return [...prev, { dayIndex, time }];
+    });
+  };
+
+  const removeSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => prev.filter(s => !(s.dayIndex === dayIndex && s.time === time)));
   };
 
   const handleSubmitRequest = async () => {
-    if (!user || !selectedSubject || !selectedTime) return;
+    if (!user || !selectedSubject || selectedSlots.length === 0) return;
     setLoading(true);
     try {
-      // Check active subscription
-      const { data: activeSub } = await supabase
-        .from("user_subscriptions")
-        .select("id, sessions_remaining")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .gt("sessions_remaining", 0)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!activeSub) {
-        toast.error("لا يوجد لديك باقة نشطة أو نفدت حصصك. اشترك في باقة أولاً.");
-        navigate("/pricing");
+      if (sessionsRemaining < selectedSlots.length) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+        setLoading(false);
         return;
       }
 
-      const scheduledAt = getScheduledAt();
-      if (!scheduledAt) throw new Error("وقت غير صالح");
+      const scheduledDates = selectedSlots.map(slot => {
+        const day = days[slot.dayIndex].fullDate;
+        const hour = parseTimeHour(slot.time);
+        const scheduled = new Date(day);
+        scheduled.setHours(hour, 0, 0, 0);
+        return { ...slot, scheduled };
+      });
 
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = (directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name || "مادة";
-      const dayLabel = selectedDay !== null && days[selectedDay] ? days[selectedDay].label : "";
+
+      // Insert all booking requests
+      const requests = scheduledDates.map(sd => ({
+        student_id: user.id,
+        subject_id: selectedSubject,
+        scheduled_at: sd.scheduled.toISOString(),
+        duration_minutes: 60,
+        status: "open",
+        expires_at: expiresAt,
+        ...(directTeacherId ? { accepted_by: null } : {}),
+      }));
+
+      const { error } = await supabase.from("booking_requests").insert(requests);
+      if (error) throw error;
+
+      const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
 
       if (directTeacherId) {
-        // Direct booking: create a booking_request targeted at this teacher (status = open, needs acceptance)
-        const { error } = await supabase.from("booking_requests").insert({
-          student_id: user.id,
-          subject_id: selectedSubject,
-          scheduled_at: scheduledAt.toISOString(),
-          duration_minutes: 60,
-          status: "open",
-          expires_at: expiresAt,
-          accepted_by: null,
-        });
-
-        if (error) throw error;
-
-        // Notify only this specific teacher
         await supabase.from("notifications").insert({
           user_id: directTeacherId,
-          title: `📚 طلب حصة خاصة - ${subjectName}`,
-          body: `طالب يرغب بحجز حصة ${subjectName} معك يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
+          title: `📚 ${selectedSlots.length} طلب حصة - ${subjectName}`,
+          body: `طالب يرغب بحجز ${selectedSlots.length} حصة ${subjectName}: ${slotsText}. سارع بالقبول!`,
           type: "booking_request",
         });
-
-        toast.success(`تم إرسال طلبك للمعلم ${directTeacherName}! ⏳ بانتظار القبول`);
-        setStep(3);
+        toast.success(`تم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName}! ⏳`);
       } else {
-        // Broadcast request to all teachers
-        const { error } = await supabase.from("booking_requests").insert({
-          student_id: user.id,
-          subject_id: selectedSubject,
-          scheduled_at: scheduledAt.toISOString(),
-          duration_minutes: 60,
-          status: "open",
-          expires_at: expiresAt,
-        });
-
-        if (error) throw error;
-
         const { data: teacherSubjectsData } = await supabase
           .from("teacher_subjects")
           .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
@@ -225,19 +218,15 @@ const Booking = () => {
             .filter((ts: any) => ts.teacher_profiles?.is_approved)
             .map((ts: any) => ({
               user_id: ts.teacher_profiles.user_id,
-              title: `📚 طلب حصة جديد - ${subjectName}`,
-              body: `طالب يبحث عن معلم ${subjectName} يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
+              title: `📚 ${selectedSlots.length} طلب حصة - ${subjectName}`,
+              body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
               type: "booking_request",
             }));
-
-          if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
-          }
+          if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
         }
-
-        toast.success("تم إرسال طلبك لجميع المعلمين المتخصصين! 🎉");
-        setStep(3);
+        toast.success(`تم إرسال ${selectedSlots.length} طلب لجميع المعلمين! 🎉`);
       }
+      setStep(3);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
     } finally {
