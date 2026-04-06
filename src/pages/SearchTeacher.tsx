@@ -161,10 +161,7 @@ const SearchTeacher = () => {
 
     // Check for conflicting bookings at the same time only
     const day = days[selectedDay].fullDate;
-    const parts = selectedTime.split(":");
-    let hour = parseInt(parts[0]);
-    if (selectedTime.includes("م") && hour !== 12) hour += 12;
-    if (selectedTime.includes("ص") && hour === 12) hour = 0;
+    const hour = parseTimeSlotHour(selectedTime);
     const scheduled = new Date(day);
     scheduled.setHours(hour, 0, 0, 0);
     const scheduledEnd = new Date(scheduled.getTime() + 45 * 60 * 1000);
