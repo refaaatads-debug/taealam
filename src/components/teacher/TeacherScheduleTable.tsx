@@ -17,7 +17,6 @@ interface BookingRow {
   student_id?: string;
   has_subscription?: boolean;
 }
-}
 
 export default function TeacherScheduleTable() {
   const { user } = useAuth();
@@ -50,16 +49,22 @@ export default function TeacherScheduleTable() {
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
     const studentIds = [...new Set(data.map(b => b.student_id))];
-    const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
+    const [{ data: profiles }, { data: subs }] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
+      supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", studentIds).eq("is_active", true),
+    ]);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
+    const subSet = new Set((subs ?? []).filter(s => s.sessions_remaining > 0).map(s => s.user_id));
 
     setBookings(data.map(b => ({
       id: b.id,
       scheduled_at: b.scheduled_at,
       duration_minutes: b.duration_minutes,
       status: b.status,
+      student_id: b.student_id,
       student_name: profileMap.get(b.student_id) || "طالب",
       subject_name: (b.subjects as any)?.name || "مادة",
+      has_subscription: subSet.has(b.student_id),
     })));
     setLoading(false);
   };
