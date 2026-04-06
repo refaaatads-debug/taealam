@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 
-const tierIcons: Record<string, typeof Star> = { basic: Star, standard: Sparkles, premium: Crown };
+const tierIcons: Record<string, typeof Star> = { free: Gift, basic: Star, standard: Sparkles, premium: Crown };
 
 const comparisonFeatures = [
   { label: "حصص شهرية", key: "sessions" },
@@ -147,8 +147,8 @@ const Pricing = () => {
 
         {/* Plans Grid */}
         {loading ? (
-          <div className="grid md:grid-cols-3 gap-5 md:gap-6 mb-16">
-            {Array.from({ length: 3 }).map((_, i) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6 mb-16">
+            {Array.from({ length: 4 }).map((_, i) => (
               <Card key={i} className="border-0 shadow-card">
                 <CardContent className="p-6 space-y-4">
                   <Skeleton className="w-14 h-14 rounded-2xl mx-auto" />
@@ -164,7 +164,7 @@ const Pricing = () => {
             ))}
           </div>
         ) : (
-        <div className="grid md:grid-cols-3 gap-5 md:gap-6 mb-16">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6 mb-16">
           {plans.map((plan, i) => {
             const Icon = tierIcons[plan.tier] || Star;
             const isPopular = plan.tier === "standard";
