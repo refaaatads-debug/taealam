@@ -31,7 +31,19 @@ interface TeacherResult {
   subjects: string[];
 }
 
-const timeSlots = ["3:00 م", "4:00 م", "5:00 م", "6:00 م", "7:00 م", "8:00 م", "9:00 م"];
+const allTimeSlots = [
+  "8:00 ص", "9:00 ص", "10:00 ص", "11:00 ص", "12:00 م",
+  "1:00 م", "2:00 م", "3:00 م", "4:00 م", "5:00 م",
+  "6:00 م", "7:00 م", "8:00 م", "9:00 م", "10:00 م", "11:00 م",
+];
+
+const parseTimeSlotHour = (slot: string): number => {
+  const parts = slot.split(":");
+  let hour = parseInt(parts[0]);
+  if (slot.includes("م") && hour !== 12) hour += 12;
+  if (slot.includes("ص") && hour === 12) hour = 0;
+  return hour;
+};
 
 const SearchTeacher = () => {
   const { user } = useAuth();
