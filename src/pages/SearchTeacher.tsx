@@ -362,6 +362,9 @@ const SearchTeacher = () => {
                     })}
                   </div>
                 </div>
+
+                {/* Submit */}
+                <div>
                   <Button
                     className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
                     disabled={!selectedTime || !selectedSubject || bookingLoading}
