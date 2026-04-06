@@ -459,9 +459,16 @@ const LiveSession = () => {
               <span className="hidden sm:inline">متبقي</span>
             </span>
           )}
-          <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
-            <span className="w-2 h-2 rounded-full bg-destructive" /> REC
-          </span>
+          {isRecording && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
+              <span className="w-2 h-2 rounded-full bg-destructive" /> REC
+            </span>
+          )}
+          {recordingUploading && (
+            <span className="flex items-center gap-1.5 text-xs bg-secondary/20 text-secondary px-3 py-1.5 rounded-lg font-bold">
+              جاري الرفع...
+            </span>
+          )}
           <Button size="icon" variant="ghost" className="text-card/60 hover:text-card h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
             <MoreVertical className="h-4 w-4" />
           </Button>
@@ -601,6 +608,15 @@ const LiveSession = () => {
         </Button>
         <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
           <FileText className="h-5 w-5" />
+        </Button>
+        <Button
+          size="icon"
+          className={`rounded-xl h-12 w-12 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 animate-pulse-soft" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={!meetingStarted}
+          title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
+        >
+          {isRecording ? <Square className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
         </Button>
         <Button size="icon" className="rounded-xl h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" onClick={endSession}>
           <Phone className="h-5 w-5" />
