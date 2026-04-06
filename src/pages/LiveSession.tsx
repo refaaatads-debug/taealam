@@ -382,6 +382,8 @@ const LiveSession = () => {
     }
     if (bookingId) {
       try {
+        const sessionDurationMinutes = Math.floor(elapsed / 60);
+
         await supabase
           .from("bookings")
           .update({ status: "completed", session_status: "completed" })
@@ -389,7 +391,7 @@ const LiveSession = () => {
         
         await supabase
           .from("sessions")
-          .update({ ended_at: new Date().toISOString() })
+          .update({ ended_at: new Date().toISOString(), duration_minutes: sessionDurationMinutes })
           .eq("booking_id", bookingId);
 
         // Upload recording if chunks exist
@@ -397,10 +399,36 @@ const LiveSession = () => {
           await uploadRecording();
         }
 
+        // Credit teacher 25 SAR if session lasted >= 45 minutes
+        if (bookingData && sessionDurationMinutes >= 45) {
+          const teacherId = bookingData.teacher_id;
+          
+          // Update booking price
+          await supabase
+            .from("bookings")
+            .update({ price: 25 })
+            .eq("id", bookingId);
+
+          // Record teacher payment
+          await supabase.from("teacher_payments").insert({
+            teacher_id: teacherId,
+            amount: 25,
+            notes: `أرباح حصة مكتملة (${sessionDurationMinutes} دقيقة) - حجز ${bookingId}`,
+            payment_method: "session_credit",
+          });
+
+          // Notify teacher about earnings
+          await supabase.from("notifications").insert({
+            user_id: teacherId,
+            title: "تم إضافة أرباح حصة ✅",
+            body: `تمت إضافة 25 ر.س لرصيدك عن حصة مكتملة (${sessionDurationMinutes} دقيقة).`,
+            type: "payment",
+          });
+        }
+
         // Deduct subscription session
         if (bookingData) {
           const studentId = bookingData.student_id;
-          // Find active subscription for this student
           const { data: activeSub } = await supabase
             .from("user_subscriptions")
             .select("id, sessions_remaining")
@@ -416,7 +444,6 @@ const LiveSession = () => {
               .update({ sessions_remaining: activeSub.sessions_remaining - 1 })
               .eq("id", activeSub.id);
 
-            // Notify if sessions running low
             if (activeSub.sessions_remaining - 1 <= 2) {
               await supabase.from("notifications").insert({
                 user_id: studentId,
@@ -426,7 +453,6 @@ const LiveSession = () => {
               });
             }
 
-            // Notify if subscription depleted
             if (activeSub.sessions_remaining - 1 === 0) {
               await supabase.from("notifications").insert({
                 user_id: studentId,
