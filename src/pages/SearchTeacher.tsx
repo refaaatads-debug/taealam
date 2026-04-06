@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,7 +62,7 @@ const SearchTeacher = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
-
+  const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
   // Fetch student's remaining sessions
   useEffect(() => {
     if (!user) return;
@@ -274,7 +274,13 @@ const SearchTeacher = () => {
         }
       }
 
-      toast.success(`تم إرسال ${selectedSlots.length} طلب حصة لـ ${teacherCount} معلم متخصص! 🎉`);
+      const successSubjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
+      const successSlots = scheduledDates.map(sd => ({
+        dayLabel: days[sd.dayIndex].label,
+        time: sd.time,
+        date: sd.scheduled.toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" }),
+      }));
+      setBookingSuccess({ slots: successSlots, subjectName: successSubjectName, teacherCount });
       setSelectedSubject("");
       setSelectedSlots([]);
     } catch (e: any) {
@@ -470,6 +476,49 @@ const SearchTeacher = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Booking Success Confirmation */}
+        {bookingSuccess && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <Card className="border-2 border-secondary/30 shadow-card overflow-hidden bg-secondary/5">
+              <CardContent className="py-6">
+                <div className="flex flex-col items-center text-center mb-5">
+                  <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
+                    <PartyPopper className="h-7 w-7 text-secondary" />
+                  </div>
+                  <h3 className="text-lg font-black text-foreground">تم إرسال طلبك بنجاح! 🎉</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    تم إرسال {bookingSuccess.slots.length} طلب حصة لـ {bookingSuccess.teacherCount} معلم متخصص في {bookingSuccess.subjectName}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
+                  {bookingSuccess.slots.map((slot, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-card border">
+                      <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center">
+                        <CalendarCheck className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-foreground">{slot.dayLabel} - {slot.time}</p>
+                        <p className="text-[11px] text-muted-foreground">{slot.date} • 45 دقيقة • {bookingSuccess.subjectName}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button variant="outline" className="rounded-xl" onClick={() => setBookingSuccess(null)}>
+                    حجز حصة أخرى
+                  </Button>
+                  <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                    <Link to="/student">
+                      <CheckCircle className="h-4 w-4" />
+                      متابعة للوحة الطالب
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
