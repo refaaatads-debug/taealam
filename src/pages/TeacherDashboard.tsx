@@ -224,6 +224,9 @@ const TeacherDashboard = () => {
           {/* Withdrawal Section */}
           <WithdrawalSection />
 
+          {/* Teaching Materials */}
+          <TeacherSessionMaterials />
+
           {/* Warnings & Violations */}
           <WarningsSection />
 
