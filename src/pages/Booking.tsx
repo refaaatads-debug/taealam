@@ -86,8 +86,21 @@ const Booking = () => {
     };
     fetchSubjects();
 
+    // Fetch remaining sessions
+    if (user) {
+      supabase
+        .from("user_subscriptions")
+        .select("sessions_remaining")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("sessions_remaining", 0)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => setSessionsRemaining(data?.sessions_remaining || 0));
+    }
+
     if (directTeacherId) {
-      // Fetch teacher info, availability, and subjects
       Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single(),
         supabase.from("teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
@@ -97,7 +110,6 @@ const Booking = () => {
           setTeacherAvailableDays((teacherRes.data as any).available_days || []);
           setTeacherAvailableFrom(teacherRes.data.available_from);
           setTeacherAvailableTo(teacherRes.data.available_to);
-          // Fetch teacher's subjects
           supabase.from("teacher_subjects").select("subject_id, subjects(id, name)")
             .eq("teacher_id", teacherRes.data.id)
             .then(({ data: ts }) => {
@@ -111,7 +123,7 @@ const Booking = () => {
         }
       });
     }
-  }, [directTeacherId]);
+  }, [directTeacherId, user]);
 
   // Count available teachers for broadcast mode
   useEffect(() => {
