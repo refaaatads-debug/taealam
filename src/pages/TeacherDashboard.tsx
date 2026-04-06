@@ -10,6 +10,7 @@ import WarningsSection from "@/components/teacher/WarningsSection";
 import WithdrawalSection from "@/components/teacher/WithdrawalSection";
 import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
 import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
+import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterials";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -222,6 +223,9 @@ const TeacherDashboard = () => {
 
           {/* Withdrawal Section */}
           <WithdrawalSection />
+
+          {/* Teaching Materials */}
+          <TeacherSessionMaterials />
 
           {/* Warnings & Violations */}
           <WarningsSection />
