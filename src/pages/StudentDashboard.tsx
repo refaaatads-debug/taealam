@@ -260,6 +260,9 @@ const StudentDashboard = () => {
             {/* Subscription Balance */}
             <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
 
+            {/* Notifications */}
+            <NotificationsSection />
+
             {/* Pending Booking Requests with Countdown + Cancel */}
             <PendingBookingRequests />
 
