@@ -477,6 +477,49 @@ const SearchTeacher = () => {
           </Card>
         </motion.div>
 
+        {/* Booking Success Confirmation */}
+        {bookingSuccess && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <Card className="border-2 border-secondary/30 shadow-card overflow-hidden bg-secondary/5">
+              <CardContent className="py-6">
+                <div className="flex flex-col items-center text-center mb-5">
+                  <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
+                    <PartyPopper className="h-7 w-7 text-secondary" />
+                  </div>
+                  <h3 className="text-lg font-black text-foreground">تم إرسال طلبك بنجاح! 🎉</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    تم إرسال {bookingSuccess.slots.length} طلب حصة لـ {bookingSuccess.teacherCount} معلم متخصص في {bookingSuccess.subjectName}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
+                  {bookingSuccess.slots.map((slot, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-card border">
+                      <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center">
+                        <CalendarCheck className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-foreground">{slot.dayLabel} - {slot.time}</p>
+                        <p className="text-[11px] text-muted-foreground">{slot.date} • 45 دقيقة • {bookingSuccess.subjectName}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button variant="outline" className="rounded-xl" onClick={() => setBookingSuccess(null)}>
+                    حجز حصة أخرى
+                  </Button>
+                  <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                    <Link to="/student">
+                      <CheckCircle className="h-4 w-4" />
+                      متابعة للوحة الطالب
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
           <div className="flex-1 h-px bg-border" />
