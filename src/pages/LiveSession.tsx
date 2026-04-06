@@ -223,11 +223,16 @@ const LiveSession = () => {
 
       jitsiApiRef.current = api;
 
-      supabase
-        .from("sessions")
-        .update({ started_at: new Date().toISOString() })
-        .eq("booking_id", bookingId)
-        .then(() => {});
+      await Promise.all([
+        supabase
+          .from("sessions")
+          .update({ started_at: new Date().toISOString() })
+          .eq("booking_id", bookingId),
+        supabase
+          .from("bookings")
+          .update({ session_status: "in_progress" })
+          .eq("id", bookingId),
+      ]);
 
       // Send notification to student when teacher starts the session
       if (bookingData && user) {
