@@ -431,7 +431,7 @@ const LiveSession = () => {
           });
         }
 
-        // Deduct subscription session
+        // Send low-balance notifications (deduction handled by DB trigger)
         if (bookingData) {
           const studentId = bookingData.student_id;
           const { data: activeSub } = await supabase
@@ -443,22 +443,18 @@ const LiveSession = () => {
             .limit(1)
             .maybeSingle();
 
-          if (activeSub && activeSub.sessions_remaining > 0) {
-            await supabase
-              .from("user_subscriptions")
-              .update({ sessions_remaining: activeSub.sessions_remaining - 1 })
-              .eq("id", activeSub.id);
+          if (activeSub) {
+            // sessions_remaining will be decremented by DB trigger, so check current - 1
+            const afterDeduction = activeSub.sessions_remaining - 1;
 
-            if (activeSub.sessions_remaining - 1 <= 2) {
+            if (afterDeduction === 1) {
               await supabase.from("notifications").insert({
                 user_id: studentId,
-                title: "رصيد الحصص منخفض ⚠️",
-                body: `متبقي ${activeSub.sessions_remaining - 1} حصة فقط. جدد باقتك للاستمرار في التعلم.`,
+                title: "⚠️ متبقي حصة واحدة فقط!",
+                body: "تنبيه: بقيت حصة واحدة في باقتك. جدد الآن لتستمر في التعلم بدون انقطاع.",
                 type: "subscription_warning",
               });
-            }
-
-            if (activeSub.sessions_remaining - 1 === 0) {
+            } else if (afterDeduction <= 0) {
               await supabase.from("notifications").insert({
                 user_id: studentId,
                 title: "انتهت حصص باقتك 📋",

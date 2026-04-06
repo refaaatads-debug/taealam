@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Loader2, Sparkles, Clock, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -11,8 +13,34 @@ interface Props {
 }
 
 export default function SessionReport({ bookingId, existingReport }: Props) {
+  const { user } = useAuth();
   const [report, setReport] = useState(existingReport || "");
   const [loading, setLoading] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState<number | null>(null);
+  const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!bookingId || !user) return;
+    const fetchSessionInfo = async () => {
+      const [{ data: session }, { data: booking }] = await Promise.all([
+        supabase.from("sessions").select("duration_minutes, started_at, ended_at").eq("booking_id", bookingId).maybeSingle(),
+        supabase.from("bookings").select("student_id").eq("id", bookingId).maybeSingle(),
+      ]);
+      if (session?.duration_minutes) setSessionDuration(session.duration_minutes);
+
+      const studentId = booking?.student_id || user.id;
+      const { data: sub } = await supabase
+        .from("user_subscriptions")
+        .select("sessions_remaining")
+        .eq("user_id", studentId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sub) setSessionsRemaining(sub.sessions_remaining);
+    };
+    fetchSessionInfo();
+  }, [bookingId, user]);
 
   const generateReport = async () => {
     setLoading(true);
@@ -41,6 +69,32 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Session stats */}
+        {(sessionDuration !== null || sessionsRemaining !== null) && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {sessionDuration !== null && (
+              <div className="bg-muted/50 rounded-xl p-3 text-center">
+                <Clock className="h-5 w-5 text-secondary mx-auto mb-1" />
+                <p className="text-xl font-black text-foreground">{sessionDuration}</p>
+                <p className="text-xs text-muted-foreground">دقيقة (المدة الفعلية)</p>
+              </div>
+            )}
+            {sessionsRemaining !== null && (
+              <div className="bg-muted/50 rounded-xl p-3 text-center">
+                <Package className="h-5 w-5 text-primary mx-auto mb-1" />
+                <p className="text-xl font-black text-foreground">{sessionsRemaining}</p>
+                <p className="text-xs text-muted-foreground">حصة متبقية</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {sessionsRemaining !== null && sessionsRemaining <= 1 && (
+          <Badge className="mb-3 bg-destructive/10 text-destructive border-0 text-xs w-full justify-center py-1.5">
+            ⚠️ {sessionsRemaining === 0 ? "نفد رصيد الحصص - جدد باقتك" : "متبقي حصة واحدة فقط!"}
+          </Badge>
+        )}
+
         {report ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="prose prose-sm text-foreground whitespace-pre-wrap text-sm leading-relaxed bg-accent/30 rounded-2xl p-4">
             {report}
