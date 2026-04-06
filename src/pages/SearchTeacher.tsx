@@ -438,7 +438,7 @@ const SearchTeacher = () => {
                   >
                     {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                       <>
-                        إرسال الطلب
+                        إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"}
                         <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                       </>
                     )}
