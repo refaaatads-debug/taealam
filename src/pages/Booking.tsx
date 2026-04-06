@@ -150,7 +150,7 @@ const Booking = () => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (prev.length >= sessionsRemaining) {
+      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
         toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
         return prev;
       }
@@ -164,6 +164,14 @@ const Booking = () => {
 
   const handleSubmitRequest = async () => {
     if (!user || !selectedSubject || selectedSlots.length === 0) return;
+
+    // If no subscription, redirect to pricing
+    if (sessionsRemaining <= 0) {
+      toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
+      navigate("/pricing");
+      return;
+    }
+
     setLoading(true);
     try {
       if (sessionsRemaining < selectedSlots.length) {
