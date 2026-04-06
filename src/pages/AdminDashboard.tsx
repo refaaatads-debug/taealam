@@ -39,6 +39,7 @@ const AdminDashboard = () => {
   const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
+  const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
