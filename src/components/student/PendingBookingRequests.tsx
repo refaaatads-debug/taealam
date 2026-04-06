@@ -8,6 +8,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CountdownTimer from "@/components/CountdownTimer";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface PendingRequest {
   id: string;
@@ -22,7 +32,7 @@ export default function PendingBookingRequests() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
     fetchRequests();
@@ -138,7 +148,7 @@ export default function PendingBookingRequests() {
                 size="icon"
                 className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
                 disabled={cancellingId === r.id}
-                onClick={() => handleCancel(r.id)}
+                onClick={() => setConfirmCancelId(r.id)}
                 title="إلغاء الطلب"
               >
                 <X className="h-4 w-4" />
@@ -147,6 +157,26 @@ export default function PendingBookingRequests() {
           </motion.div>
         ))}
       </CardContent>
+
+      <AlertDialog open={!!confirmCancelId} onOpenChange={(open) => !open && setConfirmCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-right">إلغاء الطلب</AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              هل أنت متأكد من إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogCancel>تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmCancelId) handleCancel(confirmCancelId); setConfirmCancelId(null); }}
+            >
+              نعم، إلغاء الطلب
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
