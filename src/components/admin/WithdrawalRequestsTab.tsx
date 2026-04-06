@@ -2,12 +2,15 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, DollarSign } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export default function WithdrawalRequestsTab() {
   const [requests, setRequests] = useState<any[]>([]);
+  const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -28,7 +31,8 @@ export default function WithdrawalRequestsTab() {
   };
 
   const updateStatus = async (id: string, status: string, teacherId: string) => {
-    await supabase.from("withdrawal_requests" as any).update({ status } as any).eq("id", id);
+    const notes = adminNotes[id] || null;
+    await supabase.from("withdrawal_requests" as any).update({ status, admin_notes: notes } as any).eq("id", id);
 
     if (status === "paid") {
       const req = requests.find(r => r.id === id);
@@ -37,7 +41,7 @@ export default function WithdrawalRequestsTab() {
           teacher_id: teacherId,
           amount: req.amount,
           withdrawal_request_id: id,
-          notes: "دفع عبر تحويل بنكي",
+          notes: notes || "دفع عبر تحويل بنكي",
         } as any);
       }
     }
@@ -64,7 +68,7 @@ export default function WithdrawalRequestsTab() {
     <Card className="border-0 shadow-card">
       <CardHeader>
         <CardTitle className="text-base font-bold flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-green-600" />
+          <DollarSign className="h-5 w-5 text-secondary" />
           طلبات سحب الأرباح ({requests.length})
         </CardTitle>
       </CardHeader>
@@ -75,27 +79,74 @@ export default function WithdrawalRequestsTab() {
           <div className="space-y-3">
             {requests.map((r: any) => {
               const s = statusMap[r.status] || statusMap.pending;
+              const isExpanded = expandedId === r.id;
               return (
-                <div key={r.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
-                  <div>
-                    <p className="font-bold text-sm text-foreground">{r.teacher_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {Number(r.amount).toLocaleString()} ر.س • {new Date(r.created_at).toLocaleDateString("ar-SA")}
-                    </p>
+                <div key={r.id} className="p-4 bg-muted/30 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="font-bold text-sm text-foreground">{r.teacher_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {Number(r.amount).toLocaleString()} ر.س • {new Date(r.created_at).toLocaleDateString("ar-SA")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={s.variant} className="text-xs">{s.label}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={s.variant} className="text-xs">{s.label}</Badge>
-                    {r.status === "pending" && (
-                      <>
-                        <Button size="sm" className="rounded-lg bg-green-600 hover:bg-green-700 text-white gap-1 text-xs h-7" onClick={() => updateStatus(r.id, "paid", r.teacher_id)}>
-                          <CheckCircle className="h-3.5 w-3.5" /> دفع
-                        </Button>
-                        <Button size="sm" variant="destructive" className="rounded-lg gap-1 text-xs h-7" onClick={() => updateStatus(r.id, "rejected", r.teacher_id)}>
-                          <XCircle className="h-3.5 w-3.5" /> رفض
-                        </Button>
-                      </>
-                    )}
-                  </div>
+
+                  {/* Teacher notes & attachment */}
+                  {r.teacher_notes && (
+                    <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">📝 ملاحظات المعلم: {r.teacher_notes}</p>
+                  )}
+                  {r.attachment_url && (
+                    <a
+                      href={r.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <FileText className="h-3.5 w-3.5" />
+                      {r.attachment_name || "تحميل المرفق"}
+                    </a>
+                  )}
+
+                  {/* Expanded: admin notes & actions */}
+                  {isExpanded && (
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      {r.status === "pending" && (
+                        <>
+                          <Textarea
+                            placeholder="ملاحظات الإدارة (اختياري)..."
+                            value={adminNotes[r.id] || ""}
+                            onChange={(e) => setAdminNotes(prev => ({ ...prev, [r.id]: e.target.value }))}
+                            className="min-h-[60px] rounded-xl resize-none text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" className="rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "paid", r.teacher_id)}>
+                              <CheckCircle className="h-3.5 w-3.5" /> دفع
+                            </Button>
+                            <Button size="sm" variant="destructive" className="rounded-lg gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "rejected", r.teacher_id)}>
+                              <XCircle className="h-3.5 w-3.5" /> رفض
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                      {r.admin_notes && (
+                        <p className="text-xs text-muted-foreground bg-primary/5 rounded-lg p-2">💬 رد الإدارة: {r.admin_notes}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
