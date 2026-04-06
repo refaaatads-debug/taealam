@@ -1059,28 +1059,37 @@ export type Database = {
         Row: {
           admin_notes: string | null
           amount: number
+          attachment_name: string | null
+          attachment_url: string | null
           created_at: string
           id: string
           status: string
           teacher_id: string
+          teacher_notes: string | null
           updated_at: string
         }
         Insert: {
           admin_notes?: string | null
           amount: number
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           id?: string
           status?: string
           teacher_id: string
+          teacher_notes?: string | null
           updated_at?: string
         }
         Update: {
           admin_notes?: string | null
           amount?: number
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           id?: string
           status?: string
           teacher_id?: string
+          teacher_notes?: string | null
           updated_at?: string
         }
         Relationships: []
