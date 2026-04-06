@@ -177,7 +177,7 @@ const SearchTeacher = () => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (prev.length >= sessionsRemaining) {
+      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
         toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
         return prev;
       }
@@ -193,7 +193,13 @@ const SearchTeacher = () => {
     if (!user) { navigate("/login"); return; }
     if (!selectedSubject || selectedSlots.length === 0) return;
 
-    // Check subscription
+    // Check subscription - if no subscription, redirect to pricing
+    if (sessionsRemaining <= 0) {
+      toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
+      navigate("/pricing");
+      return;
+    }
+
     if (sessionsRemaining < selectedSlots.length) {
       toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
       return;
