@@ -153,14 +153,30 @@ export default function PendingBookingRequests() {
               >
                 <X className="h-4 w-4" />
               </Button>
-                title="إلغاء الطلب"
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           </motion.div>
         ))}
       </CardContent>
+
+      <AlertDialog open={!!confirmCancelId} onOpenChange={(open) => !open && setConfirmCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-right">إلغاء الطلب</AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              هل أنت متأكد من إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row-reverse gap-2">
+            <AlertDialogCancel>تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmCancelId) handleCancel(confirmCancelId); setConfirmCancelId(null); }}
+            >
+              نعم، إلغاء الطلب
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
