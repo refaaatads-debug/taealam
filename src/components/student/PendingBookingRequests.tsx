@@ -148,7 +148,11 @@ export default function PendingBookingRequests() {
                 size="icon"
                 className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
                 disabled={cancellingId === r.id}
-                onClick={() => handleCancel(r.id)}
+                onClick={() => setConfirmCancelId(r.id)}
+                title="إلغاء الطلب"
+              >
+                <X className="h-4 w-4" />
+              </Button>
                 title="إلغاء الطلب"
               >
                 <X className="h-4 w-4" />
