@@ -274,7 +274,7 @@ const SearchTeacher = () => {
         }
       }
 
-      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
+      const successSubjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
       const successSlots = scheduledDates.map(sd => ({
         dayLabel: days[sd.dayIndex].label,
         time: sd.time,
