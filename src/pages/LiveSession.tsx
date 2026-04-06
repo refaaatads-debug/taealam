@@ -72,16 +72,19 @@ const LiveSession = () => {
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
 
       // Check if student has active subscription
-      if (booking.used_subscription && booking.subscription_id) {
+      const studentId = user.id === booking.student_id ? user.id : booking.student_id;
+      const { data: activeSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, sessions_remaining")
+        .eq("user_id", studentId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSub && activeSub.sessions_remaining > 0) {
         setHasSubscription(true);
-        const { data: sub } = await supabase
-          .from("user_subscriptions")
-          .select("sessions_remaining")
-          .eq("id", booking.subscription_id)
-          .single();
-        if (sub) {
-          setSubscriptionMinutes(sub.sessions_remaining * 45); // 45 min per session
-        }
+        setSubscriptionMinutes(activeSub.sessions_remaining * 45);
       }
     };
     fetchBooking();
