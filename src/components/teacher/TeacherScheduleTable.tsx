@@ -14,6 +14,9 @@ interface BookingRow {
   status: string;
   student_name?: string;
   subject_name?: string;
+  student_id?: string;
+  has_subscription?: boolean;
+}
 }
 
 export default function TeacherScheduleTable() {
