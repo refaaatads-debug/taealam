@@ -219,19 +219,9 @@ const AdminDashboard = () => {
         }
       }
 
-      // Fetch badge counts for tabs
-      const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
-        supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
-      ]);
-      setBadgeCounts({
-        withdrawals: withdrawalsRes.count ?? 0,
-        support: supportRes.count ?? 0,
-        pendingBookings: pendingBookingsRes.count ?? 0,
-        unreviewed: unreviewedRes.count ?? 0,
-      });
+      // Fetch badge counts
+      await fetchBadgeCounts();
+
 
     } catch (e) {
       console.error(e);
