@@ -1,31 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, Loader2, ArrowRight, Clock, User } from "lucide-react";
+import { MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface Ticket {
-  id: string;
-  user_id: string;
-  subject: string;
-  status: string;
-  category: string;
-  created_at: string;
-  user_name?: string;
+  id: string; user_id: string; subject: string; status: string; category: string; created_at: string; user_name?: string;
 }
-
 interface Message {
-  id: string;
-  ticket_id: string;
-  sender_id: string;
-  content: string;
-  is_admin: boolean;
-  created_at: string;
+  id: string; ticket_id: string; sender_id: string; content: string; is_admin: boolean; created_at: string;
+  file_url?: string | null; file_name?: string | null; file_type?: string | null;
 }
 
 const SupportTicketsTab = () => {
@@ -37,45 +26,30 @@ const SupportTicketsTab = () => {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchTickets();
-  }, []);
+  useEffect(() => { fetchTickets(); }, []);
 
   useEffect(() => {
     if (!selectedTicket) return;
     fetchMessages();
     const channel = supabase
       .channel(`admin-support-${selectedTicket}`)
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "support_messages",
-        filter: `ticket_id=eq.${selectedTicket}`,
-      }, (payload) => {
-        const msg = payload.new as Message;
-        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
-      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: `ticket_id=eq.${selectedTicket}` },
+        (payload) => { const msg = payload.new as Message; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedTicket]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const fetchTickets = async () => {
-    const { data: ticketData } = await supabase
-      .from("support_tickets")
-      .select("*")
-      .order("updated_at", { ascending: false });
-
+    const { data: ticketData } = await supabase.from("support_tickets").select("*").order("updated_at", { ascending: false });
     if (ticketData) {
       const userIds = [...new Set(ticketData.map(t => t.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
       const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
       setTickets(ticketData.map(t => ({ ...t, user_name: nameMap.get(t.user_id) || "مستخدم" })) as Ticket[]);
     }
@@ -83,41 +57,47 @@ const SupportTicketsTab = () => {
   };
 
   const fetchMessages = async () => {
-    const { data } = await supabase
-      .from("support_messages")
-      .select("*")
-      .eq("ticket_id", selectedTicket!)
-      .order("created_at", { ascending: true });
+    const { data } = await supabase.from("support_messages").select("*").eq("ticket_id", selectedTicket!).order("created_at", { ascending: true });
     if (data) setMessages(data as Message[]);
   };
 
+  const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
+    const ext = file.name.split('.').pop();
+    const path = `${selectedTicket}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("support-files").upload(path, file);
+    if (error) { toast.error("فشل في رفع الملف"); return null; }
+    const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
+    return { url: urlData.publicUrl, name: file.name, type: file.type };
+  };
+
   const handleSend = async () => {
-    if (!newMessage.trim() || !selectedTicket || !user || sending) return;
+    if ((!newMessage.trim() && !selectedFile) || !selectedTicket || !user || sending) return;
     setSending(true);
-    const content = newMessage.trim();
+    const content = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : "");
     setNewMessage("");
 
+    let fileData: { url: string; name: string; type: string } | null = null;
+    if (selectedFile) {
+      fileData = await uploadFile(selectedFile);
+      if (!fileData) { setSending(false); return; }
+      setSelectedFile(null);
+    }
+
     const { error } = await supabase.from("support_messages").insert({
-      ticket_id: selectedTicket,
-      sender_id: user.id,
-      content,
-      is_admin: true,
+      ticket_id: selectedTicket, sender_id: user.id, content, is_admin: true,
+      ...(fileData && { file_url: fileData.url, file_name: fileData.name, file_type: fileData.type }),
     });
 
     if (error) {
       setNewMessage(content);
       toast.error("فشل في إرسال الرسالة");
     } else {
-      // Update ticket status
       await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
-      // Notify user
       const ticket = tickets.find(t => t.id === selectedTicket);
       if (ticket) {
         await supabase.from("notifications").insert({
-          user_id: ticket.user_id,
-          title: "رد من خدمة العملاء 💬",
-          body: content.length > 50 ? content.slice(0, 50) + "..." : content,
-          type: "support_reply",
+          user_id: ticket.user_id, title: "رد من خدمة العملاء 💬",
+          body: content.length > 50 ? content.slice(0, 50) + "..." : content, type: "support_reply",
         });
       }
     }
@@ -130,13 +110,28 @@ const SupportTicketsTab = () => {
     toast.success("تم تحديث حالة التذكرة");
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("الحد الأقصى 10 ميجابايت"); return; }
+    setSelectedFile(file);
+  };
+
+  const isImage = (type?: string | null) => type?.startsWith("image/");
+
+  const renderFileAttachment = (msg: Message) => {
+    if (!msg.file_url) return null;
+    if (isImage(msg.file_type)) {
+      return <a href={msg.file_url} target="_blank" rel="noopener noreferrer"><img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[200px] rounded-lg mt-1" /></a>;
+    }
+    return <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mt-1 text-xs underline"><FileText className="h-4 w-4" />{msg.file_name || "ملف"}</a>;
+  };
+
   const filteredTickets = filter === "all" ? tickets : tickets.filter(t => t.status === filter);
 
   const statusBadge = (status: string) => {
     const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-      open: { label: "مفتوحة", variant: "default" },
-      in_progress: { label: "قيد المعالجة", variant: "secondary" },
-      closed: { label: "مغلقة", variant: "destructive" },
+      open: { label: "مفتوحة", variant: "default" }, in_progress: { label: "قيد المعالجة", variant: "secondary" }, closed: { label: "مغلقة", variant: "destructive" },
     };
     const s = map[status] || map.open;
     return <Badge variant={s.variant}>{s.label}</Badge>;
@@ -144,13 +139,12 @@ const SupportTicketsTab = () => {
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
-  // Chat view
   if (selectedTicket) {
     const ticket = tickets.find(t => t.id === selectedTicket);
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => { setSelectedTicket(null); setMessages([]); }}>
+          <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => { setSelectedTicket(null); setMessages([]); setSelectedFile(null); }}>
             <ArrowRight className="h-5 w-5" />
           </Button>
           <div className="flex-1">
@@ -174,10 +168,9 @@ const SupportTicketsTab = () => {
                 <p className="text-center text-muted-foreground text-sm py-8">لا توجد رسائل</p>
               ) : messages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.is_admin ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                    msg.is_admin ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                  }`}>
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${msg.is_admin ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
                     <p className="text-sm leading-relaxed">{msg.content}</p>
+                    {renderFileAttachment(msg)}
                     <p className={`text-[10px] mt-1 ${msg.is_admin ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                       {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                     </p>
@@ -186,9 +179,20 @@ const SupportTicketsTab = () => {
               ))}
               <div ref={bottomRef} />
             </div>
+            {selectedFile && (
+              <div className="flex items-center gap-2 mb-2 bg-muted rounded-lg px-3 py-2 text-sm">
+                {selectedFile.type.startsWith("image/") ? <ImageIcon className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-primary" />}
+                <span className="truncate flex-1 text-foreground">{selectedFile.name}</span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedFile(null)}><X className="h-3 w-3" /></Button>
+              </div>
+            )}
             <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="flex gap-2">
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileSelect} />
+              <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={() => fileInputRef.current?.click()}>
+                <Paperclip className="h-4 w-4" />
+              </Button>
               <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="اكتب ردك..." className="rounded-xl flex-1" dir="rtl" />
-              <Button type="submit" size="icon" className="rounded-xl" disabled={!newMessage.trim() || sending}>
+              <Button type="submit" size="icon" className="rounded-xl" disabled={(!newMessage.trim() && !selectedFile) || sending}>
                 <Send className="h-4 w-4" />
               </Button>
             </form>
@@ -198,7 +202,6 @@ const SupportTicketsTab = () => {
     );
   }
 
-  // Tickets list
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
