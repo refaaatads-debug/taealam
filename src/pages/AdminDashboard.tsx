@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings, MessageSquare
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -21,6 +21,7 @@ import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
+import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -339,6 +340,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="site" className="rounded-lg gap-1.5">
               <Settings className="h-4 w-4" />
               المحتوى
+            </TabsTrigger>
+            <TabsTrigger value="support" className="rounded-lg gap-1.5">
+              <MessageSquare className="h-4 w-4" />
+              الدعم الفني
             </TabsTrigger>
           </TabsList>
 
@@ -686,6 +691,11 @@ const AdminDashboard = () => {
           {/* Site Content Tab */}
           <TabsContent value="site" className="space-y-4">
             <SiteSettingsTab />
+          </TabsContent>
+
+          {/* Support Tickets Tab */}
+          <TabsContent value="support" className="space-y-4">
+            <SupportTicketsTab />
           </TabsContent>
         </Tabs>
       </div>

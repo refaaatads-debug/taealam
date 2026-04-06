@@ -1,19 +1,13 @@
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function CustomerServiceButton() {
-  const handleContact = () => {
-    // Open WhatsApp or show contact info
-    const message = encodeURIComponent("مرحباً، أحتاج مساعدة من خدمة العملاء");
-    const whatsappUrl = `https://wa.me/?text=${message}`;
-    window.open(whatsappUrl, "_blank");
-    toast.info("جاري فتح خدمة العملاء...");
-  };
+  const navigate = useNavigate();
 
   return (
     <Button
-      onClick={handleContact}
+      onClick={() => navigate("/support")}
       className="fixed bottom-20 left-4 md:bottom-6 z-50 h-14 w-14 rounded-full gradient-cta shadow-button text-secondary-foreground"
       size="icon"
       title="تواصل مع خدمة العملاء"
