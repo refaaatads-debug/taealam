@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2 } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,9 +58,27 @@ const SearchTeacher = () => {
   // Quick booking form state
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedDay, setSelectedDay] = useState(0);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
+  const [sessionsRemaining, setSessionsRemaining] = useState(0);
+
+  // Fetch student's remaining sessions
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_subscriptions")
+      .select("sessions_remaining")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("sessions_remaining", 0)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setSessionsRemaining(data?.sessions_remaining || 0);
+      });
+  }, [user]);
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -155,17 +173,42 @@ const SearchTeacher = () => {
     return h >= t.available_from && h <= t.available_to;
   };
 
+  const toggleSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => {
+      const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
+      if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (prev.length >= sessionsRemaining) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+        return prev;
+      }
+      return [...prev, { dayIndex, time }];
+    });
+  };
+
+  const removeSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => prev.filter(s => !(s.dayIndex === dayIndex && s.time === time)));
+  };
+
   const handleQuickBooking = async () => {
     if (!user) { navigate("/login"); return; }
-    if (!selectedSubject || !selectedTime) return;
+    if (!selectedSubject || selectedSlots.length === 0) return;
 
-    // Check for conflicting bookings at the same time only
-    const day = days[selectedDay].fullDate;
-    const hour = parseTimeSlotHour(selectedTime);
-    const scheduled = new Date(day);
-    scheduled.setHours(hour, 0, 0, 0);
-    const scheduledEnd = new Date(scheduled.getTime() + 45 * 60 * 1000);
+    // Check subscription
+    if (sessionsRemaining < selectedSlots.length) {
+      toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+      return;
+    }
 
+    // Build scheduled dates
+    const scheduledDates = selectedSlots.map(slot => {
+      const day = days[slot.dayIndex].fullDate;
+      const hour = parseTimeSlotHour(slot.time);
+      const scheduled = new Date(day);
+      scheduled.setHours(hour, 0, 0, 0);
+      return { ...slot, scheduled, scheduledEnd: new Date(scheduled.getTime() + 45 * 60 * 1000) };
+    });
+
+    // Check conflicts
     const { data: conflictingBookings } = await supabase
       .from("bookings")
       .select("id, scheduled_at, duration_minutes")
@@ -173,30 +216,34 @@ const SearchTeacher = () => {
       .in("status", ["pending", "confirmed"])
       .gte("scheduled_at", new Date().toISOString());
 
-    const hasConflict = (conflictingBookings || []).some((b: any) => {
-      const bStart = new Date(b.scheduled_at).getTime();
-      const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
-      return scheduled.getTime() < bEnd && scheduledEnd.getTime() > bStart;
-    });
-
-    if (hasConflict) {
-      toast.error("لديك حصة محجوزة في نفس الموعد. اختر وقتاً آخر.");
-      return;
+    for (const sd of scheduledDates) {
+      const hasConflict = (conflictingBookings || []).some((b: any) => {
+        const bStart = new Date(b.scheduled_at).getTime();
+        const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
+        return sd.scheduled.getTime() < bEnd && sd.scheduledEnd.getTime() > bStart;
+      });
+      if (hasConflict) {
+        toast.error(`لديك حصة متعارضة يوم ${days[sd.dayIndex].label} الساعة ${sd.time}. أزلها وحاول مجدداً.`);
+        return;
+      }
     }
 
     setBookingLoading(true);
     try {
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
 
-      const { error } = await supabase.from("booking_requests" as any).insert({
+      // Insert all booking requests
+      const requests = scheduledDates.map(sd => ({
         student_id: user.id,
         subject_id: selectedSubject,
-        scheduled_at: scheduled.toISOString(),
+        scheduled_at: sd.scheduled.toISOString(),
         duration_minutes: 45,
         status: "open",
         expires_at: expiresAt,
-      } as any);
+      }));
 
+      const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
       if (error) throw error;
 
       // Notify teachers
@@ -205,15 +252,14 @@ const SearchTeacher = () => {
         .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
         .eq("subject_id", selectedSubject);
 
-      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
-
       if (teacherSubjectsData) {
+        const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
         const notifications = (teacherSubjectsData as any[])
           .filter((ts: any) => ts.teacher_profiles?.is_approved)
           .map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
-            title: `📚 طلب حصة جديد - ${subjectName}`,
-            body: `طالب يبحث عن معلم ${subjectName} يوم ${days[selectedDay].label} الساعة ${selectedTime}. سارع بالقبول!`,
+            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}`,
+            body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
             type: "booking_request",
           }));
 
@@ -222,9 +268,9 @@ const SearchTeacher = () => {
         }
       }
 
-      toast.success(`تم إرسال طلبك لـ ${teacherCount} معلم متخصص! 🎉`);
+      toast.success(`تم إرسال ${selectedSlots.length} طلب حصة لـ ${teacherCount} معلم متخصص! 🎉`);
       setSelectedSubject("");
-      setSelectedTime(null);
+      setSelectedSlots([]);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
     } finally {
@@ -320,22 +366,32 @@ const SearchTeacher = () => {
 
                 {/* Day */}
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم (لعرض الساعات)</p>
                   <div className="flex gap-1.5 overflow-x-auto pb-1">
-                    {days.map((d, i) => (
-                      <button key={i} onClick={() => setSelectedDay(i)}
-                        className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                        <span className="text-[10px] opacity-80">{d.label}</span>
-                        <span className="text-sm font-black">{d.date}</span>
-                      </button>
-                    ))}
+                    {days.map((d, i) => {
+                      const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                      return (
+                        <button key={i} onClick={() => setSelectedDay(i)}
+                          className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                          <span className="text-[10px] opacity-80">{d.label}</span>
+                          <span className="text-sm font-black">{d.date}</span>
+                          {daySlotCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-black flex items-center justify-center">{daySlotCount}</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Time */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" /> اختر الساعة
+                    <Clock className="h-3.5 w-3.5" /> اختر الساعات
+                    <Badge className="mr-auto bg-primary/10 text-primary border-0 text-[10px]">
+                      <Package className="h-3 w-3 ml-1" />
+                      {selectedSlots.length}/{sessionsRemaining} حصة
+                    </Badge>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
                     {allTimeSlots.map((t) => {
@@ -343,13 +399,14 @@ const SearchTeacher = () => {
                       const slotHour = parseTimeSlotHour(t);
                       const currentHour = new Date().getHours();
                       const isPast = isToday && slotHour <= currentHour;
+                      const isSelected = selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
                       return (
-                        <button key={t} onClick={() => !isPast && setSelectedTime(t)}
+                        <button key={t} onClick={() => !isPast && toggleSlot(selectedDay, t)}
                           disabled={isPast}
                           className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                             isPast
                               ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
-                              : selectedTime === t
+                              : isSelected
                                 ? "gradient-cta text-secondary-foreground shadow-button"
                                 : "bg-muted text-muted-foreground hover:bg-muted/80"
                           }`}>
@@ -360,16 +417,28 @@ const SearchTeacher = () => {
                   </div>
                 </div>
 
-                {/* Submit */}
-                <div>
+                {/* Selected Slots Summary + Submit */}
+                <div className="space-y-2">
+                  {selectedSlots.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {selectedSlots.map((s, i) => (
+                        <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-[10px] gap-1 pl-1">
+                          {days[s.dayIndex].label} {s.time}
+                          <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <Button
                     className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
-                    disabled={!selectedTime || !selectedSubject || bookingLoading}
+                    disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
                     onClick={handleQuickBooking}
                   >
                     {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                       <>
-                        إرسال الطلب
+                        إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"}
                         <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                       </>
                     )}

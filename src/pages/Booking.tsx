@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle, X, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,9 +31,10 @@ const Booking = () => {
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
 
@@ -85,8 +86,21 @@ const Booking = () => {
     };
     fetchSubjects();
 
+    // Fetch remaining sessions
+    if (user) {
+      supabase
+        .from("user_subscriptions")
+        .select("sessions_remaining")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("sessions_remaining", 0)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => setSessionsRemaining(data?.sessions_remaining || 0));
+    }
+
     if (directTeacherId) {
-      // Fetch teacher info, availability, and subjects
       Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single(),
         supabase.from("teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
@@ -96,7 +110,6 @@ const Booking = () => {
           setTeacherAvailableDays((teacherRes.data as any).available_days || []);
           setTeacherAvailableFrom(teacherRes.data.available_from);
           setTeacherAvailableTo(teacherRes.data.available_to);
-          // Fetch teacher's subjects
           supabase.from("teacher_subjects").select("subject_id, subjects(id, name)")
             .eq("teacher_id", teacherRes.data.id)
             .then(({ data: ts }) => {
@@ -110,7 +123,7 @@ const Booking = () => {
         }
       });
     }
-  }, [directTeacherId]);
+  }, [directTeacherId, user]);
 
   // Count available teachers for broadcast mode
   useEffect(() => {
@@ -125,83 +138,76 @@ const Booking = () => {
     countTeachers();
   }, [selectedSubject, directTeacherId]);
 
-  const getScheduledAt = () => {
-    if (!selectedTime || selectedDay === null || !days[selectedDay]) return null;
-    const day = days[selectedDay].fullDate;
-    const parts = selectedTime.split(":");
+  const parseTimeHour = (time: string): number => {
+    const parts = time.split(":");
     let hour = parseInt(parts[0]);
-    if (selectedTime.includes("م") && hour !== 12) hour += 12;
-    if (selectedTime.includes("ص") && hour === 12) hour = 0;
-    const scheduled = new Date(day);
-    scheduled.setHours(hour, 0, 0, 0);
-    return scheduled;
+    if (time.includes("م") && hour !== 12) hour += 12;
+    if (time.includes("ص") && hour === 12) hour = 0;
+    return hour;
+  };
+
+  const toggleSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => {
+      const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
+      if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (prev.length >= sessionsRemaining) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+        return prev;
+      }
+      return [...prev, { dayIndex, time }];
+    });
+  };
+
+  const removeSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => prev.filter(s => !(s.dayIndex === dayIndex && s.time === time)));
   };
 
   const handleSubmitRequest = async () => {
-    if (!user || !selectedSubject || !selectedTime) return;
+    if (!user || !selectedSubject || selectedSlots.length === 0) return;
     setLoading(true);
     try {
-      // Check active subscription
-      const { data: activeSub } = await supabase
-        .from("user_subscriptions")
-        .select("id, sessions_remaining")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .gt("sessions_remaining", 0)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!activeSub) {
-        toast.error("لا يوجد لديك باقة نشطة أو نفدت حصصك. اشترك في باقة أولاً.");
-        navigate("/pricing");
+      if (sessionsRemaining < selectedSlots.length) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+        setLoading(false);
         return;
       }
 
-      const scheduledAt = getScheduledAt();
-      if (!scheduledAt) throw new Error("وقت غير صالح");
+      const scheduledDates = selectedSlots.map(slot => {
+        const day = days[slot.dayIndex].fullDate;
+        const hour = parseTimeHour(slot.time);
+        const scheduled = new Date(day);
+        scheduled.setHours(hour, 0, 0, 0);
+        return { ...slot, scheduled };
+      });
 
-      const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = (directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name || "مادة";
-      const dayLabel = selectedDay !== null && days[selectedDay] ? days[selectedDay].label : "";
+
+      // Insert all booking requests
+      const requests = scheduledDates.map(sd => ({
+        student_id: user.id,
+        subject_id: selectedSubject,
+        scheduled_at: sd.scheduled.toISOString(),
+        duration_minutes: 60,
+        status: "open",
+        expires_at: expiresAt,
+        ...(directTeacherId ? { accepted_by: null } : {}),
+      }));
+
+      const { error } = await supabase.from("booking_requests").insert(requests);
+      if (error) throw error;
+
+      const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
 
       if (directTeacherId) {
-        // Direct booking: create a booking_request targeted at this teacher (status = open, needs acceptance)
-        const { error } = await supabase.from("booking_requests").insert({
-          student_id: user.id,
-          subject_id: selectedSubject,
-          scheduled_at: scheduledAt.toISOString(),
-          duration_minutes: 60,
-          status: "open",
-          expires_at: expiresAt,
-          accepted_by: null,
-        });
-
-        if (error) throw error;
-
-        // Notify only this specific teacher
         await supabase.from("notifications").insert({
           user_id: directTeacherId,
-          title: `📚 طلب حصة خاصة - ${subjectName}`,
-          body: `طالب يرغب بحجز حصة ${subjectName} معك يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
+          title: `📚 ${selectedSlots.length} طلب حصة - ${subjectName}`,
+          body: `طالب يرغب بحجز ${selectedSlots.length} حصة ${subjectName}: ${slotsText}. سارع بالقبول!`,
           type: "booking_request",
         });
-
-        toast.success(`تم إرسال طلبك للمعلم ${directTeacherName}! ⏳ بانتظار القبول`);
-        setStep(3);
+        toast.success(`تم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName}! ⏳`);
       } else {
-        // Broadcast request to all teachers
-        const { error } = await supabase.from("booking_requests").insert({
-          student_id: user.id,
-          subject_id: selectedSubject,
-          scheduled_at: scheduledAt.toISOString(),
-          duration_minutes: 60,
-          status: "open",
-          expires_at: expiresAt,
-        });
-
-        if (error) throw error;
-
         const { data: teacherSubjectsData } = await supabase
           .from("teacher_subjects")
           .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
@@ -212,19 +218,15 @@ const Booking = () => {
             .filter((ts: any) => ts.teacher_profiles?.is_approved)
             .map((ts: any) => ({
               user_id: ts.teacher_profiles.user_id,
-              title: `📚 طلب حصة جديد - ${subjectName}`,
-              body: `طالب يبحث عن معلم ${subjectName} يوم ${dayLabel} الساعة ${selectedTime}. سارع بالقبول!`,
+              title: `📚 ${selectedSlots.length} طلب حصة - ${subjectName}`,
+              body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
               type: "booking_request",
             }));
-
-          if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
-          }
+          if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
         }
-
-        toast.success("تم إرسال طلبك لجميع المعلمين المتخصصين! 🎉");
-        setStep(3);
+        toast.success(`تم إرسال ${selectedSlots.length} طلب لجميع المعلمين! 🎉`);
       }
+      setStep(3);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
     } finally {
@@ -303,42 +305,80 @@ const Booking = () => {
 
                       {/* Days */}
                       <p className="text-sm font-semibold text-muted-foreground mb-2">
-                        اختر اليوم {directTeacherId && <span className="text-xs text-primary">(الأيام المتاحة فقط)</span>}
+                        اختر الأيام {directTeacherId && <span className="text-xs text-primary">(الأيام المتاحة فقط)</span>}
                       </p>
                       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                         {days.length === 0 ? (
                           <p className="text-sm text-muted-foreground py-3">لا توجد أيام متاحة</p>
                         ) : (
-                          days.map((d, i) => (
-                            <button key={i} onClick={() => { setSelectedDay(i); setSelectedTime(null); }}
-                              className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                              <span className="text-xs opacity-80">{d.label}</span>
-                              <span className="text-lg font-black">{d.date}</span>
-                            </button>
-                          ))
+                          days.map((d, i) => {
+                            const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                            return (
+                              <button key={i} onClick={() => setSelectedDay(i)}
+                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                                <span className="text-xs opacity-80">{d.label}</span>
+                                <span className="text-lg font-black">{d.date}</span>
+                                {daySlotCount > 0 && (
+                                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center">{daySlotCount}</span>
+                                )}
+                              </button>
+                            );
+                          })
                         )}
                       </div>
 
                       {/* Time Slots */}
                       <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 font-medium">
-                        <Clock className="h-4 w-4" /> اختر الساعة
+                        <Clock className="h-4 w-4" /> اختر الساعات
                         {directTeacherId && <span className="text-xs text-primary">(ساعات المعلم المتاحة)</span>}
+                        <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">
+                          <Package className="h-3 w-3 ml-1" />
+                          {selectedSlots.length}/{sessionsRemaining} حصة
+                        </Badge>
                       </p>
                       {timeSlots.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-3">المعلم لم يحدد ساعات عمل</p>
                       ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-6">
-                          {timeSlots.map((t) => (
-                            <button key={t} onClick={() => setSelectedTime(t)}
-                              className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${selectedTime === t ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                              {t}
-                            </button>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
+                          {timeSlots.map((t) => {
+                            const isToday = selectedDay === 0;
+                            const slotHour = parseTimeHour(t);
+                            const currentHour = new Date().getHours();
+                            const isPast = isToday && slotHour <= currentHour;
+                            const isSelected = selectedDay !== null && selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
+                            return (
+                              <button key={t} onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
+                                disabled={isPast}
+                                className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                                  isPast
+                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                                    : isSelected
+                                      ? "gradient-cta text-secondary-foreground shadow-button"
+                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}>
+                                {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Selected Slots Summary */}
+                      {selectedSlots.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-xl">
+                          {selectedSlots.map((s, i) => (
+                            <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs gap-1 pl-1.5">
+                              {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                              <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
                           ))}
                         </div>
                       )}
 
-                      <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={!selectedTime || !selectedSubject || selectedDay === null} onClick={() => setStep(2)}>
-                        متابعة للتأكيد
+                      <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
+                        متابعة للتأكيد ({selectedSlots.length} حصة)
                         <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                       </Button>
                     </>
@@ -356,32 +396,38 @@ const Booking = () => {
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                       <CheckCircle className="h-4 w-4 text-primary" />
                     </div>
-                    تأكيد الطلب
+                    تأكيد الطلب ({selectedSlots.length} حصة)
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="bg-muted/50 p-5 rounded-2xl text-sm">
+                  <div className="bg-muted/50 p-5 rounded-2xl text-sm space-y-2">
                     {directTeacherId && (
-                      <div className="flex justify-between mb-2">
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">المعلم</span>
                         <span className="text-foreground font-bold">{directTeacherName}</span>
                       </div>
                     )}
-                    <div className="flex justify-between mb-2">
+                    <div className="flex justify-between">
                       <span className="text-muted-foreground">المادة</span>
                       <span className="text-foreground font-bold">{(directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name}</span>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">اليوم</span>
-                      <span className="text-foreground font-bold">{selectedDay !== null && days[selectedDay] ? `${days[selectedDay].label} ${days[selectedDay].date}` : ""}</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">عدد الحصص</span>
+                      <span className="text-foreground font-bold">{selectedSlots.length} حصة</span>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">الوقت</span>
-                      <span className="text-foreground font-bold">{selectedTime}</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">المدة</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">المدة لكل حصة</span>
                       <span className="text-foreground font-bold">60 دقيقة</span>
+                    </div>
+                    <div className="border-t pt-3 mt-2">
+                      <span className="text-muted-foreground text-xs block mb-2">المواعيد المختارة:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedSlots.map((s, i) => (
+                          <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs">
+                            {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                     {!directTeacherId && (
                       <div className="flex justify-between border-t pt-3 mt-3">
@@ -393,12 +439,12 @@ const Booking = () => {
 
                   <div className={`rounded-xl p-3 text-xs border ${directTeacherId ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400" : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"}`}>
                     {directTeacherId
-                      ? `سيتم إرسال طلبك للمعلم ${directTeacherName} فقط. يجب أن يقبل المعلم الطلب قبل بدء الحصة.`
-                      : "سيتم إرسال طلبك لجميع المعلمين المتخصصين في هذه المادة. أول معلم يقبل الطلب سيكون معلمك وسيتم إنشاء رابط Zoom تلقائياً."}
+                      ? `سيتم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName}. يجب أن يقبل المعلم كل طلب.`
+                      : `سيتم إرسال ${selectedSlots.length} طلب لجميع المعلمين المتخصصين. أول معلم يقبل كل طلب سيكون معلمك.`}
                   </div>
 
                   <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" onClick={handleSubmitRequest} disabled={loading}>
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : directTeacherId ? "إرسال الطلب للمعلم" : "إرسال الطلب للمعلمين"}
+                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : `إرسال ${selectedSlots.length} طلب`}
                   </Button>
                   <Button variant="ghost" className="w-full rounded-xl" onClick={() => setStep(1)}>
                     <ArrowLeft className="ml-2 h-4 w-4" /> رجوع
@@ -416,23 +462,20 @@ const Booking = () => {
                     <CheckCircle className="h-10 w-10 text-secondary" />
                   </motion.div>
                   <h2 className="text-2xl font-black text-foreground mb-2">
-                    {directTeacherId ? "تم إرسال الطلب! ⏳" : "تم إرسال الطلب! 🎉"}
+                    {directTeacherId ? "تم إرسال الطلبات! ⏳" : "تم إرسال الطلبات! 🎉"}
                   </h2>
                   <p className="text-muted-foreground mb-1">
                     {directTeacherId
-                      ? `تم إرسال طلبك للمعلم ${directTeacherName} - بانتظار القبول`
-                      : `تم إرسال طلبك لـ ${teacherCount} معلم متخصص`}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {selectedDay !== null && days[selectedDay] ? days[selectedDay].label : ""} • {selectedTime}
+                      ? `تم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName} - بانتظار القبول`
+                      : `تم إرسال ${selectedSlots.length} طلب لـ ${teacherCount} معلم متخصص`}
                   </p>
                   <p className="text-xs text-muted-foreground mb-8">سيتم إشعارك فور قبول المعلم</p>
                   <div className="flex gap-3 justify-center">
                     <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                       <Link to="/student">الذهاب للوحة التحكم</Link>
                     </Button>
-                    <Button variant="outline" className="rounded-xl" onClick={() => { setStep(1); setSelectedTime(null); setSelectedDay(null); }}>
-                      طلب حصة أخرى
+                    <Button variant="outline" className="rounded-xl" onClick={() => { setStep(1); setSelectedSlots([]); setSelectedDay(null); }}>
+                      طلب حصص أخرى
                     </Button>
                   </div>
                 </CardContent>
