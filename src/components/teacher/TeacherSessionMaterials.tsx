@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ interface SessionMaterial {
   subject_name: string;
   scheduled_at: string;
   ai_report: string | null;
+  recording_url: string | null;
   duration_minutes: number | null;
   student_name: string;
   days_remaining: number;
@@ -48,7 +49,7 @@ export default function TeacherSessionMaterials() {
     const studentIds = [...new Set(bookings.map(b => b.student_id))];
 
     const [{ data: sessions }, { data: profiles }] = await Promise.all([
-      supabase.from("sessions").select("booking_id, ai_report, duration_minutes").in("booking_id", bookingIds),
+      supabase.from("sessions").select("booking_id, ai_report, duration_minutes, recording_url").in("booking_id", bookingIds),
       supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
     ]);
 
@@ -65,6 +66,7 @@ export default function TeacherSessionMaterials() {
         subject_name: (b.subjects as any)?.name || "حصة",
         scheduled_at: b.scheduled_at,
         ai_report: session?.ai_report || null,
+        recording_url: session?.recording_url || null,
         duration_minutes: session?.duration_minutes || b.duration_minutes,
         student_name: nameMap.get(b.student_id) || "طالب",
         days_remaining: Math.max(0, Math.ceil((expiryDate.getTime() - now) / (1000 * 60 * 60 * 24))),
@@ -134,7 +136,16 @@ export default function TeacherSessionMaterials() {
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t"
                       >
-                        <div className="p-4">
+                        <div className="p-4 space-y-3">
+                          {m.recording_url && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Play className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
+                              </div>
+                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
+                            </div>
+                          )}
                           {m.ai_report ? (
                             <div className="bg-accent/30 rounded-xl p-4">
                               <div className="flex items-center gap-2 mb-2">

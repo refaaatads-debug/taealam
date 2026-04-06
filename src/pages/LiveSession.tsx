@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, AlertTriangle
+  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, AlertTriangle,
+  Circle, Square
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -39,6 +40,13 @@ const LiveSession = () => {
   const [hasSubscription, setHasSubscription] = useState(false);
   const [subscriptionMinutes, setSubscriptionMinutes] = useState(0);
   const [timeWarningShown, setTimeWarningShown] = useState(false);
+
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUploading, setRecordingUploading] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
 
   // Fetch booking details
   useEffect(() => {
@@ -281,8 +289,90 @@ const LiveSession = () => {
     }
   };
 
+  // --- Recording functions ---
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" } as any,
+        audio: true,
+      });
+      recordingStreamRef.current = stream;
+      recordedChunksRef.current = [];
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : "video/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+      };
+      // If user stops sharing via browser UI
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        stopRecording();
+      });
+
+      recorder.start(1000); // chunk every 1s
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      toast.success("بدأ تسجيل الحصة 🔴");
+    } catch (err) {
+      console.error("Recording error:", err);
+      toast.error("تعذر بدء التسجيل - تأكد من السماح بمشاركة الشاشة");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const uploadRecording = async () => {
+    if (recordedChunksRef.current.length === 0 || !bookingId || !user) return;
+    setRecordingUploading(true);
+    try {
+      const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("session-recordings")
+        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: urlData } = supabase.storage
+        .from("session-recordings")
+        .getPublicUrl(fileName);
+
+      // Save URL to session record
+      await supabase
+        .from("sessions")
+        .update({ recording_url: urlData.publicUrl })
+        .eq("booking_id", bookingId);
+
+      toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
+    } catch (err) {
+      console.error("Upload error:", err);
+      toast.error("تعذر رفع التسجيل");
+    } finally {
+      setRecordingUploading(false);
+      recordedChunksRef.current = [];
+    }
+  };
+
   const endSession = async () => {
     clearInterval(timerRef.current);
+
+    // Stop recording and upload if active
+    if (isRecording) {
+      stopRecording();
+    }
+
     if (jitsiApiRef.current) {
       jitsiApiRef.current.dispose();
       jitsiApiRef.current = null;
@@ -298,6 +388,11 @@ const LiveSession = () => {
           .from("sessions")
           .update({ ended_at: new Date().toISOString() })
           .eq("booking_id", bookingId);
+
+        // Upload recording if chunks exist
+        if (recordedChunksRef.current.length > 0) {
+          await uploadRecording();
+        }
 
         // Deduct subscription session if used
         if (bookingData?.used_subscription && bookingData?.subscription_id) {
@@ -364,9 +459,16 @@ const LiveSession = () => {
               <span className="hidden sm:inline">متبقي</span>
             </span>
           )}
-          <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
-            <span className="w-2 h-2 rounded-full bg-destructive" /> REC
-          </span>
+          {isRecording && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
+              <span className="w-2 h-2 rounded-full bg-destructive" /> REC
+            </span>
+          )}
+          {recordingUploading && (
+            <span className="flex items-center gap-1.5 text-xs bg-secondary/20 text-secondary px-3 py-1.5 rounded-lg font-bold">
+              جاري الرفع...
+            </span>
+          )}
           <Button size="icon" variant="ghost" className="text-card/60 hover:text-card h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
             <MoreVertical className="h-4 w-4" />
           </Button>
@@ -506,6 +608,15 @@ const LiveSession = () => {
         </Button>
         <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
           <FileText className="h-5 w-5" />
+        </Button>
+        <Button
+          size="icon"
+          className={`rounded-xl h-12 w-12 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 animate-pulse-soft" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={!meetingStarted}
+          title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
+        >
+          {isRecording ? <Square className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
         </Button>
         <Button size="icon" className="rounded-xl h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" onClick={endSession}>
           <Phone className="h-5 w-5" />
