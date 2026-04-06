@@ -62,7 +62,7 @@ const SearchTeacher = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
-
+  const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
   // Fetch student's remaining sessions
   useEffect(() => {
     if (!user) return;
