@@ -151,6 +151,7 @@ const PlansManagementTab = () => {
               <Select value={newPlan.tier} onValueChange={v => setNewPlan(p => ({ ...p, tier: v }))}>
                 <SelectTrigger className="rounded-lg text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="free">مجانية</SelectItem>
                   <SelectItem value="basic">أساسية</SelectItem>
                   <SelectItem value="standard">متقدمة</SelectItem>
                   <SelectItem value="premium">احترافية</SelectItem>
