@@ -32,7 +32,7 @@ export default function PendingBookingRequests() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
     fetchRequests();
