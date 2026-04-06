@@ -217,6 +217,19 @@ const LiveSession = () => {
         .update({ started_at: new Date().toISOString() })
         .eq("booking_id", bookingId)
         .then(() => {});
+
+      // Send notification to student when teacher starts the session
+      if (bookingData && user) {
+        const isTeacher = user.id === bookingData.teacher_id;
+        if (isTeacher) {
+          supabase.from("notifications").insert({
+            user_id: bookingData.student_id,
+            title: "الحصة بدأت! 🎓",
+            body: `بدأ المعلم ${profile?.full_name || "معلمك"} الحصة الآن. انضم فوراً!`,
+            type: "session",
+          }).then(() => {});
+        }
+      }
     };
 
     initJitsi();
@@ -315,7 +328,13 @@ const LiveSession = () => {
         console.error("Error ending session:", e);
       }
     }
-    navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
+    // Teachers go back to dashboard, students go to rating
+    const isTeacherUser = user && bookingData && user.id === bookingData.teacher_id;
+    if (isTeacherUser) {
+      navigate("/teacher");
+    } else {
+      navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
+    }
   };
 
   const displayTitle = subjectName ? `${subjectName} - ${otherName}` : otherName;
