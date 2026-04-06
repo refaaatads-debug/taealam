@@ -173,17 +173,42 @@ const SearchTeacher = () => {
     return h >= t.available_from && h <= t.available_to;
   };
 
+  const toggleSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => {
+      const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
+      if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (prev.length >= sessionsRemaining) {
+        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+        return prev;
+      }
+      return [...prev, { dayIndex, time }];
+    });
+  };
+
+  const removeSlot = (dayIndex: number, time: string) => {
+    setSelectedSlots(prev => prev.filter(s => !(s.dayIndex === dayIndex && s.time === time)));
+  };
+
   const handleQuickBooking = async () => {
     if (!user) { navigate("/login"); return; }
-    if (!selectedSubject || !selectedTime) return;
+    if (!selectedSubject || selectedSlots.length === 0) return;
 
-    // Check for conflicting bookings at the same time only
-    const day = days[selectedDay].fullDate;
-    const hour = parseTimeSlotHour(selectedTime);
-    const scheduled = new Date(day);
-    scheduled.setHours(hour, 0, 0, 0);
-    const scheduledEnd = new Date(scheduled.getTime() + 45 * 60 * 1000);
+    // Check subscription
+    if (sessionsRemaining < selectedSlots.length) {
+      toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+      return;
+    }
 
+    // Build scheduled dates
+    const scheduledDates = selectedSlots.map(slot => {
+      const day = days[slot.dayIndex].fullDate;
+      const hour = parseTimeSlotHour(slot.time);
+      const scheduled = new Date(day);
+      scheduled.setHours(hour, 0, 0, 0);
+      return { ...slot, scheduled, scheduledEnd: new Date(scheduled.getTime() + 45 * 60 * 1000) };
+    });
+
+    // Check conflicts
     const { data: conflictingBookings } = await supabase
       .from("bookings")
       .select("id, scheduled_at, duration_minutes")
@@ -191,30 +216,34 @@ const SearchTeacher = () => {
       .in("status", ["pending", "confirmed"])
       .gte("scheduled_at", new Date().toISOString());
 
-    const hasConflict = (conflictingBookings || []).some((b: any) => {
-      const bStart = new Date(b.scheduled_at).getTime();
-      const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
-      return scheduled.getTime() < bEnd && scheduledEnd.getTime() > bStart;
-    });
-
-    if (hasConflict) {
-      toast.error("لديك حصة محجوزة في نفس الموعد. اختر وقتاً آخر.");
-      return;
+    for (const sd of scheduledDates) {
+      const hasConflict = (conflictingBookings || []).some((b: any) => {
+        const bStart = new Date(b.scheduled_at).getTime();
+        const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
+        return sd.scheduled.getTime() < bEnd && sd.scheduledEnd.getTime() > bStart;
+      });
+      if (hasConflict) {
+        toast.error(`لديك حصة متعارضة يوم ${days[sd.dayIndex].label} الساعة ${sd.time}. أزلها وحاول مجدداً.`);
+        return;
+      }
     }
 
     setBookingLoading(true);
     try {
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
 
-      const { error } = await supabase.from("booking_requests" as any).insert({
+      // Insert all booking requests
+      const requests = scheduledDates.map(sd => ({
         student_id: user.id,
         subject_id: selectedSubject,
-        scheduled_at: scheduled.toISOString(),
+        scheduled_at: sd.scheduled.toISOString(),
         duration_minutes: 45,
         status: "open",
         expires_at: expiresAt,
-      } as any);
+      }));
 
+      const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
       if (error) throw error;
 
       // Notify teachers
@@ -223,15 +252,14 @@ const SearchTeacher = () => {
         .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
         .eq("subject_id", selectedSubject);
 
-      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
-
       if (teacherSubjectsData) {
+        const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
         const notifications = (teacherSubjectsData as any[])
           .filter((ts: any) => ts.teacher_profiles?.is_approved)
           .map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
-            title: `📚 طلب حصة جديد - ${subjectName}`,
-            body: `طالب يبحث عن معلم ${subjectName} يوم ${days[selectedDay].label} الساعة ${selectedTime}. سارع بالقبول!`,
+            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}`,
+            body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
             type: "booking_request",
           }));
 
@@ -240,9 +268,9 @@ const SearchTeacher = () => {
         }
       }
 
-      toast.success(`تم إرسال طلبك لـ ${teacherCount} معلم متخصص! 🎉`);
+      toast.success(`تم إرسال ${selectedSlots.length} طلب حصة لـ ${teacherCount} معلم متخصص! 🎉`);
       setSelectedSubject("");
-      setSelectedTime(null);
+      setSelectedSlots([]);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
     } finally {
