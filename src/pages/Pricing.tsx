@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Star, Sparkles, Crown, X, Shield, Zap, Gift, Users, ArrowLeft, CreditCard } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { CheckCircle, Star, Sparkles, Crown, X, Shield, Zap, Gift, Users, ArrowLeft, CreditCard, Tag } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +31,8 @@ const Pricing = () => {
   const navigate = useNavigate();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [promoCode, setPromoCode] = useState("");
+  const [showPromo, setShowPromo] = useState(false);
 
   useEffect(() => {
     supabase.from("subscription_plans").select("*").order("price").then(({ data }) => {
@@ -47,9 +50,18 @@ const Pricing = () => {
           plan_id: plan.id,
           success_url: `${window.location.origin}/payment-success`,
           cancel_url: `${window.location.origin}/pricing?payment=cancelled`,
+          promo_code: promoCode.trim() || undefined,
         },
       });
       if (error) throw error;
+
+      // Handle free plan activation
+      if (data?.free && data?.activated) {
+        toast.success("تم تفعيل باقتك المجانية بنجاح! 🎉");
+        navigate("/student");
+        return;
+      }
+
       if (data?.url) { window.location.href = data.url; }
       else throw new Error("لم يتم إنشاء رابط الدفع");
     } catch (e: any) {
@@ -87,7 +99,7 @@ const Pricing = () => {
               <Gift className="h-3.5 w-3.5 ml-1.5" /> وفّر حتى 40%
             </Badge>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-primary-foreground mb-3">اختر الباقة المناسبة لك</h1>
-            <p className="text-primary-foreground/70 text-base md:text-lg max-w-lg mx-auto">خطط مرنة تناسب جميع المستويات، ابدأ مجاناً وطوّر مسيرتك التعليمية</p>
+            <p className="text-primary-foreground/70 text-base md:text-lg max-w-lg mx-auto">خطط مرنة تناسب جميع المستويات، ابدأ واطوّر مسيرتك التعليمية</p>
           </motion.div>
         </div>
       </div>
@@ -105,6 +117,32 @@ const Pricing = () => {
               <span>{item.text}</span>
             </div>
           ))}
+        </motion.div>
+
+        {/* Promo Code Section */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex justify-center mb-8">
+          {!showPromo ? (
+            <Button variant="ghost" size="sm" className="text-sm text-muted-foreground gap-2" onClick={() => setShowPromo(true)}>
+              <Tag className="h-4 w-4" /> هل لديك كود خصم؟
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-2 border border-border">
+              <Tag className="h-4 w-4 text-secondary mr-1" />
+              <Input
+                value={promoCode}
+                onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="أدخل كود الخصم..."
+                className="h-9 w-48 rounded-lg border-0 bg-background text-sm"
+                dir="ltr"
+              />
+              {promoCode && (
+                <Badge className="bg-secondary/10 text-secondary border-0 text-xs">سيُطبّق عند الدفع</Badge>
+              )}
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setShowPromo(false); setPromoCode(""); }}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </motion.div>
 
         {/* Plans Grid */}
@@ -131,6 +169,7 @@ const Pricing = () => {
             const Icon = tierIcons[plan.tier] || Star;
             const isPopular = plan.tier === "standard";
             const isPremium = plan.tier === "premium";
+            const isFree = plan.price <= 0;
             return (
               <motion.div
                 key={plan.id}
@@ -143,7 +182,6 @@ const Pricing = () => {
                   group-hover:-translate-y-2 group-hover:shadow-card-hover
                   ${isPopular ? "border-secondary shadow-card-hover scale-[1.02]" : isPremium ? "border-gold/50" : "border-border"}
                 `}>
-                  {/* Popular ribbon */}
                   {isPopular && (
                     <div className="absolute top-0 left-0 right-0">
                       <div className="gradient-cta h-1.5" />
@@ -155,28 +193,30 @@ const Pricing = () => {
                     </div>
                   )}
 
-                  {/* Premium glow */}
                   {isPremium && (
                     <div className="absolute inset-0 bg-gradient-to-b from-gold/5 to-transparent pointer-events-none" />
                   )}
 
                   <CardContent className={`p-6 md:p-8 text-center relative ${isPopular ? "pt-10" : ""}`}>
-                    {/* Icon */}
                     <div className={`w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center transition-transform duration-300 group-hover:scale-110
                       ${isPremium ? "bg-gold/10" : isPopular ? "bg-secondary/10" : "bg-muted"}
                     `}>
                       <Icon className={`h-8 w-8 ${isPremium ? "text-gold" : isPopular ? "text-secondary" : "text-muted-foreground"}`} />
                     </div>
 
-                    {/* Name & Price */}
                     <h3 className="text-xl font-black text-foreground mb-2">{plan.name_ar}</h3>
                     <div className="mb-1">
-                      <span className="text-4xl md:text-5xl font-black text-foreground">{plan.price}</span>
-                      <span className="text-muted-foreground text-sm mr-1">ر.س</span>
+                      {isFree ? (
+                        <span className="text-4xl md:text-5xl font-black text-secondary">مجاناً</span>
+                      ) : (
+                        <>
+                          <span className="text-4xl md:text-5xl font-black text-foreground">{plan.price}</span>
+                          <span className="text-muted-foreground text-sm mr-1">ر.س</span>
+                        </>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mb-6">شهرياً • {plan.sessions_count} حصة</p>
 
-                    {/* Savings badge for premium */}
                     {isPremium && (
                       <Badge variant="outline" className="mb-5 border-gold/30 text-gold bg-gold/5 text-xs">
                         وفّر 40% مقارنة بالحصص المفردة
@@ -188,7 +228,6 @@ const Pricing = () => {
                       </Badge>
                     )}
 
-                    {/* Features */}
                     <div className="space-y-3 mb-7 text-right">
                       <div className="flex items-center gap-2.5 text-sm">
                         <CheckCircle className="h-4.5 w-4.5 text-secondary shrink-0" />
@@ -220,7 +259,6 @@ const Pricing = () => {
                       )}
                     </div>
 
-                    {/* CTA */}
                     <Button
                       onClick={() => handleSubscribe(plan)}
                       disabled={checkoutLoading === plan.id}
@@ -238,7 +276,7 @@ const Pricing = () => {
                         <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
-                          اشترك الآن
+                          {isFree ? "فعّل الباقة المجانية" : "اشترك الآن"}
                           <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
                         </>
                       )}
@@ -264,7 +302,7 @@ const Pricing = () => {
                     {plans.map(plan => (
                       <th key={plan.id} className="p-4 text-center">
                         <div className="font-black text-foreground">{plan.name_ar}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{plan.price} ر.س/شهر</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{plan.price <= 0 ? "مجاناً" : `${plan.price} ر.س/شهر`}</div>
                       </th>
                     ))}
                   </tr>
@@ -278,11 +316,7 @@ const Pricing = () => {
                         return (
                           <td key={plan.id} className="p-4 text-center">
                             {typeof value === "boolean" ? (
-                              value ? (
-                                <CheckCircle className="h-5 w-5 text-secondary mx-auto" />
-                              ) : (
-                                <X className="h-5 w-5 text-muted-foreground/30 mx-auto" />
-                              )
+                              value ? <CheckCircle className="h-5 w-5 text-secondary mx-auto" /> : <X className="h-5 w-5 text-muted-foreground/30 mx-auto" />
                             ) : (
                               <span className="font-bold text-foreground">{value}</span>
                             )}
@@ -297,15 +331,15 @@ const Pricing = () => {
           </Card>
         </motion.div>
 
-        {/* FAQ Section */}
+        {/* FAQ */}
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="mt-16">
           <h2 className="text-2xl font-black text-foreground text-center mb-8">أسئلة شائعة</h2>
           <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {[
               { q: "هل يمكنني تغيير الباقة لاحقاً؟", a: "نعم، يمكنك ترقية أو تخفيض باقتك في أي وقت. سيتم حساب الفرق تلقائياً." },
               { q: "هل هناك ضمان استرداد؟", a: "نعم، نقدم ضمان استرداد كامل خلال أول 7 أيام من الاشتراك." },
-              { q: "ماذا يحدث للحصص غير المستخدمة؟", a: "يتم ترحيل الحصص غير المستخدمة تلقائياً للشهر التالي (حتى 4 حصص)." },
-              { q: "كيف تعمل الحصة التجريبية المجانية؟", a: "يمكنك حجز حصة واحدة مجانية مع أي مدرس لتجربة المنصة قبل الاشتراك." },
+              { q: "ماذا يحدث عند انتهاء الحصص؟", a: "سيتم إشعارك عند اقتراب نفاد الحصص ويمكنك تجديد الباقة أو الترقية." },
+              { q: "هل يمكنني استخدام كود خصم؟", a: "نعم، أدخل كود الخصم في حقل البروموكود قبل الاشتراك وسيُطبّق الخصم تلقائياً." },
             ].map((item, i) => (
               <Card key={i} className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-0.5 group">
                 <CardContent className="p-5">
@@ -335,9 +369,9 @@ const Pricing = () => {
           <Card className="border-0 shadow-card overflow-hidden">
             <div className="gradient-hero p-8 md:p-12">
               <h3 className="text-2xl font-black text-primary-foreground mb-3">مستعد لبدء رحلتك التعليمية؟</h3>
-              <p className="text-primary-foreground/70 mb-6 max-w-md mx-auto">ابدأ بحصة مجانية واكتشف الفرق مع أفضل المدرسين</p>
-              <Button className="bg-card text-foreground hover:bg-card/90 rounded-xl h-12 px-8 font-bold shadow-button text-base" asChild>
-                <Link to="/search">ابدأ مجاناً <ArrowLeft className="h-4 w-4 mr-2" /></Link>
+              <p className="text-primary-foreground/70 mb-6 max-w-md mx-auto">اختر الباقة المناسبة وابدأ التعلم مع أفضل المدرسين</p>
+              <Button className="bg-card text-foreground hover:bg-card/90 rounded-xl h-12 px-8 font-bold shadow-button text-base" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+                اختر باقتك الآن
               </Button>
             </div>
           </Card>

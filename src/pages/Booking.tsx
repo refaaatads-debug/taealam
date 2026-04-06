@@ -141,6 +141,23 @@ const Booking = () => {
     if (!user || !selectedSubject || !selectedTime) return;
     setLoading(true);
     try {
+      // Check active subscription
+      const { data: activeSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, sessions_remaining")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("sessions_remaining", 0)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!activeSub) {
+        toast.error("لا يوجد لديك باقة نشطة أو نفدت حصصك. اشترك في باقة أولاً.");
+        navigate("/pricing");
+        return;
+      }
+
       const scheduledAt = getScheduledAt();
       if (!scheduledAt) throw new Error("وقت غير صالح");
 

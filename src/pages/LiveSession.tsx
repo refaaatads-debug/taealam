@@ -72,16 +72,19 @@ const LiveSession = () => {
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
 
       // Check if student has active subscription
-      if (booking.used_subscription && booking.subscription_id) {
+      const studentId = user.id === booking.student_id ? user.id : booking.student_id;
+      const { data: activeSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, sessions_remaining")
+        .eq("user_id", studentId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSub && activeSub.sessions_remaining > 0) {
         setHasSubscription(true);
-        const { data: sub } = await supabase
-          .from("user_subscriptions")
-          .select("sessions_remaining")
-          .eq("id", booking.subscription_id)
-          .single();
-        if (sub) {
-          setSubscriptionMinutes(sub.sessions_remaining * 45); // 45 min per session
-        }
+        setSubscriptionMinutes(activeSub.sessions_remaining * 45);
       }
     };
     fetchBooking();
@@ -394,18 +397,44 @@ const LiveSession = () => {
           await uploadRecording();
         }
 
-        // Deduct subscription session if used
-        if (bookingData?.used_subscription && bookingData?.subscription_id) {
-          const { data: sub } = await supabase
+        // Deduct subscription session
+        if (bookingData) {
+          const studentId = bookingData.student_id;
+          // Find active subscription for this student
+          const { data: activeSub } = await supabase
             .from("user_subscriptions")
-            .select("sessions_remaining")
-            .eq("id", bookingData.subscription_id)
-            .single();
-          if (sub && sub.sessions_remaining > 0) {
+            .select("id, sessions_remaining")
+            .eq("user_id", studentId)
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (activeSub && activeSub.sessions_remaining > 0) {
             await supabase
               .from("user_subscriptions")
-              .update({ sessions_remaining: sub.sessions_remaining - 1 })
-              .eq("id", bookingData.subscription_id);
+              .update({ sessions_remaining: activeSub.sessions_remaining - 1 })
+              .eq("id", activeSub.id);
+
+            // Notify if sessions running low
+            if (activeSub.sessions_remaining - 1 <= 2) {
+              await supabase.from("notifications").insert({
+                user_id: studentId,
+                title: "رصيد الحصص منخفض ⚠️",
+                body: `متبقي ${activeSub.sessions_remaining - 1} حصة فقط. جدد باقتك للاستمرار في التعلم.`,
+                type: "subscription_warning",
+              });
+            }
+
+            // Notify if subscription depleted
+            if (activeSub.sessions_remaining - 1 === 0) {
+              await supabase.from("notifications").insert({
+                user_id: studentId,
+                title: "انتهت حصص باقتك 📋",
+                body: "نفدت جميع حصصك المتاحة. جدد باقتك أو اشترك في باقة جديدة.",
+                type: "subscription_expired",
+              });
+            }
           }
         }
 
