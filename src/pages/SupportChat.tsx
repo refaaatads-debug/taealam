@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, Paperclip, FileText, Image as ImageIcon, X } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, Paperclip, FileText, Image as ImageIcon, X, Download } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
@@ -154,19 +154,33 @@ const SupportChat = () => {
 
   const renderFileAttachment = (msg: Message) => {
     if (!msg.file_url) return null;
+    const isMe = !msg.is_admin;
     if (isImage(msg.file_type)) {
       return (
-        <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
-          <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[200px] rounded-lg mt-1" />
-        </a>
+        <div className="mt-2 space-y-1">
+          <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
+            <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
+          </a>
+          <a href={msg.file_url} download={msg.file_name || "image"} target="_blank" rel="noopener noreferrer"
+            className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <Download className="h-3 w-3" /> تحميل الصورة
+          </a>
+        </div>
       );
     }
     return (
-      <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
-        className="flex items-center gap-2 mt-1 text-xs underline">
-        <FileText className="h-4 w-4" />
-        {msg.file_name || "ملف"}
-      </a>
+      <div className={`mt-2 flex items-center gap-2 rounded-xl px-3 py-2 ${isMe ? "bg-primary-foreground/10" : "bg-background/50"}`}>
+        <FileText className="h-5 w-5 shrink-0" />
+        <span className="text-xs truncate flex-1">{msg.file_name || "ملف"}</span>
+        <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
+          className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+          فتح
+        </a>
+        <a href={msg.file_url} download={msg.file_name || "file"} target="_blank" rel="noopener noreferrer"
+          className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+          <Download className="h-3.5 w-3.5" />
+        </a>
+      </div>
     );
   };
 
