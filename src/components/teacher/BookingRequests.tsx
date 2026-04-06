@@ -56,7 +56,6 @@ export default function BookingRequests() {
 
     if (!data || data.length === 0) { setRequests([]); return; }
 
-    // Filter out expired requests client-side
     const now = Date.now();
     const validData = (data as any[]).filter((r: any) => {
       if (!r.expires_at) return true;
@@ -89,26 +88,37 @@ export default function BookingRequests() {
 
   const handleAccept = async (request: BookingRequest) => {
     if (!user) return;
-    // Check if expired
     if (request.expires_at && new Date(request.expires_at).getTime() <= Date.now()) {
       toast.info("انتهت صلاحية هذا الطلب");
       fetchRequests();
       return;
     }
 
-    // Check if teacher already has an active/pending booking
-    const { data: activeBookings } = await supabase
+    // Check for time overlap with existing confirmed bookings (not just any active booking)
+    const requestStart = new Date(request.scheduled_at).getTime();
+    const requestEnd = requestStart + (request.duration_minutes || 45) * 60 * 1000;
+
+    const { data: existingBookings } = await supabase
       .from("bookings")
-      .select("id")
+      .select("id, scheduled_at, duration_minutes")
       .eq("teacher_id", user.id)
       .in("status", ["pending", "confirmed"])
-      .gte("scheduled_at", new Date().toISOString())
-      .limit(1);
+      .gte("scheduled_at", new Date(requestStart - 24 * 60 * 60 * 1000).toISOString())
+      .lte("scheduled_at", new Date(requestEnd + 24 * 60 * 60 * 1000).toISOString());
 
-    if (activeBookings && activeBookings.length > 0) {
-      toast.error("لديك حصة نشطة بالفعل. أكمل الحصة الحالية أولاً قبل قبول حصة جديدة.");
-      return;
+    if (existingBookings && existingBookings.length > 0) {
+      const hasOverlap = existingBookings.some(b => {
+        const bStart = new Date(b.scheduled_at).getTime();
+        const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
+        return requestStart < bEnd && requestEnd > bStart;
+      });
+
+      if (hasOverlap) {
+        toast.error("لديك حصة محجوزة في نفس الوقت. اختر وقتاً مختلفاً.");
+        return;
+      }
     }
+
     setAccepting(request.id);
     try {
       const { error: updateError } = await supabase

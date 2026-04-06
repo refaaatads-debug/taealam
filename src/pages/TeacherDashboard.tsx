@@ -8,6 +8,8 @@ import SchedulePricingManager from "@/components/teacher/SchedulePricingManager"
 import BookingRequests from "@/components/teacher/BookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import WithdrawalSection from "@/components/teacher/WithdrawalSection";
+import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
+import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +28,6 @@ const TeacherDashboard = () => {
     if (!user) return;
     fetchData();
 
-    // Subscribe to new bookings in realtime
     const channel = supabase
       .channel("teacher-bookings")
       .on("postgres_changes", {
@@ -46,7 +47,6 @@ const TeacherDashboard = () => {
   const fetchData = async () => {
     if (!user) return;
 
-    // Fetch teacher profile
     const { data: tp } = await supabase
       .from("teacher_profiles")
       .select("*")
@@ -54,7 +54,6 @@ const TeacherDashboard = () => {
       .single();
     setTeacherProfile(tp);
 
-    // Count open booking requests (for subtitle)
     const { count: reqCount } = await supabase
       .from("booking_requests")
       .select("id", { count: "exact", head: true })
@@ -62,7 +61,6 @@ const TeacherDashboard = () => {
       .gte("expires_at", new Date().toISOString());
     setOpenRequestsCount(reqCount || 0);
 
-    // Fetch upcoming schedule (confirmed bookings)
     const now = new Date().toISOString();
     const { data: upcoming } = await supabase
       .from("bookings")
@@ -85,7 +83,6 @@ const TeacherDashboard = () => {
       setSchedule([]);
     }
 
-    // Stats
     const { count: studentCount } = await supabase
       .from("bookings")
       .select("student_id", { count: "exact", head: true })
@@ -126,7 +123,6 @@ const TeacherDashboard = () => {
           </Button>
         </div>
 
-        {/* Pending Approval Banner */}
         {!isApproved && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="border-0 shadow-card mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
@@ -136,14 +132,14 @@ const TeacherDashboard = () => {
                 </div>
                 <div>
                   <p className="font-black text-foreground mb-1">حسابك في انتظار الموافقة</p>
-                  <p className="text-sm text-muted-foreground">سيتم مراجعة حسابك من قبل الإدارة وتفعيله قريباً. ستصلك إشعار عند الموافقة.</p>
+                  <p className="text-sm text-muted-foreground">سيتم مراجعة حسابك من قبل الإدارة وتفعيله قريباً.</p>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         )}
 
-        {/* Stats */}
+        {/* Stats - removed pricing/hourly rate */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { icon: DollarSign, label: "أرباح الشهر", value: `${stats.earnings.toLocaleString()} ر.س`, color: "text-secondary", bg: "bg-secondary/10" },
@@ -166,10 +162,9 @@ const TeacherDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Booking Requests (Broadcast Model) */}
           <BookingRequests />
 
-          {/* Schedule */}
+          {/* Upcoming Sessions */}
           <Card className="border-0 shadow-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 font-bold">
@@ -219,13 +214,16 @@ const TeacherDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Schedule & Pricing Manager */}
+          {/* Teacher Schedule Table */}
+          <TeacherScheduleTable />
+
+          {/* Schedule & Settings Manager (no pricing) */}
           <SchedulePricingManager />
 
           {/* Withdrawal Section */}
           <WithdrawalSection />
 
-          {/* Warnings */}
+          {/* Warnings & Violations */}
           <WarningsSection />
 
           {/* Performance */}
@@ -257,6 +255,7 @@ const TeacherDashboard = () => {
           </Card>
         </div>
       </div>
+      <TeacherCustomerServiceButton />
       <BottomNav />
     </div>
   );
