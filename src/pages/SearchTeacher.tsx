@@ -366,22 +366,32 @@ const SearchTeacher = () => {
 
                 {/* Day */}
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم (لعرض الساعات)</p>
                   <div className="flex gap-1.5 overflow-x-auto pb-1">
-                    {days.map((d, i) => (
-                      <button key={i} onClick={() => setSelectedDay(i)}
-                        className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                        <span className="text-[10px] opacity-80">{d.label}</span>
-                        <span className="text-sm font-black">{d.date}</span>
-                      </button>
-                    ))}
+                    {days.map((d, i) => {
+                      const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                      return (
+                        <button key={i} onClick={() => setSelectedDay(i)}
+                          className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                          <span className="text-[10px] opacity-80">{d.label}</span>
+                          <span className="text-sm font-black">{d.date}</span>
+                          {daySlotCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-black flex items-center justify-center">{daySlotCount}</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Time */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" /> اختر الساعة
+                    <Clock className="h-3.5 w-3.5" /> اختر الساعات
+                    <Badge className="mr-auto bg-primary/10 text-primary border-0 text-[10px]">
+                      <Package className="h-3 w-3 ml-1" />
+                      {selectedSlots.length}/{sessionsRemaining} حصة
+                    </Badge>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
                     {allTimeSlots.map((t) => {
@@ -389,13 +399,14 @@ const SearchTeacher = () => {
                       const slotHour = parseTimeSlotHour(t);
                       const currentHour = new Date().getHours();
                       const isPast = isToday && slotHour <= currentHour;
+                      const isSelected = selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
                       return (
-                        <button key={t} onClick={() => !isPast && setSelectedTime(t)}
+                        <button key={t} onClick={() => !isPast && toggleSlot(selectedDay, t)}
                           disabled={isPast}
                           className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                             isPast
                               ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
-                              : selectedTime === t
+                              : isSelected
                                 ? "gradient-cta text-secondary-foreground shadow-button"
                                 : "bg-muted text-muted-foreground hover:bg-muted/80"
                           }`}>
@@ -406,11 +417,23 @@ const SearchTeacher = () => {
                   </div>
                 </div>
 
-                {/* Submit */}
-                <div>
+                {/* Selected Slots Summary + Submit */}
+                <div className="space-y-2">
+                  {selectedSlots.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {selectedSlots.map((s, i) => (
+                        <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-[10px] gap-1 pl-1">
+                          {days[s.dayIndex].label} {s.time}
+                          <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <Button
                     className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
-                    disabled={!selectedTime || !selectedSubject || bookingLoading}
+                    disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
                     onClick={handleQuickBooking}
                   >
                     {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
