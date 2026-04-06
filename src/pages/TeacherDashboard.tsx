@@ -14,9 +14,10 @@ import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterial
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
@@ -24,6 +25,8 @@ const TeacherDashboard = () => {
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
+  const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
+  const unreadCounts = useUnreadMessages(scheduleIds);
 
   useEffect(() => {
     if (!user) return;
@@ -196,10 +199,15 @@ const TeacherDashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3" asChild>
+                        <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3 relative" asChild>
                           <Link to={`/chat?booking=${s.id}`}>
                             <MessageSquare className="h-5 w-5" />
                             <span className="text-xs font-medium">دردشة</span>
+                            {(unreadCounts[s.id] || 0) > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center font-bold">
+                                {unreadCounts[s.id]}
+                              </span>
+                            )}
                           </Link>
                         </Button>
                         {isToday && (

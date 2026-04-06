@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Calendar, Clock, Video, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 interface Props {
   upcomingClasses: any[];
@@ -14,6 +15,8 @@ interface Props {
 export default function UpcomingSchedule({ upcomingClasses }: Props) {
   const { user } = useAuth();
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
+  const classIds = useMemo(() => upcomingClasses.map(c => c.id), [upcomingClasses]);
+  const unreadCounts = useUnreadMessages(classIds);
 
   useEffect(() => {
     if (!user || upcomingClasses.length === 0) return;
@@ -110,8 +113,15 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                             <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
                           </Button>
                         ) : null}
-                        <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs" asChild>
-                          <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-3 w-3" /></Link>
+                        <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs relative" asChild>
+                          <Link to={`/chat?booking=${c.id}`}>
+                            <MessageSquare className="h-3 w-3" />
+                            {(unreadCounts[c.id] || 0) > 0 && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                                {unreadCounts[c.id]}
+                              </span>
+                            )}
+                          </Link>
                         </Button>
                       </div>
                     </td>
