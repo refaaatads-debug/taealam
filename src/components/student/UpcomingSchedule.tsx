@@ -1,23 +1,53 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, Video, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   upcomingClasses: any[];
 }
 
 export default function UpcomingSchedule({ upcomingClasses }: Props) {
-  if (upcomingClasses.length === 0) return null;
+  const { user } = useAuth();
+  const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
 
-  // Group by date
-  const grouped = upcomingClasses.reduce<Record<string, any[]>>((acc, c) => {
-    const dateKey = new Date(c.scheduled_at).toLocaleDateString("ar-SA");
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(c);
-    return acc;
-  }, {});
+  useEffect(() => {
+    if (!user || upcomingClasses.length === 0) return;
+
+    // Check which sessions are currently in progress
+    const inProgress = upcomingClasses.filter(c => c.session_status === "in_progress").map(c => c.id);
+    setLiveSessionIds(new Set(inProgress));
+
+    // Listen for realtime updates on bookings
+    const channel = supabase
+      .channel("student-session-status")
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "bookings",
+        filter: `student_id=eq.${user.id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        setLiveSessionIds(prev => {
+          const next = new Set(prev);
+          if (updated.session_status === "in_progress") {
+            next.add(updated.id);
+          } else {
+            next.delete(updated.id);
+          }
+          return next;
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, upcomingClasses]);
+
+  if (upcomingClasses.length === 0) return null;
 
   return (
     <Card className="border-0 shadow-card">
@@ -46,10 +76,11 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
             <tbody>
               {upcomingClasses.map((c: any) => {
                 const isToday = new Date(c.scheduled_at).toDateString() === new Date().toDateString();
+                const isLive = liveSessionIds.has(c.id);
                 const time = new Date(c.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
                 const date = new Date(c.scheduled_at).toLocaleDateString("ar-SA", { weekday: "short", month: "short", day: "numeric" });
                 return (
-                  <tr key={c.id} className={`border-b last:border-0 ${isToday ? "bg-accent/50" : ""}`}>
+                  <tr key={c.id} className={`border-b last:border-0 ${isLive ? "bg-secondary/5" : isToday ? "bg-accent/50" : ""}`}>
                     <td className="py-3 px-3 font-medium">{isToday ? "اليوم" : date}</td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1">
@@ -60,7 +91,9 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                     <td className="py-3 px-3 font-bold">{c.subjects?.name || "حصة"}</td>
                     <td className="py-3 px-3">{c.teacher_name || "معلم"}</td>
                     <td className="py-3 px-3">
-                      {c.status === "confirmed" ? (
+                      {isLive ? (
+                        <Badge className="bg-secondary/10 text-secondary border-0 text-[10px] animate-pulse">🔴 جارية الآن</Badge>
+                      ) : c.status === "confirmed" ? (
                         <Badge className="bg-secondary/10 text-secondary border-0 text-[10px]">مؤكدة ✓</Badge>
                       ) : (
                         <Badge className="bg-orange-500/10 text-orange-600 border-0 text-[10px]">قيد الانتظار</Badge>
@@ -68,11 +101,15 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1">
-                        {isToday && c.status === "confirmed" && (
-                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 text-xs" asChild>
-                            <Link to={`/session?booking=${c.id}`}><Video className="h-3 w-3 ml-1" />انضم</Link>
+                        {isLive ? (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 text-xs animate-pulse" asChild>
+                            <Link to={`/session?booking=${c.id}`}><Video className="h-3 w-3 ml-1" />انضم الآن</Link>
                           </Button>
-                        )}
+                        ) : isToday && c.status === "confirmed" ? (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs opacity-50 cursor-not-allowed" disabled>
+                            <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
+                          </Button>
+                        ) : null}
                         <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs" asChild>
                           <Link to={`/chat?booking=${c.id}`}><MessageSquare className="h-3 w-3" /></Link>
                         </Button>
