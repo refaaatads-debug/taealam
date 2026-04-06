@@ -394,9 +394,9 @@ const SearchTeacher = () => {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" /> اختر الساعات
-                    <Badge className="mr-auto bg-primary/10 text-primary border-0 text-[10px]">
+                    <Badge className={`mr-auto border-0 text-[10px] ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                       <Package className="h-3 w-3 ml-1" />
-                      {selectedSlots.length}/{sessionsRemaining} حصة
+                      {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
                     </Badge>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
@@ -425,6 +425,12 @@ const SearchTeacher = () => {
 
                 {/* Selected Slots Summary + Submit */}
                 <div className="space-y-2">
+                  {sessionsRemaining <= 0 && (
+                    <div className="rounded-xl p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 shrink-0" />
+                      <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                    </div>
+                  )}
                   {selectedSlots.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {selectedSlots.map((s, i) => (
@@ -437,78 +443,29 @@ const SearchTeacher = () => {
                       ))}
                     </div>
                   )}
-                  <Button
-                    className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
-                    disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
-                    onClick={handleQuickBooking}
-                  >
-                    {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                      <>
-                        إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"}
-                        <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
-                      </>
-                    )}
-                  </Button>
+                  {sessionsRemaining <= 0 ? (
+                    <Button
+                      className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
+                      onClick={() => navigate("/pricing")}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      اشترك في باقة للحجز
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
+                      disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
+                      onClick={handleQuickBooking}
+                    >
+                      {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                        <>
+                          إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"}
+                          <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-sm font-bold text-muted-foreground">أو اختر معلم محدد</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-
-        <div className="flex items-center justify-between mb-4 md:mb-6">
-          <p className="text-muted-foreground font-medium text-sm md:text-base">{filtered.length} مدرس متاح</p>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="border-0 shadow-card">
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex gap-3">
-                    <Skeleton className="w-16 h-16 rounded-2xl" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-10 w-full rounded-xl" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <Users className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-lg font-bold text-foreground mb-1">لا يوجد مدرسين</p>
-            <p className="text-sm text-muted-foreground">جرب تغيير معايير البحث</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {filtered.map((t, i) => {
-              const available = isAvailableNow(t);
-              return (
-                <motion.div key={t.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card className="shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1.5 border-0 group overflow-hidden h-full">
-                    <CardContent className="p-0">
-                      <div className="p-4 md:p-5 pb-0">
-                        <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
-                          <div className="relative">
-                            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl gradient-hero flex items-center justify-center shrink-0">
-                              <Users className="h-7 w-7 text-primary-foreground/70" />
-                            </div>
-                            {available && (
-                              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-secondary border-2 border-card" />
-                            )}
-                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <h3 className="font-bold text-foreground text-sm md:text-base truncate">{t.profile?.full_name}</h3>
