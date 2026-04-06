@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const SupportTicketsTab = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { play: playSupportSound } = useNotificationSound();
 
   useEffect(() => { fetchTickets(); }, []);
 
@@ -38,7 +40,7 @@ const SupportTicketsTab = () => {
     const channel = supabase
       .channel(`admin-support-${selectedTicket}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: `ticket_id=eq.${selectedTicket}` },
-        (payload) => { const msg = payload.new as Message; setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]); })
+        (payload) => { const msg = payload.new as Message; setMessages(prev => { if (prev.some(m => m.id === msg.id)) return prev; if (msg.sender_id !== user?.id) playSupportSound(); return [...prev, msg]; }); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedTicket]);
