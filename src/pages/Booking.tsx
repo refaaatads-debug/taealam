@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle, X, Package } from "lucide-react";
+import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle, X, Package, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -150,7 +150,7 @@ const Booking = () => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (prev.length >= sessionsRemaining) {
+      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
         toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
         return prev;
       }
@@ -164,6 +164,14 @@ const Booking = () => {
 
   const handleSubmitRequest = async () => {
     if (!user || !selectedSubject || selectedSlots.length === 0) return;
+
+    // If no subscription, redirect to pricing
+    if (sessionsRemaining <= 0) {
+      toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
+      navigate("/pricing");
+      return;
+    }
+
     setLoading(true);
     try {
       if (sessionsRemaining < selectedSlots.length) {
@@ -331,9 +339,9 @@ const Booking = () => {
                       <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 font-medium">
                         <Clock className="h-4 w-4" /> اختر الساعات
                         {directTeacherId && <span className="text-xs text-primary">(ساعات المعلم المتاحة)</span>}
-                        <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">
+                        <Badge className={`mr-auto border-0 text-xs ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                           <Package className="h-3 w-3 ml-1" />
-                          {selectedSlots.length}/{sessionsRemaining} حصة
+                          {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
                         </Badge>
                       </p>
                       {timeSlots.length === 0 ? (
@@ -363,6 +371,14 @@ const Booking = () => {
                         </div>
                       )}
 
+                      {/* No subscription warning */}
+                      {sessionsRemaining <= 0 && (
+                        <div className="rounded-xl p-3 mb-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 shrink-0" />
+                          <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                        </div>
+                      )}
+
                       {/* Selected Slots Summary */}
                       {selectedSlots.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-xl">
@@ -377,10 +393,17 @@ const Booking = () => {
                         </div>
                       )}
 
-                      <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
-                        متابعة للتأكيد ({selectedSlots.length} حصة)
-                        <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
-                      </Button>
+                      {sessionsRemaining <= 0 ? (
+                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" onClick={() => navigate("/pricing")}>
+                          <CreditCard className="h-4 w-4" />
+                          اشترك في باقة للحجز
+                        </Button>
+                      ) : (
+                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
+                          متابعة للتأكيد ({selectedSlots.length} حصة)
+                          <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
+                        </Button>
+                      )}
                     </>
                   )}
                 </CardContent>
