@@ -133,7 +133,7 @@ export default function BookingRequests() {
 
       if (updateError) throw updateError;
 
-      // Find student's active subscription and deduct a session
+      // Link booking to student's active subscription (deduction happens after session completion)
       const { data: activeSub } = await supabase
         .from("user_subscriptions")
         .select("id, sessions_remaining")
@@ -156,14 +156,6 @@ export default function BookingRequests() {
       }).select("id").single();
 
       if (bookingError) throw bookingError;
-
-      // Deduct session from subscription
-      if (activeSub) {
-        await supabase
-          .from("user_subscriptions")
-          .update({ sessions_remaining: activeSub.sessions_remaining - 1 })
-          .eq("id", activeSub.id);
-      }
 
       await supabase.from("notifications").insert({
         user_id: request.student_id,
