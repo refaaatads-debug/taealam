@@ -437,7 +437,6 @@ const SearchTeacher = () => {
                             <Clock className="h-3.5 w-3.5" />
                             {available ? <span className="text-secondary font-semibold">متاح الآن</span> : <span>خبرة {t.years_experience} سنوات</span>}
                           </div>
-                          <span className="text-base md:text-lg font-black text-primary">{t.hourly_rate} <span className="text-[10px] md:text-xs text-muted-foreground font-normal">ر.س/ساعة</span></span>
                         </div>
                         <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl h-10 md:h-11" asChild>
                           <Link to={`/booking?teacher=${t.user_id}`}>احجز مع هذا المعلم</Link>
