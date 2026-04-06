@@ -146,7 +146,7 @@ export default function TeacherScheduleTable() {
                             </Link>
                           </Button>
                         )}
-                        {b.status === "confirmed" && b.has_subscription && (
+                        {b.status === "confirmed" && (
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
                             <Link to={`/session?booking=${b.id}`}>
                               <Video className="h-3.5 w-3.5" />
