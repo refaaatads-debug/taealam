@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -138,19 +138,25 @@ export default function TeacherScheduleTable() {
                     <td className="py-2.5 px-2">{getStatusBadge(b.status)}</td>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1.5">
-                        {b.status !== "completed" && (
-                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px]" asChild>
-                            <Link to={`/chat?booking=${b.id}`}>
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              دردشة
-                            </Link>
-                          </Button>
-                        )}
+                        <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px]" asChild>
+                          <Link to={`/chat?booking=${b.id}`}>
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            دردشة
+                          </Link>
+                        </Button>
                         {b.status === "confirmed" && (
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
                             <Link to={`/session?booking=${b.id}`}>
                               <Video className="h-3.5 w-3.5" />
                               ابدأ
+                            </Link>
+                          </Button>
+                        )}
+                        {b.status === "completed" && b.has_subscription && (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
+                            <Link to={`/session?booking=${b.id}&new=true`}>
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              جلسة جديدة
                             </Link>
                           </Button>
                         )}
