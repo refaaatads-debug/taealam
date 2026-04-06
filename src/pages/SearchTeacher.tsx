@@ -341,17 +341,27 @@ const SearchTeacher = () => {
                     <Clock className="h-3.5 w-3.5" /> اختر الساعة
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
-                    {timeSlots.map((t) => (
-                      <button key={t} onClick={() => setSelectedTime(t)}
-                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${selectedTime === t ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                        {t}
-                      </button>
-                    ))}
+                    {allTimeSlots.map((t) => {
+                      const isToday = selectedDay === 0;
+                      const slotHour = parseTimeSlotHour(t);
+                      const currentHour = new Date().getHours();
+                      const isPast = isToday && slotHour <= currentHour;
+                      return (
+                        <button key={t} onClick={() => !isPast && setSelectedTime(t)}
+                          disabled={isPast}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                            isPast
+                              ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                              : selectedTime === t
+                                ? "gradient-cta text-secondary-foreground shadow-button"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          }`}>
+                          {t}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-
-                {/* Submit */}
-                <div>
                   <Button
                     className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
                     disabled={!selectedTime || !selectedSubject || bookingLoading}
