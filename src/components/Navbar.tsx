@@ -25,9 +25,10 @@ const Navbar = () => {
   const isParent = roles.includes("parent");
 
   const links = [
-    { label: "الرئيسية", to: "/" },
+    ...(!isStudent && !isTeacher ? [{ label: "الرئيسية", to: "/" }] : []),
     ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
-    ...(!isAdmin ? [{ label: "الباقات", to: "/pricing" }] : []),
+    ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
+    ...(!user ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(user ? [
       ...(isAdmin
         ? [{ label: "لوحة التحكم", to: "/admin" }]
