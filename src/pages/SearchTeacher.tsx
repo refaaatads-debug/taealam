@@ -274,7 +274,13 @@ const SearchTeacher = () => {
         }
       }
 
-      toast.success(`تم إرسال ${selectedSlots.length} طلب حصة لـ ${teacherCount} معلم متخصص! 🎉`);
+      const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
+      const successSlots = scheduledDates.map(sd => ({
+        dayLabel: days[sd.dayIndex].label,
+        time: sd.time,
+        date: sd.scheduled.toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" }),
+      }));
+      setBookingSuccess({ slots: successSlots, subjectName, teacherCount });
       setSelectedSubject("");
       setSelectedSlots([]);
     } catch (e: any) {
