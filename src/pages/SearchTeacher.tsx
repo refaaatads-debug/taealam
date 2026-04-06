@@ -280,7 +280,7 @@ const SearchTeacher = () => {
         time: sd.time,
         date: sd.scheduled.toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric" }),
       }));
-      setBookingSuccess({ slots: successSlots, subjectName, teacherCount });
+      setBookingSuccess({ slots: successSlots, subjectName: successSubjectName, teacherCount });
       setSelectedSubject("");
       setSelectedSlots([]);
     } catch (e: any) {
