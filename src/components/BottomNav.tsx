@@ -12,7 +12,6 @@ const BottomNav = () => {
   const isStudent = !isTeacher && !isAdmin;
 
   const tabs = [
-    // Students go directly to dashboard, no home page
     ...(isStudent && user
       ? [{ icon: BookOpen, label: "حصصي", to: "/student" }]
       : isAdmin
