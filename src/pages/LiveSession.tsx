@@ -289,8 +289,90 @@ const LiveSession = () => {
     }
   };
 
+  // --- Recording functions ---
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" } as any,
+        audio: true,
+      });
+      recordingStreamRef.current = stream;
+      recordedChunksRef.current = [];
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : "video/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+      };
+      // If user stops sharing via browser UI
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        stopRecording();
+      });
+
+      recorder.start(1000); // chunk every 1s
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      toast.success("بدأ تسجيل الحصة 🔴");
+    } catch (err) {
+      console.error("Recording error:", err);
+      toast.error("تعذر بدء التسجيل - تأكد من السماح بمشاركة الشاشة");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const uploadRecording = async () => {
+    if (recordedChunksRef.current.length === 0 || !bookingId || !user) return;
+    setRecordingUploading(true);
+    try {
+      const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("session-recordings")
+        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: urlData } = supabase.storage
+        .from("session-recordings")
+        .getPublicUrl(fileName);
+
+      // Save URL to session record
+      await supabase
+        .from("sessions")
+        .update({ recording_url: urlData.publicUrl })
+        .eq("booking_id", bookingId);
+
+      toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
+    } catch (err) {
+      console.error("Upload error:", err);
+      toast.error("تعذر رفع التسجيل");
+    } finally {
+      setRecordingUploading(false);
+      recordedChunksRef.current = [];
+    }
+  };
+
   const endSession = async () => {
     clearInterval(timerRef.current);
+
+    // Stop recording and upload if active
+    if (isRecording) {
+      stopRecording();
+    }
+
     if (jitsiApiRef.current) {
       jitsiApiRef.current.dispose();
       jitsiApiRef.current = null;
@@ -306,6 +388,11 @@ const LiveSession = () => {
           .from("sessions")
           .update({ ended_at: new Date().toISOString() })
           .eq("booking_id", bookingId);
+
+        // Upload recording if chunks exist
+        if (recordedChunksRef.current.length > 0) {
+          await uploadRecording();
+        }
 
         // Deduct subscription session if used
         if (bookingData?.used_subscription && bookingData?.subscription_id) {
