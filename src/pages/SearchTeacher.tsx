@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2 } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,9 +58,27 @@ const SearchTeacher = () => {
   // Quick booking form state
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedDay, setSelectedDay] = useState(0);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
+  const [sessionsRemaining, setSessionsRemaining] = useState(0);
+
+  // Fetch student's remaining sessions
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_subscriptions")
+      .select("sessions_remaining")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("sessions_remaining", 0)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setSessionsRemaining(data?.sessions_remaining || 0);
+      });
+  }, [user]);
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
