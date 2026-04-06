@@ -41,6 +41,13 @@ const LiveSession = () => {
   const [subscriptionMinutes, setSubscriptionMinutes] = useState(0);
   const [timeWarningShown, setTimeWarningShown] = useState(false);
 
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUploading, setRecordingUploading] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+
   // Fetch booking details
   useEffect(() => {
     if (!bookingId || !user) return;
