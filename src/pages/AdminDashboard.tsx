@@ -47,8 +47,33 @@ const AdminDashboard = () => {
     }
   }, [currentUserRoles, navigate]);
 
+  const fetchBadgeCounts = async () => {
+    const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
+      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
+    ]);
+    setBadgeCounts({
+      withdrawals: withdrawalsRes.count ?? 0,
+      support: supportRes.count ?? 0,
+      pendingBookings: pendingBookingsRes.count ?? 0,
+      unreviewed: unreviewedRes.count ?? 0,
+    });
+  };
+
   useEffect(() => {
     fetchData();
+
+    const channels = [
+      supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, () => fetchBadgeCounts()),
+      supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchBadgeCounts()),
+      supabase.channel("admin-bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => fetchBadgeCounts()),
+      supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => fetchBadgeCounts()),
+    ];
+    channels.forEach(ch => ch.subscribe());
+
+    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
   }, []);
 
   const fetchData = async () => {
@@ -194,19 +219,9 @@ const AdminDashboard = () => {
         }
       }
 
-      // Fetch badge counts for tabs
-      const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
-        supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
-      ]);
-      setBadgeCounts({
-        withdrawals: withdrawalsRes.count ?? 0,
-        support: supportRes.count ?? 0,
-        pendingBookings: pendingBookingsRes.count ?? 0,
-        unreviewed: unreviewedRes.count ?? 0,
-      });
+      // Fetch badge counts
+      await fetchBadgeCounts();
+
 
     } catch (e) {
       console.error(e);
