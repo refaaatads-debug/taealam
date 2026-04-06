@@ -4,12 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, Paperclip, FileText, Image as ImageIcon, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Ticket {
   id: string;
@@ -26,6 +26,9 @@ interface Message {
   content: string;
   is_admin: boolean;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
 }
 
 const SupportChat = () => {
@@ -39,6 +42,8 @@ const SupportChat = () => {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showNewTicket, setShowNewTicket] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const backPath = roles.includes("teacher") ? "/teacher" : "/student";
@@ -51,20 +56,16 @@ const SupportChat = () => {
   useEffect(() => {
     if (!ticketId || !user) return;
     fetchMessages();
-
     const channel = supabase
       .channel(`support-${ticketId}`)
       .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "support_messages",
+        event: "INSERT", schema: "public", table: "support_messages",
         filter: `ticket_id=eq.${ticketId}`,
       }, (payload) => {
         const msg = payload.new as Message;
         setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [ticketId, user]);
 
@@ -74,8 +75,7 @@ const SupportChat = () => {
 
   const fetchTickets = async () => {
     const { data } = await supabase
-      .from("support_tickets")
-      .select("*")
+      .from("support_tickets").select("*")
       .eq("user_id", user!.id)
       .order("updated_at", { ascending: false });
     if (data) setTickets(data as Ticket[]);
@@ -84,8 +84,7 @@ const SupportChat = () => {
 
   const fetchMessages = async () => {
     const { data } = await supabase
-      .from("support_messages")
-      .select("*")
+      .from("support_messages").select("*")
       .eq("ticket_id", ticketId!)
       .order("created_at", { ascending: true });
     if (data) setMessages(data as Message[]);
@@ -96,8 +95,7 @@ const SupportChat = () => {
     const { data, error } = await supabase
       .from("support_tickets")
       .insert({ user_id: user.id, subject: newSubject.trim() })
-      .select()
-      .single();
+      .select().single();
     if (error) { toast.error("فشل في إنشاء التذكرة"); return; }
     if (data) {
       setSearchParams({ ticket: data.id });
@@ -108,17 +106,34 @@ const SupportChat = () => {
     }
   };
 
+  const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
+    const ext = file.name.split('.').pop();
+    const path = `${ticketId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("support-files").upload(path, file);
+    if (error) { toast.error("فشل في رفع الملف"); return null; }
+    const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
+    return { url: urlData.publicUrl, name: file.name, type: file.type };
+  };
+
   const handleSend = async () => {
-    if (!newMessage.trim() || !ticketId || !user || sending) return;
+    if ((!newMessage.trim() && !selectedFile) || !ticketId || !user || sending) return;
     setSending(true);
-    const content = newMessage.trim();
+    const content = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : "");
     setNewMessage("");
+
+    let fileData: { url: string; name: string; type: string } | null = null;
+    if (selectedFile) {
+      fileData = await uploadFile(selectedFile);
+      if (!fileData) { setSending(false); return; }
+      setSelectedFile(null);
+    }
 
     const { error } = await supabase.from("support_messages").insert({
       ticket_id: ticketId,
       sender_id: user.id,
       content,
       is_admin: false,
+      ...(fileData && { file_url: fileData.url, file_name: fileData.name, file_type: fileData.type }),
     });
 
     if (error) {
@@ -126,6 +141,33 @@ const SupportChat = () => {
       toast.error("فشل في إرسال الرسالة");
     }
     setSending(false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("الحد الأقصى 10 ميجابايت"); return; }
+    setSelectedFile(file);
+  };
+
+  const isImage = (type?: string | null) => type?.startsWith("image/");
+
+  const renderFileAttachment = (msg: Message) => {
+    if (!msg.file_url) return null;
+    if (isImage(msg.file_type)) {
+      return (
+        <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
+          <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[200px] rounded-lg mt-1" />
+        </a>
+      );
+    }
+    return (
+      <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
+        className="flex items-center gap-2 mt-1 text-xs underline">
+        <FileText className="h-4 w-4" />
+        {msg.file_name || "ملف"}
+      </a>
+    );
   };
 
   const statusBadge = (status: string) => {
@@ -160,13 +202,9 @@ const SupportChat = () => {
             <Card className="mb-4">
               <CardContent className="pt-4">
                 <div className="flex gap-2">
-                  <Input
-                    value={newSubject}
-                    onChange={e => setNewSubject(e.target.value)}
-                    placeholder="عنوان المشكلة أو الاستفسار..."
-                    className="rounded-xl flex-1"
-                    onKeyDown={e => e.key === "Enter" && createTicket()}
-                  />
+                  <Input value={newSubject} onChange={e => setNewSubject(e.target.value)}
+                    placeholder="عنوان المشكلة أو الاستفسار..." className="rounded-xl flex-1"
+                    onKeyDown={e => e.key === "Enter" && createTicket()} />
                   <Button onClick={createTicket} className="rounded-xl">إنشاء</Button>
                   <Button variant="ghost" onClick={() => setShowNewTicket(false)} className="rounded-xl">إلغاء</Button>
                 </div>
@@ -185,11 +223,8 @@ const SupportChat = () => {
           ) : (
             <div className="space-y-3">
               {tickets.map(t => (
-                <Card
-                  key={t.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setSearchParams({ ticket: t.id })}
-                >
+                <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSearchParams({ ticket: t.id })}>
                   <CardContent className="py-4 flex items-center justify-between">
                     <div className="flex-1">
                       <p className="font-semibold text-sm text-foreground">{t.subject}</p>
@@ -216,7 +251,6 @@ const SupportChat = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col" dir="rtl">
       <Navbar />
-
       <div className="border-b bg-card px-4 py-3 flex items-center gap-3 sticky top-16 z-40">
         <Button variant="ghost" size="icon" className="rounded-xl shrink-0" onClick={() => setSearchParams({})}>
           <ArrowRight className="h-5 w-5" />
@@ -245,10 +279,9 @@ const SupportChat = () => {
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   isMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                 }`}>
-                  {msg.is_admin && (
-                    <p className="text-[10px] font-bold mb-1 text-primary">فريق الدعم</p>
-                  )}
+                  {msg.is_admin && <p className="text-[10px] font-bold mb-1 text-primary">فريق الدعم</p>}
                   <p className="text-sm leading-relaxed">{msg.content}</p>
+                  {renderFileAttachment(msg)}
                   <p className={`text-[10px] mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                     {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -261,20 +294,30 @@ const SupportChat = () => {
       </div>
 
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card border-t p-3 z-40">
+        {selectedFile && (
+          <div className="flex items-center gap-2 mb-2 bg-muted rounded-lg px-3 py-2 text-sm max-w-3xl mx-auto">
+            {selectedFile.type.startsWith("image/") ? <ImageIcon className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-primary" />}
+            <span className="truncate flex-1 text-foreground">{selectedFile.name}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedFile(null)}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
         <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 max-w-3xl mx-auto">
-          <Input
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            placeholder="اكتب رسالتك..."
-            className="rounded-xl flex-1"
-            dir="rtl"
-          />
-          <Button type="submit" size="icon" className="rounded-xl shrink-0" disabled={!newMessage.trim() || sending}>
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx"
+            onChange={handleFileSelect} />
+          <Button type="button" variant="ghost" size="icon" className="rounded-xl shrink-0"
+            onClick={() => fileInputRef.current?.click()}>
+            <Paperclip className="h-4 w-4" />
+          </Button>
+          <Input value={newMessage} onChange={e => setNewMessage(e.target.value)}
+            placeholder="اكتب رسالتك..." className="rounded-xl flex-1" dir="rtl" />
+          <Button type="submit" size="icon" className="rounded-xl shrink-0"
+            disabled={(!newMessage.trim() && !selectedFile) || sending}>
             <Send className="h-4 w-4" />
           </Button>
         </form>
       </div>
-
       <BottomNav />
     </div>
   );
