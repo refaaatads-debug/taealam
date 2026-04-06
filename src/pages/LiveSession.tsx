@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, AlertTriangle
+  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock, AlertTriangle,
+  Circle, Square
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
