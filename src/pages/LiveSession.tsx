@@ -328,7 +328,13 @@ const LiveSession = () => {
         console.error("Error ending session:", e);
       }
     }
-    navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
+    // Teachers go back to dashboard, students go to rating
+    const isTeacherUser = user && bookingData && user.id === bookingData.teacher_id;
+    if (isTeacherUser) {
+      navigate("/teacher");
+    } else {
+      navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
+    }
   };
 
   const displayTitle = subjectName ? `${subjectName} - ${otherName}` : otherName;
