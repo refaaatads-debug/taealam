@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 
 interface BookingRow {
   id: string;
@@ -22,6 +23,8 @@ export default function TeacherScheduleTable() {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
+  const unreadCounts = useUnreadMessages(bookingIds);
 
   useEffect(() => {
     if (!user) return;
@@ -138,10 +141,15 @@ export default function TeacherScheduleTable() {
                     <td className="py-2.5 px-2">{getStatusBadge(b.status)}</td>
                     <td className="py-2.5 px-2">
                       <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px]" asChild>
+                        <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] relative" asChild>
                           <Link to={`/chat?booking=${b.id}`}>
                             <MessageSquare className="h-3.5 w-3.5" />
                             دردشة
+                            {(unreadCounts[b.id] || 0) > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                                {unreadCounts[b.id]}
+                              </span>
+                            )}
                           </Link>
                         </Button>
                         {b.status === "confirmed" && (
