@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
@@ -57,6 +57,8 @@ interface UserDetail extends UserProfile {
   };
   subjects?: string[];
   bookingsAsTeacher?: number;
+  certificates?: { id: string; name: string; file_url: string; file_name: string | null; created_at: string }[];
+  bankInfo?: { bank_name: string | null; iban: string | null; account_holder_name: string | null };
   // Permissions
   permissions?: string[];
   // Warnings
@@ -120,6 +122,7 @@ export default function UserManagementTab() {
         promises.push(
           supabase.from("teacher_profiles").select("*").eq("user_id", profile.user_id).maybeSingle() as any,
           supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", profile.user_id) as any,
+          supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", profile.user_id).order("created_at", { ascending: false }) as any,
         );
       }
 
@@ -152,6 +155,11 @@ export default function UserManagementTab() {
         const tpRes = results[5];
         if (tpRes.data) {
           detail.teacherProfile = tpRes.data;
+          detail.bankInfo = {
+            bank_name: (tpRes.data as any).bank_name,
+            iban: (tpRes.data as any).iban,
+            account_holder_name: (tpRes.data as any).account_holder_name,
+          };
           // Fetch subjects
           const { data: tsData } = await supabase
             .from("teacher_subjects")
@@ -160,6 +168,7 @@ export default function UserManagementTab() {
           detail.subjects = (tsData ?? []).map((s: any) => s.subjects?.name || "");
         }
         detail.bookingsAsTeacher = results[6]?.count ?? 0;
+        detail.certificates = (results[7]?.data as any[]) ?? [];
       }
 
       setSelectedUser(detail);
@@ -643,6 +652,56 @@ export default function UserManagementTab() {
                           <p className="text-xs text-foreground mt-0.5">{selectedUser.teacherProfile.bio}</p>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Info */}
+                {selectedUser.bankInfo && (selectedUser.bankInfo.bank_name || selectedUser.bankInfo.iban) && (
+                  <div className="bg-secondary/5 rounded-xl p-4 border border-secondary/20">
+                    <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                      <CreditCard className="h-4 w-4 text-secondary" /> بيانات الدفع البنكية
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-xs text-muted-foreground">البنك</span>
+                        <p className="font-medium text-foreground mt-0.5">{selectedUser.bankInfo.bank_name || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">صاحب الحساب</span>
+                        <p className="font-medium text-foreground mt-0.5">{selectedUser.bankInfo.account_holder_name || "—"}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">IBAN</span>
+                        <p className="font-medium text-foreground mt-0.5 font-mono text-xs" dir="ltr">{selectedUser.bankInfo.iban || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Certificates */}
+                {selectedUser.certificates && selectedUser.certificates.length > 0 && (
+                  <div className="bg-muted/30 rounded-xl p-4">
+                    <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                      <Award className="h-4 w-4 text-primary" /> الشهادات والمؤهلات ({selectedUser.certificates.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedUser.certificates.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{c.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(c.created_at).toLocaleDateString("ar-SA")}</p>
+                            </div>
+                          </div>
+                          <a href={c.file_url} target="_blank" rel="noopener noreferrer">
+                            <Badge variant="outline" className="text-xs gap-1 cursor-pointer hover:bg-muted">
+                              <FileText className="h-3 w-3" /> عرض
+                            </Badge>
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
