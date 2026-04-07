@@ -427,6 +427,10 @@ const AdminDashboard = () => {
               <DollarSign className="h-4 w-4" />
               الباقات
             </TabsTrigger>
+            <TabsTrigger value="coupons" className="rounded-lg gap-1.5">
+              <Tag className="h-4 w-4" />
+              الكوبونات
+            </TabsTrigger>
             <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               سحب الأرباح
