@@ -23,6 +23,7 @@ import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
+import ExportCSVButton from "@/components/admin/ExportCSVButton";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -506,8 +507,14 @@ const AdminDashboard = () => {
                     <UserCheck className="h-5 w-5 text-secondary" />
                     طلبات تسجيل المعلمين ({filteredTeachers.length})
                   </CardTitle>
-                  <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
-                </div>
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+                    <ExportCSVButton
+                      data={filteredTeachers.map(t => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
+                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "experience", label: "الخبرة" }, { key: "date", label: "التاريخ" }]}
+                      filename="طلبات_المعلمين"
+                    />
+                  </div>
               </CardHeader>
               <CardContent>
                 {filteredTeachers.length === 0 ? (
@@ -551,15 +558,22 @@ const AdminDashboard = () => {
           <TabsContent value="users" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base font-bold">إدارة المستخدمين ({filteredUsers.length})</CardTitle>
-                  <div className="relative w-64">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="بحث بالاسم أو الرقم..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pr-10 rounded-xl h-9 text-sm"
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-64">
+                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="بحث بالاسم أو الرقم..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pr-10 rounded-xl h-9 text-sm"
+                      />
+                    </div>
+                    <ExportCSVButton
+                      data={filteredUsers.map(u => ({ name: u.full_name || "", phone: u.phone || "", role: userRolesMap.get(u.user_id) || "student", level: u.level || "bronze", date: new Date(u.created_at).toLocaleDateString("ar-SA") }))}
+                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "role", label: "الدور" }, { key: "level", label: "المستوى" }, { key: "date", label: "التسجيل" }]}
+                      filename="المستخدمين"
                     />
                   </div>
                 </div>
