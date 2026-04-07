@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings, MessageSquare
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings, MessageSquare, Tag
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -25,6 +25,7 @@ import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import StatusFilter from "@/components/admin/StatusFilter";
+import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -426,6 +427,10 @@ const AdminDashboard = () => {
               <DollarSign className="h-4 w-4" />
               الباقات
             </TabsTrigger>
+            <TabsTrigger value="coupons" className="rounded-lg gap-1.5">
+              <Tag className="h-4 w-4" />
+              الكوبونات
+            </TabsTrigger>
             <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               سحب الأرباح
@@ -826,7 +831,11 @@ const AdminDashboard = () => {
             <PlansManagementTab />
           </TabsContent>
 
-          {/* Withdrawal Requests Tab */}
+          {/* Coupons Tab */}
+          <TabsContent value="coupons" className="space-y-4">
+            <CouponsManagementTab />
+          </TabsContent>
+
           <TabsContent value="withdrawals" className="space-y-4">
             <WithdrawalRequestsTab />
           </TabsContent>
