@@ -191,6 +191,46 @@ export default function UserManagementTab() {
     setEditMode(false);
   };
 
+  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string }> = {
+    customer_support: { label: "خدمة العملاء", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬" },
+    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅" },
+    manage_teachers: { label: "إدارة المعلمين", description: "مراجعة طلبات المعلمين والموافقة عليها", icon: "👨‍🏫" },
+    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝" },
+    view_reports: { label: "عرض التقارير", description: "الوصول للإحصائيات وتقارير الأداء", icon: "📊" },
+    manage_payments: { label: "إدارة المدفوعات", description: "عرض وإدارة المدفوعات وطلبات السحب", icon: "💰" },
+    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️" },
+  };
+
+  const togglePermission = async (userId: string, permission: string, currentlyHas: boolean) => {
+    try {
+      if (currentlyHas) {
+        const { error } = await (supabase as any)
+          .from("user_permissions")
+          .delete()
+          .eq("user_id", userId)
+          .eq("permission", permission);
+        if (error) throw error;
+        setSelectedUser(prev => prev ? {
+          ...prev,
+          permissions: (prev.permissions || []).filter(p => p !== permission),
+        } : null);
+        toast.success(`تم إزالة صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
+      } else {
+        const { error } = await (supabase as any)
+          .from("user_permissions")
+          .insert({ user_id: userId, permission, granted_by: currentUser?.id });
+        if (error) throw error;
+        setSelectedUser(prev => prev ? {
+          ...prev,
+          permissions: [...(prev.permissions || []), permission],
+        } : null);
+        toast.success(`تم منح صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
+      }
+    } catch {
+      toast.error("حدث خطأ في تحديث الصلاحية");
+    }
+  };
+
   const changeUserRole = async (userId: string, newRole: string) => {
     const { error } = await supabase.from("user_roles").update({ role: newRole as any }).eq("user_id", userId);
     if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
