@@ -573,17 +573,26 @@ const LiveSession = () => {
                   </motion.div>
                 ))}
               </div>
-              <div className="p-3 border-t flex gap-2">
-                <Input
-                  placeholder="اكتب رسالة..."
-                  className="text-right h-10 rounded-xl bg-muted/30 border-0"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                />
-                <Button size="icon" className="gradient-cta text-secondary-foreground h-10 w-10 rounded-xl" onClick={sendMessage}>
-                  <Send className="h-4 w-4" />
-                </Button>
+              <div className="p-3 border-t">
+                {isChatBlocked ? (
+                  <div className="flex items-center gap-2 justify-center text-destructive text-sm font-bold py-2">
+                    <VolumeX className="h-4 w-4" />
+                    الدردشة محظورة مؤقتاً ({muteCountdown}ث)
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="اكتب رسالة..."
+                      className="text-right h-10 rounded-xl bg-muted/30 border-0"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    />
+                    <Button size="icon" className="gradient-cta text-secondary-foreground h-10 w-10 rounded-xl" onClick={sendMessage}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
