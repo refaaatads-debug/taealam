@@ -57,6 +57,8 @@ interface UserDetail extends UserProfile {
   };
   subjects?: string[];
   bookingsAsTeacher?: number;
+  certificates?: { id: string; name: string; file_url: string; file_name: string | null; created_at: string }[];
+  bankInfo?: { bank_name: string | null; iban: string | null; account_holder_name: string | null };
   // Permissions
   permissions?: string[];
   // Warnings
