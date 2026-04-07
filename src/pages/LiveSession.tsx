@@ -80,6 +80,28 @@ const LiveSession = () => {
     },
   });
 
+  // ─── Session Protection System ───
+  const {
+    filterChatMessage,
+    violationCount,
+    isMutedBySystem,
+    isChatBlocked,
+    latestAlert,
+    muteCountdown,
+  } = useSessionProtection({
+    bookingId: bookingId || "",
+    userId: user?.id || "",
+    localStream,
+    meetingStarted,
+    onMuteUser: () => {
+      // Mute the user's mic
+      localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
+    },
+    onEndSession: () => {
+      endSession();
+    },
+  });
+
   // Attach remote audio
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream) {
