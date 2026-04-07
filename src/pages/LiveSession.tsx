@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Video, VideoOff, Mic, MicOff, Monitor, MessageSquare,
+  Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
-  Circle, Square, Wifi, WifiOff, RefreshCw
+  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -30,8 +30,7 @@ const LiveSession = () => {
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   const [bookingData, setBookingData] = useState<any>(null);
   const [otherName, setOtherName] = useState("المشارك");
@@ -43,18 +42,18 @@ const LiveSession = () => {
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
 
+  const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
+
   const {
     localStream,
     remoteStream,
     connectionState,
     micEnabled,
-    videoEnabled,
     screenSharing,
     isRecording,
     start,
     stop,
     toggleMic,
-    toggleVideo,
     toggleScreenShare,
     startRecording,
     stopRecording,
@@ -80,16 +79,10 @@ const LiveSession = () => {
     },
   });
 
-  // Attach streams to video elements
+  // Attach remote audio
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
@@ -196,7 +189,6 @@ const LiveSession = () => {
     ]);
 
     if (bookingData && user) {
-      const isTeacher = user.id === bookingData.teacher_id;
       if (isTeacher) {
         supabase.from("notifications").insert({
           user_id: bookingData.student_id,
@@ -327,8 +319,7 @@ const LiveSession = () => {
       }
     }
 
-    const isTeacherUser = user && bookingData && user.id === bookingData.teacher_id;
-    if (isTeacherUser) {
+    if (isTeacher) {
       navigate("/teacher");
     } else {
       navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
@@ -350,6 +341,9 @@ const LiveSession = () => {
 
   return (
     <div className="h-screen bg-foreground flex flex-col">
+      {/* Hidden audio element for remote stream */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-3 glass-strong border-b border-border/10">
         <div className="flex items-center gap-3">
@@ -385,118 +379,110 @@ const LiveSession = () => {
               جاري الرفع...
             </span>
           )}
-          {connectionState === "failed" && (
+          {connectionState === "failed" && isTeacher && (
             <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 gap-1" onClick={restartConnection}>
               <RefreshCw className="h-3 w-3" /> إعادة الاتصال
             </Button>
           )}
-          <Button size="icon" variant="ghost" className="text-card/60 hover:text-card h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
-            <MoreVertical className="h-4 w-4" />
-          </Button>
+          {isTeacher && (
+            <Button size="icon" variant="ghost" className="text-card/60 hover:text-card h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
+        {/* Main area - audio session view */}
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
-            <div className="absolute inset-0 w-full h-full bg-foreground">
-              {/* Remote Video (main) */}
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-              />
-              {/* No remote yet overlay */}
-              {!remoteConnected && (
-                <div className="absolute inset-0 flex items-center justify-center bg-foreground/90 z-10">
-                  <div className="text-center">
-                    <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
-                      <Users className="h-12 w-12 text-card/40" />
-                    </div>
-                    <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
-                    <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
-                  </div>
+            <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
+              {/* Screen share display (visible when teacher shares) */}
+              {screenSharing && isTeacher && (
+                <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
+                  <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                    <Monitor className="h-3 w-3" /> مشاركة الشاشة نشطة
+                  </p>
                 </div>
               )}
 
-              {/* Local Video (PiP) */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="absolute bottom-20 left-4 w-44 h-32 rounded-2xl overflow-hidden border-2 border-card/20 shadow-lg z-20 bg-foreground"
-                drag
-                dragConstraints={{ top: -400, left: -800, right: 800, bottom: 50 }}
-              >
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover ${!videoEnabled ? "hidden" : ""}`}
-                />
-                {!videoEnabled && (
-                  <div className="w-full h-full flex items-center justify-center bg-foreground">
-                    <div className="text-center">
-                      <VideoOff className="h-6 w-6 text-card/40 mx-auto" />
-                      <p className="text-xs text-card/50 mt-1">الكاميرا مغلقة</p>
-                    </div>
+              {/* Audio session indicator */}
+              {!remoteConnected ? (
+                <div className="text-center">
+                  <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
+                    <Users className="h-12 w-12 text-card/40" />
                   </div>
-                )}
-                <div className="absolute bottom-1 left-1 bg-foreground/70 rounded-md px-1.5 py-0.5">
-                  <p className="text-[10px] text-card font-bold">أنت</p>
+                  <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
+                  <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
                 </div>
-                {screenSharing && (
-                  <div className="absolute top-1 right-1 bg-primary/80 rounded-md px-1.5 py-0.5">
-                    <p className="text-[10px] text-primary-foreground font-bold flex items-center gap-0.5">
-                      <Monitor className="h-2.5 w-2.5" /> مشاركة
-                    </p>
+              ) : (
+                <div className="text-center">
+                  <div className="w-28 h-28 rounded-full bg-secondary/20 mx-auto mb-4 flex items-center justify-center border-2 border-secondary/40">
+                    <Headphones className="h-14 w-14 text-secondary" />
                   </div>
-                )}
-              </motion.div>
+                  <p className="text-card/90 font-bold text-xl mb-1">{otherName}</p>
+                  <p className="text-card/50 text-sm flex items-center gap-1 justify-center">
+                    <Wifi className="h-3 w-3 text-green-400" /> متصل - جلسة صوتية
+                  </p>
+                  {micEnabled && (
+                    <div className="mt-4 flex items-center gap-2 justify-center">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      <span className="text-xs text-card/40">الميكروفون نشط</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center">
               <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
-                <Users className="h-14 w-14 text-primary-foreground/60" />
+                <Headphones className="h-14 w-14 text-primary-foreground/60" />
               </div>
               <p className="font-black text-xl mb-1">{otherName}</p>
               <p className="text-sm opacity-60 mb-2">جاهز لبدء الحصة</p>
               <p className="text-xs opacity-50 mb-6">مدة الحصة: {sessionDuration} دقيقة</p>
               {!bookingId ? (
                 <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
-              ) : (
+              ) : isTeacher ? (
                 <Button
                   onClick={startMeeting}
                   className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2"
                 >
-                  <Video className="h-6 w-6" />
+                  <Headphones className="h-6 w-6" />
                   ابدأ الحصة الآن
                 </Button>
+              ) : (
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-primary-foreground/10 mx-auto mb-3 flex items-center justify-center animate-pulse">
+                    <Clock className="h-8 w-8 text-primary-foreground/50" />
+                  </div>
+                  <p className="text-sm opacity-70">في انتظار المعلم لبدء الحصة...</p>
+                  <p className="text-xs opacity-40 mt-1">سيتم الانضمام تلقائياً عند بدء المعلم</p>
+                </div>
               )}
             </div>
           )}
 
           {handRaised && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-gold text-gold-foreground px-4 py-2 rounded-xl font-bold text-sm shadow-lg z-20">
-              <Hand className="h-4 w-4 inline ml-1" /> رفعت يدك
+              <Hand className="h-4 w-4 inline ml-1" /> {isTeacher ? "الطالب رفع يده" : "رفعت يدك"}
             </motion.div>
           )}
         </div>
 
-        {/* Whiteboard */}
+        {/* Whiteboard - Teacher only */}
         <AnimatePresence>
-          {boardOpen && bookingId && user && (
+          {boardOpen && bookingId && user && isTeacher && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 min-w-0">
               <WhiteboardCanvas bookingId={bookingId} userId={user.id} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Session Report Panel */}
+        {/* Session Report Panel - Teacher only */}
         <AnimatePresence>
-          {showReport && (
+          {showReport && isTeacher && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-96 bg-card border-r absolute md:relative inset-0 md:inset-auto z-10 overflow-y-auto p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-foreground">تقرير الحصة</h3>
@@ -507,7 +493,7 @@ const LiveSession = () => {
           )}
         </AnimatePresence>
 
-        {/* Chat */}
+        {/* Chat - Available for both */}
         <AnimatePresence>
           {chatOpen && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-80 bg-card border-r flex flex-col absolute md:relative inset-0 md:inset-auto z-10">
@@ -545,36 +531,52 @@ const LiveSession = () => {
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-2 md:gap-3 p-4 glass-strong border-t border-border/10">
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
-          {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-        </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${videoEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleVideo}>
-          {videoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-        </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }}>
-          <PenTool className="h-5 w-5" />
-        </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
-          <Monitor className="h-5 w-5" />
-        </Button>
+        {/* Teacher controls */}
+        {isTeacher && (
+          <>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
+              {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </Button>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
+              <Monitor className="h-5 w-5" />
+            </Button>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }}>
+              <PenTool className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+
+        {/* Chat - for both */}
         <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setChatOpen(!chatOpen)}>
           <MessageSquare className="h-5 w-5" />
         </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
-          <Hand className="h-5 w-5" />
-        </Button>
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
-          <FileText className="h-5 w-5" />
-        </Button>
-        <Button
-          size="icon"
-          className={`rounded-xl h-12 w-12 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 animate-pulse-soft" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={!meetingStarted}
-          title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
-        >
-          {isRecording ? <Square className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-        </Button>
+
+        {/* Student hand raise */}
+        {!isTeacher && (
+          <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
+            <Hand className="h-5 w-5" />
+          </Button>
+        )}
+
+        {/* Teacher extra controls */}
+        {isTeacher && (
+          <>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
+              <FileText className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              className={`rounded-xl h-12 w-12 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 animate-pulse-soft" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={!meetingStarted}
+              title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
+            >
+              {isRecording ? <Square className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+            </Button>
+          </>
+        )}
+
+        {/* End call - for both */}
         <Button size="icon" className="rounded-xl h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" onClick={endSession}>
           <Phone className="h-5 w-5" />
         </Button>
