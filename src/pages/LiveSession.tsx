@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
