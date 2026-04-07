@@ -258,19 +258,20 @@ export function useWebRTC({
   }, []);
 
   // Screen sharing
+  const screenSenderRef = useRef<RTCRtpSender | null>(null);
+
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc) return;
 
     if (screenSharing) {
-      // Stop screen share, restore camera
+      // Stop screen share, remove the video track
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
 
-      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (videoTrack) {
-        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-        sender?.replaceTrack(videoTrack);
+      if (screenSenderRef.current) {
+        pc.removeTrack(screenSenderRef.current);
+        screenSenderRef.current = null;
       }
       setScreenSharing(false);
     } else {
@@ -282,12 +283,15 @@ export function useWebRTC({
         screenStreamRef.current = screenStream;
 
         const screenTrack = screenStream.getVideoTracks()[0];
-        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-        sender?.replaceTrack(screenTrack);
+        // Add the video track as a new track (since we started audio-only)
+        const sender = pc.addTrack(screenTrack, screenStream);
+        screenSenderRef.current = sender;
 
         screenTrack.addEventListener("ended", () => {
-          const camTrack = localStreamRef.current?.getVideoTracks()[0];
-          if (camTrack) sender?.replaceTrack(camTrack);
+          if (screenSenderRef.current) {
+            pc.removeTrack(screenSenderRef.current);
+            screenSenderRef.current = null;
+          }
           setScreenSharing(false);
           screenStreamRef.current = null;
         });
