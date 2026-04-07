@@ -131,6 +131,13 @@ export default function UserManagementTab() {
       detail.bookingsAsStudent = studentBookingsRes.count ?? 0;
       detail.warnings = warningsRes.data ?? [];
 
+      // Fetch permissions
+      const { data: permsData } = await (supabase as any)
+        .from("user_permissions")
+        .select("permission")
+        .eq("user_id", profile.user_id);
+      detail.permissions = (permsData ?? []).map((p: any) => p.permission);
+
       if (role === "teacher" && results[5]) {
         const tpRes = results[5];
         if (tpRes.data) {
