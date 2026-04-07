@@ -43,23 +43,87 @@ export default function WithdrawalRequestsTab() {
     if (status === "paid") {
       const req = requests.find(r => r.id === id);
       if (req) {
+        // Record payment
         await supabase.from("teacher_payments" as any).insert({
           teacher_id: teacherId,
           amount: req.amount,
           withdrawal_request_id: id,
           notes: notes || "دفع عبر تحويل بنكي",
         } as any);
+
+        // Fetch teacher stats for report
+        const [sessionsRes, violationsRes, warningsRes] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select("scheduled_at, duration_minutes, price, status")
+            .eq("teacher_id", teacherId)
+            .eq("status", "completed"),
+          (supabase as any)
+            .from("violations")
+            .select("violation_type, created_at, is_false_positive")
+            .eq("user_id", teacherId),
+          supabase
+            .from("user_warnings")
+            .select("warning_type, warning_count, is_banned")
+            .eq("user_id", teacherId),
+        ]);
+
+        const sessions = sessionsRes.data ?? [];
+        const totalHours = sessions.reduce((sum: number, s: any) => sum + (Number(s.duration_minutes) || 0), 0);
+        const totalHoursFormatted = Math.floor(totalHours / 60);
+        const totalMinutes = totalHours % 60;
+
+        const violations = (violationsRes.data ?? []) as any[];
+        const confirmedViolations = violations.filter((v: any) => !v.is_false_positive);
+        const warnings = (warningsRes.data ?? []) as any[];
+        const totalWarnings = warnings.reduce((sum: number, w: any) => sum + (w.warning_count || 0), 0);
+        const isBanned = warnings.some((w: any) => w.is_banned);
+
+        // Build detailed report
+        const violationSummary = confirmedViolations.length > 0
+          ? `\n📛 المخالفات المؤكدة: ${confirmedViolations.length}\n` +
+            confirmedViolations.slice(0, 5).map((v: any) =>
+              `  • ${v.violation_type === "contact_sharing" ? "مشاركة معلومات اتصال" : v.violation_type === "platform_mention" ? "ذكر منصة خارجية" : "مخالفة"} - ${new Date(v.created_at).toLocaleDateString("ar-SA")}`
+            ).join("\n") +
+            (confirmedViolations.length > 5 ? `\n  ... و${confirmedViolations.length - 5} مخالفات أخرى` : "")
+          : "\n✅ لا توجد مخالفات مسجلة";
+
+        const warningLine = totalWarnings > 0
+          ? `\n⚠️ التحذيرات: ${totalWarnings}/3${isBanned ? " (محظور حالياً)" : ""}`
+          : "";
+
+        const reportBody =
+          `📊 تقرير الدفع:\n` +
+          `━━━━━━━━━━━━━━━\n` +
+          `💰 المبلغ المحوّل: ${Number(req.amount).toLocaleString()} ر.س\n` +
+          `📚 إجمالي الحصص المكتملة: ${sessions.length} حصة\n` +
+          `⏱️ إجمالي ساعات التدريس: ${totalHoursFormatted} ساعة${totalMinutes > 0 ? ` و${totalMinutes} دقيقة` : ""}\n` +
+          violationSummary +
+          warningLine +
+          `\n━━━━━━━━━━━━━━━\n` +
+          `شكراً لجهودك في التدريس! 🎓`;
+
+        // Send detailed payment notification
+        await supabase.from("notifications").insert({
+          user_id: teacherId,
+          title: "تم تحويل أرباحك! 💰",
+          body: reportBody,
+          type: "payment",
+        });
       }
+    } else {
+      // Non-payment status updates
+      await supabase.from("notifications").insert({
+        user_id: teacherId,
+        title: status === "rejected" ? "تم رفض طلب السحب ❌" : "تم تحديث طلب السحب",
+        body: status === "rejected"
+          ? `تم رفض طلب سحب الأرباح.${notes ? ` السبب: ${notes}` : " تواصل مع الإدارة للمزيد"}`
+          : `تم تحديث حالة طلب السحب إلى: ${statusMap[status]?.label || status}`,
+        type: "withdrawal",
+      });
     }
 
-    await supabase.from("notifications").insert({
-      user_id: teacherId,
-      title: status === "paid" ? "تم تحويل أرباحك! 💰" : status === "rejected" ? "تم رفض طلب السحب ❌" : "تم تحديث طلب السحب",
-      body: status === "paid" ? "تم تحويل المبلغ المطلوب إلى حسابك البنكي" : status === "rejected" ? "تم رفض طلب سحب الأرباح. تواصل مع الإدارة للمزيد" : "",
-      type: "withdrawal",
-    });
-
-    toast.success("تم تحديث الطلب");
+    toast.success(status === "paid" ? "تم الدفع وإرسال التقرير للمعلم" : "تم تحديث الطلب");
     fetchData();
   };
 
