@@ -231,6 +231,7 @@ const LiveSession = () => {
       return;
     }
     setMeetingStarted(true);
+    logEvent("start_session", { role: isTeacher ? "teacher" : "student" });
 
     await start();
 
