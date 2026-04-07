@@ -371,7 +371,15 @@ const LiveSession = () => {
         }
 
         try {
-          await supabase.functions.invoke("session-report", { body: { booking_id: bookingId } });
+          await supabase.functions.invoke("session-report", { body: { 
+            booking_id: bookingId,
+            session_stats: {
+              teacher_speaking_seconds: 0,
+              student_speaking_seconds: 0,
+              messages_count: messages.length,
+              violation_count: violationCount,
+            }
+          } });
         } catch {
           console.log("AI report will be generated later");
         }
