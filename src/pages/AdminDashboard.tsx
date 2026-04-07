@@ -22,6 +22,7 @@ import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
+import DateFilter from "@/components/admin/DateFilter";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -40,6 +41,13 @@ const AdminDashboard = () => {
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  const [activeTab, setActiveTab] = useState("overview");
+  const [teacherDateFrom, setTeacherDateFrom] = useState("");
+  const [teacherDateTo, setTeacherDateTo] = useState("");
+  const [bookingDateFrom, setBookingDateFrom] = useState("");
+  const [bookingDateTo, setBookingDateTo] = useState("");
+  const [violationDateFrom, setViolationDateFrom] = useState("");
+  const [violationDateTo, setViolationDateTo] = useState("");
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
@@ -281,6 +289,23 @@ const AdminDashboard = () => {
     u.phone?.includes(searchQuery)
   );
 
+  const filterByDate = (items: any[], dateFrom: string, dateTo: string) => {
+    return items.filter(item => {
+      const created = new Date(item.created_at);
+      if (dateFrom && created < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (created > end) return false;
+      }
+      return true;
+    });
+  };
+
+  const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
+  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo);
+  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -327,7 +352,14 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue="overview" value={activeTab} onValueChange={(val) => {
+          setActiveTab(val);
+          // Clear badge counts when opening relevant tabs
+          if (val === "withdrawals") setBadgeCounts(prev => ({ ...prev, withdrawals: 0 }));
+          if (val === "support") setBadgeCounts(prev => ({ ...prev, support: 0 }));
+          if (val === "bookings") setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 }));
+          if (val === "violations") setBadgeCounts(prev => ({ ...prev, unreviewed: 0 }));
+        }} className="space-y-4">
           <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="rounded-lg gap-1.5">
               <BarChart3 className="h-4 w-4" />
@@ -469,20 +501,23 @@ const AdminDashboard = () => {
           <TabsContent value="teachers" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-secondary" />
-                  طلبات تسجيل المعلمين ({pendingTeachers.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-secondary" />
+                    طلبات تسجيل المعلمين ({filteredTeachers.length})
+                  </CardTitle>
+                  <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {pendingTeachers.length === 0 ? (
+                {filteredTeachers.length === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
                     <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {pendingTeachers.map((t) => (
+                    {filteredTeachers.map((t) => (
                       <div key={t.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
@@ -600,14 +635,17 @@ const AdminDashboard = () => {
           <TabsContent value="bookings" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold">آخر الحجوزات</CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
+                  <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {recentBookings.length === 0 ? (
+                {filteredBookings.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">لا توجد حجوزات بعد</p>
                 ) : (
                   <div className="space-y-3">
-                    {recentBookings.map((b) => (
+                    {filteredBookings.map((b) => (
                       <div key={b.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
                         <div>
                           <p className="font-medium text-sm text-foreground">
@@ -633,13 +671,16 @@ const AdminDashboard = () => {
           <TabsContent value="violations" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-destructive" />
-                  المخالفات المكتشفة ({violations.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-destructive" />
+                    المخالفات المكتشفة ({filteredViolations.length})
+                  </CardTitle>
+                  <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {violations.length === 0 ? (
+                {filteredViolations.length === 0 ? (
                   <div className="text-center py-8">
                     <Shield className="h-12 w-12 text-green-500 mx-auto mb-3" />
                     <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
@@ -647,7 +688,7 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {violations.map((v: any) => (
+                    {filteredViolations.map((v: any) => (
                       <div key={v.id} className={`p-4 rounded-xl border ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">

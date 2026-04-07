@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import DateFilter from "./DateFilter";
 
 export default function TeacherPaymentsTab() {
   const [payments, setPayments] = useState<any[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -25,16 +28,26 @@ export default function TeacherPaymentsTab() {
     }
   };
 
+  const filtered = payments.filter(p => {
+    const created = new Date(p.created_at);
+    if (dateFrom && created < new Date(dateFrom)) return false;
+    if (dateTo) { const end = new Date(dateTo); end.setHours(23,59,59,999); if (created > end) return false; }
+    return true;
+  });
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
-        <CardTitle className="text-base font-bold flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-secondary" />
-          سجل مدفوعات المعلمين ({payments.length})
-        </CardTitle>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-secondary" />
+            سجل مدفوعات المعلمين ({filtered.length})
+          </CardTitle>
+          <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+        </div>
       </CardHeader>
       <CardContent>
-        {payments.length === 0 ? (
+        {filtered.length === 0 ? (
           <p className="text-center py-8 text-muted-foreground">لا توجد مدفوعات بعد</p>
         ) : (
           <div className="overflow-x-auto">
@@ -49,7 +62,7 @@ export default function TeacherPaymentsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {payments.map((p: any) => (
+                {filtered.map((p: any) => (
                   <tr key={p.id} className="hover:bg-muted/30">
                     <td className="py-3 font-medium text-foreground">{p.teacher_name}</td>
                     <td className="py-3 text-foreground">{Number(p.amount).toLocaleString()} ر.س</td>
