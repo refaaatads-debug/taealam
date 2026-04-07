@@ -68,8 +68,6 @@ const LiveSession = () => {
     bookingId: bookingId || "",
     userId: user?.id || "",
     onRemoteStream: (stream) => {
-      setRemoteConnected(true);
-      toast.success("انضم المشارك الآخر! 🎉");
       // Check for video tracks (screen sharing)
       const hasVideo = stream.getVideoTracks().length > 0;
       setRemoteHasVideo(hasVideo);
@@ -85,6 +83,10 @@ const LiveSession = () => {
       stream.onremovetrack = () => {
         setRemoteHasVideo(stream.getVideoTracks().length > 0);
       };
+    },
+    onRemoteJoin: () => {
+      setRemoteConnected(true);
+      toast.success("انضم المشارك الآخر! 🎉");
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
