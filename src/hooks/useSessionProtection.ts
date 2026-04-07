@@ -175,7 +175,7 @@ export function useSessionProtection({
         title: "🚫 تم إنهاء جلسة بسبب مخالفات متكررة",
         body: `تم إنهاء الجلسة (${bookingId}) تلقائياً بعد ${count} مخالفات.`,
         type: "violation",
-      }).catch(() => {});
+      }).then(() => {});
 
       // Log for admin
       supabase.from("system_logs").insert({
@@ -184,7 +184,7 @@ export function useSessionProtection({
         source: "session_protection",
         user_id: userId,
         metadata: { booking_id: bookingId, violation_count: count },
-      }).catch(() => {});
+      }).then(() => {});
 
       setTimeout(() => onEndSession?.(), 2000);
     }
