@@ -220,6 +220,16 @@ const LiveSession = () => {
       toast.error("لا يوجد حجز محدد");
       return;
     }
+
+    // Anti-cheat: check for existing active sessions
+    const hasConflict = await checkActiveSession();
+    if (hasConflict) return;
+
+    // Anti-cheat: check tab lock
+    if (isTabLocked) {
+      toast.error("هذه الجلسة مفتوحة في تبويب آخر.");
+      return;
+    }
     setMeetingStarted(true);
 
     await start();
