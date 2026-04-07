@@ -501,13 +501,16 @@ const AdminDashboard = () => {
           <TabsContent value="teachers" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-secondary" />
-                  طلبات تسجيل المعلمين ({pendingTeachers.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-secondary" />
+                    طلبات تسجيل المعلمين ({filteredTeachers.length})
+                  </CardTitle>
+                  <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {pendingTeachers.length === 0 ? (
+                {filteredTeachers.length === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
                     <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
