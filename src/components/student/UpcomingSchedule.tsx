@@ -108,9 +108,11 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 text-xs animate-pulse" asChild>
                             <Link to={`/session?booking=${c.id}`}><Video className="h-3 w-3 ml-1" />انضم الآن</Link>
                           </Button>
-                        ) : isToday && c.status === "confirmed" ? (
-                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs opacity-50 cursor-not-allowed" disabled>
-                            <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
+                        ) : c.status === "confirmed" ? (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs" asChild>
+                            <Link to={`/session?booking=${c.id}`}>
+                              <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
+                            </Link>
                           </Button>
                         ) : null}
                         <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs relative" asChild>
