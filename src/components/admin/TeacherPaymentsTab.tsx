@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import DateFilter from "./DateFilter";
+import ExportCSVButton from "./ExportCSVButton";
 
 export default function TeacherPaymentsTab() {
   const [payments, setPayments] = useState<any[]>([]);
@@ -43,8 +44,14 @@ export default function TeacherPaymentsTab() {
             <DollarSign className="h-5 w-5 text-secondary" />
             سجل مدفوعات المعلمين ({filtered.length})
           </CardTitle>
-          <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
-        </div>
+          <div className="flex items-center gap-2">
+            <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+            <ExportCSVButton
+              data={filtered.map(p => ({ teacher: p.teacher_name, amount: p.amount, method: p.payment_method === "bank_transfer" ? "تحويل بنكي" : p.payment_method, date: new Date(p.created_at).toLocaleDateString("ar-SA"), notes: p.notes || "" }))}
+              headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "method", label: "طريقة الدفع" }, { key: "date", label: "التاريخ" }, { key: "notes", label: "ملاحظات" }]}
+              filename="مدفوعات_المعلمين"
+            />
+          </div>
       </CardHeader>
       <CardContent>
         {filtered.length === 0 ? (
