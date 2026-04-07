@@ -199,7 +199,7 @@ export function useWebRTC({
   // Start connection
   const start = useCallback(async () => {
     const stream = await initLocalMedia();
-    if (!stream) return;
+    // Continue even without mic - allow joining for chat/whiteboard
 
     createPeerConnection();
 
