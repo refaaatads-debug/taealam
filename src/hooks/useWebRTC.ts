@@ -47,29 +47,21 @@ export function useWebRTC({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
-  // Initialize local media
+  // Initialize local media (audio only)
   const initLocalMedia = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        video: false,
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
+      setVideoEnabled(false);
       return stream;
     } catch (err) {
       console.error("Failed to get user media:", err);
-      // Try audio only
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        localStreamRef.current = audioStream;
-        setLocalStream(audioStream);
-        setVideoEnabled(false);
-        return audioStream;
-      } catch {
-        console.error("No media devices available");
-        return null;
-      }
+      console.error("No audio devices available");
+      return null;
     }
   }, []);
 
