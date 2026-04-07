@@ -49,6 +49,8 @@ export default function TeacherPaymentsTab() {
       <CardContent>
         {filtered.length === 0 ? (
           <p className="text-center py-8 text-muted-foreground">لا توجد مدفوعات بعد</p>
+        ) : (
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
@@ -60,7 +62,7 @@ export default function TeacherPaymentsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {payments.map((p: any) => (
+                {filtered.map((p: any) => (
                   <tr key={p.id} className="hover:bg-muted/30">
                     <td className="py-3 font-medium text-foreground">{p.teacher_name}</td>
                     <td className="py-3 text-foreground">{Number(p.amount).toLocaleString()} ر.س</td>
@@ -77,7 +79,6 @@ export default function TeacherPaymentsTab() {
             </table>
           </div>
         )}
-      </CardContent>
     </Card>
   );
 }
