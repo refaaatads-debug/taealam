@@ -27,9 +27,9 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
               <Wallet className="h-4 w-4 text-primary" />
             </div>
             رصيد الباقة
-            <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20" asChild>
-              <Link to="/subscription-details">{tierName} ←</Link>
-            </Badge>
+            <Link to="/subscription-details">
+              <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20">{tierName} ←</Badge>
+            </Link>
           </CardTitle>
         </CardHeader>
         <CardContent>
