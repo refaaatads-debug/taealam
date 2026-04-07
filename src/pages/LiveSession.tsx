@@ -67,9 +67,24 @@ const LiveSession = () => {
   } = useWebRTC({
     bookingId: bookingId || "",
     userId: user?.id || "",
-    onRemoteJoin: () => {
+    onRemoteStream: (stream) => {
       setRemoteConnected(true);
       toast.success("انضم المشارك الآخر! 🎉");
+      // Check for video tracks (screen sharing)
+      const hasVideo = stream.getVideoTracks().length > 0;
+      setRemoteHasVideo(hasVideo);
+      if (hasVideo && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+      }
+      // Listen for track additions/removals
+      stream.onaddtrack = () => {
+        const v = stream.getVideoTracks().length > 0;
+        setRemoteHasVideo(v);
+        if (v && remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+      };
+      stream.onremovetrack = () => {
+        setRemoteHasVideo(stream.getVideoTracks().length > 0);
+      };
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
