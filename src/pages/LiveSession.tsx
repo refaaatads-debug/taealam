@@ -172,6 +172,41 @@ const LiveSession = () => {
     fetchBooking();
   }, [bookingId, user]);
 
+  // Auto-join for student when teacher starts session
+  useEffect(() => {
+    if (!bookingId || !user || !bookingData) return;
+    const isStudent = user.id === bookingData.student_id;
+    if (!isStudent || meetingStarted) return;
+
+    // Check if session is already in progress
+    if (bookingData.session_status === "in_progress") {
+      setMeetingStarted(true);
+      start();
+      logEvent("auto_join_session", { role: "student" });
+      return;
+    }
+
+    // Listen for realtime changes
+    const channel = supabase
+      .channel(`session-status-${bookingId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "bookings",
+        filter: `id=eq.${bookingId}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.session_status === "in_progress" && !meetingStarted) {
+          setMeetingStarted(true);
+          start();
+          logEvent("auto_join_session", { role: "student", trigger: "realtime" });
+          toast.success("بدأ المعلم الحصة! جاري الانضمام... 🎓");
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+
   // Session timer - counts only when both connected (anti-cheat)
   useEffect(() => {
     if (!meetingStarted) return;
