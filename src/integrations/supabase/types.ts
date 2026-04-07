@@ -632,6 +632,7 @@ export type Database = {
       }
       subscription_plans: {
         Row: {
+          assigned_user_id: string | null
           created_at: string
           features: Json | null
           has_ai_tutor: boolean | null
@@ -644,6 +645,7 @@ export type Database = {
           tier: Database["public"]["Enums"]["subscription_tier"]
         }
         Insert: {
+          assigned_user_id?: string | null
           created_at?: string
           features?: Json | null
           has_ai_tutor?: boolean | null
@@ -656,6 +658,7 @@ export type Database = {
           tier: Database["public"]["Enums"]["subscription_tier"]
         }
         Update: {
+          assigned_user_id?: string | null
           created_at?: string
           features?: Json | null
           has_ai_tutor?: boolean | null
