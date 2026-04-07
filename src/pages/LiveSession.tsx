@@ -39,8 +39,9 @@ const LiveSession = () => {
   const [subjectName, setSubjectName] = useState("");
   const [sessionDuration, setSessionDuration] = useState(45);
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [subscriptionMinutes, setSubscriptionMinutes] = useState(0);
+  const [subscriptionRemainingMinutes, setSubscriptionRemainingMinutes] = useState(0);
   const [timeWarningShown, setTimeWarningShown] = useState(false);
+  const [tenMinWarningShown, setTenMinWarningShown] = useState(false);
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
 
@@ -153,37 +154,50 @@ const LiveSession = () => {
       const studentId = user.id === booking.student_id ? user.id : booking.student_id;
       const { data: activeSub } = await supabase
         .from("user_subscriptions")
-        .select("id, sessions_remaining")
+        .select("id, sessions_remaining, remaining_minutes")
         .eq("user_id", studentId)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (activeSub && activeSub.sessions_remaining > 0) {
-        setHasSubscription(true);
-        setSubscriptionMinutes(activeSub.sessions_remaining * 45);
+      if (activeSub) {
+        const remainMin = (activeSub as any).remaining_minutes ?? (activeSub.sessions_remaining * 45);
+        if (remainMin > 0) {
+          setHasSubscription(true);
+          setSubscriptionRemainingMinutes(remainMin);
+        }
       }
     };
     fetchBooking();
   }, [bookingId, user]);
 
-  // Session timer
+  // Session timer - counts only when both connected (anti-cheat)
   useEffect(() => {
     if (!meetingStarted) return;
     timerRef.current = window.setInterval(() => {
+      // Only count time when both are connected (anti-cheat)
+      if (peerDisconnected) return;
+
       setElapsed((p) => {
         const next = p + 1;
-        const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+        const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
+        const tenMinWarning = maxSeconds - 10 * 60;
 
-        if (next === warningSeconds && !timeWarningShown) {
+        // 10-minute warning
+        if (next >= tenMinWarning && next < tenMinWarning + 2 && !tenMinWarningShown) {
+          setTenMinWarningShown(true);
+          toast.warning("⚠️ تنبيه: متبقي 10 دقائق من رصيد باقتك!", { duration: 8000 });
+        }
+
+        if (next >= warningSeconds && next < warningSeconds + 2 && !timeWarningShown) {
           setTimeWarningShown(true);
           toast.warning("⚠️ تنبيه: متبقي 5 دقائق على انتهاء الحصة!", { duration: 10000 });
         }
 
         if (next >= maxSeconds) {
-          toast.error("انتهى وقت الحصة! سيتم إغلاق الجلسة تلقائياً.");
+          toast.error("انتهى رصيد الباقة! سيتم إغلاق الجلسة تلقائياً.");
           setTimeout(() => endSession(), 2000);
           return maxSeconds;
         }
@@ -192,7 +206,7 @@ const LiveSession = () => {
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, sessionDuration, hasSubscription, subscriptionMinutes]);
+  }, [meetingStarted, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
@@ -202,13 +216,18 @@ const LiveSession = () => {
   };
 
   const getRemainingTime = () => {
-    const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+    const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
     const remaining = Math.max(0, maxSeconds - elapsed);
     return formatTime(remaining);
   };
 
+  const getRemainingMinutesValue = () => {
+    const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
+    return Math.max(0, Math.ceil((maxSeconds - elapsed) / 60));
+  };
+
   const getRemainingColor = () => {
-    const maxSeconds = hasSubscription ? subscriptionMinutes * 60 : sessionDuration * 60;
+    const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
     const remaining = maxSeconds - elapsed;
     if (remaining < 60) return "text-destructive";
     if (remaining < 5 * 60) return "text-orange-500";
@@ -218,6 +237,12 @@ const LiveSession = () => {
   const startMeeting = async () => {
     if (!bookingId) {
       toast.error("لا يوجد حجز محدد");
+      return;
+    }
+
+    // Check subscription balance (must have >= 5 minutes)
+    if (hasSubscription && subscriptionRemainingMinutes < 5) {
+      toast.error("رصيد الباقة غير كافي. يجب أن يكون لديك 5 دقائق على الأقل.");
       return;
     }
 
