@@ -44,6 +44,8 @@ const LiveSession = () => {
   const [tenMinWarningShown, setTenMinWarningShown] = useState(false);
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
