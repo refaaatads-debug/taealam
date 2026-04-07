@@ -386,11 +386,11 @@ const AdminDashboard = () => {
 
         <Tabs defaultValue="overview" value={activeTab} onValueChange={(val) => {
           setActiveTab(val);
-          // Clear badge counts when opening relevant tabs
-          if (val === "withdrawals") setBadgeCounts(prev => ({ ...prev, withdrawals: 0 }));
-          if (val === "support") setBadgeCounts(prev => ({ ...prev, support: 0 }));
-          if (val === "bookings") setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 }));
-          if (val === "violations") setBadgeCounts(prev => ({ ...prev, unreviewed: 0 }));
+          // Mark tab as seen and clear badge
+          if (val === "withdrawals") { markTabSeen("withdrawals"); setBadgeCounts(prev => ({ ...prev, withdrawals: 0 })); }
+          if (val === "support") { markTabSeen("support"); setBadgeCounts(prev => ({ ...prev, support: 0 })); }
+          if (val === "bookings") { markTabSeen("bookings"); setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 })); }
+          if (val === "violations") { markTabSeen("violations"); setBadgeCounts(prev => ({ ...prev, unreviewed: 0 })); }
         }} className="space-y-4">
           <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="rounded-lg gap-1.5">
