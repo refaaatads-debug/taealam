@@ -224,6 +224,11 @@ export default function UserManagementTab() {
           ...prev,
           permissions: (prev.permissions || []).filter(p => p !== permission),
         } : null);
+        setUserPermissionsMap(prev => {
+          const m = new Map(prev);
+          m.set(userId, (m.get(userId) || []).filter(p => p !== permission));
+          return m;
+        });
         toast.success(`تم إزالة صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
       } else {
         const { error } = await (supabase as any)
