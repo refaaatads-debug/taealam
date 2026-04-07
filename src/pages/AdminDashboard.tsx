@@ -24,6 +24,7 @@ import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
+import StatusFilter from "@/components/admin/StatusFilter";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -49,6 +50,8 @@ const AdminDashboard = () => {
   const [bookingDateTo, setBookingDateTo] = useState("");
   const [violationDateFrom, setViolationDateFrom] = useState("");
   const [violationDateTo, setViolationDateTo] = useState("");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
+  const [violationStatusFilter, setViolationStatusFilter] = useState("all");
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
