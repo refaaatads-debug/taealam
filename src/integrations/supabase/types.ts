@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_sessions: {
+        Row: {
+          booking_id: string
+          created_at: string
+          device_id: string
+          disconnected_at: string | null
+          id: string
+          is_connected: boolean
+          last_heartbeat: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          device_id: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_heartbeat?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          device_id?: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_heartbeat?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -439,6 +472,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      session_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          device_id: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
       }
       sessions: {
         Row: {
