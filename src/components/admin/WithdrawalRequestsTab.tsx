@@ -91,6 +91,7 @@ export default function WithdrawalRequestsTab() {
               filename="سحب_الأرباح"
             />
           </div>
+        </div>
       </CardHeader>
       <CardContent>
         {filtered.length === 0 ? (

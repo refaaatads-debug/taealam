@@ -52,6 +52,7 @@ export default function TeacherPaymentsTab() {
               filename="مدفوعات_المعلمين"
             />
           </div>
+        </div>
       </CardHeader>
       <CardContent>
         {filtered.length === 0 ? (
