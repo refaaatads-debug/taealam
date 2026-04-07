@@ -27,6 +27,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Chat = lazy(() => import("./pages/Chat"));
 const SupportChat = lazy(() => import("./pages/SupportChat"));
+const SubscriptionDetails = lazy(() => import("./pages/SubscriptionDetails"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/search" element={<SearchTeacher />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+              <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
               <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
               <Route path="/booking" element={<ProtectedRoute><Booking /></ProtectedRoute>} />
