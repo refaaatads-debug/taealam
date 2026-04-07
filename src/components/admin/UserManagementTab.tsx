@@ -239,6 +239,11 @@ export default function UserManagementTab() {
           ...prev,
           permissions: [...(prev.permissions || []), permission],
         } : null);
+        setUserPermissionsMap(prev => {
+          const m = new Map(prev);
+          m.set(userId, [...(m.get(userId) || []), permission]);
+          return m;
+        });
         toast.success(`تم منح صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
       }
     } catch {
