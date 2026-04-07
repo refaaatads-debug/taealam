@@ -1121,6 +1121,33 @@ export type Database = {
           },
         ]
       }
+      webrtc_signals: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          payload: Json
+          sender_id: string
+          signal_type: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          sender_id: string
+          signal_type: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          sender_id?: string
+          signal_type?: string
+        }
+        Relationships: []
+      }
       withdrawal_requests: {
         Row: {
           admin_notes: string | null
