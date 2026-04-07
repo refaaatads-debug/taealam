@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
-  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones
+  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useSessionProtection } from "@/hooks/useSessionProtection";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 
 const LiveSession = () => {
