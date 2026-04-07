@@ -236,6 +236,9 @@ const TeacherDashboard = () => {
           {/* Teaching Materials */}
           <TeacherSessionMaterials />
 
+          {/* Session Reports */}
+          <TeacherSessionReports />
+
           {/* Warnings & Violations */}
           <WarningsSection />
 
