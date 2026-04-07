@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X } from "lucide-react";
+import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,18 @@ const Profile = () => {
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null);
   const [loadingTeacher, setLoadingTeacher] = useState(false);
 
+  // Payment details
+  const [bankName, setBankName] = useState("");
+  const [iban, setIban] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+
+  // Certificates
+  const [certificates, setCertificates] = useState<any[]>([]);
+  const [certName, setCertName] = useState("");
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const certFileRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name || "");
@@ -46,7 +58,6 @@ const Profile = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Load notification prefs
     supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry")
       .eq("user_id", user.id).single().then(({ data }) => {
         if (data) {
@@ -61,7 +72,8 @@ const Profile = () => {
       Promise.all([
         supabase.from("teacher_profiles").select("*").eq("user_id", user.id).single(),
         supabase.from("subjects").select("id, name").order("name"),
-      ]).then(([{ data: tp }, { data: subs }]) => {
+        supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      ]).then(([{ data: tp }, { data: subs }, { data: certs }]) => {
         if (tp) {
           setTeacherProfileId(tp.id);
           setBio(tp.bio || "");
@@ -69,12 +81,15 @@ const Profile = () => {
           setYearsExp(String(tp.years_experience || ""));
           setAvailFrom(tp.available_from || "");
           setAvailTo(tp.available_to || "");
-          // Fetch teacher subjects
+          setBankName((tp as any).bank_name || "");
+          setIban((tp as any).iban || "");
+          setAccountHolder((tp as any).account_holder_name || "");
           supabase.from("teacher_subjects").select("subject_id").eq("teacher_id", tp.id).then(({ data: ts }) => {
             if (ts) setTeacherSubjects(ts.map(t => t.subject_id));
           });
         }
         if (subs) setAllSubjects(subs);
+        setCertificates((certs as any[]) || []);
         setLoadingTeacher(false);
       });
     }
@@ -90,7 +105,6 @@ const Profile = () => {
     if (!user) return;
     setSaving(true);
     try {
-      // Update basic profile
       const { error: profileErr } = await supabase.from("profiles").update({
         full_name: fullName,
         phone,
@@ -100,7 +114,6 @@ const Profile = () => {
       }).eq("user_id", user.id);
       if (profileErr) throw profileErr;
 
-      // Update teacher profile if applicable
       if (isTeacher && teacherProfileId) {
         const { error: teacherErr } = await supabase.from("teacher_profiles").update({
           bio,
@@ -108,10 +121,12 @@ const Profile = () => {
           years_experience: Number(yearsExp) || 0,
           available_from: availFrom || null,
           available_to: availTo || null,
-        }).eq("id", teacherProfileId);
+          bank_name: bankName || null,
+          iban: iban || null,
+          account_holder_name: accountHolder || null,
+        } as any).eq("id", teacherProfileId);
         if (teacherErr) throw teacherErr;
 
-        // Update subjects - delete old, insert new
         await supabase.from("teacher_subjects").delete().eq("teacher_id", teacherProfileId);
         if (teacherSubjects.length > 0) {
           await supabase.from("teacher_subjects").insert(
@@ -126,6 +141,46 @@ const Profile = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleUploadCert = async () => {
+    if (!user || !certName.trim() || !certFile) {
+      toast.error("يرجى إدخال اسم الشهادة واختيار ملف");
+      return;
+    }
+    setUploadingCert(true);
+    try {
+      const ext = certFile.name.split(".").pop();
+      const path = `certificates/${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("support-files").upload(path, certFile);
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
+
+      const { error } = await supabase.from("teacher_certificates" as any).insert({
+        teacher_id: user.id,
+        name: certName.trim(),
+        file_url: urlData.publicUrl,
+        file_name: certFile.name,
+      } as any);
+      if (error) throw error;
+
+      setCertName("");
+      setCertFile(null);
+      // Refresh
+      const { data: certs } = await supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+      setCertificates((certs as any[]) || []);
+      toast.success("تم رفع الشهادة بنجاح");
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ");
+    } finally {
+      setUploadingCert(false);
+    }
+  };
+
+  const handleDeleteCert = async (certId: string) => {
+    await supabase.from("teacher_certificates" as any).delete().eq("id", certId);
+    setCertificates(prev => prev.filter(c => c.id !== certId));
+    toast.success("تم حذف الشهادة");
   };
 
   const handleSignOut = async () => {
@@ -203,13 +258,10 @@ const Profile = () => {
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                 ) : (
                   <>
-                    {/* Bio */}
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground">السيرة الذاتية</Label>
                       <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="اكتب نبذة عنك وخبراتك..." className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50 min-h-[100px]" />
                     </div>
-
-                    {/* Rate & Experience */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs font-bold text-muted-foreground">السعر / ساعة (ر.س)</Label>
@@ -220,8 +272,6 @@ const Profile = () => {
                         <Input type="number" value={yearsExp} onChange={e => setYearsExp(e.target.value)} className="mt-1.5 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
                       </div>
                     </div>
-
-                    {/* Availability */}
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
                         <Clock className="h-3.5 w-3.5" /> ساعات التوفر
@@ -237,8 +287,6 @@ const Profile = () => {
                         </div>
                       </div>
                     </div>
-
-                    {/* Subjects */}
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
                         <Star className="h-3.5 w-3.5" /> التخصصات
@@ -264,6 +312,112 @@ const Profile = () => {
                       </div>
                     </div>
                   </>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Payment Details - Teacher Only */}
+        {isTeacher && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
+            <Card className="border-0 shadow-card mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-secondary" />
+                  بيانات الدفع البنكية
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground">اسم البنك</Label>
+                  <Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="مثال: البنك الأهلي" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" />
+                </div>
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground">رقم الآيبان (IBAN)</Label>
+                  <Input value={iban} onChange={e => setIban(e.target.value)} placeholder="SA00 0000 0000 0000 0000 0000" className="mt-1.5 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                </div>
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground">اسم صاحب الحساب</Label>
+                  <Input value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="الاسم كما هو في البنك" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" />
+                </div>
+                <p className="text-[10px] text-muted-foreground">🔒 بياناتك البنكية محمية ولا تُعرض إلا للإدارة عند معالجة طلبات السحب</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Certificates - Teacher Only */}
+        {isTeacher && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>
+            <Card className="border-0 shadow-card mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold flex items-center gap-2">
+                  <Award className="h-5 w-5 text-primary" />
+                  الشهادات والمؤهلات
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Upload new */}
+                <div className="space-y-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground">اسم الشهادة</Label>
+                    <Input value={certName} onChange={e => setCertName(e.target.value)} placeholder="مثال: بكالوريوس تربية" className="mt-1.5 text-right rounded-xl bg-background border-border/50" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={certFileRef}
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={e => setCertFile(e.target.files?.[0] || null)}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => certFileRef.current?.click()}>
+                      <Upload className="h-3.5 w-3.5" />
+                      اختر ملف
+                    </Button>
+                    {certFile && (
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5 text-xs">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        <span className="truncate max-w-[150px]">{certFile.name}</span>
+                        <button onClick={() => setCertFile(null)} className="text-muted-foreground hover:text-destructive">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <Button onClick={handleUploadCert} disabled={uploadingCert || !certName.trim() || !certFile} size="sm" className="w-full rounded-xl gradient-cta text-secondary-foreground shadow-button gap-1.5">
+                    {uploadingCert ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    رفع الشهادة
+                  </Button>
+                </div>
+
+                {/* List */}
+                {certificates.length > 0 && (
+                  <div className="space-y-2">
+                    {certificates.map((c: any) => (
+                      <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <Award className="h-4 w-4 text-primary" />
+                          <div>
+                            <p className="text-sm font-bold text-foreground">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{new Date(c.created_at).toLocaleDateString("ar-SA")}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <a href={c.file_url} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText className="h-3.5 w-3.5 text-primary" /></Button>
+                          </a>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteCert(c.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {certificates.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">لم يتم رفع أي شهادات بعد</p>
                 )}
               </CardContent>
             </Card>

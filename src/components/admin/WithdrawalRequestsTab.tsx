@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
@@ -28,9 +28,13 @@ export default function WithdrawalRequestsTab() {
 
     if (data && (data as any[]).length > 0) {
       const teacherIds = [...new Set((data as any[]).map((r: any) => r.teacher_id))];
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds);
+      const [{ data: profiles }, { data: teacherProfiles }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
+        supabase.from("teacher_profiles").select("user_id, bank_name, iban, account_holder_name").in("user_id", teacherIds),
+      ]);
       const nameMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
-      setRequests((data as any[]).map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم" })));
+      const bankMap = new Map((teacherProfiles ?? []).map((p: any) => [p.user_id, { bank_name: p.bank_name, iban: p.iban, account_holder_name: p.account_holder_name }]));
+      setRequests((data as any[]).map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم", bank_info: bankMap.get(r.teacher_id) || null })));
     } else {
       setRequests([]);
     }
@@ -216,6 +220,18 @@ export default function WithdrawalRequestsTab() {
                   {/* Expanded: admin notes & actions */}
                   {isExpanded && (
                     <div className="space-y-2 pt-2 border-t border-border/50">
+                      {/* Bank Info */}
+                      {r.bank_info && (r.bank_info.bank_name || r.bank_info.iban) && (
+                        <div className="p-3 rounded-lg bg-secondary/5 border border-secondary/20 space-y-1">
+                          <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5 text-secondary" /> بيانات الدفع البنكية</p>
+                          {r.bank_info.bank_name && <p className="text-xs text-muted-foreground">🏦 البنك: {r.bank_info.bank_name}</p>}
+                          {r.bank_info.iban && <p className="text-xs text-muted-foreground font-mono" dir="ltr">IBAN: {r.bank_info.iban}</p>}
+                          {r.bank_info.account_holder_name && <p className="text-xs text-muted-foreground">👤 صاحب الحساب: {r.bank_info.account_holder_name}</p>}
+                        </div>
+                      )}
+                      {r.bank_info && !r.bank_info.bank_name && !r.bank_info.iban && (
+                        <p className="text-xs text-destructive bg-destructive/5 rounded-lg p-2">⚠️ لم يُضف المعلم بيانات الدفع البنكية بعد</p>
+                      )}
                       {r.status === "pending" && (
                         <>
                           <Textarea

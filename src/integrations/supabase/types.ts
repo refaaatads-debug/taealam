@@ -776,6 +776,33 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_certificates: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          file_url: string
+          id: string
+          name: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          file_url: string
+          id?: string
+          name: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          file_url?: string
+          id?: string
+          name?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       teacher_payments: {
         Row: {
           amount: number
@@ -816,13 +843,16 @@ export type Database = {
       }
       teacher_profiles: {
         Row: {
+          account_holder_name: string | null
           available_days: string[] | null
           available_from: string | null
           available_to: string | null
           avg_rating: number | null
+          bank_name: string | null
           bio: string | null
           created_at: string
           hourly_rate: number
+          iban: string | null
           id: string
           is_approved: boolean | null
           is_verified: boolean | null
@@ -833,13 +863,16 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
+          account_holder_name?: string | null
           available_days?: string[] | null
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null
+          bank_name?: string | null
           bio?: string | null
           created_at?: string
           hourly_rate?: number
+          iban?: string | null
           id?: string
           is_approved?: boolean | null
           is_verified?: boolean | null
@@ -850,13 +883,16 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
+          account_holder_name?: string | null
           available_days?: string[] | null
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null
+          bank_name?: string | null
           bio?: string | null
           created_at?: string
           hourly_rate?: number
+          iban?: string | null
           id?: string
           is_approved?: boolean | null
           is_verified?: boolean | null
