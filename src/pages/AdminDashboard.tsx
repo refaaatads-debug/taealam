@@ -27,6 +27,7 @@ import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
+import UserManagementTab from "@/components/admin/UserManagementTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
