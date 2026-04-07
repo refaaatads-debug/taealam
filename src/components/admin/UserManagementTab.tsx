@@ -122,6 +122,7 @@ export default function UserManagementTab() {
         promises.push(
           supabase.from("teacher_profiles").select("*").eq("user_id", profile.user_id).maybeSingle() as any,
           supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", profile.user_id) as any,
+          supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", profile.user_id).order("created_at", { ascending: false }) as any,
         );
       }
 
@@ -154,6 +155,11 @@ export default function UserManagementTab() {
         const tpRes = results[5];
         if (tpRes.data) {
           detail.teacherProfile = tpRes.data;
+          detail.bankInfo = {
+            bank_name: (tpRes.data as any).bank_name,
+            iban: (tpRes.data as any).iban,
+            account_holder_name: (tpRes.data as any).account_holder_name,
+          };
           // Fetch subjects
           const { data: tsData } = await supabase
             .from("teacher_subjects")
@@ -162,6 +168,7 @@ export default function UserManagementTab() {
           detail.subjects = (tsData ?? []).map((s: any) => s.subjects?.name || "");
         }
         detail.bookingsAsTeacher = results[6]?.count ?? 0;
+        detail.certificates = (results[7]?.data as any[]) ?? [];
       }
 
       setSelectedUser(detail);
