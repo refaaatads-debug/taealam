@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
-  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones
+  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useSessionProtection } from "@/hooks/useSessionProtection";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 
 const LiveSession = () => {
@@ -76,6 +77,28 @@ const LiveSession = () => {
       } else if (state === "disconnected" || state === "failed") {
         setRemoteConnected(false);
       }
+    },
+  });
+
+  // ─── Session Protection System ───
+  const {
+    filterChatMessage,
+    violationCount,
+    isMutedBySystem,
+    isChatBlocked,
+    latestAlert,
+    muteCountdown,
+  } = useSessionProtection({
+    bookingId: bookingId || "",
+    userId: user?.id || "",
+    localStream,
+    meetingStarted,
+    onMuteUser: () => {
+      // Mute the user's mic
+      localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
+    },
+    onEndSession: () => {
+      endSession();
     },
   });
 
@@ -203,6 +226,15 @@ const LiveSession = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     const msgText = newMessage;
+
+    // ─── Client-side protection filter ───
+    const filterResult = filterChatMessage(msgText);
+    if (!filterResult.allowed) {
+      toast.error(filterResult.reason || "ممنوع مشاركة بيانات شخصية");
+      setNewMessage("");
+      return;
+    }
+
     setMessages((prev) => [...prev, {
       sender: "أنت",
       text: msgText,
@@ -362,6 +394,20 @@ const LiveSession = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Violation counter badge */}
+          {violationCount > 0 && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold">
+              <ShieldAlert className="h-3 w-3" />
+              {violationCount} مخالفة
+            </span>
+          )}
+          {/* System mute indicator */}
+          {isMutedBySystem && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/30 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
+              <VolumeX className="h-3 w-3" />
+              محظور {muteCountdown}ث
+            </span>
+          )}
           {meetingStarted && (
             <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
               <Clock className="h-3 w-3" />
@@ -391,6 +437,21 @@ const LiveSession = () => {
           )}
         </div>
       </div>
+
+      {/* Floating violation alert */}
+      <AnimatePresence>
+        {latestAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-destructive text-destructive-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            {latestAlert}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
@@ -512,17 +573,26 @@ const LiveSession = () => {
                   </motion.div>
                 ))}
               </div>
-              <div className="p-3 border-t flex gap-2">
-                <Input
-                  placeholder="اكتب رسالة..."
-                  className="text-right h-10 rounded-xl bg-muted/30 border-0"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                />
-                <Button size="icon" className="gradient-cta text-secondary-foreground h-10 w-10 rounded-xl" onClick={sendMessage}>
-                  <Send className="h-4 w-4" />
-                </Button>
+              <div className="p-3 border-t">
+                {isChatBlocked ? (
+                  <div className="flex items-center gap-2 justify-center text-destructive text-sm font-bold py-2">
+                    <VolumeX className="h-4 w-4" />
+                    الدردشة محظورة مؤقتاً ({muteCountdown}ث)
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="اكتب رسالة..."
+                      className="text-right h-10 rounded-xl bg-muted/30 border-0"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    />
+                    <Button size="icon" className="gradient-cta text-secondary-foreground h-10 w-10 rounded-xl" onClick={sendMessage}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
