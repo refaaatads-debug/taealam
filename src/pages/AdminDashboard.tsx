@@ -240,7 +240,7 @@ const AdminDashboard = () => {
         setUserRolesMap(rMap);
       }
 
-      // Violations
+      // Violations with user details
       const { data: viol } = await (supabase as any)
         .from("violations")
         .select("*")
@@ -249,9 +249,25 @@ const AdminDashboard = () => {
       if (viol) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
         if (vUserIds.length > 0) {
-          const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
-          const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
-          setViolations(viol.map((v: any) => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+          const [profilesRes, rolesRes, warningsRes] = await Promise.all([
+            supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
+            supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
+            supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
+          ]);
+          const nameMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p.full_name]));
+          const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
+          const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
+          setViolations(viol.map((v: any) => {
+            const warning = warningMap.get(v.user_id);
+            return {
+              ...v,
+              user_name: nameMap.get(v.user_id) || "غير معروف",
+              user_role: roleMap.get(v.user_id) || "student",
+              warning_count: warning?.warning_count || 0,
+              is_banned: warning?.is_banned || false,
+              banned_until: warning?.banned_until || null,
+            };
+          }));
         } else {
           setViolations([]);
         }
