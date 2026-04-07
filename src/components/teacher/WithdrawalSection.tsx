@@ -25,13 +25,16 @@ export default function WithdrawalSection() {
   const fetchData = async () => {
     if (!user) return;
 
-    const { data: completed } = await supabase
-      .from("bookings")
-      .select("price")
-      .eq("teacher_id", user.id)
-      .eq("status", "completed");
-    const totalEarned = (completed ?? []).reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+    // Get teacher balance directly from teacher_profiles
+    const { data: tp } = await supabase
+      .from("teacher_profiles")
+      .select("balance")
+      .eq("user_id", user.id)
+      .single();
+    
+    const totalBalance = Number((tp as any)?.balance) || 0;
 
+    // Subtract paid amounts and pending withdrawals
     const { data: payments } = await supabase
       .from("teacher_payments" as any)
       .select("amount")
@@ -45,7 +48,7 @@ export default function WithdrawalSection() {
       .eq("status", "pending");
     const pendingAmount = (pendingW as any[] ?? []).reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-    setBalance(totalEarned - totalPaid - pendingAmount);
+    setBalance(Math.max(0, totalBalance - totalPaid - pendingAmount));
 
     const { data: wData } = await supabase
       .from("withdrawal_requests" as any)
