@@ -604,17 +604,13 @@ const LiveSession = () => {
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
               {/* Screen share display - show to both teacher and student */}
-              {(screenSharing || (remoteStream && remoteStream.getVideoTracks().length > 0)) && (
+              {(screenSharing || remoteHasVideo) && (
                 <>
                   <video
-                    ref={(el) => {
-                      if (el && remoteStream && remoteStream.getVideoTracks().length > 0 && !isTeacher) {
-                        el.srcObject = remoteStream;
-                      }
-                    }}
+                    ref={remoteVideoRef}
                     autoPlay
                     playsInline
-                    className={`absolute inset-0 w-full h-full object-contain z-10 ${!isTeacher && remoteStream && remoteStream.getVideoTracks().length > 0 ? "" : "hidden"}`}
+                    className={`absolute inset-0 w-full h-full object-contain z-10 ${remoteHasVideo && !isTeacher ? "" : "hidden"}`}
                   />
                   <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
