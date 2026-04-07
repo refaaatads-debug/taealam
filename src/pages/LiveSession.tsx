@@ -467,11 +467,18 @@ const LiveSession = () => {
             </span>
           )}
           {meetingStarted && (
-            <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
-              <Clock className="h-3 w-3" />
-              <span className="font-mono">{getRemainingTime()}</span>
-              <span className="hidden sm:inline">متبقي</span>
-            </span>
+            <>
+              <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
+                <Clock className="h-3 w-3" />
+                <span className="font-mono">{getRemainingTime()}</span>
+                <span className="hidden sm:inline">متبقي</span>
+              </span>
+              {hasSubscription && (
+                <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold text-card/60 bg-card/10">
+                  المتبقي من باقتك: {getRemainingMinutesValue()} دقيقة
+                </span>
+              )}
+            </>
           )}
           {isRecording && (
             <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
