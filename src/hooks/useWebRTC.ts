@@ -47,6 +47,24 @@ export function useWebRTC({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
+  const waitForChannelSubscription = useCallback((channel: any) => {
+    return new Promise<any>((resolve, reject) => {
+      let settled = false;
+
+      channel.subscribe((status: string) => {
+        if (status === "SUBSCRIBED" && !settled) {
+          settled = true;
+          resolve(channel);
+        }
+
+        if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && !settled) {
+          settled = true;
+          reject(new Error(`Channel subscription failed: ${status}`));
+        }
+      });
+    });
+  }, []);
+
   // Initialize local media (audio only)
   const initLocalMedia = useCallback(async () => {
     try {
@@ -64,6 +82,26 @@ export function useWebRTC({
       return null;
     }
   }, []);
+
+  const sendSignal = useCallback(async (signalType: string, payload: any) => {
+    const channel = channelRef.current;
+    if (!channel) return;
+
+    const result = await channel.send({
+      type: "broadcast",
+      event: "signal",
+      payload: {
+        bookingId,
+        senderId: userId,
+        signalType,
+        payload,
+      },
+    });
+
+    if (result !== "ok") {
+      console.error("Failed to send WebRTC signal:", signalType, result);
+    }
+  }, [bookingId, userId]);
 
   // Create peer connection
   const createPeerConnection = useCallback(() => {
@@ -130,17 +168,7 @@ export function useWebRTC({
     };
 
     return pc;
-  }, [onRemoteStream, onConnectionState]);
-
-  // Send signal via Supabase
-  const sendSignal = async (signalType: string, payload: any) => {
-    await supabase.from("webrtc_signals" as any).insert({
-      booking_id: bookingId,
-      sender_id: userId,
-      signal_type: signalType,
-      payload,
-    } as any);
-  };
+  }, [onRemoteStream, onConnectionState, sendSignal]);
 
   // Handle incoming signal
   const handleSignal = useCallback(async (signalType: string, payload: any, senderId: string) => {
@@ -198,35 +226,34 @@ export function useWebRTC({
 
   // Start connection
   const start = useCallback(async () => {
-    const stream = await initLocalMedia();
+    await initLocalMedia();
     // Continue even without mic - allow joining for chat/whiteboard
 
     createPeerConnection();
 
-    // Clean old signals for this booking
-    await supabase.from("webrtc_signals" as any).delete().eq("booking_id", bookingId);
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
-    // Subscribe to realtime signals
     const channel = supabase
-      .channel(`webrtc-${bookingId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "webrtc_signals",
-        filter: `booking_id=eq.${bookingId}`,
-      }, (payload: any) => {
-        const row = payload.new;
-        if (row.sender_id !== userId) {
-          handleSignal(row.signal_type, row.payload, row.sender_id);
-        }
+      .channel(`webrtc-${bookingId}`, {
+        config: { broadcast: { self: false } },
       })
-      .subscribe();
+      .on("broadcast", { event: "signal" }, (event: any) => {
+        const signal = event.payload;
+        if (signal?.senderId !== userId) {
+          handleSignal(signal.signalType, signal.payload, signal.senderId);
+        }
+      });
+
+    await waitForChannelSubscription(channel);
 
     channelRef.current = channel;
 
     // Announce join
     await sendSignal("join", { userId });
-  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal]);
+  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
 
   // Restart connection
   const restartConnection = useCallback(async () => {
@@ -264,6 +291,21 @@ export function useWebRTC({
     const pc = pcRef.current;
     if (!pc) return;
 
+    const renegotiateTracks = async () => {
+      try {
+        if (makingOfferRef.current || pc.signalingState !== "stable") return;
+        makingOfferRef.current = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
+      } catch (err) {
+        console.error("Screen share renegotiation error:", err);
+      } finally {
+        makingOfferRef.current = false;
+      }
+    };
+
     if (screenSharing) {
       // Stop screen share, remove the video track
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -274,6 +316,7 @@ export function useWebRTC({
         screenSenderRef.current = null;
       }
       setScreenSharing(false);
+      await renegotiateTracks();
     } else {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -294,14 +337,16 @@ export function useWebRTC({
           }
           setScreenSharing(false);
           screenStreamRef.current = null;
+          void renegotiateTracks();
         });
 
         setScreenSharing(true);
+        await renegotiateTracks();
       } catch {
         console.error("Screen share cancelled");
       }
     }
-  }, [screenSharing]);
+  }, [screenSharing, sendSignal]);
 
   // Recording
   const startRecording = useCallback(async () => {
@@ -362,9 +407,7 @@ export function useWebRTC({
 
     if (isRecording) stopRecording();
 
-    // Clean signals
-    await supabase.from("webrtc_signals" as any).delete().eq("booking_id", bookingId);
-  }, [bookingId, userId, isRecording, stopRecording]);
+  }, [userId, isRecording, stopRecording, sendSignal]);
 
   useEffect(() => {
     return () => {
