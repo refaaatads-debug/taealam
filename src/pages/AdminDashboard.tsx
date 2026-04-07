@@ -25,6 +25,7 @@ import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import StatusFilter from "@/components/admin/StatusFilter";
+import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
