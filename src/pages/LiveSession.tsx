@@ -260,7 +260,7 @@ const LiveSession = () => {
 
     await start();
 
-    Promise.all([
+    await Promise.all([
       supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
       supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
     ]);
