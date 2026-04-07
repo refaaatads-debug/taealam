@@ -22,6 +22,7 @@ import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
+import DateFilter from "@/components/admin/DateFilter";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -40,6 +41,13 @@ const AdminDashboard = () => {
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  const [activeTab, setActiveTab] = useState("overview");
+  const [teacherDateFrom, setTeacherDateFrom] = useState("");
+  const [teacherDateTo, setTeacherDateTo] = useState("");
+  const [bookingDateFrom, setBookingDateFrom] = useState("");
+  const [bookingDateTo, setBookingDateTo] = useState("");
+  const [violationDateFrom, setViolationDateFrom] = useState("");
+  const [violationDateTo, setViolationDateTo] = useState("");
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
