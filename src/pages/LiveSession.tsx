@@ -103,6 +103,23 @@ const LiveSession = () => {
     },
   });
 
+  // ─── Anti-Cheat System ───
+  const {
+    isTabLocked,
+    peerDisconnected,
+    reconnectCountdown,
+    cleanupSession,
+    checkActiveSession,
+    logEvent,
+  } = useSessionAntiCheat({
+    bookingId: bookingId || "",
+    userId: user?.id || "",
+    enabled: meetingStarted,
+    onForceEnd: () => {
+      endSession();
+    },
+  });
+
   // Attach remote audio
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream) {
