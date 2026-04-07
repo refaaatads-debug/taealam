@@ -469,6 +469,32 @@ const LiveSession = () => {
         </div>
       </div>
 
+      {/* Tab locked overlay */}
+      {isTabLocked && (
+        <div className="absolute inset-0 z-50 bg-foreground/95 flex items-center justify-center">
+          <div className="text-center p-8">
+            <ShieldAlert className="h-16 w-16 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-card mb-2">الجلسة مفتوحة في تبويب آخر</h2>
+            <p className="text-card/60">أغلق التبويب الآخر وأعد تحميل هذه الصفحة</p>
+          </div>
+        </div>
+      )}
+
+      {/* Peer disconnect warning */}
+      <AnimatePresence>
+        {peerDisconnected && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-600 text-card px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm"
+          >
+            <WifiOff className="h-4 w-4" />
+            انقطع اتصال المشارك - مهلة إعادة الاتصال: {reconnectCountdown}ث
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating violation alert */}
       <AnimatePresence>
         {latestAlert && (
