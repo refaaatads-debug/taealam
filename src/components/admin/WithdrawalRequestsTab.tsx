@@ -7,6 +7,7 @@ import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, Chev
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
+import ExportCSVButton from "./ExportCSVButton";
 
 export default function WithdrawalRequestsTab() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -82,7 +83,14 @@ export default function WithdrawalRequestsTab() {
             <DollarSign className="h-5 w-5 text-secondary" />
             طلبات سحب الأرباح ({filtered.length})
           </CardTitle>
-          <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+          <div className="flex items-center gap-2">
+            <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+            <ExportCSVButton
+              data={filtered.map(r => ({ teacher: r.teacher_name, amount: r.amount, status: statusMap[r.status]?.label || r.status, date: new Date(r.created_at).toLocaleDateString("ar-SA"), notes: r.teacher_notes || "" }))}
+              headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "status", label: "الحالة" }, { key: "date", label: "التاريخ" }, { key: "notes", label: "ملاحظات" }]}
+              filename="سحب_الأرباح"
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent>

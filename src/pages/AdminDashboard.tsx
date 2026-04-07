@@ -23,6 +23,7 @@ import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
+import ExportCSVButton from "@/components/admin/ExportCSVButton";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -506,7 +507,14 @@ const AdminDashboard = () => {
                     <UserCheck className="h-5 w-5 text-secondary" />
                     طلبات تسجيل المعلمين ({filteredTeachers.length})
                   </CardTitle>
-                  <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+                    <ExportCSVButton
+                      data={filteredTeachers.map(t => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
+                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "experience", label: "الخبرة" }, { key: "date", label: "التاريخ" }]}
+                      filename="طلبات_المعلمين"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -551,15 +559,22 @@ const AdminDashboard = () => {
           <TabsContent value="users" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base font-bold">إدارة المستخدمين ({filteredUsers.length})</CardTitle>
-                  <div className="relative w-64">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="بحث بالاسم أو الرقم..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pr-10 rounded-xl h-9 text-sm"
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-64">
+                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="بحث بالاسم أو الرقم..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pr-10 rounded-xl h-9 text-sm"
+                      />
+                    </div>
+                    <ExportCSVButton
+                      data={filteredUsers.map(u => ({ name: u.full_name || "", phone: u.phone || "", role: userRolesMap.get(u.user_id) || "student", level: u.level || "bronze", date: new Date(u.created_at).toLocaleDateString("ar-SA") }))}
+                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "role", label: "الدور" }, { key: "level", label: "المستوى" }, { key: "date", label: "التسجيل" }]}
+                      filename="المستخدمين"
                     />
                   </div>
                 </div>
@@ -637,7 +652,14 @@ const AdminDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
-                  <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                    <ExportCSVButton
+                      data={filteredBookings.map(b => ({ student: b.student_name, teacher: b.teacher_name, date: new Date(b.scheduled_at).toLocaleDateString("ar-SA"), duration: b.duration_minutes, price: b.price || 0, status: b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة" }))}
+                      headers={[{ key: "student", label: "الطالب" }, { key: "teacher", label: "المعلم" }, { key: "date", label: "التاريخ" }, { key: "duration", label: "المدة" }, { key: "price", label: "السعر" }, { key: "status", label: "الحالة" }]}
+                      filename="الحجوزات"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -676,7 +698,14 @@ const AdminDashboard = () => {
                     <ShieldAlert className="h-5 w-5 text-destructive" />
                     المخالفات المكتشفة ({filteredViolations.length})
                   </CardTitle>
-                  <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+                    <ExportCSVButton
+                      data={filteredViolations.map(v => ({ user: v.user_name, type: v.violation_type, text: v.detected_text, source: v.source, date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}
+                      headers={[{ key: "user", label: "المستخدم" }, { key: "type", label: "النوع" }, { key: "text", label: "النص" }, { key: "source", label: "المصدر" }, { key: "date", label: "التاريخ" }, { key: "reviewed", label: "تمت المراجعة" }]}
+                      filename="المخالفات"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
