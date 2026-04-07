@@ -28,9 +28,13 @@ export default function WithdrawalRequestsTab() {
 
     if (data && (data as any[]).length > 0) {
       const teacherIds = [...new Set((data as any[]).map((r: any) => r.teacher_id))];
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds);
+      const [{ data: profiles }, { data: teacherProfiles }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
+        supabase.from("teacher_profiles").select("user_id, bank_name, iban, account_holder_name").in("user_id", teacherIds),
+      ]);
       const nameMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
-      setRequests((data as any[]).map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم" })));
+      const bankMap = new Map((teacherProfiles ?? []).map((p: any) => [p.user_id, { bank_name: p.bank_name, iban: p.iban, account_holder_name: p.account_holder_name }]));
+      setRequests((data as any[]).map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم", bank_info: bankMap.get(r.teacher_id) || null })));
     } else {
       setRequests([]);
     }
