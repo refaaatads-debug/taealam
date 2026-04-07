@@ -706,6 +706,7 @@ const AdminDashboard = () => {
                       filename="المخالفات"
                     />
                   </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {filteredViolations.length === 0 ? (
