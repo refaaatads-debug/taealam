@@ -79,6 +79,7 @@ export default function TeacherPaymentsTab() {
             </table>
           </div>
         )}
+      </CardContent>
     </Card>
   );
 }
