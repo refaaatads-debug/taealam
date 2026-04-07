@@ -317,13 +317,11 @@ const StudentDashboard = () => {
                               <span className="text-xs font-medium">دردشة</span>
                             </Link>
                           </Button>
-                          {isToday && isConfirmed ? (
-                            <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button animate-pulse-soft" asChild>
-                              <Link to={`/session?booking=${c.id}`}>انضم الآن</Link>
+                          {isConfirmed && (
+                            <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                              <Link to={`/session?booking=${c.id}`}>انضم للجلسة</Link>
                             </Button>
-                          ) : isConfirmed ? (
-                            <Badge className="bg-secondary/10 text-secondary border-0 text-xs">مؤكدة ✓</Badge>
-                          ) : null}
+                          )}
                         </div>
                       </motion.div>
                     );
