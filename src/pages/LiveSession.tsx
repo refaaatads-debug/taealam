@@ -438,6 +438,21 @@ const LiveSession = () => {
         </div>
       </div>
 
+      {/* Floating violation alert */}
+      <AnimatePresence>
+        {latestAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-destructive text-destructive-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            {latestAlert}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
         {/* Main area - audio session view */}
