@@ -57,6 +57,8 @@ interface UserDetail extends UserProfile {
   };
   subjects?: string[];
   bookingsAsTeacher?: number;
+  // Permissions
+  permissions?: string[];
   // Warnings
   warnings?: { warning_type: string; description: string | null; created_at: string; warning_count: number }[];
 }
