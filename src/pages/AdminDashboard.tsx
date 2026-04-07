@@ -517,7 +517,7 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {pendingTeachers.map((t) => (
+                    {filteredTeachers.map((t) => (
                       <div key={t.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
