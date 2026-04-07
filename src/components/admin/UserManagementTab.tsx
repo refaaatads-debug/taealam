@@ -345,6 +345,7 @@ export default function UserManagementTab() {
                   <th className="text-right pb-3 font-medium">الاسم</th>
                   <th className="text-right pb-3 font-medium">الهاتف</th>
                   <th className="text-right pb-3 font-medium">الدور</th>
+                  <th className="text-right pb-3 font-medium">الصلاحيات</th>
                   <th className="text-right pb-3 font-medium">المستوى</th>
                   <th className="text-right pb-3 font-medium">التسجيل</th>
                   <th className="text-right pb-3 font-medium">إجراءات</th>
@@ -353,6 +354,7 @@ export default function UserManagementTab() {
               <tbody className="divide-y">
                 {filteredUsers.map((u) => {
                   const userRole = userRolesMap.get(u.user_id) || "student";
+                  const userPerms = userPermissionsMap.get(u.user_id) || [];
                   const isCurrentUser = u.user_id === currentUser?.id;
                   return (
                     <tr key={u.id} className="hover:bg-muted/30">
@@ -362,6 +364,22 @@ export default function UserManagementTab() {
                         <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
                           {roleLabel(userRole)}
                         </Badge>
+                      </td>
+                      <td className="py-3">
+                        {userPerms.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {userPerms.slice(0, 2).map(p => (
+                              <Badge key={p} className="bg-primary/10 text-primary border-0 text-[10px]">
+                                {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.label}
+                              </Badge>
+                            ))}
+                            {userPerms.length > 2 && (
+                              <Badge variant="outline" className="text-[10px]">+{userPerms.length - 2}</Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="py-3">
                         <Badge variant="outline" className="text-xs">{u.level || "bronze"}</Badge>
