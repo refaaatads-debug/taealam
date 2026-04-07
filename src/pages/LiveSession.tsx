@@ -172,6 +172,42 @@ const LiveSession = () => {
     fetchBooking();
   }, [bookingId, user]);
 
+  // Auto-join for student when teacher starts session
+  useEffect(() => {
+    if (!bookingId || !user || !bookingData) return;
+    const isStudent = user.id === bookingData.student_id;
+    if (!isStudent || meetingStarted) return;
+
+    // Check if session is already in progress
+    if (bookingData.session_status === "in_progress") {
+      setMeetingStarted(true);
+      start();
+      logEvent("auto_join_session", { role: "student" });
+      return;
+    }
+
+    // Listen for realtime changes
+    const channel = supabase
+      .channel(`session-status-${bookingId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "bookings",
+        filter: `id=eq.${bookingId}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.session_status === "in_progress" && !meetingStarted) {
+          setMeetingStarted(true);
+          start();
+          logEvent("auto_join_session", { role: "student", trigger: "realtime" });
+          toast.success("بدأ المعلم الحصة! جاري الانضمام... 🎓");
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [bookingId, user, bookingData, meetingStarted, start, logEvent]);
+
   // Session timer - counts only when both connected (anti-cheat)
   useEffect(() => {
     if (!meetingStarted) return;
@@ -606,11 +642,14 @@ const LiveSession = () => {
                 </Button>
               ) : (
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-primary-foreground/10 mx-auto mb-3 flex items-center justify-center animate-pulse">
-                    <Clock className="h-8 w-8 text-primary-foreground/50" />
-                  </div>
-                  <p className="text-sm opacity-70">في انتظار المعلم لبدء الحصة...</p>
-                  <p className="text-xs opacity-40 mt-1">سيتم الانضمام تلقائياً عند بدء المعلم</p>
+                  <Button
+                    onClick={startMeeting}
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2 mb-4"
+                  >
+                    <Headphones className="h-6 w-6" />
+                    انضم للحصة
+                  </Button>
+                  <p className="text-xs opacity-40 mt-2">أو انتظر المعلم ليبدأ الحصة وسيتم الانضمام تلقائياً</p>
                 </div>
               )}
             </div>
