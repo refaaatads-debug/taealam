@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -486,15 +487,9 @@ const LiveSession = () => {
 
         {/* Whiteboard */}
         <AnimatePresence>
-          {boardOpen && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 bg-card flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                  <PenTool className="h-10 w-10 opacity-30" />
-                </div>
-                <p className="font-bold text-lg mb-1">السبورة التفاعلية</p>
-                <p className="text-sm">ارسم واكتب هنا</p>
-              </div>
+          {boardOpen && bookingId && user && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 min-w-0">
+              <WhiteboardCanvas bookingId={bookingId} userId={user.id} />
             </motion.div>
           )}
         </AnimatePresence>
