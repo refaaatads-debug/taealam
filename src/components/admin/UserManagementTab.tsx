@@ -105,8 +105,8 @@ export default function UserManagementTab() {
 
       if (role === "teacher") {
         promises.push(
-          supabase.from("teacher_profiles").select("*").eq("user_id", profile.user_id).maybeSingle(),
-          supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", profile.user_id),
+          supabase.from("teacher_profiles").select("*").eq("user_id", profile.user_id).maybeSingle() as any,
+          supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", profile.user_id) as any,
         );
       }
 
