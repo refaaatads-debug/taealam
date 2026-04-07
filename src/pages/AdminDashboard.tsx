@@ -289,6 +289,23 @@ const AdminDashboard = () => {
     u.phone?.includes(searchQuery)
   );
 
+  const filterByDate = (items: any[], dateFrom: string, dateTo: string) => {
+    return items.filter(item => {
+      const created = new Date(item.created_at);
+      if (dateFrom && created < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (created > end) return false;
+      }
+      return true;
+    });
+  };
+
+  const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
+  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo);
+  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
