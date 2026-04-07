@@ -26,6 +26,7 @@ import DateFilter from "@/components/admin/DateFilter";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
+import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -431,6 +432,10 @@ const AdminDashboard = () => {
               <Tag className="h-4 w-4" />
               الكوبونات
             </TabsTrigger>
+            <TabsTrigger value="teacher_performance" className="rounded-lg gap-1.5">
+              <TrendingUp className="h-4 w-4" />
+              أداء المعلمين
+            </TabsTrigger>
             <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               سحب الأرباح
@@ -834,6 +839,10 @@ const AdminDashboard = () => {
           {/* Coupons Tab */}
           <TabsContent value="coupons" className="space-y-4">
             <CouponsManagementTab />
+          </TabsContent>
+
+          <TabsContent value="teacher_performance" className="space-y-4">
+            <TeacherPerformanceTab />
           </TabsContent>
 
           <TabsContent value="withdrawals" className="space-y-4">

@@ -1,0 +1,479 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  GraduationCap, Clock, Users, Star, Search, ChevronDown, ChevronUp,
+  Sparkles, Loader2, BookOpen, TrendingUp, Award
+} from "lucide-react";
+import DateFilter from "./DateFilter";
+import ExportCSVButton from "./ExportCSVButton";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface TeacherData {
+  id: string;
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  avg_rating: number;
+  total_reviews: number;
+  total_sessions: number;
+  is_approved: boolean;
+  sessions: SessionDetail[];
+  totalMinutes: number;
+  totalHours: number;
+  studentsCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  aiReport: string | null;
+  aiReportLoading: boolean;
+}
+
+interface SessionDetail {
+  booking_id: string;
+  student_name: string;
+  subject_name: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  actual_duration: number | null;
+  status: string;
+  price: number | null;
+}
+
+export default function TeacherPerformanceTab() {
+  const [teachers, setTeachers] = useState<TeacherData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  useEffect(() => {
+    fetchTeacherPerformance();
+  }, []);
+
+  const fetchTeacherPerformance = async () => {
+    setLoading(true);
+    try {
+      // Get all approved teachers with profiles
+      const { data: teacherProfiles } = await supabase
+        .from("teacher_profiles")
+        .select("id, user_id, avg_rating, total_reviews, total_sessions, is_approved")
+        .eq("is_approved", true);
+
+      if (!teacherProfiles || teacherProfiles.length === 0) {
+        setTeachers([]);
+        setLoading(false);
+        return;
+      }
+
+      const userIds = teacherProfiles.map(t => t.user_id);
+
+      // Fetch profiles and bookings in parallel
+      const [profilesRes, bookingsRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
+        supabase.from("bookings").select("id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status").in("teacher_id", userIds),
+      ]);
+
+      const profileMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p]));
+      const bookingsByTeacher = new Map<string, any[]>();
+      (bookingsRes.data ?? []).forEach(b => {
+        const list = bookingsByTeacher.get(b.teacher_id) || [];
+        list.push(b);
+        bookingsByTeacher.set(b.teacher_id, list);
+      });
+
+      // Get all student names and subject names
+      const allStudentIds = [...new Set((bookingsRes.data ?? []).map(b => b.student_id))];
+      const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
+      const allBookingIds = (bookingsRes.data ?? []).filter(b => b.status === "completed").map(b => b.id);
+
+      const [studentsRes, subjectsRes, sessionsRes] = await Promise.all([
+        allStudentIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", allStudentIds) : { data: [] },
+        allSubjectIds.length > 0 ? supabase.from("subjects").select("id, name").in("id", allSubjectIds) : { data: [] },
+        allBookingIds.length > 0 ? supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", allBookingIds) : { data: [] },
+      ]);
+
+      const studentMap = new Map((studentsRes.data ?? []).map(s => [s.user_id, s.full_name]));
+      const subjectMap = new Map((subjectsRes.data ?? []).map(s => [s.id, s.name]));
+      const sessionMap = new Map((sessionsRes.data ?? []).map(s => [s.booking_id, s]));
+
+      // Build teacher data
+      const teacherData: TeacherData[] = teacherProfiles.map(tp => {
+        const profile = profileMap.get(tp.user_id);
+        const bookings = bookingsByTeacher.get(tp.user_id) || [];
+        const completedBookings = bookings.filter(b => b.status === "completed");
+        const cancelledBookings = bookings.filter(b => b.status === "cancelled");
+        const uniqueStudents = new Set(completedBookings.map(b => b.student_id));
+
+        let totalActualMinutes = 0;
+        const sessions: SessionDetail[] = bookings.map(b => {
+          const session = sessionMap.get(b.id);
+          const actualDuration = session?.duration_minutes || null;
+          if (b.status === "completed" && actualDuration) {
+            totalActualMinutes += actualDuration;
+          }
+          return {
+            booking_id: b.id,
+            student_name: studentMap.get(b.student_id) || "غير معروف",
+            subject_name: b.subject_id ? (subjectMap.get(b.subject_id) || "عامة") : "عامة",
+            scheduled_at: b.scheduled_at,
+            duration_minutes: b.duration_minutes,
+            actual_duration: actualDuration,
+            status: b.status,
+            price: b.price,
+          };
+        });
+
+        // Sort sessions by date descending
+        sessions.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
+
+        return {
+          id: tp.id,
+          user_id: tp.user_id,
+          full_name: profile?.full_name || "بدون اسم",
+          avatar_url: profile?.avatar_url || null,
+          avg_rating: Number(tp.avg_rating) || 0,
+          total_reviews: tp.total_reviews || 0,
+          total_sessions: tp.total_sessions || 0,
+          is_approved: tp.is_approved || false,
+          sessions,
+          totalMinutes: totalActualMinutes,
+          totalHours: Math.round((totalActualMinutes / 60) * 10) / 10,
+          studentsCount: uniqueStudents.size,
+          completedCount: completedBookings.length,
+          cancelledCount: cancelledBookings.length,
+          aiReport: null,
+          aiReportLoading: false,
+        };
+      });
+
+      // Sort by total hours descending
+      teacherData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+      setTeachers(teacherData);
+    } catch (e) {
+      console.error("Error fetching teacher performance:", e);
+      toast.error("حدث خطأ في تحميل البيانات");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateAIReport = async (teacher: TeacherData) => {
+    setTeachers(prev => prev.map(t => t.id === teacher.id ? { ...t, aiReportLoading: true } : t));
+
+    try {
+      const { data, error } = await supabase.functions.invoke("teacher-performance-report", {
+        body: {
+          teacher_name: teacher.full_name,
+          total_hours: teacher.totalHours,
+          total_sessions: teacher.completedCount,
+          cancelled_sessions: teacher.cancelledCount,
+          students_count: teacher.studentsCount,
+          avg_rating: teacher.avg_rating,
+          total_reviews: teacher.total_reviews,
+          sessions: teacher.sessions.slice(0, 20).map(s => ({
+            student: s.student_name,
+            subject: s.subject_name,
+            date: s.scheduled_at,
+            duration: s.actual_duration || s.duration_minutes,
+            status: s.status,
+          })),
+        },
+      });
+
+      if (error) throw error;
+      setTeachers(prev => prev.map(t => t.id === teacher.id ? { ...t, aiReport: data.report, aiReportLoading: false } : t));
+    } catch {
+      toast.error("تعذر إنشاء التقرير");
+      setTeachers(prev => prev.map(t => t.id === teacher.id ? { ...t, aiReportLoading: false } : t));
+    }
+  };
+
+  const filterByDate = (sessions: SessionDetail[]) => {
+    return sessions.filter(s => {
+      const d = new Date(s.scheduled_at);
+      if (dateFrom && d < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+      return true;
+    });
+  };
+
+  const filteredTeachers = teachers
+    .filter(t => t.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .map(t => {
+      if (!dateFrom && !dateTo) return t;
+      const filteredSessions = filterByDate(t.sessions);
+      const completedFiltered = filteredSessions.filter(s => s.status === "completed");
+      const totalMin = completedFiltered.reduce((sum, s) => sum + (s.actual_duration || 0), 0);
+      return {
+        ...t,
+        sessions: filteredSessions,
+        completedCount: completedFiltered.length,
+        cancelledCount: filteredSessions.filter(s => s.status === "cancelled").length,
+        totalMinutes: totalMin,
+        totalHours: Math.round((totalMin / 60) * 10) / 10,
+        studentsCount: new Set(completedFiltered.map(s => s.student_name)).size,
+      };
+    });
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "completed": return "مكتملة";
+      case "confirmed": return "مؤكدة";
+      case "cancelled": return "ملغاة";
+      default: return "معلقة";
+    }
+  };
+
+  const statusVariant = (status: string) => {
+    switch (status) {
+      case "completed": return "default" as const;
+      case "confirmed": return "secondary" as const;
+      case "cancelled": return "destructive" as const;
+      default: return "outline" as const;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-0 shadow-card">
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-secondary" />
+              أداء المعلمين ({filteredTeachers.length})
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative w-56">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="بحث بالاسم..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10 rounded-xl h-8 text-xs"
+                />
+              </div>
+              <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+              <ExportCSVButton
+                data={filteredTeachers.map(t => ({
+                  name: t.full_name,
+                  hours: t.totalHours,
+                  sessions: t.completedCount,
+                  cancelled: t.cancelledCount,
+                  students: t.studentsCount,
+                  rating: t.avg_rating,
+                  reviews: t.total_reviews,
+                }))}
+                headers={[
+                  { key: "name", label: "المعلم" },
+                  { key: "hours", label: "الساعات الفعلية" },
+                  { key: "sessions", label: "الحصص المكتملة" },
+                  { key: "cancelled", label: "الحصص الملغاة" },
+                  { key: "students", label: "عدد الطلاب" },
+                  { key: "rating", label: "التقييم" },
+                  { key: "reviews", label: "المراجعات" },
+                ]}
+                filename="أداء_المعلمين"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {filteredTeachers.length === 0 ? (
+            <div className="text-center py-12">
+              <GraduationCap className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">لا يوجد معلمين</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredTeachers.map((teacher) => (
+                <div key={teacher.id} className="border border-border rounded-2xl overflow-hidden">
+                  {/* Teacher Summary Row */}
+                  <button
+                    onClick={() => setExpandedTeacher(expandedTeacher === teacher.id ? null : teacher.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-right"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+                        {teacher.avatar_url ? (
+                          <img src={teacher.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <GraduationCap className="h-5 w-5 text-secondary" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-foreground">{teacher.full_name}</p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {teacher.totalHours} ساعة
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="h-3 w-3" />
+                            {teacher.completedCount} حصة
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {teacher.studentsCount} طالب
+                          </span>
+                          {teacher.avg_rating > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Star className="h-3 w-3 text-yellow-500" />
+                              {teacher.avg_rating.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-primary/10 text-primary border-0 text-xs">
+                        {teacher.totalHours} ساعة فعلية
+                      </Badge>
+                      {expandedTeacher === teacher.id ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded Details */}
+                  <AnimatePresence>
+                    {expandedTeacher === teacher.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+                          {/* Stats Grid */}
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            {[
+                              { label: "الساعات الفعلية", value: `${teacher.totalHours}`, icon: Clock, color: "text-primary" },
+                              { label: "حصص مكتملة", value: teacher.completedCount, icon: BookOpen, color: "text-green-600" },
+                              { label: "حصص ملغاة", value: teacher.cancelledCount, icon: BookOpen, color: "text-destructive" },
+                              { label: "عدد الطلاب", value: teacher.studentsCount, icon: Users, color: "text-secondary" },
+                              { label: "التقييم", value: teacher.avg_rating > 0 ? `${teacher.avg_rating.toFixed(1)} (${teacher.total_reviews})` : "—", icon: Star, color: "text-yellow-500" },
+                            ].map((stat, i) => (
+                              <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
+                                <stat.icon className={`h-4 w-4 mx-auto mb-1 ${stat.color}`} />
+                                <p className="text-lg font-black text-foreground">{stat.value}</p>
+                                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* AI Report */}
+                          <div className="bg-accent/20 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-bold text-sm flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-yellow-500" />
+                                تقرير أداء بالذكاء الاصطناعي
+                              </h4>
+                              {!teacher.aiReport && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => generateAIReport(teacher)}
+                                  disabled={teacher.aiReportLoading}
+                                  className="rounded-xl text-xs h-8 gap-1.5"
+                                >
+                                  {teacher.aiReportLoading ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> جاري الإنشاء...</>
+                                  ) : (
+                                    <><Sparkles className="h-3.5 w-3.5" /> إنشاء تقرير</>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            {teacher.aiReport ? (
+                              <div className="prose prose-sm text-foreground whitespace-pre-wrap text-sm leading-relaxed bg-background/60 rounded-xl p-4">
+                                {teacher.aiReport}
+                              </div>
+                            ) : !teacher.aiReportLoading ? (
+                              <p className="text-xs text-muted-foreground">اضغط على "إنشاء تقرير" للحصول على تحليل شامل لأداء المعلم</p>
+                            ) : null}
+                          </div>
+
+                          {/* Sessions List */}
+                          <div>
+                            <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
+                              <BookOpen className="h-4 w-4 text-primary" />
+                              تفاصيل الحصص ({teacher.sessions.length})
+                            </h4>
+                            {teacher.sessions.length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-4">لا توجد حصص</p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b text-muted-foreground">
+                                      <th className="text-right pb-2 font-medium">الطالب</th>
+                                      <th className="text-right pb-2 font-medium">المادة</th>
+                                      <th className="text-right pb-2 font-medium">التاريخ</th>
+                                      <th className="text-right pb-2 font-medium">المدة الفعلية</th>
+                                      <th className="text-right pb-2 font-medium">السعر</th>
+                                      <th className="text-right pb-2 font-medium">الحالة</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y">
+                                    {teacher.sessions.slice(0, 20).map((s, i) => (
+                                      <tr key={i} className="hover:bg-muted/20">
+                                        <td className="py-2 text-foreground">{s.student_name}</td>
+                                        <td className="py-2 text-muted-foreground">{s.subject_name}</td>
+                                        <td className="py-2 text-muted-foreground">
+                                          {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
+                                        </td>
+                                        <td className="py-2 text-foreground font-medium">
+                                          {s.actual_duration ? `${s.actual_duration} دقيقة` : `${s.duration_minutes} دقيقة`}
+                                        </td>
+                                        <td className="py-2 text-muted-foreground">
+                                          {s.price ? `${s.price} ر.س` : "—"}
+                                        </td>
+                                        <td className="py-2">
+                                          <Badge variant={statusVariant(s.status)} className="text-[10px]">
+                                            {statusLabel(s.status)}
+                                          </Badge>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                {teacher.sessions.length > 20 && (
+                                  <p className="text-center text-xs text-muted-foreground mt-2">
+                                    يتم عرض أحدث 20 حصة من إجمالي {teacher.sessions.length}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
