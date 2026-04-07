@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
