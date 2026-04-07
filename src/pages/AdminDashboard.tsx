@@ -675,13 +675,13 @@ const AdminDashboard = () => {
                   </CardTitle>
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
-                      { value: "unreviewed", label: "غير مراجعة" }, { value: "reviewed", label: "مؤكدة" },
-                      { value: "false_positive", label: "إيجابي كاذب" },
+                      { value: "unreviewed", label: "قيد المراجعة" }, { value: "reviewed", label: "مؤكدة" },
+                      { value: "false_positive", label: "ملغاة" },
                     ]} />
                     <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
                     <ExportCSVButton
-                      data={filteredViolations.map(v => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : v.user_role === "admin" ? "مسؤول" : "طالب", type: v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة", text: v.detected_text, original: v.original_message || "", source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, banned: v.is_banned ? "نعم" : "لا", date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}
-                      headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص المكتشف" }, { key: "original", label: "الرسالة الأصلية" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "عدد التحذيرات" }, { key: "banned", label: "محظور" }, { key: "date", label: "التاريخ" }, { key: "reviewed", label: "تمت المراجعة" }]}
+                      data={filteredViolations.map(v => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : v.user_role === "admin" ? "مسؤول" : "طالب", type: v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة", text: v.detected_text, original: v.original_message || "", source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, banned: v.is_banned ? "نعم" : "لا", date: new Date(v.created_at).toLocaleDateString("ar-SA"), status: v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة" }))}
+                      headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص المكتشف" }, { key: "original", label: "الرسالة الأصلية" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "عدد التحذيرات" }, { key: "banned", label: "محظور" }, { key: "date", label: "التاريخ" }, { key: "status", label: "الحالة" }]}
                       filename="المخالفات"
                     />
                   </div>
@@ -706,8 +706,8 @@ const AdminDashboard = () => {
                             <Badge variant="outline" className="text-[10px]">
                               {v.user_role === "teacher" ? "👨‍🏫 معلم" : v.user_role === "admin" ? "🛡️ مسؤول" : "🎓 طالب"}
                             </Badge>
-                            <Badge variant={v.is_false_positive ? "outline" : "destructive"} className="text-[10px]">
-                              {v.is_false_positive ? "إيجابي كاذب" : v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة"}
+                            <Badge variant={v.is_false_positive ? "secondary" : v.is_reviewed ? "default" : "destructive"} className="text-[10px]">
+                              {v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
                             </Badge>
                             {v.is_banned && (
                               <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>
@@ -764,7 +764,8 @@ const AdminDashboard = () => {
                             <span>المصدر: {v.source === "chat" ? "💬 الدردشة" : v.source === "recording" ? "🎥 التسجيل" : v.source}</span>
                             <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
+                            {/* Pending review actions */}
                             {!v.is_reviewed && (
                               <>
                                 <Button
@@ -773,11 +774,17 @@ const AdminDashboard = () => {
                                   className="text-xs h-7 rounded-lg"
                                   onClick={async () => {
                                     await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                                    await supabase.from("notifications").insert({
+                                      user_id: v.user_id,
+                                      title: "✅ تم إلغاء مخالفة",
+                                      body: "تمت مراجعة مخالفة مسجلة على حسابك وتم إلغاؤها. لا يوجد إجراء مطلوب.",
+                                      type: "violation",
+                                    });
                                     setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
-                                    toast.success("تم التحديد كإيجابي كاذب");
+                                    toast.success("تم إلغاء المخالفة وإشعار المستخدم");
                                   }}
                                 >
-                                  إيجابي كاذب
+                                  إلغاء المخالفة
                                 </Button>
                                 <Button
                                   size="sm"
@@ -785,20 +792,98 @@ const AdminDashboard = () => {
                                   className="text-xs h-7 rounded-lg"
                                   onClick={async () => {
                                     await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                                    await supabase.from("notifications").insert({
+                                      user_id: v.user_id,
+                                      title: "⚠️ مخالفة مؤكدة",
+                                      body: `تم تأكيد مخالفة على حسابك: ${v.violation_type === "contact_sharing" ? "مشاركة معلومات اتصال" : v.violation_type === "platform_mention" ? "ذكر منصة خارجية" : "مخالفة سياسات"}. يرجى الالتزام بقواعد المنصة.`,
+                                      type: "warning",
+                                    });
                                     setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
-                                    toast.success("تم تأكيد المخالفة");
+                                    toast.success("تم تأكيد المخالفة وإشعار المستخدم");
                                   }}
                                 >
                                   تأكيد المخالفة
                                 </Button>
                               </>
                             )}
-                            {v.is_reviewed && (
-                              <Badge variant="outline" className="text-[10px]">
-                                <CheckCircle className="h-3 w-3 ml-1" />
-                                تمت المراجعة
-                              </Badge>
+                            {/* Toggle status for reviewed violations */}
+                            {v.is_reviewed && !v.is_false_positive && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7 rounded-lg"
+                                onClick={async () => {
+                                  await (supabase as any).from("violations").update({ is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                                  await supabase.from("notifications").insert({
+                                    user_id: v.user_id,
+                                    title: "✅ تم إلغاء مخالفة سابقة",
+                                    body: "تمت مراجعة مخالفة مؤكدة سابقاً على حسابك وتم إلغاؤها.",
+                                    type: "violation",
+                                  });
+                                  if (v.warning_count > 0) {
+                                    const newCount = Math.max(0, v.warning_count - 1);
+                                    await supabase.from("user_warnings").update({
+                                      warning_count: newCount,
+                                      is_banned: false,
+                                      banned_until: null,
+                                    }).eq("user_id", v.user_id);
+                                  }
+                                  setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_false_positive: true, warning_count: Math.max(0, (item.warning_count || 1) - 1), is_banned: false } : item));
+                                  toast.success("تم تغيير الحالة إلى ملغاة وإشعار المستخدم");
+                                }}
+                              >
+                                تغيير إلى ملغاة
+                              </Button>
                             )}
+                            {v.is_reviewed && v.is_false_positive && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="text-xs h-7 rounded-lg"
+                                onClick={async () => {
+                                  await (supabase as any).from("violations").update({ is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                                  await supabase.from("notifications").insert({
+                                    user_id: v.user_id,
+                                    title: "⚠️ تم إعادة تأكيد مخالفة",
+                                    body: "تمت مراجعة مخالفة ملغاة سابقاً وتم تأكيدها مجدداً. يرجى الالتزام بقواعد المنصة.",
+                                    type: "warning",
+                                  });
+                                  setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_false_positive: false } : item));
+                                  toast.success("تم تغيير الحالة إلى مؤكدة وإشعار المستخدم");
+                                }}
+                              >
+                                تغيير إلى مؤكدة
+                              </Button>
+                            )}
+                            {/* Delete button */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7 rounded-lg text-destructive hover:bg-destructive/10"
+                              onClick={async () => {
+                                if (!confirm("هل أنت متأكد من حذف هذه المخالفة نهائياً؟")) return;
+                                await (supabase as any).from("violations").delete().eq("id", v.id);
+                                await supabase.from("notifications").insert({
+                                  user_id: v.user_id,
+                                  title: "🗑️ تم حذف مخالفة",
+                                  body: "تم حذف مخالفة مسجلة على حسابك بواسطة الإدارة.",
+                                  type: "violation",
+                                });
+                                if (!v.is_false_positive && v.warning_count > 0) {
+                                  const newCount = Math.max(0, v.warning_count - 1);
+                                  await supabase.from("user_warnings").update({
+                                    warning_count: newCount,
+                                    is_banned: newCount >= 3,
+                                    banned_until: newCount >= 3 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null,
+                                  }).eq("user_id", v.user_id);
+                                }
+                                setViolations(prev => prev.filter(item => item.id !== v.id));
+                                toast.success("تم حذف المخالفة وإشعار المستخدم");
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              حذف
+                            </Button>
                           </div>
                         </div>
                       </div>
