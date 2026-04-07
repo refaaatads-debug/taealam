@@ -24,6 +24,7 @@ import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
 import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
 import DateFilter from "@/components/admin/DateFilter";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
+import StatusFilter from "@/components/admin/StatusFilter";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -49,6 +50,8 @@ const AdminDashboard = () => {
   const [bookingDateTo, setBookingDateTo] = useState("");
   const [violationDateFrom, setViolationDateFrom] = useState("");
   const [violationDateTo, setViolationDateTo] = useState("");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
+  const [violationStatusFilter, setViolationStatusFilter] = useState("all");
   // Verify admin access
   useEffect(() => {
     if (!currentUserRoles.includes("admin")) {
@@ -304,8 +307,13 @@ const AdminDashboard = () => {
   };
 
   const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
-  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo);
-  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo);
+  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo)
+    .filter(b => bookingStatusFilter === "all" || b.status === bookingStatusFilter);
+  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo)
+    .filter((v: any) => violationStatusFilter === "all" 
+      || (violationStatusFilter === "unreviewed" && !v.is_reviewed)
+      || (violationStatusFilter === "reviewed" && v.is_reviewed && !v.is_false_positive)
+      || (violationStatusFilter === "false_positive" && v.is_false_positive));
 
   if (loading) {
     return (
@@ -652,7 +660,11 @@ const AdminDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusFilter value={bookingStatusFilter} onChange={setBookingStatusFilter} options={[
+                      { value: "pending", label: "معلقة" }, { value: "confirmed", label: "مؤكدة" },
+                      { value: "completed", label: "مكتملة" }, { value: "cancelled", label: "ملغاة" },
+                    ]} />
                     <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
                     <ExportCSVButton
                       data={filteredBookings.map(b => ({ student: b.student_name, teacher: b.teacher_name, date: new Date(b.scheduled_at).toLocaleDateString("ar-SA"), duration: b.duration_minutes, price: b.price || 0, status: b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة" }))}
@@ -698,7 +710,11 @@ const AdminDashboard = () => {
                     <ShieldAlert className="h-5 w-5 text-destructive" />
                     المخالفات المكتشفة ({filteredViolations.length})
                   </CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
+                      { value: "unreviewed", label: "غير مراجعة" }, { value: "reviewed", label: "مؤكدة" },
+                      { value: "false_positive", label: "إيجابي كاذب" },
+                    ]} />
                     <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
                     <ExportCSVButton
                       data={filteredViolations.map(v => ({ user: v.user_name, type: v.violation_type, text: v.detected_text, source: v.source, date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}

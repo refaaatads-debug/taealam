@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
+import StatusFilter from "./StatusFilter";
 
 export default function WithdrawalRequestsTab() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function WithdrawalRequestsTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -72,6 +74,7 @@ export default function WithdrawalRequestsTab() {
     const created = new Date(r.created_at);
     if (dateFrom && created < new Date(dateFrom)) return false;
     if (dateTo) { const end = new Date(dateTo); end.setHours(23,59,59,999); if (created > end) return false; }
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
     return true;
   });
 
@@ -83,7 +86,11 @@ export default function WithdrawalRequestsTab() {
             <DollarSign className="h-5 w-5 text-secondary" />
             طلبات سحب الأرباح ({filtered.length})
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatusFilter value={statusFilter} onChange={setStatusFilter} options={[
+              { value: "pending", label: "قيد المراجعة" }, { value: "approved", label: "تمت الموافقة" },
+              { value: "paid", label: "تم الدفع" }, { value: "rejected", label: "مرفوض" },
+            ]} />
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
             <ExportCSVButton
               data={filtered.map(r => ({ teacher: r.teacher_name, amount: r.amount, status: statusMap[r.status]?.label || r.status, date: new Date(r.created_at).toLocaleDateString("ar-SA"), notes: r.teacher_notes || "" }))}
