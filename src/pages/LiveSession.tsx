@@ -226,6 +226,15 @@ const LiveSession = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     const msgText = newMessage;
+
+    // ─── Client-side protection filter ───
+    const filterResult = filterChatMessage(msgText);
+    if (!filterResult.allowed) {
+      toast.error(filterResult.reason || "ممنوع مشاركة بيانات شخصية");
+      setNewMessage("");
+      return;
+    }
+
     setMessages((prev) => [...prev, {
       sender: "أنت",
       text: msgText,
