@@ -115,6 +115,13 @@ export default function BookingRequests() {
 
       if (hasOverlap) {
         toast.error("لديك حصة محجوزة في نفس الوقت. اختر وقتاً مختلفاً.");
+        // إرسال إشعار للطالب بأن المعلم غير متاح
+        await supabase.from("notifications").insert({
+          user_id: request.student_id,
+          title: "المعلم غير متاح ⏰",
+          body: `المعلم ${profile?.full_name || "المعلم"} لديه حصة أخرى في نفس الوقت (${new Date(request.scheduled_at).toLocaleDateString("ar-SA")} - ${new Date(request.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}). سيتم عرض طلبك لمعلمين آخرين.`,
+          type: "booking",
+        });
         return;
       }
     }
