@@ -307,8 +307,13 @@ const AdminDashboard = () => {
   };
 
   const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
-  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo);
-  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo);
+  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo)
+    .filter(b => bookingStatusFilter === "all" || b.status === bookingStatusFilter);
+  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo)
+    .filter((v: any) => violationStatusFilter === "all" 
+      || (violationStatusFilter === "unreviewed" && !v.is_reviewed)
+      || (violationStatusFilter === "reviewed" && v.is_reviewed && !v.is_false_positive)
+      || (violationStatusFilter === "false_positive" && v.is_false_positive));
 
   if (loading) {
     return (
