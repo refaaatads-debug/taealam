@@ -69,6 +69,7 @@ export default function UserManagementTab() {
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [userPermissionsMap, setUserPermissionsMap] = useState<Map<string, string[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
