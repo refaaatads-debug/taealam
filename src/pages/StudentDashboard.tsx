@@ -258,7 +258,7 @@ const StudentDashboard = () => {
             </motion.div>
 
             {/* Subscription Balance */}
-            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
+            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} freeTrialAvailable={freeTrialAvailable} />
 
             {/* Notifications */}
             <NotificationsSection />

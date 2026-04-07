@@ -1,16 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wallet, Clock, Zap } from "lucide-react";
+import { Wallet, Clock, Zap, Gift } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
 interface Props {
   subscription: any;
   stripeSubscription: any;
+  freeTrialAvailable?: boolean;
 }
 
-export default function SubscriptionBalance({ subscription, stripeSubscription }: Props) {
+export default function SubscriptionBalance({ subscription, stripeSubscription, freeTrialAvailable }: Props) {
   const hasSubscription = subscription || stripeSubscription?.subscribed;
 
   const remainingMinutes = subscription?.remaining_minutes ?? (subscription?.sessions_remaining ?? 0) * 45;
@@ -70,11 +71,24 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
             </>
           ) : (
             <div className="text-center py-4">
-              <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">لا توجد باقة نشطة حالياً</p>
-              <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                <Link to="/pricing">اشترك الآن <Zap className="mr-1 h-4 w-4" /></Link>
-              </Button>
+              {freeTrialAvailable ? (
+                <>
+                  <Gift className="h-10 w-10 text-secondary mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-foreground mb-1">🎉 لديك حصة تجريبية مجانية!</p>
+                  <p className="text-xs text-muted-foreground mb-4">جرّب أول حصة مجاناً بدون أي التزام</p>
+                  <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                    <Link to="/booking">احجز حصتك المجانية <Gift className="mr-1 h-4 w-4" /></Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground mb-4">لا توجد باقة نشطة حالياً</p>
+                  <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                    <Link to="/pricing">اشترك الآن <Zap className="mr-1 h-4 w-4" /></Link>
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </CardContent>
