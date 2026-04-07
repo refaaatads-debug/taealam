@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function SubscriptionBalance({ subscription, stripeSubscription }: Props) {
-  if (!subscription && !stripeSubscription?.subscribed) return null;
+  const hasSubscription = subscription || stripeSubscription?.subscribed;
 
   const remainingMinutes = subscription?.remaining_minutes ?? (subscription?.sessions_remaining ?? 0) * 45;
   const totalHours = subscription?.total_hours ?? 0;
@@ -27,41 +27,55 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
               <Wallet className="h-4 w-4 text-primary" />
             </div>
             رصيد الباقة
-            <Link to="/subscription-details">
-              <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20">{tierName} ←</Badge>
-            </Link>
+            {hasSubscription && (
+              <Link to="/subscription-details">
+                <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20">{tierName} ←</Badge>
+              </Link>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-muted/50 rounded-xl p-4 text-center">
-              <Clock className="h-5 w-5 text-secondary mx-auto mb-2" />
-              <p className="text-2xl font-black text-foreground">{remainingMinutes}</p>
-              <p className="text-xs text-muted-foreground">دقيقة متبقية</p>
+          {hasSubscription ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-muted/50 rounded-xl p-4 text-center">
+                  <Clock className="h-5 w-5 text-secondary mx-auto mb-2" />
+                  <p className="text-2xl font-black text-foreground">{remainingMinutes}</p>
+                  <p className="text-xs text-muted-foreground">دقيقة متبقية</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-4 text-center">
+                  <Zap className="h-5 w-5 text-gold mx-auto mb-2" />
+                  <p className="text-2xl font-black text-foreground">{hoursRemaining}</p>
+                  <p className="text-xs text-muted-foreground">ساعة متبقية</p>
+                </div>
+              </div>
+              {totalHours > 0 && (
+                <div className="w-full bg-muted/30 rounded-full h-2 mb-3">
+                  <div
+                    className="bg-secondary rounded-full h-2 transition-all"
+                    style={{ width: `${Math.min(100, (remainingMinutes / (totalHours * 60)) * 100)}%` }}
+                  />
+                </div>
+              )}
+              {stripeSubscription?.subscription_end && (
+                <p className="text-xs text-muted-foreground text-center mb-3">
+                  تنتهي الباقة: {new Date(stripeSubscription.subscription_end).toLocaleDateString("ar-SA")}
+                </p>
+              )}
+              {remainingMinutes <= 60 && (
+                <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                  <Link to="/pricing">تجديد الباقة <Zap className="mr-1 h-4 w-4" /></Link>
+                </Button>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-4">
+              <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground mb-4">لا توجد باقة نشطة حالياً</p>
+              <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                <Link to="/pricing">اشترك الآن <Zap className="mr-1 h-4 w-4" /></Link>
+              </Button>
             </div>
-            <div className="bg-muted/50 rounded-xl p-4 text-center">
-              <Zap className="h-5 w-5 text-gold mx-auto mb-2" />
-              <p className="text-2xl font-black text-foreground">{hoursRemaining}</p>
-              <p className="text-xs text-muted-foreground">ساعة متبقية</p>
-            </div>
-          </div>
-          {totalHours > 0 && (
-            <div className="w-full bg-muted/30 rounded-full h-2 mb-3">
-              <div
-                className="bg-secondary rounded-full h-2 transition-all"
-                style={{ width: `${Math.min(100, (remainingMinutes / (totalHours * 60)) * 100)}%` }}
-              />
-            </div>
-          )}
-          {stripeSubscription?.subscription_end && (
-            <p className="text-xs text-muted-foreground text-center mb-3">
-              تنتهي الباقة: {new Date(stripeSubscription.subscription_end).toLocaleDateString("ar-SA")}
-            </p>
-          )}
-          {remainingMinutes <= 60 && (
-            <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-              <Link to="/pricing">تجديد الباقة <Zap className="mr-1 h-4 w-4" /></Link>
-            </Button>
           )}
         </CardContent>
       </Card>
