@@ -6,11 +6,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import DateFilter from "./DateFilter";
 
 export default function WithdrawalRequestsTab() {
   const [requests, setRequests] = useState<any[]>([]);
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => { fetchData(); }, []);
 
@@ -64,20 +67,30 @@ export default function WithdrawalRequestsTab() {
     rejected: { label: "مرفوض", variant: "destructive" },
   };
 
+  const filtered = requests.filter(r => {
+    const created = new Date(r.created_at);
+    if (dateFrom && created < new Date(dateFrom)) return false;
+    if (dateTo) { const end = new Date(dateTo); end.setHours(23,59,59,999); if (created > end) return false; }
+    return true;
+  });
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
-        <CardTitle className="text-base font-bold flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-secondary" />
-          طلبات سحب الأرباح ({requests.length})
-        </CardTitle>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-secondary" />
+            طلبات سحب الأرباح ({filtered.length})
+          </CardTitle>
+          <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
+        </div>
       </CardHeader>
       <CardContent>
-        {requests.length === 0 ? (
+        {filtered.length === 0 ? (
           <p className="text-center py-8 text-muted-foreground">لا توجد طلبات سحب</p>
         ) : (
           <div className="space-y-3">
-            {requests.map((r: any) => {
+            {filtered.map((r: any) => {
               const s = statusMap[r.status] || statusMap.pending;
               const isExpanded = expandedId === r.id;
               return (
