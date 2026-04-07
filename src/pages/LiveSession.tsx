@@ -339,59 +339,51 @@ const LiveSession = () => {
 
     if (bookingId) {
       try {
-        const sessionDurationMinutes = Math.floor(elapsed / 60);
+        const durationSeconds = elapsed;
+        const durationMinutes = Math.ceil(durationSeconds / 60);
+        const isShortSession = durationMinutes < 5;
 
         await supabase.from("bookings").update({ status: "completed", session_status: "completed" }).eq("id", bookingId);
-        await supabase.from("sessions").update({ ended_at: new Date().toISOString(), duration_minutes: sessionDurationMinutes }).eq("booking_id", bookingId);
+        await supabase.from("sessions").update({ 
+          ended_at: new Date().toISOString(), 
+          duration_minutes: durationMinutes,
+          deducted_minutes: isShortSession ? 0 : durationMinutes,
+          teacher_earning: isShortSession ? 0 : durationMinutes * 0.3,
+          short_session: isShortSession,
+        } as any).eq("booking_id", bookingId);
 
         const recordingBlob = getRecordingBlob();
         if (recordingBlob) await uploadRecording();
 
-        if (bookingData && sessionDurationMinutes >= 45) {
+        if (bookingData && !isShortSession) {
           const teacherId = bookingData.teacher_id;
-          await supabase.from("bookings").update({ price: 25 }).eq("id", bookingId);
-          await supabase.from("teacher_payments").insert({
-            teacher_id: teacherId,
-            amount: 25,
-            notes: `أرباح حصة مكتملة (${sessionDurationMinutes} دقيقة) - حجز ${bookingId}`,
-            payment_method: "session_credit",
-          });
+          const teacherEarning = durationMinutes * 0.3;
+          
+          await supabase.from("bookings").update({ price: teacherEarning }).eq("id", bookingId);
+          
           await supabase.from("notifications").insert({
             user_id: teacherId,
             title: "تم إضافة أرباح حصة ✅",
-            body: `تمت إضافة 25 ر.س لرصيدك عن حصة مكتملة (${sessionDurationMinutes} دقيقة).`,
+            body: `تمت إضافة ${teacherEarning.toFixed(1)} ر.س لرصيدك عن حصة مكتملة (${durationMinutes} دقيقة).`,
             type: "payment",
           });
         }
 
-        if (bookingData) {
-          const studentId = bookingData.student_id;
-          const { data: activeSub } = await supabase
-            .from("user_subscriptions")
-            .select("id, sessions_remaining")
-            .eq("user_id", studentId)
-            .eq("is_active", true)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        if (bookingData && isShortSession) {
+          toast.info("الجلسة أقل من 5 دقائق - لم يتم خصم أي رصيد من الباقة.");
+        }
 
-          if (activeSub) {
-            const afterDeduction = activeSub.sessions_remaining - 1;
-            if (afterDeduction === 1) {
-              await supabase.from("notifications").insert({
-                user_id: studentId,
-                title: "⚠️ متبقي حصة واحدة فقط!",
-                body: "تنبيه: بقيت حصة واحدة في باقتك. جدد الآن.",
-                type: "subscription_warning",
-              });
-            } else if (afterDeduction <= 0) {
-              await supabase.from("notifications").insert({
-                user_id: studentId,
-                title: "انتهت حصص باقتك 📋",
-                body: "نفدت جميع حصصك. جدد باقتك.",
-                type: "subscription_expired",
-              });
-            }
+        if (bookingData && !isShortSession) {
+          const studentId = bookingData.student_id;
+          const newRemaining = Math.max(0, subscriptionRemainingMinutes - durationMinutes);
+          
+          if (newRemaining <= 30) {
+            await supabase.from("notifications").insert({
+              user_id: studentId,
+              title: newRemaining <= 0 ? "انتهى رصيد باقتك 📋" : "⚠️ رصيد الباقة منخفض!",
+              body: newRemaining <= 0 ? "نفد رصيد باقتك. جدد باقتك للاستمرار." : `متبقي ${newRemaining} دقيقة فقط. جدد باقتك.`,
+              type: newRemaining <= 0 ? "subscription_expired" : "subscription_warning",
+            });
           }
         }
 
@@ -403,6 +395,8 @@ const LiveSession = () => {
               student_speaking_seconds: 0,
               messages_count: messages.length,
               violation_count: violationCount,
+              duration_minutes: durationMinutes,
+              is_short_session: isShortSession,
             }
           } });
         } catch {
