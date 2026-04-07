@@ -295,13 +295,14 @@ const LiveSession = () => {
 
     await start();
 
-    await Promise.all([
-      supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
-      supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
-    ]);
+    // Only teacher updates booking/session status
+    if (isTeacher) {
+      await Promise.all([
+        supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
+        supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
+      ]);
 
-    if (bookingData && user) {
-      if (isTeacher) {
+      if (bookingData && user) {
         supabase.from("notifications").insert({
           user_id: bookingData.student_id,
           title: "الحصة بدأت! 🎓",
@@ -585,13 +586,25 @@ const LiveSession = () => {
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
-              {/* Screen share display (visible when teacher shares) */}
-              {screenSharing && isTeacher && (
-                <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
-                  <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                    <Monitor className="h-3 w-3" /> مشاركة الشاشة نشطة
-                  </p>
-                </div>
+              {/* Screen share display - show to both teacher and student */}
+              {(screenSharing || (remoteStream && remoteStream.getVideoTracks().length > 0)) && (
+                <>
+                  <video
+                    ref={(el) => {
+                      if (el && remoteStream && remoteStream.getVideoTracks().length > 0 && !isTeacher) {
+                        el.srcObject = remoteStream;
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className={`absolute inset-0 w-full h-full object-contain z-10 ${!isTeacher && remoteStream && remoteStream.getVideoTracks().length > 0 ? "" : "hidden"}`}
+                  />
+                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <Monitor className="h-3 w-3" /> مشاركة الشاشة نشطة
+                    </p>
+                  </div>
+                </>
               )}
 
               {/* Audio session indicator */}
@@ -664,9 +677,9 @@ const LiveSession = () => {
           )}
         </div>
 
-        {/* Whiteboard - Teacher only */}
+        {/* Whiteboard - Available for both teacher and student */}
         <AnimatePresence>
-          {boardOpen && bookingId && user && isTeacher && (
+          {boardOpen && bookingId && user && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 min-w-0">
               <WhiteboardCanvas bookingId={bookingId} userId={user.id} />
             </motion.div>
@@ -753,11 +766,16 @@ const LiveSession = () => {
           <MessageSquare className="h-5 w-5" />
         </Button>
 
-        {/* Student hand raise */}
+        {/* Student controls: whiteboard + hand raise */}
         {!isTeacher && (
-          <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
-            <Hand className="h-5 w-5" />
-          </Button>
+          <>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setBoardOpen(!boardOpen)}>
+              <PenTool className="h-5 w-5" />
+            </Button>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
+              <Hand className="h-5 w-5" />
+            </Button>
+          </>
         )}
 
         {/* Teacher extra controls */}
