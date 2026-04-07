@@ -14,6 +14,7 @@ import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
+import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 
 const LiveSession = () => {
@@ -98,6 +99,23 @@ const LiveSession = () => {
       localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
     },
     onEndSession: () => {
+      endSession();
+    },
+  });
+
+  // ─── Anti-Cheat System ───
+  const {
+    isTabLocked,
+    peerDisconnected,
+    reconnectCountdown,
+    cleanupSession,
+    checkActiveSession,
+    logEvent,
+  } = useSessionAntiCheat({
+    bookingId: bookingId || "",
+    userId: user?.id || "",
+    enabled: meetingStarted,
+    onForceEnd: () => {
       endSession();
     },
   });
@@ -202,7 +220,18 @@ const LiveSession = () => {
       toast.error("لا يوجد حجز محدد");
       return;
     }
+
+    // Anti-cheat: check for existing active sessions
+    const hasConflict = await checkActiveSession();
+    if (hasConflict) return;
+
+    // Anti-cheat: check tab lock
+    if (isTabLocked) {
+      toast.error("هذه الجلسة مفتوحة في تبويب آخر.");
+      return;
+    }
     setMeetingStarted(true);
+    logEvent("start_session", { role: isTeacher ? "teacher" : "student" });
 
     await start();
 
@@ -280,6 +309,8 @@ const LiveSession = () => {
 
     if (isRecording) stopRecording();
     await stop();
+    await cleanupSession();
+    logEvent("end_session", { elapsed_seconds: elapsed });
 
     if (bookingId) {
       try {
@@ -437,6 +468,32 @@ const LiveSession = () => {
           )}
         </div>
       </div>
+
+      {/* Tab locked overlay */}
+      {isTabLocked && (
+        <div className="absolute inset-0 z-50 bg-foreground/95 flex items-center justify-center">
+          <div className="text-center p-8">
+            <ShieldAlert className="h-16 w-16 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-card mb-2">الجلسة مفتوحة في تبويب آخر</h2>
+            <p className="text-card/60">أغلق التبويب الآخر وأعد تحميل هذه الصفحة</p>
+          </div>
+        </div>
+      )}
+
+      {/* Peer disconnect warning */}
+      <AnimatePresence>
+        {peerDisconnected && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-600 text-card px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm"
+          >
+            <WifiOff className="h-4 w-4" />
+            انقطع اتصال المشارك - مهلة إعادة الاتصال: {reconnectCountdown}ث
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating violation alert */}
       <AnimatePresence>
