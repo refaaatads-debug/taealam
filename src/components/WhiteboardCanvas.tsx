@@ -26,6 +26,7 @@ interface DrawAction {
 interface WhiteboardCanvasProps {
   bookingId: string;
   userId: string;
+  enabled?: boolean;
 }
 
 const COLORS = [
@@ -33,7 +34,7 @@ const COLORS = [
   "#9b59b6", "#1abc9c", "#e67e22", "#ffffff",
 ];
 
-export default function WhiteboardCanvas({ bookingId, userId }: WhiteboardCanvasProps) {
+export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("pen");
@@ -76,6 +77,8 @@ export default function WhiteboardCanvas({ bookingId, userId }: WhiteboardCanvas
 
   // Supabase Realtime Broadcast for live sync
   useEffect(() => {
+    if (!enabled) return;
+
     const channel = supabase.channel(`whiteboard-${bookingId}`, {
       config: { broadcast: { self: false } },
     });
@@ -108,13 +111,17 @@ export default function WhiteboardCanvas({ bookingId, userId }: WhiteboardCanvas
       }
     });
 
-    channel.subscribe();
+    channel.subscribe((status) => {
+      if (status !== "SUBSCRIBED") {
+        console.error("Whiteboard channel status:", status);
+      }
+    });
     channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [bookingId, userId]);
+  }, [bookingId, userId, enabled]);
 
   const fillBackground = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.fillStyle = "#ffffff";
@@ -200,6 +207,7 @@ export default function WhiteboardCanvas({ bookingId, userId }: WhiteboardCanvas
   };
 
   const broadcastAction = (action: DrawAction) => {
+    if (!enabled) return;
     channelRef.current?.send({
       type: "broadcast",
       event: "draw",
@@ -347,7 +355,7 @@ export default function WhiteboardCanvas({ bookingId, userId }: WhiteboardCanvas
   const handleClear = () => {
     actionsRef.current = [];
     undoneRef.current = [];
-    channelRef.current?.send({
+    if (enabled) channelRef.current?.send({
       type: "broadcast",
       event: "clear",
       payload: { senderId: userId },

@@ -46,6 +46,7 @@ const LiveSession = () => {
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const chatChannelRef = useRef<any>(null);
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
@@ -146,6 +147,66 @@ const LiveSession = () => {
       remoteAudioRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
+
+  useEffect(() => {
+    if (!bookingId || !user || !meetingStarted) return;
+
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("id, sender_id, content, created_at")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: true });
+
+      if (!data) return;
+
+      setMessages(data.map((msg: any) => ({
+        sender: msg.sender_id === user.id ? "أنت" : otherName,
+        text: msg.content,
+        time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+        me: msg.sender_id === user.id,
+      })));
+    };
+
+    fetchMessages();
+
+    if (chatChannelRef.current) {
+      supabase.removeChannel(chatChannelRef.current);
+      chatChannelRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`live-session-chat-${bookingId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_messages",
+        filter: `booking_id=eq.${bookingId}`,
+      }, (payload) => {
+        const msg = payload.new as any;
+        setMessages((prev) => {
+          const formatted = {
+            sender: msg.sender_id === user.id ? "أنت" : otherName,
+            text: msg.content,
+            time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+            me: msg.sender_id === user.id,
+          };
+
+          const exists = prev.some((item) => item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
+          return exists ? prev : [...prev, formatted];
+        });
+      })
+      .subscribe();
+
+    chatChannelRef.current = channel;
+
+    return () => {
+      if (chatChannelRef.current) {
+        supabase.removeChannel(chatChannelRef.current);
+        chatChannelRef.current = null;
+      }
+    };
+  }, [bookingId, user, meetingStarted, otherName]);
 
   // Fetch booking details
   useEffect(() => {
@@ -344,13 +405,21 @@ const LiveSession = () => {
       return;
     }
 
-    setMessages((prev) => [...prev, {
-      sender: "أنت",
-      text: msgText,
-      time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-      me: true,
-    }]);
     setNewMessage("");
+
+    if (bookingId && user) {
+      const { error } = await supabase.from("chat_messages").insert({
+        booking_id: bookingId,
+        sender_id: user.id,
+        content: msgText,
+      });
+
+      if (error) {
+        toast.error("تعذر إرسال الرسالة");
+        setNewMessage(msgText);
+        return;
+      }
+    }
 
     if (bookingId && user) {
       supabase.functions.invoke("analyze-violations", {
@@ -696,7 +765,7 @@ const LiveSession = () => {
         <AnimatePresence>
           {boardOpen && bookingId && user && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 min-w-0">
-              <WhiteboardCanvas bookingId={bookingId} userId={user.id} />
+              <WhiteboardCanvas bookingId={bookingId} userId={user.id} enabled={meetingStarted} />
             </motion.div>
           )}
         </AnimatePresence>
