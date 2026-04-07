@@ -688,7 +688,7 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {violations.map((v: any) => (
+                    {filteredViolations.map((v: any) => (
                       <div key={v.id} className={`p-4 rounded-xl border ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
