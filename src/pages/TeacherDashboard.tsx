@@ -11,6 +11,7 @@ import WithdrawalSection from "@/components/teacher/WithdrawalSection";
 import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
 import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
 import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterials";
+import TeacherSessionReports from "@/components/teacher/TeacherSessionReports";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
