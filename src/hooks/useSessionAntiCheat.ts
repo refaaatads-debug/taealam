@@ -279,10 +279,30 @@ export function useSessionAntiCheat({
         .eq("is_connected", true) as any;
 
       if (activeSessions && activeSessions.length > 0) {
-        const other = activeSessions.find((s: any) => s.booking_id !== bookingId);
+        const now = Date.now();
+        // Only consider sessions with a recent heartbeat (< 30s) as truly active
+        const trulyActive = activeSessions.filter((s: any) => {
+          const lastBeat = new Date(s.last_heartbeat).getTime();
+          return (now - lastBeat) < 30_000;
+        });
+
+        // Auto-cleanup stale sessions
+        const stale = activeSessions.filter((s: any) => {
+          const lastBeat = new Date(s.last_heartbeat).getTime();
+          return (now - lastBeat) >= 30_000;
+        });
+        for (const s of stale) {
+          supabase
+            .from("active_sessions" as any)
+            .update({ is_connected: false, disconnected_at: new Date().toISOString() } as any)
+            .eq("id", s.id)
+            .then(() => {});
+        }
+
+        const other = trulyActive.find((s: any) => s.booking_id !== bookingId);
         if (other) {
           toast.error("لديك جلسة نشطة أخرى. أنهِها أولاً قبل الانضمام لجلسة جديدة.", { duration: 8000 });
-          return true; // has conflict
+          return true;
         }
       }
       return false;
