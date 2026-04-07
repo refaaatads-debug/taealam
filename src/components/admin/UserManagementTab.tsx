@@ -82,13 +82,22 @@ export default function UserManagementTab() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const [usersRes, rolesRes] = await Promise.all([
+    const [usersRes, rolesRes, permsRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("user_roles").select("user_id, role"),
+      (supabase as any).from("user_permissions").select("user_id, permission"),
     ]);
     setAllUsers(usersRes.data ?? []);
     const rMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
     setUserRolesMap(rMap);
+    // Build permissions map
+    const pMap = new Map<string, string[]>();
+    (permsRes.data ?? []).forEach((p: any) => {
+      const existing = pMap.get(p.user_id) || [];
+      existing.push(p.permission);
+      pMap.set(p.user_id, existing);
+    });
+    setUserPermissionsMap(pMap);
     setLoading(false);
   };
 
