@@ -309,6 +309,8 @@ const LiveSession = () => {
 
     if (isRecording) stopRecording();
     await stop();
+    await cleanupSession();
+    logEvent("end_session", { elapsed_seconds: elapsed });
 
     if (bookingId) {
       try {
