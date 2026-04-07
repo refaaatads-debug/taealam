@@ -635,14 +635,17 @@ const AdminDashboard = () => {
           <TabsContent value="bookings" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold">آخر الحجوزات</CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
+                  <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {recentBookings.length === 0 ? (
+                {filteredBookings.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">لا توجد حجوزات بعد</p>
                 ) : (
                   <div className="space-y-3">
-                    {recentBookings.map((b) => (
+                    {filteredBookings.map((b) => (
                       <div key={b.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
                         <div>
                           <p className="font-medium text-sm text-foreground">
