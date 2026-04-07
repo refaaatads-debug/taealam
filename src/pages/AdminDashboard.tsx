@@ -43,6 +43,11 @@ const AdminDashboard = () => {
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}");
+    } catch { return {}; }
+  });
   const [activeTab, setActiveTab] = useState("overview");
   const [teacherDateFrom, setTeacherDateFrom] = useState("");
   const [teacherDateTo, setTeacherDateTo] = useState("");
