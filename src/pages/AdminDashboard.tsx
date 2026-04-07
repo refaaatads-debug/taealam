@@ -652,7 +652,14 @@ const AdminDashboard = () => {
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
-                  <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+                    <ExportCSVButton
+                      data={filteredBookings.map(b => ({ student: b.student_name, teacher: b.teacher_name, date: new Date(b.scheduled_at).toLocaleDateString("ar-SA"), duration: b.duration_minutes, price: b.price || 0, status: b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة" }))}
+                      headers={[{ key: "student", label: "الطالب" }, { key: "teacher", label: "المعلم" }, { key: "date", label: "التاريخ" }, { key: "duration", label: "المدة" }, { key: "price", label: "السعر" }, { key: "status", label: "الحالة" }]}
+                      filename="الحجوزات"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -691,8 +698,14 @@ const AdminDashboard = () => {
                     <ShieldAlert className="h-5 w-5 text-destructive" />
                     المخالفات المكتشفة ({filteredViolations.length})
                   </CardTitle>
-                  <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
-                </div>
+                  <div className="flex items-center gap-2">
+                    <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+                    <ExportCSVButton
+                      data={filteredViolations.map(v => ({ user: v.user_name, type: v.violation_type, text: v.detected_text, source: v.source, date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}
+                      headers={[{ key: "user", label: "المستخدم" }, { key: "type", label: "النوع" }, { key: "text", label: "النص" }, { key: "source", label: "المصدر" }, { key: "date", label: "التاريخ" }, { key: "reviewed", label: "تمت المراجعة" }]}
+                      filename="المخالفات"
+                    />
+                  </div>
               </CardHeader>
               <CardContent>
                 {filteredViolations.length === 0 ? (
