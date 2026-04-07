@@ -33,7 +33,6 @@ export function useWebRTC({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const makingOfferRef = useRef(false);
-  const isPoliteRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -178,8 +177,9 @@ export function useWebRTC({
 
     try {
       if (signalType === "offer") {
+        const isPolitePeer = userId.localeCompare(senderId) > 0;
         const offerCollision = makingOfferRef.current || pc.signalingState !== "stable";
-        if (offerCollision && !isPoliteRef.current) return;
+        if (offerCollision && !isPolitePeer) return;
 
         if (pc.signalingState !== "stable") {
           await pc.setLocalDescription({ type: "rollback" } as any);
@@ -210,9 +210,14 @@ export function useWebRTC({
         }
       } else if (signalType === "join") {
         onRemoteJoin?.();
-        // The later joiner is "polite"
-        isPoliteRef.current = true;
-        // Re-negotiate
+
+        if (pc.signalingState === "have-local-offer" && pc.localDescription) {
+          await sendSignal("offer", { sdp: pc.localDescription.toJSON() });
+          return;
+        }
+
+        if (pc.signalingState !== "stable") return;
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
@@ -229,12 +234,13 @@ export function useWebRTC({
     await initLocalMedia();
     // Continue even without mic - allow joining for chat/whiteboard
 
-    createPeerConnection();
-
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+
+    pendingCandidatesRef.current = [];
+    makingOfferRef.current = false;
 
     const channel = supabase
       .channel(`webrtc-${bookingId}`, {
@@ -250,6 +256,7 @@ export function useWebRTC({
     await waitForChannelSubscription(channel);
 
     channelRef.current = channel;
+    createPeerConnection();
 
     // Announce join
     await sendSignal("join", { userId });
