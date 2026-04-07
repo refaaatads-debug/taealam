@@ -626,7 +626,44 @@ export default function UserManagementTab() {
                   </div>
                 )}
 
-                {/* Warnings */}
+                {/* Permissions */}
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                    <KeyRound className="h-4 w-4 text-primary" /> الصلاحيات المخصصة
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.entries(PERMISSION_LABELS).map(([key, info]) => {
+                      const hasPermission = (selectedUser.permissions || []).includes(key);
+                      return (
+                        <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{info.icon}</span>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{info.label}</p>
+                              <p className="text-[10px] text-muted-foreground">{info.description}</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={hasPermission}
+                            onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
+                            disabled={selectedUser.user_id === currentUser?.id}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(selectedUser.permissions || []).length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {(selectedUser.permissions || []).map(p => (
+                        <Badge key={p} className="bg-primary/10 text-primary border-0 text-[10px] gap-1">
+                          {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+
                 {selectedUser.warnings && selectedUser.warnings.length > 0 && (
                   <div className="bg-destructive/5 rounded-xl p-4 border border-destructive/20">
                     <h3 className="font-bold text-sm flex items-center gap-2 mb-3 text-destructive">
