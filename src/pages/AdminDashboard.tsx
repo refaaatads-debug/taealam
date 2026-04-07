@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings, MessageSquare, Tag
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings, MessageSquare, Tag
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
