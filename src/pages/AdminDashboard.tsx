@@ -671,13 +671,16 @@ const AdminDashboard = () => {
           <TabsContent value="violations" className="space-y-4">
             <Card className="border-0 shadow-card">
               <CardHeader>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-destructive" />
-                  المخالفات المكتشفة ({violations.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-destructive" />
+                    المخالفات المكتشفة ({filteredViolations.length})
+                  </CardTitle>
+                  <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+                </div>
               </CardHeader>
               <CardContent>
-                {violations.length === 0 ? (
+                {filteredViolations.length === 0 ? (
                   <div className="text-center py-8">
                     <Shield className="h-12 w-12 text-green-500 mx-auto mb-3" />
                     <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
