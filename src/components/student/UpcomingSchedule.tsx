@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { toast } from "sonner";
 
 interface Props {
   upcomingClasses: any[];
@@ -17,6 +19,7 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const classIds = useMemo(() => upcomingClasses.map(c => c.id), [upcomingClasses]);
   const unreadCounts = useUnreadMessages(classIds);
+  const { play: playNotificationSound } = useNotificationSound();
 
   useEffect(() => {
     if (!user || upcomingClasses.length === 0) return;
@@ -39,6 +42,11 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
           const next = new Set(prev);
           if (updated.session_status === "in_progress") {
             next.add(updated.id);
+            // Play sound and show toast when teacher starts
+            if (!prev.has(updated.id)) {
+              playNotificationSound();
+              toast.success("🎓 المعلم بدأ الحصة! انضم الآن", { duration: 10000 });
+            }
           } else {
             next.delete(updated.id);
           }
@@ -108,9 +116,11 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                           <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 text-xs animate-pulse" asChild>
                             <Link to={`/session?booking=${c.id}`}><Video className="h-3 w-3 ml-1" />انضم الآن</Link>
                           </Button>
-                        ) : isToday && c.status === "confirmed" ? (
-                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs opacity-50 cursor-not-allowed" disabled>
-                            <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
+                        ) : c.status === "confirmed" ? (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-xs" asChild>
+                            <Link to={`/session?booking=${c.id}`}>
+                              <Clock className="h-3 w-3 ml-1" />بانتظار المعلم
+                            </Link>
                           </Button>
                         ) : null}
                         <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs relative" asChild>
