@@ -206,6 +206,7 @@ const LiveSession = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, [bookingId, user, bookingData, meetingStarted, start, logEvent]);
 
   // Session timer - counts only when both connected (anti-cheat)
   useEffect(() => {
