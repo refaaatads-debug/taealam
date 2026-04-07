@@ -515,6 +515,7 @@ const AdminDashboard = () => {
                       filename="طلبات_المعلمين"
                     />
                   </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {filteredTeachers.length === 0 ? (
