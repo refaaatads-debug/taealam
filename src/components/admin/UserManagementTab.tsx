@@ -13,8 +13,9 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
 import StatusFilter from "./StatusFilter";
 
@@ -56,6 +57,8 @@ interface UserDetail extends UserProfile {
   };
   subjects?: string[];
   bookingsAsTeacher?: number;
+  // Permissions
+  permissions?: string[];
   // Warnings
   warnings?: { warning_type: string; description: string | null; created_at: string; warning_count: number }[];
 }
@@ -66,6 +69,7 @@ export default function UserManagementTab() {
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [userPermissionsMap, setUserPermissionsMap] = useState<Map<string, string[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -78,13 +82,22 @@ export default function UserManagementTab() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const [usersRes, rolesRes] = await Promise.all([
+    const [usersRes, rolesRes, permsRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("user_roles").select("user_id, role"),
+      (supabase as any).from("user_permissions").select("user_id, permission"),
     ]);
     setAllUsers(usersRes.data ?? []);
     const rMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
     setUserRolesMap(rMap);
+    // Build permissions map
+    const pMap = new Map<string, string[]>();
+    (permsRes.data ?? []).forEach((p: any) => {
+      const existing = pMap.get(p.user_id) || [];
+      existing.push(p.permission);
+      pMap.set(p.user_id, existing);
+    });
+    setUserPermissionsMap(pMap);
     setLoading(false);
   };
 
@@ -127,6 +140,13 @@ export default function UserManagementTab() {
       }));
       detail.bookingsAsStudent = studentBookingsRes.count ?? 0;
       detail.warnings = warningsRes.data ?? [];
+
+      // Fetch permissions
+      const { data: permsData } = await (supabase as any)
+        .from("user_permissions")
+        .select("permission")
+        .eq("user_id", profile.user_id);
+      detail.permissions = (permsData ?? []).map((p: any) => p.permission);
 
       if (role === "teacher" && results[5]) {
         const tpRes = results[5];
@@ -179,6 +199,56 @@ export default function UserManagementTab() {
     ));
     setSelectedUser(prev => prev ? { ...prev, full_name: editData.full_name, phone: editData.phone, level: editData.level } : null);
     setEditMode(false);
+  };
+
+  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string }> = {
+    customer_support: { label: "خدمة العملاء", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬" },
+    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅" },
+    manage_teachers: { label: "إدارة المعلمين", description: "مراجعة طلبات المعلمين والموافقة عليها", icon: "👨‍🏫" },
+    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝" },
+    view_reports: { label: "عرض التقارير", description: "الوصول للإحصائيات وتقارير الأداء", icon: "📊" },
+    manage_payments: { label: "إدارة المدفوعات", description: "عرض وإدارة المدفوعات وطلبات السحب", icon: "💰" },
+    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️" },
+  };
+
+  const togglePermission = async (userId: string, permission: string, currentlyHas: boolean) => {
+    try {
+      if (currentlyHas) {
+        const { error } = await (supabase as any)
+          .from("user_permissions")
+          .delete()
+          .eq("user_id", userId)
+          .eq("permission", permission);
+        if (error) throw error;
+        setSelectedUser(prev => prev ? {
+          ...prev,
+          permissions: (prev.permissions || []).filter(p => p !== permission),
+        } : null);
+        setUserPermissionsMap(prev => {
+          const m = new Map(prev);
+          m.set(userId, (m.get(userId) || []).filter(p => p !== permission));
+          return m;
+        });
+        toast.success(`تم إزالة صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
+      } else {
+        const { error } = await (supabase as any)
+          .from("user_permissions")
+          .insert({ user_id: userId, permission, granted_by: currentUser?.id });
+        if (error) throw error;
+        setSelectedUser(prev => prev ? {
+          ...prev,
+          permissions: [...(prev.permissions || []), permission],
+        } : null);
+        setUserPermissionsMap(prev => {
+          const m = new Map(prev);
+          m.set(userId, [...(m.get(userId) || []), permission]);
+          return m;
+        });
+        toast.success(`تم منح صلاحية "${PERMISSION_LABELS[permission]?.label}"`);
+      }
+    } catch {
+      toast.error("حدث خطأ في تحديث الصلاحية");
+    }
   };
 
   const changeUserRole = async (userId: string, newRole: string) => {
@@ -285,6 +355,7 @@ export default function UserManagementTab() {
                   <th className="text-right pb-3 font-medium">الاسم</th>
                   <th className="text-right pb-3 font-medium">الهاتف</th>
                   <th className="text-right pb-3 font-medium">الدور</th>
+                  <th className="text-right pb-3 font-medium">الصلاحيات</th>
                   <th className="text-right pb-3 font-medium">المستوى</th>
                   <th className="text-right pb-3 font-medium">التسجيل</th>
                   <th className="text-right pb-3 font-medium">إجراءات</th>
@@ -293,6 +364,7 @@ export default function UserManagementTab() {
               <tbody className="divide-y">
                 {filteredUsers.map((u) => {
                   const userRole = userRolesMap.get(u.user_id) || "student";
+                  const userPerms = userPermissionsMap.get(u.user_id) || [];
                   const isCurrentUser = u.user_id === currentUser?.id;
                   return (
                     <tr key={u.id} className="hover:bg-muted/30">
@@ -302,6 +374,22 @@ export default function UserManagementTab() {
                         <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
                           {roleLabel(userRole)}
                         </Badge>
+                      </td>
+                      <td className="py-3">
+                        {userPerms.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {userPerms.slice(0, 2).map(p => (
+                              <Badge key={p} className="bg-primary/10 text-primary border-0 text-[10px]">
+                                {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.label}
+                              </Badge>
+                            ))}
+                            {userPerms.length > 2 && (
+                              <Badge variant="outline" className="text-[10px]">+{userPerms.length - 2}</Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="py-3">
                         <Badge variant="outline" className="text-xs">{u.level || "bronze"}</Badge>
@@ -576,7 +664,44 @@ export default function UserManagementTab() {
                   </div>
                 )}
 
-                {/* Warnings */}
+                {/* Permissions */}
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                    <KeyRound className="h-4 w-4 text-primary" /> الصلاحيات المخصصة
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.entries(PERMISSION_LABELS).map(([key, info]) => {
+                      const hasPermission = (selectedUser.permissions || []).includes(key);
+                      return (
+                        <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{info.icon}</span>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{info.label}</p>
+                              <p className="text-[10px] text-muted-foreground">{info.description}</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={hasPermission}
+                            onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
+                            disabled={selectedUser.user_id === currentUser?.id}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(selectedUser.permissions || []).length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {(selectedUser.permissions || []).map(p => (
+                        <Badge key={p} className="bg-primary/10 text-primary border-0 text-[10px] gap-1">
+                          {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+
                 {selectedUser.warnings && selectedUser.warnings.length > 0 && (
                   <div className="bg-destructive/5 rounded-xl p-4 border border-destructive/20">
                     <h3 className="font-bold text-sm flex items-center gap-2 mb-3 text-destructive">

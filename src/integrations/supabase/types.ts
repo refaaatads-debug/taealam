@@ -901,6 +901,33 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          id: string
+          notes: string | null
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          id?: string
+          notes?: string | null
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          notes?: string | null
+          permission?: Database["public"]["Enums"]["app_permission"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -1102,6 +1129,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["app_permission"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1115,6 +1149,14 @@ export type Database = {
       }
     }
     Enums: {
+      app_permission:
+        | "customer_support"
+        | "manage_bookings"
+        | "manage_teachers"
+        | "manage_content"
+        | "view_reports"
+        | "manage_payments"
+        | "manage_coupons"
       app_role: "student" | "teacher" | "parent" | "admin"
       booking_status: "pending" | "confirmed" | "completed" | "cancelled"
       subscription_tier: "basic" | "standard" | "premium" | "free"
@@ -1245,6 +1287,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_permission: [
+        "customer_support",
+        "manage_bookings",
+        "manage_teachers",
+        "manage_content",
+        "view_reports",
+        "manage_payments",
+        "manage_coupons",
+      ],
       app_role: ["student", "teacher", "parent", "admin"],
       booking_status: ["pending", "confirmed", "completed", "cancelled"],
       subscription_tier: ["basic", "standard", "premium", "free"],
