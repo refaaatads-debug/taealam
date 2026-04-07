@@ -27,6 +27,7 @@ import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
+import UserManagementTab from "@/components/admin/UserManagementTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -596,95 +597,8 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Users Tab */}
           <TabsContent value="users" className="space-y-4">
-            <Card className="border-0 shadow-card">
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="text-base font-bold">إدارة المستخدمين ({filteredUsers.length})</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-64">
-                      <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="بحث بالاسم أو الرقم..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pr-10 rounded-xl h-9 text-sm"
-                      />
-                    </div>
-                    <ExportCSVButton
-                      data={filteredUsers.map(u => ({ name: u.full_name || "", phone: u.phone || "", role: userRolesMap.get(u.user_id) || "student", level: u.level || "bronze", date: new Date(u.created_at).toLocaleDateString("ar-SA") }))}
-                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "role", label: "الدور" }, { key: "level", label: "المستوى" }, { key: "date", label: "التسجيل" }]}
-                      filename="المستخدمين"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-muted-foreground">
-                        <th className="text-right pb-3 font-medium">الاسم</th>
-                        <th className="text-right pb-3 font-medium">الهاتف</th>
-                        <th className="text-right pb-3 font-medium">الدور</th>
-                        <th className="text-right pb-3 font-medium">المستوى</th>
-                        <th className="text-right pb-3 font-medium">التسجيل</th>
-                        <th className="text-right pb-3 font-medium">إجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {filteredUsers.map((u) => {
-                        const userRole = userRolesMap.get(u.user_id) || "student";
-                        const isCurrentUser = u.user_id === user?.id;
-                        return (
-                          <tr key={u.id} className="hover:bg-muted/30">
-                            <td className="py-3 font-medium text-foreground">{u.full_name || "—"}</td>
-                            <td className="py-3 text-muted-foreground" dir="ltr">{u.phone || "—"}</td>
-                            <td className="py-3">
-                              <Select
-                                value={userRole}
-                                onValueChange={(val) => changeUserRole(u.user_id, val)}
-                                disabled={isCurrentUser}
-                              >
-                                <SelectTrigger className="h-8 w-28 text-xs rounded-lg">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="student">طالب</SelectItem>
-                                  <SelectItem value="teacher">معلم</SelectItem>
-                                  <SelectItem value="admin">مسؤول</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="py-3">
-                              <Badge variant="outline" className="text-xs">{u.level || "bronze"}</Badge>
-                            </td>
-                            <td className="py-3 text-muted-foreground text-xs">{new Date(u.created_at).toLocaleDateString("ar-SA")}</td>
-                            <td className="py-3">
-                              {!isCurrentUser && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    if (window.confirm(`هل أنت متأكد من حذف بيانات ${u.full_name}؟`)) {
-                                      deleteUser(u.user_id);
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            <UserManagementTab />
           </TabsContent>
 
           {/* Bookings Tab */}
