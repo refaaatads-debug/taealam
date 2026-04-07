@@ -508,34 +508,43 @@ export type Database = {
           ai_report: string | null
           booking_id: string
           created_at: string
+          deducted_minutes: number | null
           duration_minutes: number | null
           ended_at: string | null
           id: string
           recording_url: string | null
           room_id: string | null
+          short_session: boolean | null
           started_at: string | null
+          teacher_earning: number | null
         }
         Insert: {
           ai_report?: string | null
           booking_id: string
           created_at?: string
+          deducted_minutes?: number | null
           duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           recording_url?: string | null
           room_id?: string | null
+          short_session?: boolean | null
           started_at?: string | null
+          teacher_earning?: number | null
         }
         Update: {
           ai_report?: string | null
           booking_id?: string
           created_at?: string
+          deducted_minutes?: number | null
           duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           recording_url?: string | null
           room_id?: string | null
+          short_session?: boolean | null
           started_at?: string | null
+          teacher_earning?: number | null
         }
         Relationships: [
           {
@@ -911,6 +920,7 @@ export type Database = {
           available_from: string | null
           available_to: string | null
           avg_rating: number | null
+          balance: number
           bank_name: string | null
           bio: string | null
           created_at: string
@@ -931,6 +941,7 @@ export type Database = {
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null
+          balance?: number
           bank_name?: string | null
           bio?: string | null
           created_at?: string
@@ -951,6 +962,7 @@ export type Database = {
           available_from?: string | null
           available_to?: string | null
           avg_rating?: number | null
+          balance?: number
           bank_name?: string | null
           bio?: string | null
           created_at?: string
@@ -1053,8 +1065,10 @@ export type Database = {
           id: string
           is_active: boolean | null
           plan_id: string
+          remaining_minutes: number
           sessions_remaining: number
           starts_at: string
+          total_hours: number
           updated_at: string
           user_id: string
         }
@@ -1065,8 +1079,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           plan_id: string
+          remaining_minutes?: number
           sessions_remaining?: number
           starts_at?: string
+          total_hours?: number
           updated_at?: string
           user_id: string
         }
@@ -1077,8 +1093,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           plan_id?: string
+          remaining_minutes?: number
           sessions_remaining?: number
           starts_at?: string
+          total_hours?: number
           updated_at?: string
           user_id?: string
         }
