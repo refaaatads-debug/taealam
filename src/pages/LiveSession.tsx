@@ -172,7 +172,9 @@ const LiveSession = () => {
     fetchBooking();
   }, [bookingId, user]);
 
-  // Auto-join for student when teacher starts session
+  // Track if teacher has started the session (for student join button)
+  const [teacherStarted, setTeacherStarted] = useState(false);
+
   useEffect(() => {
     if (!bookingId || !user || !bookingData) return;
     const isStudent = user.id === bookingData.student_id;
@@ -180,9 +182,8 @@ const LiveSession = () => {
 
     // Check if session is already in progress
     if (bookingData.session_status === "in_progress") {
-      setMeetingStarted(true);
-      start();
-      logEvent("auto_join_session", { role: "student" });
+      setTeacherStarted(true);
+      toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
       return;
     }
 
@@ -197,16 +198,14 @@ const LiveSession = () => {
       }, (payload) => {
         const updated = payload.new as any;
         if (updated.session_status === "in_progress" && !meetingStarted) {
-          setMeetingStarted(true);
-          start();
-          logEvent("auto_join_session", { role: "student", trigger: "realtime" });
-          toast.success("بدأ المعلم الحصة! جاري الانضمام... 🎓");
+          setTeacherStarted(true);
+          toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
         }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [bookingId, user, bookingData, meetingStarted, start, logEvent]);
+  }, [bookingId, user, bookingData, meetingStarted]);
 
   // Session timer - counts only when both connected (anti-cheat)
   useEffect(() => {
@@ -644,12 +643,15 @@ const LiveSession = () => {
                 <div className="text-center">
                   <Button
                     onClick={startMeeting}
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2 mb-4"
+                    disabled={!teacherStarted}
+                    className={`rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2 mb-4 ${teacherStarted ? "bg-green-600 hover:bg-green-700 text-white animate-pulse" : "bg-muted text-muted-foreground cursor-not-allowed"}`}
                   >
                     <Headphones className="h-6 w-6" />
-                    انضم للحصة
+                    {teacherStarted ? "انضم للحصة الآن" : "بانتظار بدء المعلم..."}
                   </Button>
-                  <p className="text-xs opacity-40 mt-2">أو انتظر المعلم ليبدأ الحصة وسيتم الانضمام تلقائياً</p>
+                  <p className="text-xs opacity-40 mt-2">
+                    {teacherStarted ? "المعلم بدأ الحصة - اضغط للانضمام" : "سيتم تفعيل الزر عندما يبدأ المعلم الحصة"}
+                  </p>
                 </div>
               )}
             </div>
