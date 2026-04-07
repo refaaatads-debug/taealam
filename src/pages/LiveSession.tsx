@@ -394,6 +394,20 @@ const LiveSession = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Violation counter badge */}
+          {violationCount > 0 && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold">
+              <ShieldAlert className="h-3 w-3" />
+              {violationCount} مخالفة
+            </span>
+          )}
+          {/* System mute indicator */}
+          {isMutedBySystem && (
+            <span className="flex items-center gap-1.5 text-xs bg-destructive/30 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
+              <VolumeX className="h-3 w-3" />
+              محظور {muteCountdown}ث
+            </span>
+          )}
           {meetingStarted && (
             <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
               <Clock className="h-3 w-3" />
