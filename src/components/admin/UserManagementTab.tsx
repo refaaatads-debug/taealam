@@ -656,6 +656,56 @@ export default function UserManagementTab() {
                   </div>
                 )}
 
+                {/* Bank Info */}
+                {selectedUser.bankInfo && (selectedUser.bankInfo.bank_name || selectedUser.bankInfo.iban) && (
+                  <div className="bg-secondary/5 rounded-xl p-4 border border-secondary/20">
+                    <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                      <CreditCard className="h-4 w-4 text-secondary" /> بيانات الدفع البنكية
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-xs text-muted-foreground">البنك</span>
+                        <p className="font-medium text-foreground mt-0.5">{selectedUser.bankInfo.bank_name || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">صاحب الحساب</span>
+                        <p className="font-medium text-foreground mt-0.5">{selectedUser.bankInfo.account_holder_name || "—"}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">IBAN</span>
+                        <p className="font-medium text-foreground mt-0.5 font-mono text-xs" dir="ltr">{selectedUser.bankInfo.iban || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Certificates */}
+                {selectedUser.certificates && selectedUser.certificates.length > 0 && (
+                  <div className="bg-muted/30 rounded-xl p-4">
+                    <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+                      <Award className="h-4 w-4 text-primary" /> الشهادات والمؤهلات ({selectedUser.certificates.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedUser.certificates.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{c.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(c.created_at).toLocaleDateString("ar-SA")}</p>
+                            </div>
+                          </div>
+                          <a href={c.file_url} target="_blank" rel="noopener noreferrer">
+                            <Badge variant="outline" className="text-xs gap-1 cursor-pointer hover:bg-muted">
+                              <FileText className="h-3 w-3" /> عرض
+                            </Badge>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Badges */}
                 {selectedUser.badges && selectedUser.badges.length > 0 && (
                   <div className="bg-muted/30 rounded-xl p-4">
