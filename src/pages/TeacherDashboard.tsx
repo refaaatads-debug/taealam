@@ -93,16 +93,10 @@ const TeacherDashboard = () => {
       .select("student_id", { count: "exact", head: true })
       .eq("teacher_id", user.id);
 
-    const { data: completedBookings } = await supabase
-      .from("bookings")
-      .select("price")
-      .eq("teacher_id", user.id)
-      .eq("status", "completed");
-
-    const earnings = (completedBookings ?? []).reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+    const balance = Number(tp?.balance) || 0;
 
     setStats({
-      earnings,
+      earnings: balance,
       students: studentCount || 0,
       sessions: tp?.total_sessions || 0,
       rating: Number(tp?.avg_rating) || 0,
