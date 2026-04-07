@@ -642,11 +642,14 @@ const LiveSession = () => {
                 </Button>
               ) : (
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-primary-foreground/10 mx-auto mb-3 flex items-center justify-center animate-pulse">
-                    <Clock className="h-8 w-8 text-primary-foreground/50" />
-                  </div>
-                  <p className="text-sm opacity-70">في انتظار المعلم لبدء الحصة...</p>
-                  <p className="text-xs opacity-40 mt-1">سيتم الانضمام تلقائياً عند بدء المعلم</p>
+                  <Button
+                    onClick={startMeeting}
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-8 py-4 text-lg font-bold shadow-lg gap-2 mb-4"
+                  >
+                    <Headphones className="h-6 w-6" />
+                    انضم للحصة
+                  </Button>
+                  <p className="text-xs opacity-40 mt-2">أو انتظر المعلم ليبدأ الحصة وسيتم الانضمام تلقائياً</p>
                 </div>
               )}
             </div>
