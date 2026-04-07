@@ -240,7 +240,7 @@ const AdminDashboard = () => {
         setUserRolesMap(rMap);
       }
 
-      // Violations
+      // Violations with user details
       const { data: viol } = await (supabase as any)
         .from("violations")
         .select("*")
@@ -249,9 +249,25 @@ const AdminDashboard = () => {
       if (viol) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
         if (vUserIds.length > 0) {
-          const { data: vProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds);
-          const vMap = new Map((vProfiles ?? []).map(p => [p.user_id, p.full_name]));
-          setViolations(viol.map((v: any) => ({ ...v, user_name: vMap.get(v.user_id) || "غير معروف" })));
+          const [profilesRes, rolesRes, warningsRes] = await Promise.all([
+            supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
+            supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
+            supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
+          ]);
+          const nameMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p.full_name]));
+          const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
+          const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
+          setViolations(viol.map((v: any) => {
+            const warning = warningMap.get(v.user_id);
+            return {
+              ...v,
+              user_name: nameMap.get(v.user_id) || "غير معروف",
+              user_role: roleMap.get(v.user_id) || "student",
+              warning_count: warning?.warning_count || 0,
+              is_banned: warning?.is_banned || false,
+              banned_until: warning?.banned_until || null,
+            };
+          }));
         } else {
           setViolations([]);
         }
@@ -664,8 +680,8 @@ const AdminDashboard = () => {
                     ]} />
                     <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
                     <ExportCSVButton
-                      data={filteredViolations.map(v => ({ user: v.user_name, type: v.violation_type, text: v.detected_text, source: v.source, date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}
-                      headers={[{ key: "user", label: "المستخدم" }, { key: "type", label: "النوع" }, { key: "text", label: "النص" }, { key: "source", label: "المصدر" }, { key: "date", label: "التاريخ" }, { key: "reviewed", label: "تمت المراجعة" }]}
+                      data={filteredViolations.map(v => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : v.user_role === "admin" ? "مسؤول" : "طالب", type: v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة", text: v.detected_text, original: v.original_message || "", source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, banned: v.is_banned ? "نعم" : "لا", date: new Date(v.created_at).toLocaleDateString("ar-SA"), reviewed: v.is_reviewed ? "نعم" : "لا" }))}
+                      headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص المكتشف" }, { key: "original", label: "الرسالة الأصلية" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "عدد التحذيرات" }, { key: "banned", label: "محظور" }, { key: "date", label: "التاريخ" }, { key: "reviewed", label: "تمت المراجعة" }]}
                       filename="المخالفات"
                     />
                   </div>
@@ -679,25 +695,73 @@ const AdminDashboard = () => {
                     <p className="text-sm text-muted-foreground">النظام يراقب المحادثات تلقائياً</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {filteredViolations.map((v: any) => (
                       <div key={v.id} className={`p-4 rounded-xl border ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <AlertTriangle className={`h-4 w-4 ${v.is_false_positive ? "text-muted-foreground" : "text-destructive"}`} />
                             <span className="font-bold text-sm text-foreground">{v.user_name}</span>
-                            <Badge variant={v.is_false_positive ? "outline" : "destructive"} className="text-[10px]">
-                              {v.is_false_positive ? "إيجابي كاذب" : v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : "مخالفة"}
+                            <Badge variant="outline" className="text-[10px]">
+                              {v.user_role === "teacher" ? "👨‍🏫 معلم" : v.user_role === "admin" ? "🛡️ مسؤول" : "🎓 طالب"}
                             </Badge>
+                            <Badge variant={v.is_false_positive ? "outline" : "destructive"} className="text-[10px]">
+                              {v.is_false_positive ? "إيجابي كاذب" : v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة"}
+                            </Badge>
+                            {v.is_banned && (
+                              <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>
+                            )}
                           </div>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                             {new Date(v.created_at).toLocaleDateString("ar-SA")} {new Date(v.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
-                        <p className="text-sm bg-muted/50 rounded-lg p-2 mb-2 text-foreground">{v.original_message || v.detected_text}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>المصدر: {v.source === "chat" ? "الدردشة" : v.source === "recording" ? "التسجيل" : v.source}</span>
+
+                        {/* Violation details */}
+                        <div className="space-y-2 mb-3">
+                          <div className="bg-muted/50 rounded-lg p-3">
+                            <p className="text-[10px] font-bold text-muted-foreground mb-1">الرسالة الأصلية:</p>
+                            <p className="text-sm text-foreground">{v.original_message || v.detected_text}</p>
+                          </div>
+                          {v.detected_text && v.original_message && v.detected_text !== v.original_message && (
+                            <div className="bg-destructive/5 rounded-lg p-3">
+                              <p className="text-[10px] font-bold text-destructive mb-1">الأنماط المكتشفة:</p>
+                              <p className="text-sm text-foreground font-mono">{v.detected_text}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Reason description */}
+                        <div className="bg-muted/30 rounded-lg p-3 mb-3">
+                          <p className="text-[10px] font-bold text-muted-foreground mb-1">سبب المخالفة:</p>
+                          <p className="text-xs text-foreground">
+                            {v.violation_type === "contact_sharing" && "محاولة مشاركة معلومات اتصال شخصية (أرقام هواتف، بريد إلكتروني) بهدف التواصل خارج المنصة"}
+                            {v.violation_type === "platform_mention" && "ذكر منصات تواصل خارجية (واتساب، تلغرام، سناب) بهدف نقل التواصل خارج المنصة"}
+                            {v.violation_type === "coded_message" && "استخدام رسائل مشفرة أو مموهة لمحاولة تمرير معلومات اتصال بطريقة غير مباشرة"}
+                            {!["contact_sharing", "platform_mention", "coded_message"].includes(v.violation_type) && "مخالفة لسياسات المنصة التعليمية"}
+                          </p>
+                        </div>
+
+                        {/* Warning history */}
+                        {(v.warning_count > 0) && (
+                          <div className={`rounded-lg p-3 mb-3 ${v.warning_count >= 3 ? "bg-destructive/10 border border-destructive/20" : "bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800"}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileWarning className="h-3.5 w-3.5 text-orange-600" />
+                              <p className="text-[10px] font-bold text-orange-700 dark:text-orange-400">سجل التحذيرات</p>
+                            </div>
+                            <p className="text-xs text-foreground">
+                              عدد التحذيرات: <span className="font-bold">{v.warning_count}</span> / 3
+                              {v.warning_count >= 3 && " — تم الحظر تلقائياً"}
+                              {v.banned_until && ` حتى ${new Date(v.banned_until).toLocaleDateString("ar-SA")}`}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Meta + Actions */}
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                            <span>المصدر: {v.source === "chat" ? "💬 الدردشة" : v.source === "recording" ? "🎥 التسجيل" : v.source}</span>
                             <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
                           </div>
                           <div className="flex gap-2">
