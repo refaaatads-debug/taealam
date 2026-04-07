@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Save, Trash2, Loader2, Crown, Star, Sparkles, Edit } from "lucide-react";
+import { Plus, Save, Trash2, Loader2, Crown, Star, Sparkles, Edit, User, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Plan {
@@ -19,6 +19,12 @@ interface Plan {
   has_recording: boolean;
   has_priority_booking: boolean;
   features: string[];
+  assigned_user_id: string | null;
+}
+
+interface StudentProfile {
+  user_id: string;
+  full_name: string;
 }
 
 const tierIcons: Record<string, typeof Star> = { basic: Star, standard: Sparkles, premium: Crown };
@@ -31,26 +37,50 @@ const PlansManagementTab = () => {
   const [editData, setEditData] = useState<Partial<Plan>>({});
   const [showNewForm, setShowNewForm] = useState(false);
   const [newPlan, setNewPlan] = useState<Partial<Plan>>({
-    name_ar: "",
-    tier: "basic",
-    price: 0,
-    sessions_count: 4,
-    has_ai_tutor: false,
-    has_recording: false,
-    has_priority_booking: false,
-    features: [],
+    name_ar: "", tier: "basic", price: 0, sessions_count: 4,
+    has_ai_tutor: false, has_recording: false, has_priority_booking: false,
+    features: [], assigned_user_id: null,
   });
   const [newFeature, setNewFeature] = useState("");
   const [editFeature, setEditFeature] = useState("");
+  const [students, setStudents] = useState<StudentProfile[]>([]);
+  const [studentNames, setStudentNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchPlans();
+    fetchStudents();
   }, []);
 
   const fetchPlans = async () => {
     const { data } = await supabase.from("subscription_plans").select("*").order("price");
-    if (data) setPlans(data as Plan[]);
+    if (data) {
+      setPlans(data as Plan[]);
+      // Fetch names for assigned students
+      const assignedIds = data.filter(p => p.assigned_user_id).map(p => p.assigned_user_id);
+      if (assignedIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", assignedIds);
+        if (profiles) {
+          const map: Record<string, string> = {};
+          profiles.forEach(p => { map[p.user_id] = p.full_name; });
+          setStudentNames(prev => ({ ...prev, ...map }));
+        }
+      }
+    }
     setLoading(false);
+  };
+
+  const fetchStudents = async () => {
+    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "student");
+    if (roles && roles.length > 0) {
+      const ids = roles.map(r => r.user_id);
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      if (profiles) {
+        setStudents(profiles);
+        const map: Record<string, string> = {};
+        profiles.forEach(p => { map[p.user_id] = p.full_name; });
+        setStudentNames(prev => ({ ...prev, ...map }));
+      }
+    }
   };
 
   const startEdit = (plan: Plan) => {
@@ -75,9 +105,9 @@ const PlansManagementTab = () => {
         has_recording: editData.has_recording,
         has_priority_booking: editData.has_priority_booking,
         features: editData.features as any,
+        assigned_user_id: editData.assigned_user_id || null,
       })
       .eq("id", planId);
-    
     if (error) {
       toast.error("خطأ في الحفظ: " + error.message);
     } else {
@@ -99,13 +129,14 @@ const PlansManagementTab = () => {
       has_recording: newPlan.has_recording,
       has_priority_booking: newPlan.has_priority_booking,
       features: newPlan.features as any,
+      assigned_user_id: newPlan.assigned_user_id || null,
     });
     if (error) {
       toast.error("خطأ في الإنشاء: " + error.message);
     } else {
       toast.success("تم إنشاء الباقة بنجاح");
       setShowNewForm(false);
-      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [] });
+      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [], assigned_user_id: null });
       fetchPlans();
     }
     setSaving(null);
@@ -121,6 +152,29 @@ const PlansManagementTab = () => {
       fetchPlans();
     }
   };
+
+  const StudentSelector = ({ value, onChange }: { value: string | null | undefined; onChange: (v: string | null) => void }) => (
+    <div className="flex items-center gap-2">
+      <Select value={value || "all"} onValueChange={v => onChange(v === "all" ? null : v)}>
+        <SelectTrigger className="rounded-lg text-sm">
+          <SelectValue placeholder="جميع الطلاب" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">جميع الطلاب (عامة)</SelectItem>
+          {students.map(s => (
+            <SelectItem key={s.user_id} value={s.user_id}>
+              {s.full_name || "طالب بدون اسم"}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {value && (
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0" onClick={() => onChange(null)}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      )}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -159,6 +213,10 @@ const PlansManagementTab = () => {
               </Select>
               <Input type="number" placeholder="السعر" value={newPlan.price || ""} onChange={e => setNewPlan(p => ({ ...p, price: Number(e.target.value) }))} className="rounded-lg text-sm" />
               <Input type="number" placeholder="عدد الحصص" value={newPlan.sessions_count || ""} onChange={e => setNewPlan(p => ({ ...p, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد (اختياري)</label>
+              <StudentSelector value={newPlan.assigned_user_id} onChange={v => setNewPlan(p => ({ ...p, assigned_user_id: v }))} />
             </div>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm">
@@ -217,6 +275,10 @@ const PlansManagementTab = () => {
                     <Input type="number" value={editData.price || ""} onChange={e => setEditData(d => ({ ...d, price: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="السعر" />
                     <Input type="number" value={editData.sessions_count || ""} onChange={e => setEditData(d => ({ ...d, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="عدد الحصص" />
                   </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد</label>
+                    <StudentSelector value={editData.assigned_user_id} onChange={v => setEditData(d => ({ ...d, assigned_user_id: v }))} />
+                  </div>
                   <div className="flex flex-wrap gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <Switch checked={editData.has_ai_tutor} onCheckedChange={v => setEditData(d => ({ ...d, has_ai_tutor: v }))} />
@@ -264,7 +326,15 @@ const PlansManagementTab = () => {
                       <Icon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="font-bold text-foreground text-sm">{plan.name_ar}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-foreground text-sm">{plan.name_ar}</p>
+                        {plan.assigned_user_id && (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-amber-500/50 text-amber-600">
+                            <User className="h-2.5 w-2.5" />
+                            {studentNames[plan.assigned_user_id] || "طالب مخصص"}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {plan.price} ر.س • {plan.sessions_count} حصة
                         {plan.has_ai_tutor && " • AI"}
