@@ -65,11 +65,22 @@ const AdminDashboard = () => {
   }, [currentUserRoles, navigate]);
 
   const fetchBadgeCounts = async () => {
+    const ts = seenTimestamps;
+    
+    let withdrawalsQuery = supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.withdrawals) withdrawalsQuery = withdrawalsQuery.gt("created_at", ts.withdrawals);
+    
+    let supportQuery = supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open");
+    if (ts.support) supportQuery = supportQuery.gt("created_at", ts.support);
+    
+    let bookingsQuery = supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.bookings) bookingsQuery = bookingsQuery.gt("created_at", ts.bookings);
+    
+    let violationsQuery = (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false);
+    if (ts.violations) violationsQuery = violationsQuery.gt("created_at", ts.violations);
+
     const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
-      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
+      withdrawalsQuery, supportQuery, bookingsQuery, violationsQuery,
     ]);
     setBadgeCounts({
       withdrawals: withdrawalsRes.count ?? 0,
@@ -77,6 +88,13 @@ const AdminDashboard = () => {
       pendingBookings: pendingBookingsRes.count ?? 0,
       unreviewed: unreviewedRes.count ?? 0,
     });
+  };
+
+  const markTabSeen = (tabKey: string) => {
+    const now = new Date().toISOString();
+    const updated = { ...seenTimestamps, [tabKey]: now };
+    setSeenTimestamps(updated);
+    localStorage.setItem("admin_seen_tabs", JSON.stringify(updated));
   };
 
   useEffect(() => {
