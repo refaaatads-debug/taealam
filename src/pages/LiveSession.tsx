@@ -344,12 +344,12 @@ const LiveSession = () => {
         const isShortSession = durationMinutes < 5;
 
         await supabase.from("bookings").update({ status: "completed", session_status: "completed" }).eq("id", bookingId);
+        
+        // Only set ended_at - the DB trigger auto_complete_session handles:
+        // duration_minutes, deducted_minutes, teacher_earning, short_session,
+        // subscription deduction, and teacher balance update
         await supabase.from("sessions").update({ 
-          ended_at: new Date().toISOString(), 
-          duration_minutes: durationMinutes,
-          deducted_minutes: isShortSession ? 0 : durationMinutes,
-          teacher_earning: isShortSession ? 0 : durationMinutes * 0.3,
-          short_session: isShortSession,
+          ended_at: new Date().toISOString(),
         } as any).eq("booking_id", bookingId);
 
         const recordingBlob = getRecordingBlob();
