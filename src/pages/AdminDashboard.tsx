@@ -43,6 +43,11 @@ const AdminDashboard = () => {
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}");
+    } catch { return {}; }
+  });
   const [activeTab, setActiveTab] = useState("overview");
   const [teacherDateFrom, setTeacherDateFrom] = useState("");
   const [teacherDateTo, setTeacherDateTo] = useState("");
@@ -60,11 +65,22 @@ const AdminDashboard = () => {
   }, [currentUserRoles, navigate]);
 
   const fetchBadgeCounts = async () => {
+    const ts = seenTimestamps;
+    
+    let withdrawalsQuery = supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.withdrawals) withdrawalsQuery = withdrawalsQuery.gt("created_at", ts.withdrawals);
+    
+    let supportQuery = supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open");
+    if (ts.support) supportQuery = supportQuery.gt("created_at", ts.support);
+    
+    let bookingsQuery = supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.bookings) bookingsQuery = bookingsQuery.gt("created_at", ts.bookings);
+    
+    let violationsQuery = (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false);
+    if (ts.violations) violationsQuery = violationsQuery.gt("created_at", ts.violations);
+
     const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
-      supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
+      withdrawalsQuery, supportQuery, bookingsQuery, violationsQuery,
     ]);
     setBadgeCounts({
       withdrawals: withdrawalsRes.count ?? 0,
@@ -72,6 +88,13 @@ const AdminDashboard = () => {
       pendingBookings: pendingBookingsRes.count ?? 0,
       unreviewed: unreviewedRes.count ?? 0,
     });
+  };
+
+  const markTabSeen = (tabKey: string) => {
+    const now = new Date().toISOString();
+    const updated = { ...seenTimestamps, [tabKey]: now };
+    setSeenTimestamps(updated);
+    localStorage.setItem("admin_seen_tabs", JSON.stringify(updated));
   };
 
   useEffect(() => {
@@ -363,11 +386,11 @@ const AdminDashboard = () => {
 
         <Tabs defaultValue="overview" value={activeTab} onValueChange={(val) => {
           setActiveTab(val);
-          // Clear badge counts when opening relevant tabs
-          if (val === "withdrawals") setBadgeCounts(prev => ({ ...prev, withdrawals: 0 }));
-          if (val === "support") setBadgeCounts(prev => ({ ...prev, support: 0 }));
-          if (val === "bookings") setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 }));
-          if (val === "violations") setBadgeCounts(prev => ({ ...prev, unreviewed: 0 }));
+          // Mark tab as seen and clear badge
+          if (val === "withdrawals") { markTabSeen("withdrawals"); setBadgeCounts(prev => ({ ...prev, withdrawals: 0 })); }
+          if (val === "support") { markTabSeen("support"); setBadgeCounts(prev => ({ ...prev, support: 0 })); }
+          if (val === "bookings") { markTabSeen("bookings"); setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 })); }
+          if (val === "violations") { markTabSeen("violations"); setBadgeCounts(prev => ({ ...prev, unreviewed: 0 })); }
         }} className="space-y-4">
           <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="rounded-lg gap-1.5">
