@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, Trash2, Settings, MessageSquare, Tag
+  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings, MessageSquare, Tag
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -28,6 +28,7 @@ import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
+import SessionReportsTab from "@/components/admin/SessionReportsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -474,6 +475,10 @@ const AdminDashboard = () => {
               {badgeCounts.support > 0 && (
                 <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.support}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="session_reports" className="rounded-lg gap-1.5">
+              <FileText className="h-4 w-4" />
+              تقارير الحصص
             </TabsTrigger>
           </TabsList>
 
@@ -925,6 +930,10 @@ const AdminDashboard = () => {
           {/* Support Tickets Tab */}
           <TabsContent value="support" className="space-y-4">
             <SupportTicketsTab />
+          </TabsContent>
+
+          <TabsContent value="session_reports" className="space-y-4">
+            <SessionReportsTab />
           </TabsContent>
         </Tabs>
       </div>
