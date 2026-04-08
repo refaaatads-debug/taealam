@@ -808,39 +808,6 @@ const LiveSession = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
-        {meetingStarted && (
-          <div className="absolute bottom-4 left-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card/90 p-3 shadow-lg backdrop-blur-sm">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-bold text-foreground">Live Debug</p>
-              <span className="text-[10px] text-muted-foreground">مرئي للطرف الحالي</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">الاتصال: <span className="text-muted-foreground">{connectionState}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">DataChannel: <span className="text-muted-foreground">{dataChannelReady ? "open" : "closed"}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Remote stream: <span className="text-muted-foreground">{remoteStream ? "yes" : "no"}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Screen flag: <span className="text-muted-foreground">{remoteScreenSharing ? "on" : "off"}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Audio tracks: <span className="text-muted-foreground">{remoteAudioTracks}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Video tracks: <span className="text-muted-foreground">{remoteVideoTracks} / live {remoteLiveVideoTracks}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Video status: <span className="text-muted-foreground">{remoteVideoStatus}</span></div>
-              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Whiteboard: <span className="text-muted-foreground">{whiteboardRemoteActions.length}</span></div>
-              <div className="col-span-2 rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Last data: <span className="text-muted-foreground">{lastDataMessageType} {lastDataMessageAt !== "-" ? `(${lastDataMessageAt})` : ""}</span></div>
-              <div className="col-span-2 rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Chat msgs: <span className="text-muted-foreground">{messages.length}</span></div>
-            </div>
-            <div className="mt-3 space-y-1 border-t border-border pt-2">
-              {debugEvents.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground">لا توجد أحداث بعد.</p>
-              ) : (
-                debugEvents.map((event, index) => (
-                  <div key={`${event.time}-${event.label}-${index}`} className="flex items-start gap-2 text-[11px]">
-                    <span className="shrink-0 text-muted-foreground">{event.time}</span>
-                    <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-foreground">{event.label}</span>
-                    <span className="min-w-0 flex-1 break-words text-muted-foreground">{event.value}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Main area */}
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
