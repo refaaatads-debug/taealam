@@ -31,6 +31,7 @@ import UserManagementTab from "@/components/admin/UserManagementTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
+import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -489,6 +490,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="ai_audit" className="rounded-lg gap-1.5">
               <BarChart3 className="h-4 w-4" />
               فحص AI
+            </TabsTrigger>
+            <TabsTrigger value="materials_monitor" className="rounded-lg gap-1.5">
+              <BookOpen className="h-4 w-4" />
+              مراقبة المواد
             </TabsTrigger>
           </TabsList>
 
@@ -950,6 +955,9 @@ const AdminDashboard = () => {
           </TabsContent>
           <TabsContent value="ai_audit" className="space-y-4">
             <AIAuditTab />
+          </TabsContent>
+          <TabsContent value="materials_monitor" className="space-y-4">
+            <MaterialsMonitorTab />
           </TabsContent>
         </Tabs>
       </div>
