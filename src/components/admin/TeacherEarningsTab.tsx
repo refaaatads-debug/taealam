@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, Plus, Loader2, TrendingUp, Users, Pencil, Check, Clock } from "lucide-react";
+import { DollarSign, Plus, Loader2, TrendingUp, Users, Pencil, Check, Clock, Lock, Unlock, ShieldCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -31,9 +31,10 @@ export default function TeacherEarningsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Computed hours per teacher per month
   const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, number>>(new Map());
+  const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResults, setReconcileResults] = useState<any[] | null>(null);
 
   // Form state
   const [selectedTeacher, setSelectedTeacher] = useState("");
@@ -47,15 +48,11 @@ export default function TeacherEarningsTab() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Fetch computed hours when teacher or month changes
   useEffect(() => {
-    if (selectedTeacher && month) {
-      fetchTeacherHours(selectedTeacher, month);
-    }
+    if (selectedTeacher && month) fetchTeacherHours(selectedTeacher, month);
   }, [selectedTeacher, month]);
 
   const fetchTeacherHours = async (teacherId: string, monthStr: string) => {
-    // monthStr format: "2026-04"
     const [year, m] = monthStr.split("-");
     const startDate = `${year}-${m}-01`;
     const endMonth = parseInt(m) === 12 ? 1 : parseInt(m) + 1;
@@ -80,6 +77,12 @@ export default function TeacherEarningsTab() {
   };
 
   const fetchData = async () => {
+    // Fetch closed months
+    const { data: fmData } = await supabase
+      .from("financial_months" as any)
+      .select("month, status");
+    setClosedMonths(new Set((fmData as any[] ?? []).filter((f: any) => f.status === "closed").map((f: any) => f.month)));
+
     const { data: tps } = await supabase
       .from("teacher_profiles")
       .select("user_id, balance, total_sessions")
@@ -107,6 +110,94 @@ export default function TeacherEarningsTab() {
     }
   };
 
+  const toggleMonthStatus = async (monthStr: string) => {
+    const isClosed = closedMonths.has(monthStr);
+    setLoading(true);
+    try {
+      if (isClosed) {
+        await supabase.from("financial_months" as any).update({ status: "open", closed_at: null, closed_by: null } as any).eq("month", monthStr);
+        toast.success(`تم فتح شهر ${monthStr}`);
+      } else {
+        // Upsert
+        const { data: existing } = await supabase.from("financial_months" as any).select("id").eq("month", monthStr).maybeSingle();
+        if (existing) {
+          await supabase.from("financial_months" as any).update({ status: "closed", closed_at: new Date().toISOString(), closed_by: user?.id } as any).eq("month", monthStr);
+        } else {
+          await supabase.from("financial_months" as any).insert({ month: monthStr, status: "closed", closed_at: new Date().toISOString(), closed_by: user?.id } as any);
+        }
+        toast.success(`تم إقفال شهر ${monthStr}`);
+      }
+      await supabase.from("system_logs").insert({
+        level: "info", source: "financial_months",
+        message: `${isClosed ? "فتح" : "إقفال"} شهر ${monthStr}`,
+        user_id: user?.id, metadata: { month: monthStr, action: isClosed ? "open" : "close" },
+      });
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "حدث خطأ");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runReconciliation = async () => {
+    setReconciling(true);
+    try {
+      const results: any[] = [];
+      for (const e of earnings) {
+        if (!e.minutes_snapshot && e.minutes_snapshot !== 0) continue;
+        // Get actual stats
+        const [year, m] = (e.month as string).split("-");
+        const startDate = `${year}-${m}-01`;
+        const endMonth = parseInt(m) === 12 ? 1 : parseInt(m) + 1;
+        const endYear = parseInt(m) === 12 ? parseInt(year) + 1 : parseInt(year);
+        const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+
+        const { data } = await supabase
+          .from("teacher_daily_stats")
+          .select("total_minutes")
+          .eq("teacher_id", e.teacher_id)
+          .gte("date", startDate)
+          .lt("date", endDate);
+
+        const actualMinutes = (data ?? []).reduce((sum: number, d: any) => sum + (d.total_minutes || 0), 0);
+        const snapshotMinutes = Number(e.minutes_snapshot) || 0;
+        const match = actualMinutes === snapshotMinutes;
+
+        results.push({
+          invoice_id: e.invoice_id || e.id.slice(0, 8),
+          teacher_name: e.teacher_name,
+          month: e.month,
+          snapshot: snapshotMinutes,
+          actual: actualMinutes,
+          match,
+        });
+      }
+
+      setReconcileResults(results);
+
+      // Log reconciliation
+      const mismatches = results.filter(r => !r.match).length;
+      await supabase.from("system_logs").insert({
+        level: mismatches > 0 ? "warn" : "info",
+        source: "reconciliation",
+        message: `تدقيق مالي: ${results.length} سجل - ${mismatches} تعارض`,
+        user_id: user?.id,
+        metadata: { total: results.length, mismatches, details: results.filter(r => !r.match) },
+      });
+
+      if (mismatches > 0) {
+        toast.warning(`تم العثور على ${mismatches} تعارض من أصل ${results.length} سجل`);
+      } else {
+        toast.success(`جميع السجلات (${results.length}) متطابقة ✓`);
+      }
+    } catch (e: any) {
+      toast.error("حدث خطأ في التدقيق");
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   const resetForm = () => {
     setSelectedTeacher("");
     setAmount("");
@@ -117,6 +208,10 @@ export default function TeacherEarningsTab() {
   };
 
   const startEdit = (e: any) => {
+    if (closedMonths.has(e.month)) {
+      toast.error("هذا الشهر مقفل ولا يمكن التعديل");
+      return;
+    }
     setEditingId(e.id);
     setSelectedTeacher(e.teacher_id);
     setAmount(String(e.amount));
@@ -129,6 +224,10 @@ export default function TeacherEarningsTab() {
   const saveEarning = async () => {
     if (!selectedTeacher || !amount || !month) {
       toast.error("يرجى ملء جميع الحقول المطلوبة");
+      return;
+    }
+    if (closedMonths.has(month)) {
+      toast.error("هذا الشهر مقفل ولا يمكن إضافة أرباح");
       return;
     }
     const amountNum = parseFloat(amount);
@@ -144,8 +243,6 @@ export default function TeacherEarningsTab() {
     try {
       if (editingId) {
         const oldEarning = earnings.find(e => e.id === editingId);
-
-        // Block editing paid earnings on client side too
         if (oldEarning?.status === "paid") {
           toast.error("لا يمكن تعديل أرباح تم دفعها");
           setLoading(false);
@@ -179,7 +276,7 @@ export default function TeacherEarningsTab() {
         const { error } = await supabase
           .from("teacher_earnings" as any)
           .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any);
-        
+
         if (error) {
           if (error.code === "23505") {
             toast.error(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month} بالفعل`);
@@ -227,6 +324,10 @@ export default function TeacherEarningsTab() {
 
   const totalAdded = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
   const computedHours = getComputedHours();
+  const isMonthClosed = closedMonths.has(month);
+
+  // Unique months from earnings for month management
+  const uniqueMonths = [...new Set(earnings.map(e => e.month))].sort().reverse();
 
   return (
     <div className="space-y-4">
@@ -261,6 +362,87 @@ export default function TeacherEarningsTab() {
         </Card>
       </div>
 
+      {/* Month Management & Reconciliation */}
+      <Card className="border-0 shadow-card">
+        <CardHeader>
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <Lock className="h-5 w-5 text-primary" />
+            إدارة الأشهر المالية والتدقيق
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" className="rounded-xl gap-1.5 text-xs" onClick={runReconciliation} disabled={reconciling}>
+              {reconciling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              تدقيق مالي (Reconciliation)
+            </Button>
+          </div>
+
+          {/* Month status list */}
+          {uniqueMonths.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {uniqueMonths.map(m => {
+                const isClosed = closedMonths.has(m);
+                return (
+                  <div key={m} className={`flex items-center justify-between p-2.5 rounded-xl border ${isClosed ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border"}`}>
+                    <div className="flex items-center gap-2">
+                      {isClosed ? <Lock className="h-3.5 w-3.5 text-destructive" /> : <Unlock className="h-3.5 w-3.5 text-green-600" />}
+                      <span className="text-xs font-bold text-foreground">{m}</span>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => toggleMonthStatus(m)} disabled={loading}>
+                      {isClosed ? "فتح" : "إقفال"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Reconciliation Results */}
+          {reconcileResults && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                نتائج التدقيق
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-right pb-2 font-medium">الفاتورة</th>
+                      <th className="text-right pb-2 font-medium">المعلم</th>
+                      <th className="text-right pb-2 font-medium">الشهر</th>
+                      <th className="text-right pb-2 font-medium">دقائق (لقطة)</th>
+                      <th className="text-right pb-2 font-medium">دقائق (فعلي)</th>
+                      <th className="text-right pb-2 font-medium">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {reconcileResults.map((r, i) => (
+                      <tr key={i} className={r.match ? "" : "bg-destructive/5"}>
+                        <td className="py-2 font-mono text-foreground">{r.invoice_id}</td>
+                        <td className="py-2 text-foreground">{r.teacher_name}</td>
+                        <td className="py-2">{r.month}</td>
+                        <td className="py-2">{r.snapshot}</td>
+                        <td className="py-2">{r.actual}</td>
+                        <td className="py-2">
+                          {r.match ? (
+                            <Badge variant="default" className="text-[10px] gap-1"><Check className="h-2.5 w-2.5" /> متطابق</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px] gap-1"><AlertTriangle className="h-2.5 w-2.5" /> تعارض</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Button size="sm" variant="ghost" className="text-xs" onClick={() => setReconcileResults(null)}>إغلاق النتائج</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="border-0 shadow-card">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -275,8 +457,8 @@ export default function TeacherEarningsTab() {
               </Button>
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
               <ExportCSVButton
-                data={filtered.map(e => ({ teacher: e.teacher_name, amount: e.amount, hours: e.hours || 0, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
-                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "hours", label: "الساعات" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
+                data={filtered.map(e => ({ invoice: e.invoice_id || "", teacher: e.teacher_name, amount: e.amount, hours: e.hours || 0, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
+                headers={[{ key: "invoice", label: "رقم الفاتورة" }, { key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "hours", label: "الساعات" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
                 filename="أرباح_المعلمين"
               />
             </div>
@@ -287,6 +469,14 @@ export default function TeacherEarningsTab() {
           {showForm && (
             <div className="p-4 rounded-xl bg-accent/30 border border-border space-y-3">
               <h4 className="font-bold text-sm">{editingId ? "تعديل الأرباح" : "إضافة أرباح يدوية"}</h4>
+
+              {isMonthClosed && (
+                <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-destructive" />
+                  <span className="text-xs text-destructive font-bold">هذا الشهر مقفل - لا يمكن إضافة أو تعديل الأرباح</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">المعلم *</label>
@@ -304,7 +494,6 @@ export default function TeacherEarningsTab() {
                   <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl" />
                 </div>
 
-                {/* Computed hours - read only */}
                 {selectedTeacher && month && (
                   <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
                     <div className="flex items-center gap-2 mb-1">
@@ -339,7 +528,7 @@ export default function TeacherEarningsTab() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="rounded-xl gap-1.5" onClick={saveEarning} disabled={loading}>
+                <Button size="sm" className="rounded-xl gap-1.5" onClick={saveEarning} disabled={loading || isMonthClosed}>
                   {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   {editingId ? "حفظ التعديل" : "إضافة"}
                 </Button>
@@ -356,11 +545,11 @@ export default function TeacherEarningsTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
+                    <th className="text-right pb-3 font-medium">الفاتورة</th>
                     <th className="text-right pb-3 font-medium">المعلم</th>
                     <th className="text-right pb-3 font-medium">الساعات</th>
                     <th className="text-right pb-3 font-medium">المبلغ</th>
                     <th className="text-right pb-3 font-medium">الشهر</th>
-                    <th className="text-right pb-3 font-medium">تاريخ الإضافة</th>
                     <th className="text-right pb-3 font-medium">ملاحظات</th>
                     <th className="text-right pb-3 font-medium">الحالة</th>
                     <th className="text-right pb-3 font-medium">إجراءات</th>
@@ -369,8 +558,10 @@ export default function TeacherEarningsTab() {
                 <tbody className="divide-y">
                   {filtered.map((e: any) => {
                     const si = getStatusInfo(e.status);
+                    const monthLocked = closedMonths.has(e.month);
                     return (
-                      <tr key={e.id} className="hover:bg-muted/30">
+                      <tr key={e.id} className={`hover:bg-muted/30 ${monthLocked ? "opacity-70" : ""}`}>
+                        <td className="py-3 font-mono text-xs text-primary">{e.invoice_id || "—"}</td>
                         <td className="py-3 font-medium text-foreground">{e.teacher_name}</td>
                         <td className="py-3 text-foreground">
                           <span className="flex items-center gap-1">
@@ -379,13 +570,19 @@ export default function TeacherEarningsTab() {
                           </span>
                         </td>
                         <td className="py-3 text-foreground">{Number(e.amount).toLocaleString()} ر.س</td>
-                        <td className="py-3"><Badge variant="outline" className="text-xs">{e.month}</Badge></td>
-                        <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-xs">{e.month}</Badge>
+                            {monthLocked && <Lock className="h-3 w-3 text-destructive" />}
+                          </div>
+                        </td>
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
                         <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
                         <td className="py-3">
                           {e.status === "paid" ? (
                             <Badge variant="default" className="text-[10px]">مدفوع ✓</Badge>
+                          ) : monthLocked ? (
+                            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                           ) : (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
                               <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
