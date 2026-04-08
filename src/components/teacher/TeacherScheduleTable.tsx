@@ -180,6 +180,12 @@ export default function TeacherScheduleTable() {
                             </Link>
                           </Button>
                         )}
+                        {b.status === "completed" && (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(b.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                            حذف
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
