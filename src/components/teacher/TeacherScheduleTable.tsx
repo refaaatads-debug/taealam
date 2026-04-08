@@ -86,6 +86,22 @@ export default function TeacherScheduleTable() {
     }
   };
 
+  const handleStartSession = async (bookingId: string, studentName: string) => {
+    const { error } = await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر بدء الجلسة");
+    } else {
+      toast.success(`تم إرسال طلب الانضمام إلى ${studentName}`);
+    }
+  };
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+    } else {
+      toast.success("تم حذف الحصة بنجاح");
+      fetchBookings();
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
