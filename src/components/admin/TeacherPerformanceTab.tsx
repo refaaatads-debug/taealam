@@ -294,6 +294,9 @@ export default function TeacherPerformanceTab() {
             if (actualSeconds > 0) {
               totalActualSeconds += actualSeconds;
             }
+          } else if (b.status === "completed" && session?.duration_minutes) {
+            actualSeconds = session.duration_minutes * 60;
+            totalActualSeconds += actualSeconds;
           }
           if (b.status === "completed" && actualDuration) {
             totalActualMinutes += actualDuration;
