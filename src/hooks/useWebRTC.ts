@@ -1,14 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
+const buildIceServers = (): RTCConfiguration => {
+  const iceServers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-  ],
+  ];
+
+  // Add TURN server if configured
+  const turnUrl = import.meta.env.VITE_TURN_SERVER_URL;
+  const turnUser = import.meta.env.VITE_TURN_USERNAME;
+  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
+
+  if (turnUrl && turnUser && turnCred) {
+    iceServers.push({
+      urls: turnUrl,
+      username: turnUser,
+      credential: turnCred,
+    });
+  }
+
+  return { iceServers };
 };
 
 interface UseWebRTCOptions {
