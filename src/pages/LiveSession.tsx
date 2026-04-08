@@ -663,7 +663,12 @@ const LiveSession = () => {
   };
 
   const endSession = async () => {
+    if (sessionEndingRef.current) return;
+    sessionEndingRef.current = true;
     clearInterval(timerRef.current);
+
+    // Notify the other party to end session too
+    sendDataMessage({ type: "session-end", elapsed });
 
     if (isRecording) stopRecording();
     await stop();
