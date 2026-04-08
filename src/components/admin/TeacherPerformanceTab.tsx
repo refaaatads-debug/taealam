@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   GraduationCap, Clock, Users, Star, Search, ChevronDown, ChevronUp,
-  Sparkles, Loader2, BookOpen, TrendingUp, Award
+  Sparkles, Loader2, BookOpen, TrendingUp, Award, Filter
 } from "lucide-react";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
@@ -51,6 +52,165 @@ const formatDuration = (totalSeconds: number): string => {
   const s = totalSeconds % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
+
+function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
+  const [studentFilter, setStudentFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sessionDateFrom, setSessionDateFrom] = useState("");
+  const [sessionDateTo, setSessionDateTo] = useState("");
+  const [priceFilter, setPriceFilter] = useState("all");
+
+  const uniqueStudents = useMemo(() => [...new Set(sessions.map(s => s.student_name))], [sessions]);
+
+  const filtered = useMemo(() => {
+    return sessions.filter(s => {
+      if (studentFilter && s.student_name !== studentFilter) return false;
+      if (statusFilter !== "all" && s.status !== statusFilter) return false;
+      if (sessionDateFrom && new Date(s.scheduled_at) < new Date(sessionDateFrom)) return false;
+      if (sessionDateTo) {
+        const end = new Date(sessionDateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(s.scheduled_at) > end) return false;
+      }
+      if (priceFilter === "has_price" && !s.price) return false;
+      if (priceFilter === "no_price" && s.price) return false;
+      return true;
+    });
+  }, [sessions, studentFilter, statusFilter, sessionDateFrom, sessionDateTo, priceFilter]);
+
+  const statusLbl = (status: string) => {
+    switch (status) {
+      case "completed": return "مكتملة";
+      case "confirmed": return "مؤكدة";
+      case "cancelled": return "ملغاة";
+      default: return "معلقة";
+    }
+  };
+
+  const statusVar = (status: string) => {
+    switch (status) {
+      case "completed": return "default" as const;
+      case "confirmed": return "secondary" as const;
+      case "cancelled": return "destructive" as const;
+      default: return "outline" as const;
+    }
+  };
+
+  return (
+    <div>
+      <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
+        <BookOpen className="h-4 w-4 text-primary" />
+        تفاصيل الحصص ({filtered.length}/{sessions.length})
+      </h4>
+
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-wrap mb-3">
+        <Select value={studentFilter || "all"} onValueChange={v => setStudentFilter(v === "all" ? "" : v)}>
+          <SelectTrigger className="w-40 h-8 text-xs rounded-xl">
+            <SelectValue placeholder="كل الطلاب" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الطلاب</SelectItem>
+            {uniqueStudents.map(name => (
+              <SelectItem key={name} value={name}>{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs rounded-xl">
+            <SelectValue placeholder="الحالة" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الحالات</SelectItem>
+            <SelectItem value="completed">مكتملة</SelectItem>
+            <SelectItem value="confirmed">مؤكدة</SelectItem>
+            <SelectItem value="cancelled">ملغاة</SelectItem>
+            <SelectItem value="pending">معلقة</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={priceFilter} onValueChange={setPriceFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs rounded-xl">
+            <SelectValue placeholder="السعر" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الأسعار</SelectItem>
+            <SelectItem value="has_price">بسعر</SelectItem>
+            <SelectItem value="no_price">بدون سعر</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>من:</span>
+          <Input type="date" value={sessionDateFrom} onChange={e => setSessionDateFrom(e.target.value)} className="h-8 w-36 text-xs rounded-xl" />
+          <span>إلى:</span>
+          <Input type="date" value={sessionDateTo} onChange={e => setSessionDateTo(e.target.value)} className="h-8 w-36 text-xs rounded-xl" />
+        </div>
+
+        {(studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo) && (
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {
+            setStudentFilter("");
+            setStatusFilter("all");
+            setPriceFilter("all");
+            setSessionDateFrom("");
+            setSessionDateTo("");
+          }}>مسح الفلاتر</Button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">لا توجد حصص مطابقة</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-muted-foreground">
+                <th className="text-right pb-2 font-medium">الطالب</th>
+                <th className="text-right pb-2 font-medium">المادة</th>
+                <th className="text-right pb-2 font-medium">التاريخ</th>
+                <th className="text-right pb-2 font-medium">المدة الفعلية</th>
+                <th className="text-right pb-2 font-medium">السعر</th>
+                <th className="text-right pb-2 font-medium">الحالة</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.slice(0, 50).map((s, i) => (
+                <tr key={i} className="hover:bg-muted/20">
+                  <td className="py-2 text-foreground">{s.student_name}</td>
+                  <td className="py-2 text-muted-foreground">{s.subject_name}</td>
+                  <td className="py-2 text-muted-foreground">
+                    {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
+                  </td>
+                  <td className="py-2 text-foreground font-medium font-mono">
+                    {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
+                      ? formatDuration(s.actual_seconds)
+                      : s.status === "completed"
+                        ? <span className="text-muted-foreground">لا توجد بيانات</span>
+                        : `${s.duration_minutes} دقيقة`}
+                  </td>
+                  <td className="py-2 text-muted-foreground">
+                    {s.price ? `${s.price} ر.س` : "—"}
+                  </td>
+                  <td className="py-2">
+                    <Badge variant={statusVar(s.status)} className="text-[10px]">
+                      {statusLbl(s.status)}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length > 50 && (
+            <p className="text-center text-xs text-muted-foreground mt-2">
+              يتم عرض أحدث 50 حصة من إجمالي {filtered.length}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TeacherPerformanceTab() {
   const [teachers, setTeachers] = useState<TeacherData[]>([]);
@@ -253,23 +413,6 @@ export default function TeacherPerformanceTab() {
       return true;
     });
 
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "completed": return "مكتملة";
-      case "confirmed": return "مؤكدة";
-      case "cancelled": return "ملغاة";
-      default: return "معلقة";
-    }
-  };
-
-  const statusVariant = (status: string) => {
-    switch (status) {
-      case "completed": return "default" as const;
-      case "confirmed": return "secondary" as const;
-      case "cancelled": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   if (loading) {
     return (
@@ -442,57 +585,7 @@ export default function TeacherPerformanceTab() {
                           </div>
 
                           {/* Sessions List */}
-                          <div>
-                            <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
-                              <BookOpen className="h-4 w-4 text-primary" />
-                              تفاصيل الحصص ({teacher.sessions.length})
-                            </h4>
-                            {teacher.sessions.length === 0 ? (
-                              <p className="text-sm text-muted-foreground text-center py-4">لا توجد حصص</p>
-                            ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
-                                  <thead>
-                                    <tr className="border-b text-muted-foreground">
-                                      <th className="text-right pb-2 font-medium">الطالب</th>
-                                      <th className="text-right pb-2 font-medium">المادة</th>
-                                      <th className="text-right pb-2 font-medium">التاريخ</th>
-                                      <th className="text-right pb-2 font-medium">المدة الفعلية</th>
-                                      <th className="text-right pb-2 font-medium">السعر</th>
-                                      <th className="text-right pb-2 font-medium">الحالة</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y">
-                                    {teacher.sessions.slice(0, 20).map((s, i) => (
-                                      <tr key={i} className="hover:bg-muted/20">
-                                        <td className="py-2 text-foreground">{s.student_name}</td>
-                                        <td className="py-2 text-muted-foreground">{s.subject_name}</td>
-                                        <td className="py-2 text-muted-foreground">
-                                          {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
-                                        </td>
-                                        <td className="py-2 text-foreground font-medium font-mono">
-                                          {s.status === "completed" && s.actual_seconds ? formatDuration(s.actual_seconds) : `${s.duration_minutes} دقيقة`}
-                                        </td>
-                                        <td className="py-2 text-muted-foreground">
-                                          {s.price ? `${s.price} ر.س` : "—"}
-                                        </td>
-                                        <td className="py-2">
-                                          <Badge variant={statusVariant(s.status)} className="text-[10px]">
-                                            {statusLabel(s.status)}
-                                          </Badge>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                                {teacher.sessions.length > 20 && (
-                                  <p className="text-center text-xs text-muted-foreground mt-2">
-                                    يتم عرض أحدث 20 حصة من إجمالي {teacher.sessions.length}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <SessionDetailsTable sessions={teacher.sessions} />
                         </div>
                       </motion.div>
                     )}
