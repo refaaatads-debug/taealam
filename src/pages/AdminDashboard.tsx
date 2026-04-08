@@ -940,6 +940,9 @@ const AdminDashboard = () => {
           <TabsContent value="session_reports" className="space-y-4">
             <SessionReportsTab />
           </TabsContent>
+          <TabsContent value="ai_audit" className="space-y-4">
+            <AIAuditTab />
+          </TabsContent>
         </Tabs>
       </div>
       <BottomNav />
