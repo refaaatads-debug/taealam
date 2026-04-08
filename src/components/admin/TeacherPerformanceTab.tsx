@@ -185,9 +185,11 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
                       ? formatDuration(s.actual_seconds)
-                      : s.status === "completed"
-                        ? <span className="text-muted-foreground">لا توجد بيانات</span>
-                        : `${s.duration_minutes} دقيقة`}
+                      : s.status === "completed" && s.actual_duration != null && s.actual_duration > 0
+                        ? formatDuration(s.actual_duration * 60)
+                        : s.status === "completed"
+                          ? <span className="text-muted-foreground text-xs">لا توجد بيانات</span>
+                          : `${s.duration_minutes} دقيقة`}
                   </td>
                   <td className="py-2 text-muted-foreground">
                     {s.price ? `${s.price} ر.س` : "—"}
