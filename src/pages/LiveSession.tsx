@@ -660,6 +660,13 @@ const LiveSession = () => {
   const remoteVideoTracks = remoteStream?.getVideoTracks().length || 0;
   const remoteLiveVideoTracks = remoteStream?.getVideoTracks().filter((track) => track.readyState === "live").length || 0;
 
+  // Auto-close drawing tools when screen sharing stops
+  useEffect(() => {
+    if (!screenSharing && isTeacher) {
+      setBoardOpen(false);
+    }
+  }, [screenSharing, isTeacher]);
+
   // Callback to pass to whiteboard for sending data
   const handleWhiteboardSend = useCallback((msg: any) => {
     sendDataMessage(msg);
