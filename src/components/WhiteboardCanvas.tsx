@@ -5,6 +5,12 @@ import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
   Highlighter
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Tool = "pen" | "highlighter" | "eraser" | "text" | "rect" | "circle" | "line";
 
@@ -38,6 +44,16 @@ const COLORS = [
   "#9b59b6", "#1abc9c", "#e67e22", "#ffffff",
 ];
 
+const CURSOR_MAP: Record<Tool, string> = {
+  pen: "crosshair",
+  highlighter: "crosshair",
+  eraser: "cell",
+  text: "text",
+  rect: "crosshair",
+  circle: "crosshair",
+  line: "crosshair",
+};
+
 export default function WhiteboardCanvas({
   bookingId,
   userId,
@@ -50,7 +66,7 @@ export default function WhiteboardCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("pen");
-  const [color, setColor] = useState("#1a1a2e");
+  const [color, setColor] = useState("#e74c3c");
   const [lineWidth, setLineWidth] = useState(3);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showColors, setShowColors] = useState(false);
@@ -63,84 +79,24 @@ export default function WhiteboardCanvas({
 
   const canDraw = isTeacher;
 
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const rect = container.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      redrawAll(ctx, rect.width, rect.height);
-    }
-  }, []);
-
-  useEffect(() => {
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    return () => window.removeEventListener("resize", resizeCanvas);
-  }, [resizeCanvas]);
-
-  const handleRemoteAction = useCallback((action: DrawAction) => {
-    if (action.type === "clear") {
-      actionsRef.current = [];
-      undoneRef.current = [];
-    } else {
-      actionsRef.current.push(action);
-    }
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const ctx = canvas.getContext("2d");
-    const rect = container.getBoundingClientRect();
-    if (ctx) redrawAll(ctx, rect.width, rect.height);
-  }, []);
-
-  useEffect(() => {
-    if (!remoteActions || canDraw) return;
-    actionsRef.current = [...remoteActions];
-    undoneRef.current = [];
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const ctx = canvas.getContext("2d");
-    const rect = container.getBoundingClientRect();
-    if (ctx) redrawAll(ctx, rect.width, rect.height);
-  }, [remoteActions, canDraw]);
-
-  const fillBackground = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    if (overlay) {
-      ctx.clearRect(0, 0, w, h);
-      return;
-    }
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#e0e0e0";
-    for (let x = 20; x < w; x += 20) {
-      for (let y = 20; y < h; y += 20) {
-        ctx.beginPath();
-        ctx.arc(x, y, 0.5, 0, Math.PI * 2);
-        ctx.fill();
+  const fillBackground = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.clearRect(0, 0, w, h);
+    // Overlay mode = transparent, standalone = white with dots
+    if (!overlay) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#e0e0e0";
+      for (let x = 20; x < w; x += 20) {
+        for (let y = 20; y < h; y += 20) {
+          ctx.beginPath();
+          ctx.arc(x, y, 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
-  };
+  }, [overlay]);
 
-  const redrawAll = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    ctx.clearRect(0, 0, w, h);
-    fillBackground(ctx, w, h);
-    for (const action of actionsRef.current) {
-      drawAction(ctx, action);
-    }
-  };
-
-  const drawAction = (ctx: CanvasRenderingContext2D, action: DrawAction) => {
+  const drawAction = useCallback((ctx: CanvasRenderingContext2D, action: DrawAction) => {
     ctx.save();
     ctx.globalAlpha = action.opacity ?? 1;
     ctx.strokeStyle = action.color || "#1a1a2e";
@@ -186,6 +142,56 @@ export default function WhiteboardCanvas({
         break;
     }
     ctx.restore();
+  }, []);
+
+  const redrawAll = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.clearRect(0, 0, w, h);
+    fillBackground(ctx, w, h);
+    for (const action of actionsRef.current) {
+      drawAction(ctx, action);
+    }
+  }, [fillBackground, drawAction]);
+
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.scale(dpr, dpr);
+      redrawAll(ctx, rect.width, rect.height);
+    }
+  }, [redrawAll]);
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [resizeCanvas]);
+
+  useEffect(() => {
+    if (!remoteActions || canDraw) return;
+    actionsRef.current = [...remoteActions];
+    undoneRef.current = [];
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    const rect = container.getBoundingClientRect();
+    if (ctx) redrawAll(ctx, rect.width, rect.height);
+  }, [remoteActions, canDraw, redrawAll]);
+
+  const broadcastAction = (action: DrawAction) => {
+    if (!enabled || !onSendData) return;
+    onSendData({ type: "whiteboard-action", action });
   };
 
   const getCanvasPoint = (e: React.MouseEvent | React.TouchEvent) => {
@@ -195,11 +201,6 @@ export default function WhiteboardCanvas({
     const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
     const clientY = "touches" in e ? e.touches[0]?.clientY ?? 0 : e.clientY;
     return { x: clientX - rect.left, y: clientY - rect.top };
-  };
-
-  const broadcastAction = (action: DrawAction) => {
-    if (!enabled || !onSendData) return;
-    onSendData({ type: "whiteboard-action", action });
   };
 
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
@@ -237,7 +238,6 @@ export default function WhiteboardCanvas({
     if (!isDrawing || !canDraw) return;
     e.preventDefault();
 
-    // Throttle: 50ms
     const now = Date.now();
     if (now - throttleRef.current < 50) return;
     throttleRef.current = now;
@@ -246,7 +246,6 @@ export default function WhiteboardCanvas({
 
     if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
       currentPathRef.current.push(pt);
-
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
@@ -264,9 +263,7 @@ export default function WhiteboardCanvas({
         ctx.globalAlpha = 1;
         ctx.strokeStyle = overlay ? "rgba(0,0,0,0)" : "#ffffff";
         ctx.lineWidth = lineWidth * 4;
-        if (overlay) {
-          ctx.globalCompositeOperation = "destination-out";
-        }
+        if (overlay) ctx.globalCompositeOperation = "destination-out";
       } else {
         ctx.strokeStyle = color;
         ctx.lineWidth = lineWidth;
@@ -319,7 +316,6 @@ export default function WhiteboardCanvas({
       actionsRef.current.push(action);
       undoneRef.current = [];
       broadcastAction(action);
-
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (canvas && container) {
@@ -397,63 +393,106 @@ export default function WhiteboardCanvas({
     { id: "circle", icon: Circle, label: "دائرة" },
   ];
 
+  const cursorStyle = canDraw ? CURSOR_MAP[tool] : "default";
+
   return (
     <div className={`flex flex-col h-full ${overlay ? "bg-transparent" : "bg-card"}`}>
-      {/* Toolbar - only for teacher */}
+      {/* Floating Toolbar - teacher only */}
       {canDraw && (
-        <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap">
-          {tools.map((t) => (
-            <Button
-              key={t.id}
-              size="icon"
-              variant={tool === t.id ? "default" : "ghost"}
-              className={`h-8 w-8 rounded-lg ${tool === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setTool(t.id)}
-              title={t.label}
-            >
-              <t.icon className="h-4 w-4" />
-            </Button>
-          ))}
+        <TooltipProvider delayDuration={200}>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-3 py-2 rounded-2xl bg-foreground/80 backdrop-blur-md shadow-xl border border-border/20">
+            {tools.map((t) => (
+              <Tooltip key={t.id}>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-9 w-9 rounded-xl transition-all duration-150 ${
+                      tool === t.id
+                        ? "bg-primary text-primary-foreground shadow-md scale-110"
+                        : "text-card/70 hover:text-card hover:bg-card/10"
+                    }`}
+                    onClick={() => setTool(t.id)}
+                  >
+                    <t.icon className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {t.label}
+                </TooltipContent>
+              </Tooltip>
+            ))}
 
-          <div className="w-px h-6 bg-border mx-1" />
+            <div className="w-px h-7 bg-card/20 mx-1" />
 
-          <div className="relative">
-            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => setShowColors(!showColors)}>
-              <div className="w-5 h-5 rounded-full border-2 border-border" style={{ backgroundColor: color }} />
-            </Button>
-            {showColors && (
-              <div className="absolute top-10 left-0 z-50 bg-card rounded-xl shadow-lg border p-2 flex gap-1 flex-wrap w-[120px]">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform ${color === c ? "border-primary scale-110" : "border-transparent hover:scale-105"}`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => { setColor(c); setShowColors(false); }}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Color picker */}
+            <div className="relative">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={() => setShowColors(!showColors)}>
+                    <div className="w-5 h-5 rounded-full border-2 border-card/30 shadow-sm" style={{ backgroundColor: color }} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">اختيار اللون</TooltipContent>
+              </Tooltip>
+              {showColors && (
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-foreground/90 backdrop-blur-md rounded-xl shadow-xl border border-border/20 p-2 flex gap-1.5 flex-wrap w-[140px]">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      className={`w-7 h-7 rounded-full border-2 transition-all duration-150 ${color === c ? "border-primary scale-110 shadow-md" : "border-transparent hover:scale-105"}`}
+                      style={{ backgroundColor: c }}
+                      onClick={() => { setColor(c); setShowColors(false); }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Stroke width */}
+            <div className="flex items-center gap-1 mx-1 w-20">
+              <Slider value={[lineWidth]} onValueChange={([v]) => setLineWidth(v)} min={1} max={12} step={1} className="w-full" />
+            </div>
+
+            <div className="w-px h-7 bg-card/20 mx-1" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleUndo}>
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">تراجع</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleRedo}>
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">إعادة</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleClear}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">مسح الكل</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleDownload}>
+                  <Download className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">تحميل</TooltipContent>
+            </Tooltip>
           </div>
-
-          <div className="flex items-center gap-1 mx-1 w-20">
-            <Slider value={[lineWidth]} onValueChange={([v]) => setLineWidth(v)} min={1} max={12} step={1} className="w-full" />
-          </div>
-
-          <div className="w-px h-6 bg-border mx-1" />
-
-          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleUndo} title="تراجع">
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleRedo} title="إعادة">
-            <Redo2 className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:text-destructive" onClick={handleClear} title="مسح الكل">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleDownload} title="تحميل">
-            <Download className="h-4 w-4" />
-          </Button>
-        </div>
+        </TooltipProvider>
       )}
 
       {/* Student view-only label */}
@@ -470,7 +509,8 @@ export default function WhiteboardCanvas({
       {/* Canvas */}
       <div
         ref={containerRef}
-        className={`flex-1 relative overflow-hidden ${canDraw ? "cursor-crosshair" : "cursor-default"} ${overlay ? "pointer-events-auto" : ""}`}
+        className={`flex-1 relative overflow-hidden ${overlay ? "pointer-events-auto" : ""}`}
+        style={{ cursor: cursorStyle }}
       >
         <canvas
           ref={canvasRef}
