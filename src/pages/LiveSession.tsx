@@ -188,7 +188,12 @@ const LiveSession = () => {
     },
     onRemoteJoin: () => {
       setRemoteConnected(true);
-      toast.success("انضم المشارك الآخر! 🎉");
+      if (meetingStarted) {
+        setBothJoined(true);
+        toast.success("انضم المشارك الآخر! بدأ العداد 🎉");
+      } else {
+        toast.success("انضم المشارك الآخر! 🎉");
+      }
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
