@@ -12,41 +12,60 @@ const ALLOWED_WORDS = [
   "رقم الدرس", "رقم الوحدة", "رقم الفصل",
 ];
 
-// Quick regex pre-filter
 function regexPreCheck(text: string): { suspicious: boolean; matches: string[] } {
   const patterns = [
-    /\b\d{7,15}\b/g,                          // Phone numbers
-    /\+?\d{1,3}[\s-]?\d{6,14}/g,              // International phones
-    /[\w.-]+@[\w.-]+\.\w{2,}/g,               // Emails
-    /(?:واتساب|واتس|whatsapp|whats\s*app)/gi, // WhatsApp
-    /(?:تلي?غرام|تلي?جرام|telegram)/gi,       // Telegram
-    /(?:سناب|snapchat|snap\s*chat)/gi,         // Snapchat
-    /(?:انستا|انستغرام|instagram|insta)/gi,    // Instagram
+    /\b\d{7,15}\b/g,
+    /\+?\d{1,3}[\s-]?\d{6,14}/g,
+    /[\w.-]+@[\w.-]+\.\w{2,}/g,
+    /(?:واتساب|واتس|whatsapp|whats\s*app)/gi,
+    /(?:تلي?غرام|تلي?جرام|telegram)/gi,
+    /(?:سناب|snapchat|snap\s*chat)/gi,
+    /(?:انستا|انستغرام|instagram|insta)/gi,
     /(?:تواصل\s*معي|كلمني|اتصل\s*(?:بي|فيني)|رقمي|نمرتي|أضفني|ضيفني)/gi,
     /(?:contact\s*me|call\s*me|my\s*number|add\s*me|reach\s*me|dm\s*me)/gi,
     /(?:خارج\s*المنصة|برا\s*الموقع|outside\s*(?:the\s*)?platform)/gi,
   ];
-
   const matches: string[] = [];
   for (const p of patterns) {
     const found = text.match(p);
     if (found) matches.push(...found);
   }
-
   return { suspicious: matches.length > 0, matches };
 }
 
-// Check if matches are false positives
 function isLikelyFalsePositive(text: string, matches: string[]): boolean {
   const lower = text.toLowerCase();
   for (const allowed of ALLOWED_WORDS) {
     if (lower.includes(allowed.toLowerCase())) {
-      // If ALL matches are just numbers near allowed context words
-      const onlyNumbers = matches.every(m => /^\d+$/.test(m));
-      if (onlyNumbers) return true;
+      if (matches.every(m => /^\d+$/.test(m))) return true;
     }
   }
   return false;
+}
+
+async function callAIWithRetry(apiKey: string, body: any, maxRetries = 2) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const start = Date.now();
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const responseTime = Date.now() - start;
+      if (!resp.ok) {
+        lastError = new Error(`AI error ${resp.status}`);
+        if (resp.status === 429 || resp.status === 402) throw lastError;
+        continue;
+      }
+      return { result: await resp.json(), retryCount: attempt, responseTime };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (lastError.message.includes("429") || lastError.message.includes("402")) throw lastError;
+    }
+  }
+  throw lastError || new Error("Max retries exceeded");
 }
 
 serve(async (req) => {
@@ -59,11 +78,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!
-    );
-
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
     let userId: string | null = null;
     if (token) {
       const { data: { user } } = await supabase.auth.getUser(token);
@@ -71,91 +86,59 @@ serve(async (req) => {
     }
 
     const { messages, booking_id, source = "chat" } = await req.json();
-
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: "messages مطلوبة" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const results: Array<{
-      index: number;
-      text: string;
-      is_violation: boolean;
-      confidence: number;
-      reason: string;
-      detected_patterns: string[];
+      index: number; text: string; is_violation: boolean;
+      confidence: number; reason: string; detected_patterns: string[];
     }> = [];
 
-    // Process each message
+    let aiCallCount = 0;
+    let totalResponseTime = 0;
+
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       const text = typeof msg === "string" ? msg : msg.text || msg.content || "";
       const senderId = typeof msg === "object" ? msg.sender_id || msg.user_id : null;
-
       if (!text.trim()) continue;
 
-      // Step 1: Regex pre-check
       const { suspicious, matches } = regexPreCheck(text);
-
       if (!suspicious) {
-        results.push({
-          index: i, text, is_violation: false,
-          confidence: 0, reason: "لا توجد أنماط مشبوهة", detected_patterns: [],
-        });
+        results.push({ index: i, text, is_violation: false, confidence: 0, reason: "لا توجد أنماط مشبوهة", detected_patterns: [] });
         continue;
       }
 
-      // Step 2: Check false positives
       if (isLikelyFalsePositive(text, matches)) {
-        results.push({
-          index: i, text, is_violation: false,
-          confidence: 0.1, reason: "سياق تعليمي عادي", detected_patterns: matches,
-        });
+        results.push({ index: i, text, is_violation: false, confidence: 0.1, reason: "سياق تعليمي عادي", detected_patterns: matches });
         continue;
       }
 
-      // Step 3: AI analysis for context understanding
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // AI analysis with retry
+      let analysis = { is_violation: true, confidence: 0.6, reason: "كشف بالأنماط (Regex)", violation_type: "contact_sharing" };
+      try {
+        const aiResult = await callAIWithRetry(LOVABLE_API_KEY, {
           model: "google/gemini-3-flash-preview",
           messages: [
             {
               role: "system",
-              content: `أنت نظام كشف مخالفات في منصة تعليمية. مهمتك تحليل رسائل المحادثة لاكتشاف محاولات مشاركة معلومات اتصال خارجية.
-
-أنواع المخالفات:
-1. مشاركة أرقام هواتف (بأي صيغة)
-2. مشاركة إيميلات
-3. ذكر واتساب/تلغرام/سناب أو أي وسيلة تواصل خارجية
-4. عبارات مثل "تواصل معي"، "رقمي"، "كلمني برا"
-5. محاولات مموهة لمشاركة أرقام (مثل تقسيم الرقم على عدة رسائل)
-
-ما ليس مخالفة:
-- "رقم الصفحة 5"، "السؤال رقم 3"
-- أرقام تعليمية (معادلات، إحصائيات)
-- ذكر تطبيقات بسياق عام غير شخصي
-
-أجب بـ JSON فقط:
-{"is_violation": true/false, "confidence": 0.0-1.0, "reason": "سبب قصير", "violation_type": "contact_sharing/platform_mention/coded_message/none"}`
+              content: `أنت نظام كشف مخالفات في منصة تعليمية. حلل الرسالة لاكتشاف مشاركة معلومات اتصال خارجية.
+المخالفات: أرقام هواتف، إيميلات، واتساب/تلغرام/سناب، عبارات "تواصل معي"/"رقمي"/"كلمني برا".
+ليس مخالفة: "رقم الصفحة"، أرقام تعليمية، ذكر تطبيقات بسياق عام.
+أجب بـ JSON: {"is_violation": bool, "confidence": 0-1, "reason": "سبب", "violation_type": "contact_sharing/platform_mention/coded_message/none"}`
             },
-            { role: "user", content: `حلل هذه الرسالة:\n"${text}"\n\nالأنماط المكتشفة بالـ regex: ${matches.join(", ")}` }
+            { role: "user", content: `حلل:\n"${text}"\n\nأنماط regex: ${matches.join(", ")}` }
           ],
           tools: [{
             type: "function",
             function: {
               name: "analyze_violation",
-              description: "Analyze message for contact sharing violations",
+              description: "Analyze message for violations",
               parameters: {
                 type: "object",
                 properties: {
@@ -170,64 +153,37 @@ serve(async (req) => {
             },
           }],
           tool_choice: { type: "function", function: { name: "analyze_violation" } },
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        // Fallback to regex-only if AI fails
-        console.error("AI analysis failed:", aiResponse.status);
-        results.push({
-          index: i, text, is_violation: true,
-          confidence: 0.6, reason: "كشف بالأنماط (Regex)", detected_patterns: matches,
         });
 
-        if (booking_id && senderId) {
-          await adminClient.from("violations").insert({
-            booking_id, user_id: senderId,
-            detected_text: matches.join(", "),
-            original_message: text,
-            confidence_score: 0.6,
-            source, violation_type: "contact_sharing",
-          });
-        }
-        continue;
-      }
+        aiCallCount++;
+        totalResponseTime += aiResult.responseTime;
 
-      const aiData = await aiResponse.json();
-      let analysis = { is_violation: true, confidence: 0.7, reason: "AI analysis", violation_type: "contact_sharing" };
-
-      try {
-        const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-        if (toolCall?.function?.arguments) {
-          analysis = JSON.parse(toolCall.function.arguments);
-        }
-      } catch {
-        console.error("Failed to parse AI response");
+        try {
+          const toolCall = aiResult.result.choices?.[0]?.message?.tool_calls?.[0];
+          if (toolCall?.function?.arguments) {
+            analysis = JSON.parse(toolCall.function.arguments);
+          }
+        } catch { console.error("Failed to parse AI response"); }
+      } catch (aiError) {
+        console.error("AI analysis failed, using regex fallback:", aiError);
       }
 
       results.push({
-        index: i, text,
-        is_violation: analysis.is_violation,
-        confidence: analysis.confidence,
-        reason: analysis.reason,
-        detected_patterns: matches,
+        index: i, text, is_violation: analysis.is_violation,
+        confidence: analysis.confidence, reason: analysis.reason, detected_patterns: matches,
       });
 
-      // Record violation if confirmed
       if (analysis.is_violation && analysis.confidence >= 0.5) {
         const violatorId = senderId || userId;
         if (booking_id && violatorId) {
           await adminClient.from("violations").insert({
-            booking_id,
-            user_id: violatorId,
+            booking_id, user_id: violatorId,
             detected_text: matches.join(", "),
             original_message: text,
             confidence_score: analysis.confidence,
-            source,
-            violation_type: analysis.violation_type || "contact_sharing",
+            source, violation_type: analysis.violation_type || "contact_sharing",
           });
 
-          // Update warnings count
           const { data: existing } = await adminClient
             .from("user_warnings")
             .select("id, warning_count")
@@ -244,19 +200,12 @@ serve(async (req) => {
             }).eq("id", existing.id);
           } else {
             await adminClient.from("user_warnings").insert({
-              user_id: violatorId,
-              warning_type: "contact_violation",
-              description: `مخالفة مشاركة معلومات اتصال: ${analysis.reason}`,
-              warning_count: 1,
+              user_id: violatorId, warning_type: "contact_violation",
+              description: `مخالفة مشاركة معلومات اتصال: ${analysis.reason}`, warning_count: 1,
             });
           }
 
-          // Send notification to admin
-          const { data: admins } = await adminClient
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", "admin");
-
+          const { data: admins } = await adminClient.from("user_roles").select("user_id").eq("role", "admin");
           if (admins) {
             for (const admin of admins) {
               await adminClient.from("notifications").insert({
@@ -271,16 +220,27 @@ serve(async (req) => {
       }
     }
 
-    const violationCount = results.filter(r => r.is_violation).length;
+    // Log AI usage
+    if (aiCallCount > 0) {
+      await adminClient.from("ai_logs").insert({
+        feature_name: "violation_analysis",
+        input_summary: `${messages.length} رسالة، ${aiCallCount} تحليل AI`,
+        output_summary: `${results.filter(r => r.is_violation).length} مخالفة مكتشفة`,
+        status: "success",
+        response_time_ms: Math.round(totalResponseTime / aiCallCount),
+        quality_score: 100,
+        booking_id: booking_id || null,
+        user_id: userId,
+      });
+    }
 
     return new Response(JSON.stringify({
       total_messages: messages.length,
-      violations_found: violationCount,
+      violations_found: results.filter(r => r.is_violation).length,
       results,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (e) {
     console.error("Analyze error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "خطأ" }), {
