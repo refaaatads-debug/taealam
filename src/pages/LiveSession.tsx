@@ -847,12 +847,28 @@ const LiveSession = () => {
                 </div>
               )}
 
-              {/* Teacher's own screen share preview */}
+              {/* Teacher's own screen share preview + overlay drawing */}
               {screenSharing && isTeacher && (
-                <div className="absolute top-2 right-2 z-20 bg-primary/80 rounded-md px-3 py-1.5">
-                  <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                    <Monitor className="h-3 w-3" /> أنت تشارك الشاشة
-                  </p>
+                <div className="absolute inset-0 z-15">
+                  {/* Overlay whiteboard for teacher drawing on screen share */}
+                  {boardOpen && bookingId && user && (
+                    <div className="absolute inset-0 z-20">
+                      <WhiteboardCanvas
+                        bookingId={bookingId}
+                        userId={user.id}
+                        enabled={meetingStarted}
+                        isTeacher={true}
+                        onSendData={handleWhiteboardSend}
+                        overlay={true}
+                        remoteActions={whiteboardRemoteActions}
+                      />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <Monitor className="h-3 w-3" /> أنت تشارك الشاشة
+                    </p>
+                  </div>
                 </div>
               )}
 
