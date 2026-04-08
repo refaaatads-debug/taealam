@@ -146,7 +146,7 @@ export function useWebRTC({
   const createPeerConnection = useCallback(() => {
     if (pcRef.current) pcRef.current.close();
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection(buildIceServers());
     pcRef.current = pc;
 
     // Create DataChannel (only initiator creates it)
