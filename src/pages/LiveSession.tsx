@@ -236,7 +236,58 @@ const LiveSession = () => {
     }
   }, [remoteStream, pushDebugEvent]);
 
+  // Voice Activity Detection - track speaking time
   useEffect(() => {
+    if (!meetingStarted) return;
+    const audioCtx = new AudioContext();
+    const analysers: { local?: AnalyserNode; remote?: AnalyserNode } = {};
+
+    if (localStream && localStream.getAudioTracks().length > 0) {
+      try {
+        const src = audioCtx.createMediaStreamSource(localStream);
+        analysers.local = audioCtx.createAnalyser();
+        analysers.local.fftSize = 256;
+        src.connect(analysers.local);
+      } catch { /* ignore */ }
+    }
+    if (remoteStream && remoteStream.getAudioTracks().length > 0) {
+      try {
+        const src = audioCtx.createMediaStreamSource(remoteStream);
+        analysers.remote = audioCtx.createAnalyser();
+        analysers.remote.fftSize = 256;
+        src.connect(analysers.remote);
+      } catch { /* ignore */ }
+    }
+
+    const threshold = 15;
+    const interval = setInterval(() => {
+      if (analysers.local) {
+        const data = new Uint8Array(analysers.local.frequencyBinCount);
+        analysers.local.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > threshold) {
+          if (isTeacher) setTeacherSpeakingSec(p => p + 1);
+          else setStudentSpeakingSec(p => p + 1);
+        }
+      }
+      if (analysers.remote) {
+        const data = new Uint8Array(analysers.remote.frequencyBinCount);
+        analysers.remote.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > threshold) {
+          if (isTeacher) setStudentSpeakingSec(p => p + 1);
+          else setTeacherSpeakingSec(p => p + 1);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      audioCtx.close().catch(() => {});
+    };
+  }, [meetingStarted, localStream, remoteStream, isTeacher]);
+
+
     const videoElement = remoteVideoRef.current;
     if (!videoElement) return;
 
