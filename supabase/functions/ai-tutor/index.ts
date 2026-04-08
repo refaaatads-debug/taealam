@@ -6,9 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Simple in-memory rate limiter per user
 const userRequests = new Map<string, number[]>();
-const RATE_LIMIT = 20; // max requests per minute
+const RATE_LIMIT = 20;
 const WINDOW_MS = 60_000;
 
 function checkRate(userId: string): boolean {
@@ -25,8 +24,6 @@ serve(async (req) => {
 
   try {
     const { messages, conversation_id } = await req.json();
-
-    // Extract user from JWT
     const authHeader = req.headers.get("authorization") ?? "";
     let userId: string | null = null;
 
@@ -39,24 +36,16 @@ serve(async (req) => {
       const { data: { user } } = await supabase.auth.getUser();
       userId = user?.id ?? null;
 
-      // Rate limit authenticated users
       if (userId && !checkRate(userId)) {
         return new Response(JSON.stringify({ error: "تم تجاوز حد الطلبات، حاول بعد دقيقة" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Save conversation if authenticated
       if (userId && conversation_id) {
-        const adminClient = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
+        const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
         await adminClient.from("ai_conversations").upsert({
-          id: conversation_id,
-          user_id: userId,
-          messages: messages,
-          updated_at: new Date().toISOString(),
+          id: conversation_id, user_id: userId, messages, updated_at: new Date().toISOString(),
         }, { onConflict: "id" });
       }
     }
@@ -64,12 +53,12 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const start = Date.now();
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
@@ -90,32 +79,38 @@ serve(async (req) => {
       }),
     });
 
+    const responseTime = Date.now() - start;
+
     if (!response.ok) {
-      if (response.status === 429) {
+      const status = response.status;
+      const t = await response.text();
+
+      // Log failure
+      await adminClient.from("ai_logs").insert({
+        feature_name: "ai_tutor",
+        input_summary: `${messages.length} رسائل`,
+        status: "failed",
+        response_time_ms: responseTime,
+        error_message: `HTTP ${status}: ${t.slice(0, 200)}`,
+        user_id: userId,
+      });
+
+      if (status === 429) {
         return new Response(JSON.stringify({ error: "تم تجاوز حد الطلبات، حاول مرة أخرى لاحقاً" }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
+      if (status === 402) {
         return new Response(JSON.stringify({ error: "الرصيد غير كافٍ" }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
 
-      // Log error
       try {
-        const adminClient = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
         await adminClient.from("system_logs").insert({
-          level: "error",
-          source: "ai-tutor",
-          message: `AI gateway error: ${response.status}`,
-          metadata: { body: t.substring(0, 500) },
-          user_id: userId,
+          level: "error", source: "ai-tutor",
+          message: `AI gateway error: ${status}`,
+          metadata: { body: t.substring(0, 500) }, user_id: userId,
         });
       } catch {}
 
@@ -123,6 +118,16 @@ serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Log success
+    await adminClient.from("ai_logs").insert({
+      feature_name: "ai_tutor",
+      input_summary: `${messages.length} رسائل`,
+      status: "success",
+      response_time_ms: responseTime,
+      quality_score: 80,
+      user_id: userId,
+    });
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

@@ -9,14 +9,14 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const start = Date.now();
   try {
     const { subject, student_level, budget_max } = await req.json();
-    
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get teachers
     let query = supabase
       .from("teacher_profiles")
       .select("*")
@@ -24,14 +24,11 @@ serve(async (req) => {
       .order("avg_rating", { ascending: false })
       .limit(20);
 
-    if (budget_max) {
-      query = query.lte("hourly_rate", budget_max);
-    }
+    if (budget_max) query = query.lte("hourly_rate", budget_max);
 
     const { data: teachers, error } = await query;
     if (error) throw error;
 
-    // Get profiles and subjects separately
     const userIds = (teachers || []).map((t: any) => t.user_id);
     const teacherIds = (teachers || []).map((t: any) => t.id);
 
@@ -47,7 +44,6 @@ serve(async (req) => {
       subjectMap.get(ts.teacher_id)!.push(ts);
     }
 
-    // Filter by subject if provided
     let filtered = teachers || [];
     if (subject) {
       filtered = filtered.filter((t: any) => {
@@ -56,7 +52,6 @@ serve(async (req) => {
       });
     }
 
-    // Score and rank teachers
     const scored = filtered.map((t: any) => {
       let score = 0;
       score += (t.avg_rating || 0) * 20;
@@ -66,10 +61,9 @@ serve(async (req) => {
 
       const profile = profileMap.get(t.user_id);
       const subs = subjectMap.get(t.id) || [];
-      
+
       return {
-        id: t.id,
-        user_id: t.user_id,
+        id: t.id, user_id: t.user_id,
         name: profile?.full_name || "مدرس",
         avatar_url: profile?.avatar_url,
         subject: subs[0]?.subjects?.name || subject || "عام",
@@ -78,23 +72,45 @@ serve(async (req) => {
         total_reviews: t.total_reviews || 0,
         hourly_rate: t.hourly_rate,
         years_experience: t.years_experience || 0,
-        bio: t.bio,
-        is_verified: t.is_verified,
+        bio: t.bio, is_verified: t.is_verified,
         match_score: Math.round(score),
         match_reason: getMatchReason(score, t),
       };
     });
 
     scored.sort((a: any, b: any) => b.match_score - a.match_score);
+    const topTeachers = scored.slice(0, 3);
+    const responseTime = Date.now() - start;
 
-    return new Response(JSON.stringify({ teachers: scored.slice(0, 3) }), {
+    // Log the matching operation
+    await supabase.from("ai_logs").insert({
+      feature_name: "smart_matching",
+      input_summary: `مادة: ${subject || "عام"}, ميزانية: ${budget_max || "غير محددة"}`,
+      output_summary: `${topTeachers.length} معلمين، أعلى: ${topTeachers[0]?.match_score || 0}`,
+      status: "success",
+      response_time_ms: responseTime,
+      quality_score: topTeachers.length > 0 ? 90 : 30,
+    });
+
+    return new Response(JSON.stringify({ teachers: topTeachers }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    const responseTime = Date.now() - start;
     console.error("Smart matching error:", e);
+
+    try {
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await supabase.from("ai_logs").insert({
+        feature_name: "smart_matching",
+        status: "failed",
+        response_time_ms: responseTime,
+        error_message: e instanceof Error ? e.message.slice(0, 500) : "Unknown",
+      });
+    } catch {}
+
     return new Response(JSON.stringify({ error: "حدث خطأ في نظام التوصيات" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
