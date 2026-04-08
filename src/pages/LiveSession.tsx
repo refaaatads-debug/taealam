@@ -31,6 +31,10 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
+  const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
+  const [questionsDetected, setQuestionsDetected] = useState(0);
+  const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -231,6 +235,57 @@ const LiveSession = () => {
       });
     }
   }, [remoteStream, pushDebugEvent]);
+
+  // Voice Activity Detection - track speaking time
+  useEffect(() => {
+    if (!meetingStarted) return;
+    const audioCtx = new AudioContext();
+    const analysers: { local?: AnalyserNode; remote?: AnalyserNode } = {};
+
+    if (localStream && localStream.getAudioTracks().length > 0) {
+      try {
+        const src = audioCtx.createMediaStreamSource(localStream);
+        analysers.local = audioCtx.createAnalyser();
+        analysers.local.fftSize = 256;
+        src.connect(analysers.local);
+      } catch { /* ignore */ }
+    }
+    if (remoteStream && remoteStream.getAudioTracks().length > 0) {
+      try {
+        const src = audioCtx.createMediaStreamSource(remoteStream);
+        analysers.remote = audioCtx.createAnalyser();
+        analysers.remote.fftSize = 256;
+        src.connect(analysers.remote);
+      } catch { /* ignore */ }
+    }
+
+    const threshold = 15;
+    const interval = setInterval(() => {
+      if (analysers.local) {
+        const data = new Uint8Array(analysers.local.frequencyBinCount);
+        analysers.local.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > threshold) {
+          if (isTeacher) setTeacherSpeakingSec(p => p + 1);
+          else setStudentSpeakingSec(p => p + 1);
+        }
+      }
+      if (analysers.remote) {
+        const data = new Uint8Array(analysers.remote.frequencyBinCount);
+        analysers.remote.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > threshold) {
+          if (isTeacher) setStudentSpeakingSec(p => p + 1);
+          else setTeacherSpeakingSec(p => p + 1);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      audioCtx.close().catch(() => {});
+    };
+  }, [meetingStarted, localStream, remoteStream, isTeacher]);
 
   useEffect(() => {
     const videoElement = remoteVideoRef.current;
@@ -522,6 +577,12 @@ const LiveSession = () => {
       return;
     }
 
+    // Detect questions
+    const questionPatterns = /[؟?]|كيف|ليش|لماذا|هل |ما هو|ما هي|وش |ايش|مش فاهم|ما فهمت|اشرح/;
+    if (questionPatterns.test(msgText)) {
+      setQuestionsDetected(p => p + 1);
+    }
+
     setNewMessage("");
 
     if (bookingId && user) {
@@ -629,12 +690,13 @@ const LiveSession = () => {
           await supabase.functions.invoke("session-report", { body: { 
             booking_id: bookingId,
             session_stats: {
-              teacher_speaking_seconds: 0,
-              student_speaking_seconds: 0,
+              teacher_speaking_seconds: isTeacher ? teacherSpeakingSec : studentSpeakingSec,
+              student_speaking_seconds: isTeacher ? studentSpeakingSec : teacherSpeakingSec,
               messages_count: messages.length,
               violation_count: violationCount,
               duration_minutes: durationMinutes,
               is_short_session: isShortSession,
+              questions_detected: questionsDetected,
             }
           } });
         } catch {
