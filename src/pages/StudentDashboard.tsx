@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, ChevronLeft, Sparkles, MessageSquare, Zap } from "lucide-react";
+import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,15 +22,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 
+const formatDuration = (totalSeconds: number) => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
   const { play: playSound } = useNotificationSound();
-  const [stats, setStats] = useState({ bookings: 0, hours: 0, progress: 0, points: 0 });
+  const [stats, setStats] = useState({ completedCount: 0, cancelledCount: 0, actualSeconds: 0, progress: 0, points: 0 });
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
+  const [cancelledClasses, setCancelledClasses] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
-  const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,15 +68,38 @@ const StudentDashboard = () => {
         setUpcomingClasses([]);
       }
 
-      // Fetch past bookings
-      const { data: past } = await supabase
+      // Fetch completed bookings with sessions for actual time
+      const { data: completedBookings } = await supabase
         .from("bookings")
-        .select("*, subjects(name), reviews(rating)")
+        .select("*, subjects(name), reviews(rating), sessions(started_at, ended_at, duration_minutes)")
         .eq("student_id", user.id)
         .eq("status", "completed")
+        .order("scheduled_at", { ascending: false });
+
+      const completed = completedBookings || [];
+      setPastClasses(completed.slice(0, 10));
+
+      // Calculate actual seconds from sessions
+      let totalActualSeconds = 0;
+      completed.forEach((b: any) => {
+        const session = Array.isArray(b.sessions) ? b.sessions[0] : b.sessions;
+        if (session?.started_at && session?.ended_at) {
+          const seconds = Math.floor(
+            (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
+          );
+          if (seconds > 0) totalActualSeconds += seconds;
+        }
+      });
+
+      // Fetch cancelled/incomplete bookings
+      const { data: cancelled } = await supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("student_id", user.id)
+        .eq("status", "cancelled")
         .order("scheduled_at", { ascending: false })
         .limit(5);
-      setPastClasses(past || []);
+      setCancelledClasses(cancelled || []);
 
       // Fetch points
       const { data: pointsData } = await supabase
@@ -78,17 +108,11 @@ const StudentDashboard = () => {
         .eq("user_id", user.id)
         .single();
 
-      // Fetch bookings count
-      const { count: bookingsCount } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true })
-        .eq("student_id", user.id)
-        .eq("status", "completed");
-
       setStats({
-        bookings: bookingsCount || 0,
-        hours: Math.round((bookingsCount || 0) * 0.75), // 45 min per session
-        progress: Math.min(((bookingsCount || 0) / 20) * 100, 100),
+        completedCount: completed.length,
+        cancelledCount: (cancelled || []).length,
+        actualSeconds: totalActualSeconds,
+        progress: Math.min((completed.length / 20) * 100, 100),
         points: pointsData?.total_points || 0,
       });
 
@@ -100,14 +124,6 @@ const StudentDashboard = () => {
         .eq("is_active", true)
         .single();
       setSubscription(sub);
-
-      // Check free trial - only show if no completed bookings
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("free_trial_used")
-        .eq("user_id", user.id)
-        .single();
-      setFreeTrialAvailable(!profileData?.free_trial_used && (bookingsCount || 0) === 0);
 
       // Check Stripe subscription status
       try {
@@ -139,6 +155,25 @@ const StudentDashboard = () => {
       })
       .subscribe();
 
+    // Realtime: listen for subscription changes
+    const subChannel = supabase
+      .channel("student-subscription-sync")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "user_subscriptions",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated) {
+          setSubscription((prev: any) => ({ ...prev, ...updated }));
+          if (updated.remaining_minutes !== undefined && updated.remaining_minutes <= 0) {
+            toast.error("⚠️ انتهت باقتك! اشترك من جديد لمواصلة التعلم", { duration: 8000 });
+          }
+        }
+      })
+      .subscribe();
+
     // Realtime: listen for new notifications
     const notifChannel = supabase
       .channel("student-notifications-dashboard")
@@ -156,6 +191,7 @@ const StudentDashboard = () => {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(subChannel);
       supabase.removeChannel(notifChannel);
     };
   }, [user]);
@@ -178,32 +214,10 @@ const StudentDashboard = () => {
           </motion.div>
         </div>
 
-        {/* Free Trial Banner - only if no completed sessions */}
-        {freeTrialAvailable && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="border-0 shadow-card mb-6 overflow-hidden bg-gradient-to-l from-gold/10 via-gold/5 to-transparent border-gold/20">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gold/10 flex items-center justify-center">
-                    <Zap className="h-6 w-6 text-gold" />
-                  </div>
-                  <div>
-                    <p className="font-black text-foreground">🎁 حصة مجانية تجريبية!</p>
-                    <p className="text-xs text-muted-foreground">احجز أول حصة مجاناً وجرّب المنصة</p>
-                  </div>
-                </div>
-                <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                  <Link to="/search">احجز مجاناً <Zap className="mr-1 h-4 w-4" /></Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
         {/* Stats */}
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            {Array.from({ length: 5 }).map((_, i) => (
               <Card key={i} className="border-0 shadow-card">
                 <CardContent className="p-5 space-y-3">
                   <Skeleton className="w-10 h-10 rounded-xl" />
@@ -214,10 +228,11 @@ const StudentDashboard = () => {
             ))}
           </div>
         ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {[
-            { icon: CalendarCheck, label: "حصص مكتملة", value: stats.bookings.toString(), color: "text-primary", bg: "bg-primary/10" },
-            { icon: Clock, label: "ساعات التعلم", value: stats.hours.toString(), color: "text-secondary", bg: "bg-secondary/10" },
+            { icon: CalendarCheck, label: "حصص مكتملة", value: stats.completedCount.toString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: XCircle, label: "حصص غير مكتملة", value: stats.cancelledCount.toString(), color: "text-destructive", bg: "bg-destructive/10" },
+            { icon: Clock, label: "وقت التعلم الفعلي", value: formatDuration(stats.actualSeconds), color: "text-secondary", bg: "bg-secondary/10" },
             { icon: TrendingUp, label: "نسبة التقدم", value: `${Math.round(stats.progress)}%`, color: "text-accent-foreground", bg: "bg-accent" },
             { icon: Star, label: "النقاط", value: stats.points.toLocaleString(), color: "text-gold", bg: "bg-gold/10" },
           ].map((s, i) => (
@@ -227,7 +242,7 @@ const StudentDashboard = () => {
                   <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center mb-3`}>
                     <s.icon className={`h-5 w-5 ${s.color}`} />
                   </div>
-                  <p className="text-2xl font-black text-foreground">{s.value}</p>
+                  <p className="text-xl font-black text-foreground">{s.value}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                 </CardContent>
               </Card>
@@ -258,8 +273,7 @@ const StudentDashboard = () => {
             </motion.div>
 
             {/* Subscription Balance */}
-            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} freeTrialAvailable={freeTrialAvailable} />
-
+            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
 
             {/* Pending Booking Requests with Countdown + Cancel */}
             <PendingBookingRequests />
@@ -328,27 +342,61 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Session Materials (7-day retention with AI analysis) */}
+            {/* Session Materials */}
             <SessionMaterials />
 
             {/* Past Classes */}
             {pastClasses.length > 0 && (
               <Card className="border-0 shadow-card">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-bold">سجل الحصص</CardTitle>
+                  <CardTitle className="text-lg font-bold">سجل الحصص المكتملة</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {pastClasses.map((c: any) => (
-                    <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
+                  {pastClasses.map((c: any) => {
+                    const session = Array.isArray(c.sessions) ? c.sessions[0] : c.sessions;
+                    let duration = "";
+                    if (session?.started_at && session?.ended_at) {
+                      const secs = Math.floor((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000);
+                      duration = formatDuration(secs);
+                    }
+                    return (
+                      <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
+                        <div>
+                          <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(c.scheduled_at).toLocaleDateString("ar-SA")}</p>
+                          {duration && <p className="text-xs text-secondary font-semibold">⏱ {duration}</p>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {c.reviews?.[0] && Array.from({ length: c.reviews[0].rating }).map((_, j) => (
+                            <Star key={j} className="h-3.5 w-3.5 fill-gold text-gold" />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Cancelled/Incomplete Classes */}
+            {cancelledClasses.length > 0 && (
+              <Card className="border-0 shadow-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 font-bold">
+                    <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    </div>
+                    الحصص غير المكتملة
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {cancelledClasses.map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-destructive/5 hover:bg-destructive/10 transition-colors">
                       <div>
                         <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"}</p>
                         <p className="text-xs text-muted-foreground">{new Date(c.scheduled_at).toLocaleDateString("ar-SA")}</p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        {c.reviews?.[0] && Array.from({ length: c.reviews[0].rating }).map((_, j) => (
-                          <Star key={j} className="h-3.5 w-3.5 fill-gold text-gold" />
-                        ))}
-                      </div>
+                      <Badge variant="destructive" className="text-xs">ملغاة</Badge>
                     </div>
                   ))}
                 </CardContent>
