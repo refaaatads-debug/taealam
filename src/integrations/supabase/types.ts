@@ -557,6 +557,54 @@ export type Database = {
         }
         Relationships: []
       }
+      session_materials: {
+        Row: {
+          attachments: Json | null
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          expires_at: string
+          id: string
+          is_deleted: boolean
+          recording_url: string | null
+          session_id: string
+          student_id: string
+          teacher_id: string
+          title: string
+          whiteboard_data: Json | null
+        }
+        Insert: {
+          attachments?: Json | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          expires_at?: string
+          id?: string
+          is_deleted?: boolean
+          recording_url?: string | null
+          session_id: string
+          student_id: string
+          teacher_id: string
+          title?: string
+          whiteboard_data?: Json | null
+        }
+        Update: {
+          attachments?: Json | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          expires_at?: string
+          id?: string
+          is_deleted?: boolean
+          recording_url?: string | null
+          session_id?: string
+          student_id?: string
+          teacher_id?: string
+          title?: string
+          whiteboard_data?: Json | null
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           ai_report: string | null
