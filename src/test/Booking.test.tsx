@@ -11,7 +11,8 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
   fn.eq = () => chainable(terminal);
   fn.in = () => chainable(terminal);
   fn.order = () => chainable(terminal);
-  fn.limit = () => Promise.resolve(terminal);
+  fn.limit = () => chainable(terminal);
+  fn.maybeSingle = () => Promise.resolve(terminal);
   fn.single = () => Promise.resolve(terminal);
   fn.gte = () => chainable(terminal);
   fn.lte = () => chainable(terminal);
@@ -42,14 +43,14 @@ vi.mock("framer-motion", () => ({
 }));
 
 describe("Booking Page", () => {
-  it("shows choose teacher message when no teacher param", async () => {
+  it("shows booking page content when no teacher param", async () => {
     const Booking = (await import("@/pages/Booking")).default;
     const { getByText } = render(
       <BrowserRouter>
         <Booking />
       </BrowserRouter>
     );
-    expect(getByText("اختر مدرساً أولاً")).toBeInTheDocument();
+    expect(getByText("اختر المادة والموعد المناسب")).toBeInTheDocument();
   });
 
   it("shows search button link", async () => {
