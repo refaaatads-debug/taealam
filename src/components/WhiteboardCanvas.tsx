@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
-  Highlighter
+  Highlighter, Crosshair
 } from "lucide-react";
 import {
   Tooltip,
@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type Tool = "pen" | "highlighter" | "eraser" | "text" | "rect" | "circle" | "line";
+type Tool = "pen" | "highlighter" | "eraser" | "text" | "rect" | "circle" | "line" | "laser";
 
 interface DrawAction {
   type: "path" | "rect" | "circle" | "line" | "text" | "clear";
@@ -37,6 +37,7 @@ interface WhiteboardCanvasProps {
   onSendData?: (msg: any) => void;
   overlay?: boolean;
   remoteActions?: DrawAction[];
+  remoteLaserPos?: { x: number; y: number } | null;
 }
 
 const COLORS = [
@@ -52,6 +53,7 @@ const CURSOR_MAP: Record<Tool, string> = {
   rect: "crosshair",
   circle: "crosshair",
   line: "crosshair",
+  laser: "none",
 };
 
 export default function WhiteboardCanvas({
@@ -62,6 +64,7 @@ export default function WhiteboardCanvas({
   onSendData,
   overlay = false,
   remoteActions,
+  remoteLaserPos,
 }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,18 +73,34 @@ export default function WhiteboardCanvas({
   const [lineWidth, setLineWidth] = useState(3);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showColors, setShowColors] = useState(false);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
+  const [laserPos, setLaserPos] = useState<{ x: number; y: number } | null>(null);
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
   const undoneRef = useRef<DrawAction[]>([]);
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const throttleRef = useRef<number>(0);
+  const hideTimerRef = useRef<number>();
 
   const canDraw = isTeacher;
 
+  // Auto-hide toolbar after 4s of inactivity
+  const resetHideTimer = useCallback(() => {
+    setToolbarVisible(true);
+    clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      if (!isDrawing) setToolbarVisible(false);
+    }, 4000);
+  }, [isDrawing]);
+
+  useEffect(() => {
+    if (canDraw) resetHideTimer();
+    return () => clearTimeout(hideTimerRef.current);
+  }, [canDraw, resetHideTimer]);
+
   const fillBackground = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.clearRect(0, 0, w, h);
-    // Overlay mode = transparent, standalone = white with dots
     if (!overlay) {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
@@ -206,7 +225,15 @@ export default function WhiteboardCanvas({
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
     if (!canDraw) return;
     e.preventDefault();
+    resetHideTimer();
     const pt = getCanvasPoint(e);
+
+    if (tool === "laser") {
+      setIsDrawing(true);
+      setLaserPos(pt);
+      onSendData?.({ type: "laser-move", pos: pt });
+      return;
+    }
 
     if (tool === "text") {
       const text = prompt("اكتب النص:");
@@ -235,14 +262,28 @@ export default function WhiteboardCanvas({
   };
 
   const handlePointerMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !canDraw) return;
+    if (!canDraw) return;
+    
+    // Show toolbar on mouse move
+    if (!isDrawing) resetHideTimer();
+
+    if (!isDrawing) return;
     e.preventDefault();
 
-    const now = Date.now();
-    if (now - throttleRef.current < 50) return;
-    throttleRef.current = now;
-
     const pt = getCanvasPoint(e);
+
+    if (tool === "laser") {
+      const now = Date.now();
+      if (now - throttleRef.current < 16) return;
+      throttleRef.current = now;
+      setLaserPos(pt);
+      onSendData?.({ type: "laser-move", pos: pt });
+      return;
+    }
+
+    const now = Date.now();
+    if (now - throttleRef.current < 16) return;
+    throttleRef.current = now;
 
     if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
       currentPathRef.current.push(pt);
@@ -281,7 +322,16 @@ export default function WhiteboardCanvas({
   };
 
   const handlePointerUp = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !canDraw) return;
+    if (!canDraw) return;
+
+    if (tool === "laser") {
+      setIsDrawing(false);
+      setLaserPos(null);
+      onSendData?.({ type: "laser-hide" });
+      return;
+    }
+
+    if (!isDrawing) return;
     setIsDrawing(false);
 
     const pt = "changedTouches" in e
@@ -387,6 +437,7 @@ export default function WhiteboardCanvas({
     { id: "pen", icon: Pen, label: "قلم" },
     { id: "highlighter", icon: Highlighter, label: "تحديد" },
     { id: "eraser", icon: Eraser, label: "ممحاة" },
+    { id: "laser", icon: Crosshair, label: "مؤشر ليزر" },
     { id: "text", icon: Type, label: "نص" },
     { id: "line", icon: Minus, label: "خط" },
     { id: "rect", icon: Square, label: "مستطيل" },
@@ -395,12 +446,21 @@ export default function WhiteboardCanvas({
 
   const cursorStyle = canDraw ? CURSOR_MAP[tool] : "default";
 
+  // Determine which laser position to show
+  const activeLaser = canDraw ? laserPos : remoteLaserPos;
+
   return (
     <div className={`flex flex-col h-full ${overlay ? "bg-transparent" : "bg-card"}`}>
-      {/* Floating Toolbar - teacher only */}
+      {/* Floating Toolbar - teacher only, auto-hide */}
       {canDraw && (
         <TooltipProvider delayDuration={200}>
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-3 py-2 rounded-2xl bg-foreground/80 backdrop-blur-md shadow-xl border border-border/20">
+          <div
+            className={`absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-3 py-2 rounded-2xl bg-foreground/80 backdrop-blur-md shadow-xl border border-border/20 transition-all duration-300 ${
+              toolbarVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4 pointer-events-none"
+            }`}
+            onMouseEnter={() => { clearTimeout(hideTimerRef.current); setToolbarVisible(true); }}
+            onMouseLeave={resetHideTimer}
+          >
             {tools.map((t) => (
               <Tooltip key={t.id}>
                 <TooltipTrigger asChild>
@@ -409,10 +469,12 @@ export default function WhiteboardCanvas({
                     variant="ghost"
                     className={`h-9 w-9 rounded-xl transition-all duration-150 ${
                       tool === t.id
-                        ? "bg-primary text-primary-foreground shadow-md scale-110"
+                        ? t.id === "laser"
+                          ? "bg-destructive text-destructive-foreground shadow-md scale-110"
+                          : "bg-primary text-primary-foreground shadow-md scale-110"
                         : "text-card/70 hover:text-card hover:bg-card/10"
                     }`}
-                    onClick={() => setTool(t.id)}
+                    onClick={() => { setTool(t.id); resetHideTimer(); }}
                   >
                     <t.icon className="h-4 w-4" />
                   </Button>
@@ -523,6 +585,21 @@ export default function WhiteboardCanvas({
           onTouchMove={handlePointerMove}
           onTouchEnd={handlePointerUp}
         />
+
+        {/* Laser Pointer Dot */}
+        {activeLaser && (
+          <div
+            className="absolute pointer-events-none z-50"
+            style={{
+              left: activeLaser.x - 8,
+              top: activeLaser.y - 8,
+              width: 16,
+              height: 16,
+            }}
+          >
+            <div className="w-4 h-4 rounded-full bg-destructive animate-pulse shadow-[0_0_12px_4px_rgba(239,68,68,0.6)]" />
+          </div>
+        )}
       </div>
     </div>
   );

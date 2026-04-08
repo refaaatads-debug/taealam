@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
-  Pen, Brain
+  Pen, Brain, Pause, Play
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -50,6 +50,8 @@ const LiveSession = () => {
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
+  const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  const [pageFrozen, setPageFrozen] = useState(false);
   const [remoteVideoStatus, setRemoteVideoStatus] = useState("idle");
   const [lastDataMessageType, setLastDataMessageType] = useState("-");
   const [lastDataMessageAt, setLastDataMessageAt] = useState("-");
@@ -99,6 +101,12 @@ const LiveSession = () => {
       if (msg.active && !isTeacher) {
         toast.info("المعلم يشارك الشاشة الآن 🖥️");
       }
+    } else if (msg.type === "laser-move") {
+      setRemoteLaserPos(msg.pos);
+    } else if (msg.type === "laser-hide") {
+      setRemoteLaserPos(null);
+    } else if (msg.type === "page-freeze") {
+      if (!isTeacher) setPageFrozen(msg.active);
     }
   }, [isTeacher, pushDebugEvent]);
 
@@ -662,10 +670,15 @@ const LiveSession = () => {
   const remoteVideoTracks = remoteStream?.getVideoTracks().length || 0;
   const remoteLiveVideoTracks = remoteStream?.getVideoTracks().filter((track) => track.readyState === "live").length || 0;
 
-  // Auto-close drawing tools when screen sharing stops
+  // Auto-open/close drawing tools when screen sharing toggles
   useEffect(() => {
-    if (!screenSharing && isTeacher) {
-      setBoardOpen(false);
+    if (isTeacher) {
+      if (screenSharing) {
+        setBoardOpen(true);
+      } else {
+        setBoardOpen(false);
+        setPageFrozen(false);
+      }
     }
   }, [screenSharing, isTeacher]);
 
@@ -835,24 +848,32 @@ const LiveSession = () => {
                     onPlaying={() => setRemoteVideoStatus("playing")}
                   />
                   {/* Whiteboard overlay on student's screen share view */}
-                  {bookingId && user && (
-                    <div className="absolute inset-0 z-20 pointer-events-none">
-                      <WhiteboardCanvas
-                        bookingId={bookingId}
-                        userId={user.id}
-                        enabled={meetingStarted}
-                        isTeacher={false}
-                        onSendData={handleWhiteboardSend}
-                        overlay={true}
-                        remoteActions={whiteboardRemoteActions}
-                      />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
-                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                      <Monitor className="h-3 w-3" /> مشاركة الشاشة
-                    </p>
-                  </div>
+                   {bookingId && user && (
+                     <div className="absolute inset-0 z-20 pointer-events-none">
+                       <WhiteboardCanvas
+                         bookingId={bookingId}
+                         userId={user.id}
+                         enabled={meetingStarted}
+                         isTeacher={false}
+                         onSendData={handleWhiteboardSend}
+                         overlay={true}
+                         remoteActions={whiteboardRemoteActions}
+                         remoteLaserPos={remoteLaserPos}
+                       />
+                     </div>
+                   )}
+                   {pageFrozen && (
+                     <div className="absolute inset-0 z-5 bg-foreground/10 flex items-center justify-center pointer-events-none">
+                       <span className="bg-foreground/70 text-card px-4 py-2 rounded-xl text-sm font-bold backdrop-blur-sm">
+                         ⏸️ الشاشة مجمّدة - المعلم يشرح
+                       </span>
+                     </div>
+                   )}
+                   <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
+                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                       <Monitor className="h-3 w-3" /> مشاركة الشاشة
+                     </p>
+                   </div>
                 </div>
               )}
 
@@ -1041,6 +1062,9 @@ const LiveSession = () => {
             </Button>
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen && screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { setBoardOpen(!boardOpen); setShowReport(false); } }} disabled={!screenSharing} title={screenSharing ? "أدوات الرسم" : "شارك الشاشة أولاً للرسم"}>
               <PenTool className="h-5 w-5" />
+            </Button>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${pageFrozen ? "bg-orange-500 hover:bg-orange-600 text-card border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { const next = !pageFrozen; setPageFrozen(next); sendDataMessage({ type: "page-freeze", active: next }); } }} disabled={!screenSharing} title={pageFrozen ? "إلغاء التجميد" : "تجميد الشاشة"}>
+              {pageFrozen ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </Button>
           </>
         )}
