@@ -268,7 +268,7 @@ const StudentDashboard = () => {
             <WarningsSection />
 
             {/* Upcoming Schedule Table */}
-            <UpcomingSchedule upcomingClasses={upcomingClasses} />
+            <StudentScheduleTable />
 
             {/* Upcoming Classes Cards */}
             <Card className="border-0 shadow-card">
