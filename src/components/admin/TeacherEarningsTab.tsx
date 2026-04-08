@@ -5,12 +5,21 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, Plus, Loader2, TrendingUp, Users, Clock } from "lucide-react";
+import { DollarSign, Plus, Loader2, TrendingUp, Users, Pencil, X, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
+
+const STATUS_OPTIONS = [
+  { value: "confirmed", label: "مؤكدة", variant: "default" as const },
+  { value: "unconfirmed", label: "غير مؤكدة", variant: "destructive" as const },
+  { value: "in_progress", label: "جارية", variant: "secondary" as const },
+];
+
+const getStatusInfo = (status: string) =>
+  STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0];
 
 export default function TeacherEarningsTab() {
   const { user } = useAuth();
@@ -20,6 +29,7 @@ export default function TeacherEarningsTab() {
   const [showForm, setShowForm] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
   const [selectedTeacher, setSelectedTeacher] = useState("");
@@ -29,13 +39,11 @@ export default function TeacherEarningsTab() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState("confirmed");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    // Fetch teachers
     const { data: tps } = await supabase
       .from("teacher_profiles")
       .select("user_id, balance, total_sessions")
@@ -48,7 +56,6 @@ export default function TeacherEarningsTab() {
       setTeachers(tps.map(t => ({ ...t, full_name: nameMap.get(t.user_id) || "معلم" })));
     }
 
-    // Fetch earnings
     const { data: earningsData } = await supabase
       .from("teacher_earnings" as any)
       .select("*")
@@ -64,71 +71,103 @@ export default function TeacherEarningsTab() {
     }
   };
 
-  const addEarning = async () => {
+  const resetForm = () => {
+    setSelectedTeacher("");
+    setAmount("");
+    setNotes("");
+    setStatus("confirmed");
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (e: any) => {
+    setEditingId(e.id);
+    setSelectedTeacher(e.teacher_id);
+    setAmount(String(e.amount));
+    setMonth(e.month);
+    setNotes(e.notes || "");
+    setStatus(e.status || "confirmed");
+    setShowForm(true);
+  };
+
+  const saveEarning = async () => {
     if (!selectedTeacher || !amount || !month) {
       toast.error("يرجى ملء جميع الحقول المطلوبة");
       return;
     }
-
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       toast.error("المبلغ غير صحيح");
       return;
     }
 
-    // Check for duplicate
-    const { data: existing } = await supabase
-      .from("teacher_earnings" as any)
-      .select("id")
-      .eq("teacher_id", selectedTeacher)
-      .eq("month", month);
-
-    if (existing && (existing as any[]).length > 0) {
-      const confirmed = window.confirm(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month}. هل تريد إضافة مبلغ جديد؟`);
-      if (!confirmed) return;
-    }
-
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("teacher_earnings" as any)
-        .insert({
-          teacher_id: selectedTeacher,
-          amount: amountNum,
-          month,
-          notes: notes || null,
-          added_by_admin: user?.id,
-        } as any);
+      if (editingId) {
+        // Update existing
+        const oldEarning = earnings.find(e => e.id === editingId);
+        const { error } = await supabase
+          .from("teacher_earnings" as any)
+          .update({ amount: amountNum, month, notes: notes || null, status } as any)
+          .eq("id", editingId);
+        if (error) throw error;
 
-      if (error) throw error;
+        // Adjust teacher balance if amount changed
+        if (oldEarning && oldEarning.amount !== amountNum) {
+          const diff = amountNum - Number(oldEarning.amount);
+          const teacher = teachers.find(t => t.user_id === selectedTeacher);
+          if (teacher) {
+            await supabase.from("teacher_profiles")
+              .update({ balance: (teacher.balance || 0) + diff } as any)
+              .eq("user_id", selectedTeacher);
+          }
+        }
 
-      // Update teacher balance
-      await supabase.from("teacher_profiles")
-        .update({ balance: (teachers.find(t => t.user_id === selectedTeacher)?.balance || 0) + amountNum } as any)
-        .eq("user_id", selectedTeacher);
+        await supabase.from("system_logs").insert({
+          level: "info", source: "admin_earnings",
+          message: `تعديل أرباح ID: ${editingId} - المبلغ: ${amountNum} ر.س - الحالة: ${status}`,
+          user_id: user?.id, metadata: { earning_id: editingId, amount: amountNum, status, month },
+        });
 
-      // Notify teacher
-      await supabase.from("notifications").insert({
-        user_id: selectedTeacher,
-        title: "تم إضافة أرباح جديدة 💰",
-        body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month}`,
-        type: "payment",
-      });
+        toast.success("تم تعديل الأرباح بنجاح!");
+      } else {
+        // Check for duplicate
+        const { data: existing } = await supabase
+          .from("teacher_earnings" as any)
+          .select("id")
+          .eq("teacher_id", selectedTeacher)
+          .eq("month", month);
+        if (existing && (existing as any[]).length > 0) {
+          const confirmed = window.confirm(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month}. هل تريد إضافة مبلغ جديد؟`);
+          if (!confirmed) { setLoading(false); return; }
+        }
 
-      // Log in system_logs
-      await supabase.from("system_logs").insert({
-        level: "info",
-        source: "admin_earnings",
-        message: `إضافة أرباح ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month}`,
-        user_id: user?.id,
-        metadata: { teacher_id: selectedTeacher, amount: amountNum, month },
-      });
+        const { error } = await supabase
+          .from("teacher_earnings" as any)
+          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status } as any);
+        if (error) throw error;
 
-      toast.success("تم إضافة الأرباح بنجاح!");
-      setShowForm(false);
-      setSelectedTeacher("");
-      setAmount("");
-      setNotes("");
+        await supabase.from("teacher_profiles")
+          .update({ balance: (teachers.find(t => t.user_id === selectedTeacher)?.balance || 0) + amountNum } as any)
+          .eq("user_id", selectedTeacher);
+
+        await supabase.from("notifications").insert({
+          user_id: selectedTeacher,
+          title: "تم إضافة أرباح جديدة 💰",
+          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month}`,
+          type: "payment",
+        });
+
+        await supabase.from("system_logs").insert({
+          level: "info", source: "admin_earnings",
+          message: `إضافة أرباح ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month}`,
+          user_id: user?.id, metadata: { teacher_id: selectedTeacher, amount: amountNum, month, status },
+        });
+
+        toast.success("تم إضافة الأرباح بنجاح!");
+      }
+
+      resetForm();
       fetchData();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -187,31 +226,29 @@ export default function TeacherEarningsTab() {
               إدارة أرباح المعلمين ({filtered.length})
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
-              <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => setShowForm(!showForm)}>
+              <Button size="sm" className="rounded-xl gap-1.5 text-xs" onClick={() => { resetForm(); setShowForm(!showForm); }}>
                 <Plus className="h-3.5 w-3.5" />
                 إضافة أرباح
               </Button>
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
               <ExportCSVButton
-                data={filtered.map(e => ({ teacher: e.teacher_name, amount: e.amount, month: e.month, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
-                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "month", label: "الشهر" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
+                data={filtered.map(e => ({ teacher: e.teacher_name, amount: e.amount, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
+                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
                 filename="أرباح_المعلمين"
               />
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Add Earnings Form */}
+          {/* Add/Edit Form */}
           {showForm && (
             <div className="p-4 rounded-xl bg-accent/30 border border-border space-y-3">
-              <h4 className="font-bold text-sm">إضافة أرباح يدوية</h4>
+              <h4 className="font-bold text-sm">{editingId ? "تعديل الأرباح" : "إضافة أرباح يدوية"}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">المعلم *</label>
-                  <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="اختر المعلم" />
-                    </SelectTrigger>
+                  <Select value={selectedTeacher} onValueChange={setSelectedTeacher} disabled={!!editingId}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="اختر المعلم" /></SelectTrigger>
                     <SelectContent>
                       {teachers.map(t => (
                         <SelectItem key={t.user_id} value={t.user_id}>{t.full_name}</SelectItem>
@@ -221,41 +258,34 @@ export default function TeacherEarningsTab() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">المبلغ (ر.س) *</label>
-                  <Input
-                    type="number"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    className="rounded-xl"
-                    min="0"
-                    step="0.01"
-                  />
+                  <Input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="rounded-xl" min="0" step="0.01" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">الشهر *</label>
-                  <Input
-                    type="month"
-                    value={month}
-                    onChange={e => setMonth(e.target.value)}
-                    className="rounded-xl"
-                  />
+                  <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl" />
                 </div>
                 <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">الحالة *</label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
                   <label className="text-xs text-muted-foreground mb-1 block">ملاحظات</label>
-                  <Textarea
-                    placeholder="ملاحظات اختيارية..."
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    className="rounded-xl resize-none min-h-[40px]"
-                  />
+                  <Textarea placeholder="ملاحظات اختيارية..." value={notes} onChange={e => setNotes(e.target.value)} className="rounded-xl resize-none min-h-[40px]" />
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="rounded-xl gap-1.5" onClick={addEarning} disabled={loading}>
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  إضافة
+                <Button size="sm" className="rounded-xl gap-1.5" onClick={saveEarning} disabled={loading}>
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {editingId ? "حفظ التعديل" : "إضافة"}
                 </Button>
-                <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setShowForm(false)}>إلغاء</Button>
+                <Button size="sm" variant="outline" className="rounded-xl" onClick={resetForm}>إلغاء</Button>
               </div>
             </div>
           )}
@@ -273,20 +303,29 @@ export default function TeacherEarningsTab() {
                     <th className="text-right pb-3 font-medium">الشهر</th>
                     <th className="text-right pb-3 font-medium">تاريخ الإضافة</th>
                     <th className="text-right pb-3 font-medium">ملاحظات</th>
+                    <th className="text-right pb-3 font-medium">الحالة</th>
+                    <th className="text-right pb-3 font-medium">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filtered.map((e: any) => (
-                    <tr key={e.id} className="hover:bg-muted/30">
-                      <td className="py-3 font-medium text-foreground">{e.teacher_name}</td>
-                      <td className="py-3 text-foreground">{Number(e.amount).toLocaleString()} ر.س</td>
-                      <td className="py-3">
-                        <Badge variant="outline" className="text-xs">{e.month}</Badge>
-                      </td>
-                      <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
-                      <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
-                    </tr>
-                  ))}
+                  {filtered.map((e: any) => {
+                    const si = getStatusInfo(e.status);
+                    return (
+                      <tr key={e.id} className="hover:bg-muted/30">
+                        <td className="py-3 font-medium text-foreground">{e.teacher_name}</td>
+                        <td className="py-3 text-foreground">{Number(e.amount).toLocaleString()} ر.س</td>
+                        <td className="py-3"><Badge variant="outline" className="text-xs">{e.month}</Badge></td>
+                        <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
+                        <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
+                        <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
+                        <td className="py-3">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
