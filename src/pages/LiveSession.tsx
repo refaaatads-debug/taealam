@@ -577,6 +577,12 @@ const LiveSession = () => {
       return;
     }
 
+    // Detect questions
+    const questionPatterns = /[؟?]|كيف|ليش|لماذا|هل |ما هو|ما هي|وش |ايش|مش فاهم|ما فهمت|اشرح/;
+    if (questionPatterns.test(msgText)) {
+      setQuestionsDetected(p => p + 1);
+    }
+
     setNewMessage("");
 
     if (bookingId && user) {
