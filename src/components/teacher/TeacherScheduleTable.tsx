@@ -74,7 +74,18 @@ export default function TeacherScheduleTable() {
   };
 
   const isToday = (dateStr: string) => new Date(dateStr).toDateString() === new Date().toDateString();
+  const isPast = (dateStr: string) => new Date(dateStr) < new Date();
 
+  const handleDelete = async (bookingId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
+    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+    } else {
+      toast.success("تم حذف الحصة بنجاح");
+      fetchBookings();
+    }
+  };
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
