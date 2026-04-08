@@ -47,9 +47,9 @@ export default function MaterialsMonitorTab() {
     ]);
 
     // Calculate avg creation time from logs
-    const successLogs = (logs ?? []).filter(l => l.level === "info" && l.metadata?.elapsed_ms);
+    const successLogs = (logs ?? []).filter(l => l.level === "info" && l.metadata && typeof l.metadata === "object" && !Array.isArray(l.metadata) && "elapsed_ms" in l.metadata);
     const avgMs = successLogs.length > 0
-      ? successLogs.reduce((sum: number, l: any) => sum + (l.metadata.elapsed_ms || 0), 0) / successLogs.length
+      ? successLogs.reduce((sum: number, l: any) => sum + ((l.metadata as any).elapsed_ms || 0), 0) / successLogs.length
       : 0;
 
     // Check missing materials (completed sessions without materials in last 7 days)
