@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, Plus, Loader2, TrendingUp, Users, Pencil, X, Check } from "lucide-react";
+import { DollarSign, Plus, Loader2, TrendingUp, Users, Pencil, Check, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -31,6 +31,9 @@ export default function TeacherEarningsTab() {
   const [dateTo, setDateTo] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Computed hours per teacher per month
+  const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, number>>(new Map());
+
   // Form state
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [amount, setAmount] = useState("");
@@ -42,6 +45,38 @@ export default function TeacherEarningsTab() {
   const [status, setStatus] = useState("confirmed");
 
   useEffect(() => { fetchData(); }, []);
+
+  // Fetch computed hours when teacher or month changes
+  useEffect(() => {
+    if (selectedTeacher && month) {
+      fetchTeacherHours(selectedTeacher, month);
+    }
+  }, [selectedTeacher, month]);
+
+  const fetchTeacherHours = async (teacherId: string, monthStr: string) => {
+    // monthStr format: "2026-04"
+    const [year, m] = monthStr.split("-");
+    const startDate = `${year}-${m}-01`;
+    const endMonth = parseInt(m) === 12 ? 1 : parseInt(m) + 1;
+    const endYear = parseInt(m) === 12 ? parseInt(year) + 1 : parseInt(year);
+    const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+
+    const { data } = await supabase
+      .from("teacher_daily_stats")
+      .select("total_minutes")
+      .eq("teacher_id", teacherId)
+      .gte("date", startDate)
+      .lt("date", endDate);
+
+    const totalMin = (data ?? []).reduce((sum, d) => sum + (d.total_minutes || 0), 0);
+    setTeacherHoursMap(prev => new Map(prev).set(`${teacherId}_${monthStr}`, totalMin));
+  };
+
+  const getComputedHours = () => {
+    const key = `${selectedTeacher}_${month}`;
+    const minutes = teacherHoursMap.get(key) || 0;
+    return { minutes, hours: Math.round((minutes / 60) * 100) / 100 };
+  };
 
   const fetchData = async () => {
     const { data: tps } = await supabase
@@ -101,18 +136,18 @@ export default function TeacherEarningsTab() {
       return;
     }
 
+    const { hours } = getComputedHours();
+
     setLoading(true);
     try {
       if (editingId) {
-        // Update existing
         const oldEarning = earnings.find(e => e.id === editingId);
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .update({ amount: amountNum, month, notes: notes || null, status } as any)
+          .update({ amount: amountNum, month, notes: notes || null, status, hours } as any)
           .eq("id", editingId);
         if (error) throw error;
 
-        // Adjust teacher balance if amount changed
         if (oldEarning && oldEarning.amount !== amountNum) {
           const diff = amountNum - Number(oldEarning.amount);
           const teacher = teachers.find(t => t.user_id === selectedTeacher);
@@ -125,27 +160,24 @@ export default function TeacherEarningsTab() {
 
         await supabase.from("system_logs").insert({
           level: "info", source: "admin_earnings",
-          message: `تعديل أرباح ID: ${editingId} - المبلغ: ${amountNum} ر.س - الحالة: ${status}`,
-          user_id: user?.id, metadata: { earning_id: editingId, amount: amountNum, status, month },
+          message: `تعديل أرباح ID: ${editingId} - المبلغ: ${amountNum} ر.س - الساعات: ${hours}`,
+          user_id: user?.id, metadata: { earning_id: editingId, amount: amountNum, hours, status, month },
         });
 
         toast.success("تم تعديل الأرباح بنجاح!");
       } else {
-        // Check for duplicate
-        const { data: existing } = await supabase
-          .from("teacher_earnings" as any)
-          .select("id")
-          .eq("teacher_id", selectedTeacher)
-          .eq("month", month);
-        if (existing && (existing as any[]).length > 0) {
-          const confirmed = window.confirm(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month}. هل تريد إضافة مبلغ جديد؟`);
-          if (!confirmed) { setLoading(false); return; }
-        }
-
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status } as any);
-        if (error) throw error;
+          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours } as any);
+        
+        if (error) {
+          if (error.code === "23505") {
+            toast.error(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month} بالفعل`);
+            setLoading(false);
+            return;
+          }
+          throw error;
+        }
 
         await supabase.from("teacher_profiles")
           .update({ balance: (teachers.find(t => t.user_id === selectedTeacher)?.balance || 0) + amountNum } as any)
@@ -154,14 +186,14 @@ export default function TeacherEarningsTab() {
         await supabase.from("notifications").insert({
           user_id: selectedTeacher,
           title: "تم إضافة أرباح جديدة 💰",
-          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month}`,
+          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month} (${hours} ساعة عمل)`,
           type: "payment",
         });
 
         await supabase.from("system_logs").insert({
           level: "info", source: "admin_earnings",
-          message: `إضافة أرباح ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month}`,
-          user_id: user?.id, metadata: { teacher_id: selectedTeacher, amount: amountNum, month, status },
+          message: `إضافة أرباح ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month} - ${hours} ساعة`,
+          user_id: user?.id, metadata: { teacher_id: selectedTeacher, amount: amountNum, hours, month, status },
         });
 
         toast.success("تم إضافة الأرباح بنجاح!");
@@ -184,6 +216,7 @@ export default function TeacherEarningsTab() {
   });
 
   const totalAdded = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
+  const computedHours = getComputedHours();
 
   return (
     <div className="space-y-4">
@@ -232,8 +265,8 @@ export default function TeacherEarningsTab() {
               </Button>
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
               <ExportCSVButton
-                data={filtered.map(e => ({ teacher: e.teacher_name, amount: e.amount, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
-                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
+                data={filtered.map(e => ({ teacher: e.teacher_name, amount: e.amount, hours: e.hours || 0, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
+                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "hours", label: "الساعات" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
                 filename="أرباح_المعلمين"
               />
             </div>
@@ -257,12 +290,27 @@ export default function TeacherEarningsTab() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">المبلغ (ر.س) *</label>
-                  <Input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="rounded-xl" min="0" step="0.01" />
-                </div>
-                <div>
                   <label className="text-xs text-muted-foreground mb-1 block">الشهر *</label>
                   <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl" />
+                </div>
+
+                {/* Computed hours - read only */}
+                {selectedTeacher && month && (
+                  <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-bold text-foreground">ساعات العمل المحسوبة</span>
+                    </div>
+                    <p className="text-lg font-black text-primary">
+                      {computedHours.hours} ساعة ({computedHours.minutes} دقيقة)
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">محسوبة تلقائياً من الجلسات المكتملة (≥5 دقائق)</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">المبلغ (ر.س) *</label>
+                  <Input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} className="rounded-xl" min="0" step="0.01" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">الحالة *</label>
@@ -299,6 +347,7 @@ export default function TeacherEarningsTab() {
                 <thead>
                   <tr className="border-b text-muted-foreground">
                     <th className="text-right pb-3 font-medium">المعلم</th>
+                    <th className="text-right pb-3 font-medium">الساعات</th>
                     <th className="text-right pb-3 font-medium">المبلغ</th>
                     <th className="text-right pb-3 font-medium">الشهر</th>
                     <th className="text-right pb-3 font-medium">تاريخ الإضافة</th>
@@ -313,6 +362,12 @@ export default function TeacherEarningsTab() {
                     return (
                       <tr key={e.id} className="hover:bg-muted/30">
                         <td className="py-3 font-medium text-foreground">{e.teacher_name}</td>
+                        <td className="py-3 text-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {e.hours ? `${Number(e.hours).toFixed(1)} ساعة` : "—"}
+                          </span>
+                        </td>
                         <td className="py-3 text-foreground">{Number(e.amount).toLocaleString()} ر.س</td>
                         <td className="py-3"><Badge variant="outline" className="text-xs">{e.month}</Badge></td>
                         <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
