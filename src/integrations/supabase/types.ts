@@ -1009,6 +1009,7 @@ export type Database = {
           added_by_admin: string
           amount: number
           created_at: string
+          hours: number | null
           id: string
           month: string
           notes: string | null
@@ -1019,6 +1020,7 @@ export type Database = {
           added_by_admin: string
           amount: number
           created_at?: string
+          hours?: number | null
           id?: string
           month: string
           notes?: string | null
@@ -1029,6 +1031,7 @@ export type Database = {
           added_by_admin?: string
           amount?: number
           created_at?: string
+          hours?: number | null
           id?: string
           month?: string
           notes?: string | null
