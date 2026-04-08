@@ -77,6 +77,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_logs: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          error_message: string | null
+          feature_name: string
+          id: string
+          input_summary: string | null
+          output_summary: string | null
+          quality_score: number | null
+          response_time_ms: number | null
+          retry_count: number | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          feature_name: string
+          id?: string
+          input_summary?: string | null
+          output_summary?: string | null
+          quality_score?: number | null
+          response_time_ms?: number | null
+          retry_count?: number | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          feature_name?: string
+          id?: string
+          input_summary?: string | null
+          output_summary?: string | null
+          quality_score?: number | null
+          response_time_ms?: number | null
+          retry_count?: number | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           created_at: string
