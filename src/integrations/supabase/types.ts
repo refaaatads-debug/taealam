@@ -964,6 +964,7 @@ export type Database = {
           id: string
           month: string
           notes: string | null
+          status: string
           teacher_id: string
         }
         Insert: {
@@ -973,6 +974,7 @@ export type Database = {
           id?: string
           month: string
           notes?: string | null
+          status?: string
           teacher_id: string
         }
         Update: {
@@ -982,6 +984,7 @@ export type Database = {
           id?: string
           month?: string
           notes?: string | null
+          status?: string
           teacher_id?: string
         }
         Relationships: []
