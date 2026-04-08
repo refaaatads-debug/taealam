@@ -94,13 +94,6 @@ export default function TeacherScheduleTable() {
       toast.success(`تم إرسال طلب الانضمام إلى ${studentName}`);
     }
   };
-    if (error) {
-      toast.error("تعذر حذف الحصة");
-    } else {
-      toast.success("تم حذف الحصة بنجاح");
-      fetchBookings();
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
