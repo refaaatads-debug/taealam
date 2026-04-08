@@ -136,15 +136,24 @@ export default function TeacherEarningsTab() {
       return;
     }
 
-    const { hours } = getComputedHours();
+    const { hours, minutes } = getComputedHours();
+    const teacherData = teachers.find(t => t.user_id === selectedTeacher);
 
     setLoading(true);
     try {
       if (editingId) {
         const oldEarning = earnings.find(e => e.id === editingId);
+
+        // Block editing paid earnings on client side too
+        if (oldEarning?.status === "paid") {
+          toast.error("لا يمكن تعديل أرباح تم دفعها");
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .update({ amount: amountNum, month, notes: notes || null, status, hours } as any)
+          .update({ amount: amountNum, month, notes: notes || null, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any)
           .eq("id", editingId);
         if (error) throw error;
 
