@@ -119,9 +119,20 @@ export default function TeacherPerformanceTab() {
         const uniqueStudents = new Set(completedBookings.map(b => b.student_id));
 
         let totalActualMinutes = 0;
+        let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
           const session = sessionMap.get(b.id);
           const actualDuration = session?.duration_minutes || null;
+          let actualSeconds: number | null = null;
+          
+          if (b.status === "completed" && session?.started_at && session?.ended_at) {
+            actualSeconds = Math.floor(
+              (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
+            );
+            if (actualSeconds > 0) {
+              totalActualSeconds += actualSeconds;
+            }
+          }
           if (b.status === "completed" && actualDuration) {
             totalActualMinutes += actualDuration;
           }
@@ -132,6 +143,7 @@ export default function TeacherPerformanceTab() {
             scheduled_at: b.scheduled_at,
             duration_minutes: b.duration_minutes,
             actual_duration: actualDuration,
+            actual_seconds: actualSeconds,
             status: b.status,
             price: b.price,
           };
