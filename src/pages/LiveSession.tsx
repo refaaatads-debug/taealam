@@ -47,29 +47,28 @@ const LiveSession = () => {
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
-  const [whiteboardRemoteAction, setWhiteboardRemoteAction] = useState<any>(null);
+  const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
-  const actionCounterRef = useRef(0);
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
   // Handle DataChannel messages (whiteboard sync, screen share status)
   const handleDataMessage = useCallback((msg: any) => {
     if (msg.type === "whiteboard-action") {
-      // Each action needs a unique identity so useEffect triggers on every one
-      actionCounterRef.current += 1;
-      setWhiteboardRemoteAction({ ...msg.action, _seq: actionCounterRef.current });
-      // Show "teacher is drawing" indicator
+      setWhiteboardRemoteActions((prev) => [...prev, msg.action]);
       if (!isTeacher) {
+        setBoardOpen(true);
         setRemoteDrawing(true);
         clearTimeout(remoteDrawingTimerRef.current);
         remoteDrawingTimerRef.current = window.setTimeout(() => setRemoteDrawing(false), 2000);
       }
     } else if (msg.type === "whiteboard-clear") {
-      actionCounterRef.current += 1;
-      setWhiteboardRemoteAction({ type: "clear", _seq: actionCounterRef.current });
+      setWhiteboardRemoteActions([]);
+      if (!isTeacher) {
+        setBoardOpen(true);
+      }
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
       if (msg.active && !isTeacher) {
@@ -177,6 +176,13 @@ const LiveSession = () => {
       remoteAudioRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [remoteStream, remoteScreenSharing]);
 
   // Chat messages persistence and realtime
   useEffect(() => {
@@ -838,7 +844,7 @@ const LiveSession = () => {
                 enabled={meetingStarted}
                 isTeacher={isTeacher}
                 onSendData={handleWhiteboardSend}
-                remoteAction={whiteboardRemoteAction}
+                remoteActions={whiteboardRemoteActions}
               />
             </motion.div>
           )}
@@ -927,6 +933,9 @@ const LiveSession = () => {
         {/* Student controls */}
         {!isTeacher && (
           <>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
+              {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </Button>
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setBoardOpen(!boardOpen)}>
               <PenTool className="h-5 w-5" />
             </Button>

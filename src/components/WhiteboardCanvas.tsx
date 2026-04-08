@@ -30,7 +30,7 @@ interface WhiteboardCanvasProps {
   isTeacher?: boolean;
   onSendData?: (msg: any) => void;
   overlay?: boolean;
-  remoteAction?: DrawAction | null;
+  remoteActions?: DrawAction[];
 }
 
 const COLORS = [
@@ -45,7 +45,7 @@ export default function WhiteboardCanvas({
   isTeacher = true,
   onSendData,
   overlay = false,
-  remoteAction,
+  remoteActions,
 }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +61,6 @@ export default function WhiteboardCanvas({
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const throttleRef = useRef<number>(0);
 
-  // Can draw: teacher always, student never in current spec
   const canDraw = isTeacher;
 
   const resizeCanvas = useCallback(() => {
@@ -89,7 +88,6 @@ export default function WhiteboardCanvas({
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
-  // Receive draw actions from DataChannel (called externally)
   const handleRemoteAction = useCallback((action: DrawAction) => {
     if (action.type === "clear") {
       actionsRef.current = [];
@@ -105,12 +103,17 @@ export default function WhiteboardCanvas({
     if (ctx) redrawAll(ctx, rect.width, rect.height);
   }, []);
 
-  // Handle remote actions via prop
   useEffect(() => {
-    if (remoteAction) {
-      handleRemoteAction(remoteAction);
-    }
-  }, [remoteAction, handleRemoteAction]);
+    if (!remoteActions || canDraw) return;
+    actionsRef.current = [...remoteActions];
+    undoneRef.current = [];
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    const rect = container.getBoundingClientRect();
+    if (ctx) redrawAll(ctx, rect.width, rect.height);
+  }, [remoteActions, canDraw]);
 
   const fillBackground = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     if (overlay) {
