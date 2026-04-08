@@ -101,6 +101,12 @@ const LiveSession = () => {
       if (msg.active && !isTeacher) {
         toast.info("المعلم يشارك الشاشة الآن 🖥️");
       }
+    } else if (msg.type === "laser-move") {
+      setRemoteLaserPos(msg.pos);
+    } else if (msg.type === "laser-hide") {
+      setRemoteLaserPos(null);
+    } else if (msg.type === "page-freeze") {
+      if (!isTeacher) setPageFrozen(msg.active);
     }
   }, [isTeacher, pushDebugEvent]);
 
