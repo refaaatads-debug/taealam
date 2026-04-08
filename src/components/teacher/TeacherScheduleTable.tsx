@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { toast } from "sonner";
 
 interface BookingRow {
   id: string;
@@ -73,7 +74,18 @@ export default function TeacherScheduleTable() {
   };
 
   const isToday = (dateStr: string) => new Date(dateStr).toDateString() === new Date().toDateString();
+  const isPast = (dateStr: string) => new Date(dateStr) < new Date();
 
+  const handleDelete = async (bookingId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
+    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+    } else {
+      toast.success("تم حذف الحصة بنجاح");
+      fetchBookings();
+    }
+  };
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -166,6 +178,12 @@ export default function TeacherScheduleTable() {
                               <RotateCcw className="h-3.5 w-3.5" />
                               جلسة جديدة
                             </Link>
+                          </Button>
+                        )}
+                        {b.status === "completed" && (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(b.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                            حذف
                           </Button>
                         )}
                       </div>
