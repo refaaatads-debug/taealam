@@ -60,19 +60,33 @@ export function useSessionAntiCheat({
     if (!enabled || !bookingId) return;
 
     const lockKey = TAB_LOCK_KEY + bookingId;
+    const lockTimestampKey = lockKey + "_ts";
     const existingLock = localStorage.getItem(lockKey);
+    const existingTs = localStorage.getItem(lockTimestampKey);
 
+    // If lock exists from another tab, check if it's stale (>30s old)
     if (existingLock && existingLock !== tabId.current) {
-      // Another tab has this session open
-      setIsTabLocked(true);
-      toast.error("هذه الجلسة مفتوحة في تبويب آخر. أغلق التبويب الآخر أولاً.", { duration: 10000 });
-      return;
+      const lockAge = existingTs ? Date.now() - parseInt(existingTs, 10) : Infinity;
+      if (lockAge < 30_000) {
+        setIsTabLocked(true);
+        toast.error("هذه الجلسة مفتوحة في تبويب آخر. أغلق التبويب الآخر أولاً.", { duration: 10000 });
+        return;
+      }
+      console.log("Tab lock was stale, taking over");
     }
 
-    // Acquire lock
+    // Acquire lock with timestamp
     localStorage.setItem(lockKey, tabId.current);
+    localStorage.setItem(lockTimestampKey, Date.now().toString());
 
-    // Listen for other tabs trying to take over
+    // Keep timestamp fresh every 10s
+    const refreshInterval = window.setInterval(() => {
+      const current = localStorage.getItem(lockKey);
+      if (current === tabId.current) {
+        localStorage.setItem(lockTimestampKey, Date.now().toString());
+      }
+    }, 10_000);
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === lockKey && e.newValue && e.newValue !== tabId.current) {
         setIsTabLocked(true);
@@ -82,11 +96,11 @@ export function useSessionAntiCheat({
 
     window.addEventListener("storage", handleStorage);
 
-    // Cleanup on tab close
     const handleUnload = () => {
       const current = localStorage.getItem(lockKey);
       if (current === tabId.current) {
         localStorage.removeItem(lockKey);
+        localStorage.removeItem(lockTimestampKey);
       }
       logEvent("tab_close", { tab_id: tabId.current });
     };
@@ -94,11 +108,13 @@ export function useSessionAntiCheat({
     window.addEventListener("beforeunload", handleUnload);
 
     return () => {
+      clearInterval(refreshInterval);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("beforeunload", handleUnload);
       const current = localStorage.getItem(lockKey);
       if (current === tabId.current) {
         localStorage.removeItem(lockKey);
+        localStorage.removeItem(lockTimestampKey);
       }
     };
   }, [enabled, bookingId]);
