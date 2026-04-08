@@ -831,7 +831,6 @@ const LiveSession = () => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               className="flex-1 min-w-0"
-              ref={whiteboardCanvasRefCallback}
             >
               <WhiteboardCanvas
                 bookingId={bookingId}
@@ -839,6 +838,7 @@ const LiveSession = () => {
                 enabled={meetingStarted}
                 isTeacher={isTeacher}
                 onSendData={handleWhiteboardSend}
+                remoteAction={whiteboardRemoteAction}
               />
             </motion.div>
           )}
