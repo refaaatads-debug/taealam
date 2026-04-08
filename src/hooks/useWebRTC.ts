@@ -51,7 +51,7 @@ export function useWebRTC({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const screenSenderRef = useRef<RTCRtpSender | null>(null);
+  const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
 
   // Stable refs for callbacks
   const onRemoteStreamRef = useRef(onRemoteStream);
@@ -152,6 +152,11 @@ export function useWebRTC({
         pc.addTrack(track, localStreamRef.current!);
       });
     }
+
+    // Pre-add a video transceiver for screen sharing (inactive by default)
+    // This ensures stable m-line ordering across renegotiations
+    const videoTransceiver = pc.addTransceiver("video", { direction: "sendrecv" });
+    screenTransceiverRef.current = videoTransceiver;
 
     // Handle remote tracks
     const remote = new MediaStream();
@@ -309,61 +314,41 @@ export function useWebRTC({
 
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
-    if (!pc) return;
-
-    const renegotiate = async () => {
-      try {
-        if (makingOfferRef.current || pc.signalingState !== "stable") return;
-        makingOfferRef.current = true;
-        const offer = await pc.createOffer();
-        if (pc.signalingState !== "stable") return;
-        await pc.setLocalDescription(offer);
-        await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
-      } catch (err) {
-        console.error("Screen share renegotiation error:", err);
-      } finally {
-        makingOfferRef.current = false;
-      }
-    };
+    const transceiver = screenTransceiverRef.current;
+    if (!pc || !transceiver) return;
 
     if (screenSharing) {
+      // Stop screen sharing - replace track with null
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
-      if (screenSenderRef.current) {
-        pc.removeTrack(screenSenderRef.current);
-        screenSenderRef.current = null;
-      }
+      await transceiver.sender.replaceTrack(null);
+      transceiver.direction = "sendrecv";
       setScreenSharing(false);
-      // Notify remote that screen share stopped
       sendDataMessage({ type: "screen-share-status", active: false });
-      await renegotiate();
     } else {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         screenStreamRef.current = screenStream;
         const screenTrack = screenStream.getVideoTracks()[0];
-        const sender = pc.addTrack(screenTrack, screenStream);
-        screenSenderRef.current = sender;
+        
+        // Use replaceTrack on the pre-created transceiver - no renegotiation needed
+        await transceiver.sender.replaceTrack(screenTrack);
+        transceiver.direction = "sendrecv";
 
-        screenTrack.addEventListener("ended", () => {
-          if (screenSenderRef.current) {
-            pc.removeTrack(screenSenderRef.current);
-            screenSenderRef.current = null;
-          }
+        screenTrack.addEventListener("ended", async () => {
+          await transceiver.sender.replaceTrack(null);
           setScreenSharing(false);
           screenStreamRef.current = null;
           sendDataMessage({ type: "screen-share-status", active: false });
-          void renegotiate();
         });
 
         setScreenSharing(true);
         sendDataMessage({ type: "screen-share-status", active: true });
-        await renegotiate();
       } catch {
         console.error("Screen share cancelled");
       }
     }
-  }, [screenSharing, sendSignal, sendDataMessage]);
+  }, [screenSharing, sendDataMessage]);
 
   // Recording
   const startRecording = useCallback(async () => {

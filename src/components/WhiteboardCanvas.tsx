@@ -30,6 +30,7 @@ interface WhiteboardCanvasProps {
   isTeacher?: boolean;
   onSendData?: (msg: any) => void;
   overlay?: boolean;
+  remoteAction?: DrawAction | null;
 }
 
 const COLORS = [
@@ -44,6 +45,7 @@ export default function WhiteboardCanvas({
   isTeacher = true,
   onSendData,
   overlay = false,
+  remoteAction,
 }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,13 +105,12 @@ export default function WhiteboardCanvas({
     if (ctx) redrawAll(ctx, rect.width, rect.height);
   }, []);
 
-  // Expose handleRemoteAction via ref
+  // Handle remote actions via prop
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      (canvas as any).__handleRemoteAction = handleRemoteAction;
+    if (remoteAction) {
+      handleRemoteAction(remoteAction);
     }
-  }, [handleRemoteAction]);
+  }, [remoteAction, handleRemoteAction]);
 
   const fillBackground = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     if (overlay) {
