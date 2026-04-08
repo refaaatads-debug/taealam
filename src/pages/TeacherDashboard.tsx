@@ -205,6 +205,18 @@ const TeacherDashboard = () => {
                             )}
                           </Link>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl gap-1.5 px-3 border-secondary/30 text-secondary hover:bg-secondary/10"
+                          onClick={async () => {
+                            await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", s.id);
+                            toast.success(`تم إرسال طلب الانضمام إلى ${s.student_profile?.full_name || "الطالب"}`);
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                          <span className="text-xs font-medium">أرسل طلب</span>
+                        </Button>
                         <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                           <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
                         </Button>
