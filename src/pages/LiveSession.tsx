@@ -50,6 +50,8 @@ const LiveSession = () => {
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
+  const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  const [pageFrozen, setPageFrozen] = useState(false);
   const [remoteVideoStatus, setRemoteVideoStatus] = useState("idle");
   const [lastDataMessageType, setLastDataMessageType] = useState("-");
   const [lastDataMessageAt, setLastDataMessageAt] = useState("-");
