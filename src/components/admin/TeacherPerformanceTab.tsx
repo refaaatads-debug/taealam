@@ -442,57 +442,7 @@ export default function TeacherPerformanceTab() {
                           </div>
 
                           {/* Sessions List */}
-                          <div>
-                            <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
-                              <BookOpen className="h-4 w-4 text-primary" />
-                              تفاصيل الحصص ({teacher.sessions.length})
-                            </h4>
-                            {teacher.sessions.length === 0 ? (
-                              <p className="text-sm text-muted-foreground text-center py-4">لا توجد حصص</p>
-                            ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
-                                  <thead>
-                                    <tr className="border-b text-muted-foreground">
-                                      <th className="text-right pb-2 font-medium">الطالب</th>
-                                      <th className="text-right pb-2 font-medium">المادة</th>
-                                      <th className="text-right pb-2 font-medium">التاريخ</th>
-                                      <th className="text-right pb-2 font-medium">المدة الفعلية</th>
-                                      <th className="text-right pb-2 font-medium">السعر</th>
-                                      <th className="text-right pb-2 font-medium">الحالة</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y">
-                                    {teacher.sessions.slice(0, 20).map((s, i) => (
-                                      <tr key={i} className="hover:bg-muted/20">
-                                        <td className="py-2 text-foreground">{s.student_name}</td>
-                                        <td className="py-2 text-muted-foreground">{s.subject_name}</td>
-                                        <td className="py-2 text-muted-foreground">
-                                          {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
-                                        </td>
-                                        <td className="py-2 text-foreground font-medium font-mono">
-                                          {s.status === "completed" && s.actual_seconds ? formatDuration(s.actual_seconds) : `${s.duration_minutes} دقيقة`}
-                                        </td>
-                                        <td className="py-2 text-muted-foreground">
-                                          {s.price ? `${s.price} ر.س` : "—"}
-                                        </td>
-                                        <td className="py-2">
-                                          <Badge variant={statusVariant(s.status)} className="text-[10px]">
-                                            {statusLabel(s.status)}
-                                          </Badge>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                                {teacher.sessions.length > 20 && (
-                                  <p className="text-center text-xs text-muted-foreground mt-2">
-                                    يتم عرض أحدث 20 حصة من إجمالي {teacher.sessions.length}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <SessionDetailsTable sessions={teacher.sessions} />
                         </div>
                       </motion.div>
                     )}
