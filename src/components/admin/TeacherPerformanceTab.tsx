@@ -413,23 +413,6 @@ export default function TeacherPerformanceTab() {
       return true;
     });
 
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "completed": return "مكتملة";
-      case "confirmed": return "مؤكدة";
-      case "cancelled": return "ملغاة";
-      default: return "معلقة";
-    }
-  };
-
-  const statusVariant = (status: string) => {
-    switch (status) {
-      case "completed": return "default" as const;
-      case "confirmed": return "secondary" as const;
-      case "cancelled": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   if (loading) {
     return (
