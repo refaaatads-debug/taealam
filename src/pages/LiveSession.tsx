@@ -803,7 +803,9 @@ const LiveSession = () => {
                 <connBadge.icon className="h-3 w-3" />
                 {connBadge.text}
               </span>
-              <span className="text-xs text-card/60 font-mono">{formatTime(elapsed)}</span>
+              <span className="text-xs text-card/60 font-mono">
+                {!bothJoined && meetingStarted ? "⏳ بانتظار الطرف الآخر..." : formatTime(elapsed)}
+              </span>
             </div>
           </div>
         </div>
