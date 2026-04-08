@@ -16,6 +16,7 @@ const STATUS_OPTIONS = [
   { value: "confirmed", label: "مؤكدة", variant: "default" as const },
   { value: "unconfirmed", label: "غير مؤكدة", variant: "destructive" as const },
   { value: "in_progress", label: "جارية", variant: "secondary" as const },
+  { value: "paid", label: "مدفوعة", variant: "outline" as const },
 ];
 
 const getStatusInfo = (status: string) =>
