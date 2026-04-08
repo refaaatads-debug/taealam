@@ -485,7 +485,6 @@ const AdminDashboard = () => {
               <BarChart3 className="h-4 w-4" />
               فحص AI
             </TabsTrigger>
-            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
