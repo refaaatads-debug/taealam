@@ -51,6 +51,8 @@ const LiveSession = () => {
   const [tenMinWarningShown, setTenMinWarningShown] = useState(false);
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
+  const [bothJoined, setBothJoined] = useState(false);
+  const sessionEndingRef = useRef(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
@@ -111,6 +113,17 @@ const LiveSession = () => {
       setRemoteLaserPos(null);
     } else if (msg.type === "page-freeze") {
       if (!isTeacher) setPageFrozen(msg.active);
+    } else if (msg.type === "session-end") {
+      // The other party ended the session - auto-end for this party too
+      if (!sessionEndingRef.current) {
+        toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+        setTimeout(() => endSession(), 1500);
+      }
+    } else if (msg.type === "timer-sync") {
+      // Sync elapsed time from the other party
+      if (typeof msg.elapsed === "number") {
+        setElapsed(prev => Math.max(prev, msg.elapsed));
+      }
     }
   }, [isTeacher, pushDebugEvent]);
 
@@ -175,7 +188,12 @@ const LiveSession = () => {
     },
     onRemoteJoin: () => {
       setRemoteConnected(true);
-      toast.success("انضم المشارك الآخر! 🎉");
+      if (meetingStarted) {
+        setBothJoined(true);
+        toast.success("انضم المشارك الآخر! بدأ العداد 🎉");
+      } else {
+        toast.success("انضم المشارك الآخر! 🎉");
+      }
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
@@ -466,9 +484,17 @@ const LiveSession = () => {
     return () => { supabase.removeChannel(channel); };
   }, [bookingId, user, bookingData, meetingStarted]);
 
-  // Session timer
+  // Set bothJoined when meetingStarted and remoteConnected are both true
   useEffect(() => {
-    if (!meetingStarted) return;
+    if (meetingStarted && remoteConnected && !bothJoined) {
+      setBothJoined(true);
+      toast.success("الطرفان متصلان الآن! بدأ العداد ⏱️");
+    }
+  }, [meetingStarted, remoteConnected, bothJoined]);
+
+  // Session timer - only ticks when bothJoined
+  useEffect(() => {
+    if (!meetingStarted || !bothJoined) return;
     timerRef.current = window.setInterval(() => {
       if (peerDisconnected) return;
 
@@ -494,11 +520,16 @@ const LiveSession = () => {
           return maxSeconds;
         }
 
+        // Sync timer to the other party every 10 seconds
+        if (next % 10 === 0) {
+          sendDataMessage({ type: "timer-sync", elapsed: next });
+        }
+
         return next;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
+  }, [meetingStarted, bothJoined, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
@@ -632,7 +663,12 @@ const LiveSession = () => {
   };
 
   const endSession = async () => {
+    if (sessionEndingRef.current) return;
+    sessionEndingRef.current = true;
     clearInterval(timerRef.current);
+
+    // Notify the other party to end session too
+    sendDataMessage({ type: "session-end", elapsed });
 
     if (isRecording) stopRecording();
     await stop();
@@ -767,7 +803,9 @@ const LiveSession = () => {
                 <connBadge.icon className="h-3 w-3" />
                 {connBadge.text}
               </span>
-              <span className="text-xs text-card/60 font-mono">{formatTime(elapsed)}</span>
+              <span className="text-xs text-card/60 font-mono">
+                {!bothJoined && meetingStarted ? "⏳ بانتظار الطرف الآخر..." : formatTime(elapsed)}
+              </span>
             </div>
           </div>
         </div>
