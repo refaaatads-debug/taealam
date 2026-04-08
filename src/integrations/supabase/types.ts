@@ -82,42 +82,51 @@ export type Database = {
           booking_id: string | null
           created_at: string
           error_message: string | null
+          evaluator_feedback: string | null
           feature_name: string
           id: string
           input_summary: string | null
+          is_regenerated: boolean | null
           output_summary: string | null
           quality_score: number | null
           response_time_ms: number | null
           retry_count: number | null
           status: string
+          usefulness_score: number | null
           user_id: string | null
         }
         Insert: {
           booking_id?: string | null
           created_at?: string
           error_message?: string | null
+          evaluator_feedback?: string | null
           feature_name: string
           id?: string
           input_summary?: string | null
+          is_regenerated?: boolean | null
           output_summary?: string | null
           quality_score?: number | null
           response_time_ms?: number | null
           retry_count?: number | null
           status?: string
+          usefulness_score?: number | null
           user_id?: string | null
         }
         Update: {
           booking_id?: string | null
           created_at?: string
           error_message?: string | null
+          evaluator_feedback?: string | null
           feature_name?: string
           id?: string
           input_summary?: string | null
+          is_regenerated?: boolean | null
           output_summary?: string | null
           quality_score?: number | null
           response_time_ms?: number | null
           retry_count?: number | null
           status?: string
+          usefulness_score?: number | null
           user_id?: string | null
         }
         Relationships: []
