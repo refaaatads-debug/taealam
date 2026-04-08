@@ -287,7 +287,7 @@ const LiveSession = () => {
     };
   }, [meetingStarted, localStream, remoteStream, isTeacher]);
 
-
+  useEffect(() => {
     const videoElement = remoteVideoRef.current;
     if (!videoElement) return;
 
