@@ -216,7 +216,6 @@ const LiveSession = () => {
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream) {
       remoteAudioRef.current.srcObject = remoteStream;
-    }
       remoteAudioRef.current.play().catch(() => {
         pushDebugEvent("remote-audio", "autoplay-blocked");
       });
