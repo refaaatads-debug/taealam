@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface BookingRow {
   id: string;
@@ -24,6 +25,7 @@ export default function TeacherScheduleTable() {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
 
@@ -48,7 +50,7 @@ export default function TeacherScheduleTable() {
       .select("id, scheduled_at, duration_minutes, status, student_id, subject_id, subjects(name)")
       .eq("teacher_id", user.id)
       .in("status", ["confirmed", "completed", "pending"])
-      .order("scheduled_at", { ascending: true });
+      .order("scheduled_at", { ascending: false });
 
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
@@ -73,9 +75,6 @@ export default function TeacherScheduleTable() {
     setLoading(false);
   };
 
-  const isToday = (dateStr: string) => new Date(dateStr).toDateString() === new Date().toDateString();
-  const isPast = (dateStr: string) => new Date(dateStr) < new Date();
-
   const handleDelete = async (bookingId: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
     const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
@@ -86,6 +85,7 @@ export default function TeacherScheduleTable() {
       fetchBookings();
     }
   };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -98,6 +98,19 @@ export default function TeacherScheduleTable() {
         return <Badge className="bg-muted text-muted-foreground border-0 text-[10px]">{status}</Badge>;
     }
   };
+
+  // Group bookings by student
+  const groupedByStudent = useMemo(() => {
+    const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
+    bookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      if (!groups[key]) {
+        groups[key] = { studentName: b.student_name || "طالب", studentId: key, bookings: [] };
+      }
+      groups[key].bookings.push(b);
+    });
+    return Object.values(groups);
+  }, [bookings]);
 
   if (loading) {
     return (
@@ -120,79 +133,116 @@ export default function TeacherScheduleTable() {
           {bookings.length > 0 && <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">{bookings.length}</Badge>}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {bookings.length === 0 ? (
+      <CardContent className="space-y-3">
+        {groupedByStudent.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">الطالب</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">المادة</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">التاريخ</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">الوقت</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">المدة</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">الحالة</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-muted-foreground">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr
-                    key={b.id}
-                    className={`border-b border-border/30 transition-colors ${
-                      b.status === "completed" ? "bg-destructive/5" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <td className="py-2.5 px-2 font-medium text-foreground">{b.student_name}</td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{b.subject_name}</td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{b.duration_minutes} د</td>
-                    <td className="py-2.5 px-2">{getStatusBadge(b.status)}</td>
-                    <td className="py-2.5 px-2">
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] relative" asChild>
-                          <Link to={`/chat?booking=${b.id}`}>
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            دردشة
-                            {(unreadCounts[b.id] || 0) > 0 && (
-                              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
-                                {unreadCounts[b.id]}
-                              </span>
-                            )}
-                          </Link>
-                        </Button>
-                        {(b.status === "confirmed" || b.status === "pending") && (
-                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
-                            <Link to={`/session?booking=${b.id}`}>
-                              <Video className="h-3.5 w-3.5" />
-                              ابدأ
-                            </Link>
-                          </Button>
-                        )}
-                        {b.status === "completed" && b.has_subscription && (
-                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
-                            <Link to={`/session?booking=${b.id}&new=true`}>
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              جلسة جديدة
-                            </Link>
-                          </Button>
-                        )}
-                        {b.status === "completed" && (
-                          <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(b.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                            حذف
-                          </Button>
-                        )}
+          groupedByStudent.map(group => {
+            const isExpanded = expandedStudent === group.studentId;
+            const completedCount = group.bookings.filter(b => b.status === "completed").length;
+            const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+
+            return (
+              <div key={group.studentId} className="rounded-xl border bg-muted/20 overflow-hidden">
+                <button
+                  onClick={() => setExpandedStudent(isExpanded ? null : group.studentId)}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{group.studentName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {activeCount > 0 && <span className="text-secondary">{activeCount} حصة قادمة</span>}
+                        {activeCount > 0 && completedCount > 0 && " • "}
+                        {completedCount > 0 && <span>{completedCount} مكتملة</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{group.bookings.length} حصة</Badge>
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t overflow-hidden"
+                    >
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border/50 bg-muted/30">
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المادة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">التاريخ</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الوقت</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.bookings.map(b => (
+                              <tr key={b.id} className={`border-b border-border/20 transition-colors ${b.status === "completed" ? "bg-destructive/5" : "hover:bg-muted/50"}`}>
+                                <td className="py-2.5 px-3 text-muted-foreground">{b.subject_name}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
+                                <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
+                                <td className="py-2.5 px-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] relative" asChild>
+                                      <Link to={`/chat?booking=${b.id}`}>
+                                        <MessageSquare className="h-3.5 w-3.5" />
+                                        دردشة
+                                        {(unreadCounts[b.id] || 0) > 0 && (
+                                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                                            {unreadCounts[b.id]}
+                                          </span>
+                                        )}
+                                      </Link>
+                                    </Button>
+                                    {(b.status === "confirmed" || b.status === "pending") && (
+                                      <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
+                                        <Link to={`/session?booking=${b.id}`}>
+                                          <Video className="h-3.5 w-3.5" />
+                                          ابدأ
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    {b.status === "completed" && b.has_subscription && (
+                                      <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
+                                        <Link to={`/session?booking=${b.id}&new=true`}>
+                                          <RotateCcw className="h-3.5 w-3.5" />
+                                          جلسة جديدة
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    {b.status === "completed" && (
+                                      <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(b.id)}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        حذف
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })
         )}
       </CardContent>
     </Card>
