@@ -30,6 +30,7 @@ import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
+import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -465,6 +466,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="teacher_payments" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               المدفوعات
+            </TabsTrigger>
+            <TabsTrigger value="teacher_earnings" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              الأرباح اليدوية
             </TabsTrigger>
             <TabsTrigger value="site" className="rounded-lg gap-1.5">
               <Settings className="h-4 w-4" />
@@ -925,6 +930,9 @@ const AdminDashboard = () => {
           {/* Teacher Payments Tab */}
           <TabsContent value="teacher_payments" className="space-y-4">
             <TeacherPaymentsTab />
+          </TabsContent>
+          <TabsContent value="teacher_earnings" className="space-y-4">
+            <TeacherEarningsTab />
           </TabsContent>
 
           {/* Site Content Tab */}
