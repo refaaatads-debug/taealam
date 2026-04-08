@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
-  Pen
+  Pen, Brain
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -17,6 +17,7 @@ import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
+import LiveAIAssistant from "@/components/LiveAIAssistant";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -26,6 +27,7 @@ const LiveSession = () => {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -968,6 +970,19 @@ const LiveSession = () => {
           )}
         </AnimatePresence>
 
+        {/* AI Assistant Panel - Teacher Only */}
+        <AnimatePresence>
+          {isTeacher && (
+            <LiveAIAssistant
+              messages={messages}
+              subject={subjectName}
+              elapsedSeconds={elapsed}
+              isOpen={aiAssistantOpen}
+              onClose={() => setAiAssistantOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Chat Panel */}
         <AnimatePresence>
           {chatOpen && (
@@ -1051,8 +1066,17 @@ const LiveSession = () => {
         {/* Teacher extra controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }}>
               <FileText className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              className={`rounded-xl h-12 w-12 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+              onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
+              disabled={!meetingStarted}
+              title="المساعد الذكي"
+            >
+              <Brain className="h-5 w-5" />
             </Button>
             <Button
               size="icon"
