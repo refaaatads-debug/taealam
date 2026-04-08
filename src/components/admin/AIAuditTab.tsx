@@ -134,7 +134,7 @@ const AIAuditTab = () => {
           فحص أداء الذكاء الاصطناعي
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <DateFilter dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} />
+          <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
           <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ml-1 ${loading ? "animate-spin" : ""}`} />
             تحديث
@@ -315,7 +315,7 @@ const AIAuditTab = () => {
                     </Badge>
                   )}
                   {log.error_message && (
-                    <AlertTriangle className="h-4 w-4 text-red-500" title={log.error_message} />
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   )}
                   <span className="text-xs text-muted-foreground">
                     {new Date(log.created_at).toLocaleString("ar-SA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
