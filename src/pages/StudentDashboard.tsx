@@ -6,7 +6,7 @@ import PendingBookingRequests from "@/components/student/PendingBookingRequests"
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
-import UpcomingSchedule from "@/components/student/UpcomingSchedule";
+import StudentScheduleTable from "@/components/student/StudentScheduleTable";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
