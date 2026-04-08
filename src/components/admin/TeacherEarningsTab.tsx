@@ -381,6 +381,7 @@ export default function TeacherEarningsTab() {
                         <td className="py-3"><Badge variant="outline" className="text-xs">{e.month}</Badge></td>
                         <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
+                        <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
                         <td className="py-3">
                           {e.status === "paid" ? (
                             <Badge variant="default" className="text-[10px]">مدفوع ✓</Badge>
