@@ -813,7 +813,7 @@ const LiveSession = () => {
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
-              {/* Screen share video display (for student viewing teacher's screen) */}
+            {/* Screen share video display (for student viewing teacher's screen) */}
               {remoteScreenSharing && !isTeacher && (
                 <div className="absolute inset-0 z-10">
                   <video
@@ -825,7 +825,21 @@ const LiveSession = () => {
                     onLoadedMetadata={() => pushDebugEvent("remote-video", "metadata-loaded")}
                     onPlaying={() => setRemoteVideoStatus("playing")}
                   />
-                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
+                  {/* Whiteboard overlay on student's screen share view */}
+                  {bookingId && user && (
+                    <div className="absolute inset-0 z-20 pointer-events-none">
+                      <WhiteboardCanvas
+                        bookingId={bookingId}
+                        userId={user.id}
+                        enabled={meetingStarted}
+                        isTeacher={false}
+                        onSendData={handleWhiteboardSend}
+                        overlay={true}
+                        remoteActions={whiteboardRemoteActions}
+                      />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
                       <Monitor className="h-3 w-3" /> مشاركة الشاشة
                     </p>
