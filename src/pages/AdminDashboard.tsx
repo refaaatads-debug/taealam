@@ -481,6 +481,11 @@ const AdminDashboard = () => {
               <FileText className="h-4 w-4" />
               تقارير الحصص
             </TabsTrigger>
+            <TabsTrigger value="ai_audit" className="rounded-lg gap-1.5">
+              <BarChart3 className="h-4 w-4" />
+              فحص AI
+            </TabsTrigger>
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
