@@ -848,24 +848,32 @@ const LiveSession = () => {
                     onPlaying={() => setRemoteVideoStatus("playing")}
                   />
                   {/* Whiteboard overlay on student's screen share view */}
-                  {bookingId && user && (
-                    <div className="absolute inset-0 z-20 pointer-events-none">
-                      <WhiteboardCanvas
-                        bookingId={bookingId}
-                        userId={user.id}
-                        enabled={meetingStarted}
-                        isTeacher={false}
-                        onSendData={handleWhiteboardSend}
-                        overlay={true}
-                        remoteActions={whiteboardRemoteActions}
-                      />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
-                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                      <Monitor className="h-3 w-3" /> مشاركة الشاشة
-                    </p>
-                  </div>
+                   {bookingId && user && (
+                     <div className="absolute inset-0 z-20 pointer-events-none">
+                       <WhiteboardCanvas
+                         bookingId={bookingId}
+                         userId={user.id}
+                         enabled={meetingStarted}
+                         isTeacher={false}
+                         onSendData={handleWhiteboardSend}
+                         overlay={true}
+                         remoteActions={whiteboardRemoteActions}
+                         remoteLaserPos={remoteLaserPos}
+                       />
+                     </div>
+                   )}
+                   {pageFrozen && (
+                     <div className="absolute inset-0 z-5 bg-foreground/10 flex items-center justify-center pointer-events-none">
+                       <span className="bg-foreground/70 text-card px-4 py-2 rounded-xl text-sm font-bold backdrop-blur-sm">
+                         ⏸️ الشاشة مجمّدة - المعلم يشرح
+                       </span>
+                     </div>
+                   )}
+                   <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
+                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                       <Monitor className="h-3 w-3" /> مشاركة الشاشة
+                     </p>
+                   </div>
                 </div>
               )}
 
