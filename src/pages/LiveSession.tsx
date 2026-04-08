@@ -970,6 +970,19 @@ const LiveSession = () => {
           )}
         </AnimatePresence>
 
+        {/* AI Assistant Panel - Teacher Only */}
+        <AnimatePresence>
+          {isTeacher && (
+            <LiveAIAssistant
+              messages={messages}
+              subject={subjectName}
+              elapsedSeconds={elapsed}
+              isOpen={aiAssistantOpen}
+              onClose={() => setAiAssistantOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Chat Panel */}
         <AnimatePresence>
           {chatOpen && (
