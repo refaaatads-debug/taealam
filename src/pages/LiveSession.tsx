@@ -113,6 +113,17 @@ const LiveSession = () => {
       setRemoteLaserPos(null);
     } else if (msg.type === "page-freeze") {
       if (!isTeacher) setPageFrozen(msg.active);
+    } else if (msg.type === "session-end") {
+      // The other party ended the session - auto-end for this party too
+      if (!sessionEndingRef.current) {
+        toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+        setTimeout(() => endSession(), 1500);
+      }
+    } else if (msg.type === "timer-sync") {
+      // Sync elapsed time from the other party
+      if (typeof msg.elapsed === "number") {
+        setElapsed(prev => Math.max(prev, msg.elapsed));
+      }
     }
   }, [isTeacher, pushDebugEvent]);
 
