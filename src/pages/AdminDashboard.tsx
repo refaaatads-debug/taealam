@@ -29,6 +29,7 @@ import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
+import AIAuditTab from "@/components/admin/AIAuditTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
