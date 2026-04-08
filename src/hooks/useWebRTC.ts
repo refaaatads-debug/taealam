@@ -18,6 +18,7 @@ interface UseWebRTCOptions {
   onConnectionState?: (state: RTCPeerConnectionState) => void;
   onRemoteJoin?: () => void;
   onRemoteLeave?: () => void;
+  onDataMessage?: (msg: any) => void;
 }
 
 export function useWebRTC({
@@ -27,35 +28,49 @@ export function useWebRTC({
   onConnectionState,
   onRemoteJoin,
   onRemoteLeave,
+  onDataMessage,
 }: UseWebRTCOptions) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const onDataMessageRef = useRef(onDataMessage);
+  onDataMessageRef.current = onDataMessage;
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
   const [micEnabled, setMicEnabled] = useState(true);
-  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [dataChannelReady, setDataChannelReady] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const screenSenderRef = useRef<RTCRtpSender | null>(null);
+
+  // Stable refs for callbacks
+  const onRemoteStreamRef = useRef(onRemoteStream);
+  onRemoteStreamRef.current = onRemoteStream;
+  const onConnectionStateRef = useRef(onConnectionState);
+  onConnectionStateRef.current = onConnectionState;
+  const onRemoteJoinRef = useRef(onRemoteJoin);
+  onRemoteJoinRef.current = onRemoteJoin;
+  const onRemoteLeaveRef = useRef(onRemoteLeave);
+  onRemoteLeaveRef.current = onRemoteLeave;
 
   const waitForChannelSubscription = useCallback((channel: any) => {
     return new Promise<any>((resolve, reject) => {
       let settled = false;
-
       channel.subscribe((status: string) => {
         if (status === "SUBSCRIBED" && !settled) {
           settled = true;
           resolve(channel);
         }
-
         if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && !settled) {
           settled = true;
           reject(new Error(`Channel subscription failed: ${status}`));
@@ -64,7 +79,6 @@ export function useWebRTC({
     });
   }, []);
 
-  // Initialize local media (audio only)
   const initLocalMedia = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -77,7 +91,6 @@ export function useWebRTC({
       return stream;
     } catch (err) {
       console.error("Failed to get user media:", err);
-      console.error("No audio devices available");
       return null;
     }
   }, []);
@@ -85,31 +98,53 @@ export function useWebRTC({
   const sendSignal = useCallback(async (signalType: string, payload: any) => {
     const channel = channelRef.current;
     if (!channel) return;
-
-    const result = await channel.send({
+    await channel.send({
       type: "broadcast",
       event: "signal",
-      payload: {
-        bookingId,
-        senderId: userId,
-        signalType,
-        payload,
-      },
+      payload: { bookingId, senderId: userId, signalType, payload },
     });
-
-    if (result !== "ok") {
-      console.error("Failed to send WebRTC signal:", signalType, result);
-    }
   }, [bookingId, userId]);
 
-  // Create peer connection
-  const createPeerConnection = useCallback(() => {
-    if (pcRef.current) {
-      pcRef.current.close();
+  // Send data via DataChannel
+  const sendDataMessage = useCallback((msg: any) => {
+    const dc = dataChannelRef.current;
+    if (dc && dc.readyState === "open") {
+      dc.send(JSON.stringify(msg));
     }
+  }, []);
+
+  const setupDataChannel = useCallback((dc: RTCDataChannel) => {
+    dataChannelRef.current = dc;
+    dc.onopen = () => {
+      console.log("DataChannel open");
+      setDataChannelReady(true);
+    };
+    dc.onclose = () => {
+      console.log("DataChannel closed");
+      setDataChannelReady(false);
+    };
+    dc.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        onDataMessageRef.current?.(msg);
+      } catch {}
+    };
+  }, []);
+
+  const createPeerConnection = useCallback(() => {
+    if (pcRef.current) pcRef.current.close();
 
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
+
+    // Create DataChannel (only initiator creates it)
+    const dc = pc.createDataChannel("session-data", { ordered: true });
+    setupDataChannel(dc);
+
+    // Receive DataChannel from remote
+    pc.ondatachannel = (event) => {
+      setupDataChannel(event.channel);
+    };
 
     // Add local tracks
     if (localStreamRef.current) {
@@ -126,11 +161,11 @@ export function useWebRTC({
       event.streams[0]?.getTracks().forEach((track) => {
         remote.addTrack(track);
       });
-      setRemoteStream(new MediaStream(remote.getTracks()));
-      onRemoteStream?.(remote);
+      const updated = new MediaStream(remote.getTracks());
+      setRemoteStream(updated);
+      onRemoteStreamRef.current?.(updated);
     };
 
-    // ICE candidates
     pc.onicecandidate = async (event) => {
       if (event.candidate) {
         await sendSignal("ice-candidate", { candidate: event.candidate.toJSON() });
@@ -140,14 +175,10 @@ export function useWebRTC({
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       setConnectionState(state);
-      onConnectionState?.(state);
-
-      if (state === "disconnected" || state === "failed") {
-        // Auto-reconnect after 2s
+      onConnectionStateRef.current?.(state);
+      if (state === "failed") {
         setTimeout(() => {
-          if (pcRef.current?.connectionState === "failed") {
-            restartConnection();
-          }
+          if (pcRef.current?.connectionState === "failed") restartConnection();
         }, 2000);
       }
     };
@@ -167,9 +198,8 @@ export function useWebRTC({
     };
 
     return pc;
-  }, [onRemoteStream, onConnectionState, sendSignal]);
+  }, [sendSignal, setupDataChannel]);
 
-  // Handle incoming signal
   const handleSignal = useCallback(async (signalType: string, payload: any, senderId: string) => {
     if (senderId === userId) return;
     const pc = pcRef.current;
@@ -189,7 +219,6 @@ export function useWebRTC({
         await pc.setLocalDescription(answer);
         await sendSignal("answer", { sdp: pc.localDescription?.toJSON() });
 
-        // Flush pending candidates
         for (const c of pendingCandidatesRef.current) {
           await pc.addIceCandidate(new RTCIceCandidate(c));
         }
@@ -209,30 +238,25 @@ export function useWebRTC({
           pendingCandidatesRef.current.push(payload.candidate);
         }
       } else if (signalType === "join") {
-        onRemoteJoin?.();
-
+        onRemoteJoinRef.current?.();
         if (pc.signalingState === "have-local-offer" && pc.localDescription) {
           await sendSignal("offer", { sdp: pc.localDescription.toJSON() });
           return;
         }
-
         if (pc.signalingState !== "stable") return;
-
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
       } else if (signalType === "leave") {
-        onRemoteLeave?.();
+        onRemoteLeaveRef.current?.();
       }
     } catch (err) {
       console.error("Signal handling error:", err);
     }
-  }, [userId, bookingId, onRemoteJoin, onRemoteLeave]);
+  }, [userId, sendSignal]);
 
-  // Start connection
   const start = useCallback(async () => {
     await initLocalMedia();
-    // Continue even without mic - allow joining for chat/whiteboard
 
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
@@ -243,9 +267,7 @@ export function useWebRTC({
     makingOfferRef.current = false;
 
     const channel = supabase
-      .channel(`webrtc-${bookingId}`, {
-        config: { broadcast: { self: false } },
-      })
+      .channel(`webrtc-${bookingId}`, { config: { broadcast: { self: false } } })
       .on("broadcast", { event: "signal" }, (event: any) => {
         const signal = event.payload;
         if (signal?.senderId !== userId) {
@@ -254,15 +276,11 @@ export function useWebRTC({
       });
 
     await waitForChannelSubscription(channel);
-
     channelRef.current = channel;
     createPeerConnection();
-
-    // Announce join
     await sendSignal("join", { userId });
   }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
 
-  // Restart connection
   const restartConnection = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc) return;
@@ -273,9 +291,8 @@ export function useWebRTC({
     } catch (err) {
       console.error("Restart error:", err);
     }
-  }, [bookingId, userId]);
+  }, [sendSignal]);
 
-  // Toggle mic
   const toggleMic = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
       t.enabled = !t.enabled;
@@ -283,7 +300,6 @@ export function useWebRTC({
     });
   }, []);
 
-  // Toggle video
   const toggleVideo = useCallback(() => {
     localStreamRef.current?.getVideoTracks().forEach((t) => {
       t.enabled = !t.enabled;
@@ -291,14 +307,11 @@ export function useWebRTC({
     });
   }, []);
 
-  // Screen sharing
-  const screenSenderRef = useRef<RTCRtpSender | null>(null);
-
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc) return;
 
-    const renegotiateTracks = async () => {
+    const renegotiate = async () => {
       try {
         if (makingOfferRef.current || pc.signalingState !== "stable") return;
         makingOfferRef.current = true;
@@ -314,26 +327,21 @@ export function useWebRTC({
     };
 
     if (screenSharing) {
-      // Stop screen share, remove the video track
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
-
       if (screenSenderRef.current) {
         pc.removeTrack(screenSenderRef.current);
         screenSenderRef.current = null;
       }
       setScreenSharing(false);
-      await renegotiateTracks();
+      // Notify remote that screen share stopped
+      sendDataMessage({ type: "screen-share-status", active: false });
+      await renegotiate();
     } else {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false,
-        });
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         screenStreamRef.current = screenStream;
-
         const screenTrack = screenStream.getVideoTracks()[0];
-        // Add the video track as a new track (since we started audio-only)
         const sender = pc.addTrack(screenTrack, screenStream);
         screenSenderRef.current = sender;
 
@@ -344,16 +352,18 @@ export function useWebRTC({
           }
           setScreenSharing(false);
           screenStreamRef.current = null;
-          void renegotiateTracks();
+          sendDataMessage({ type: "screen-share-status", active: false });
+          void renegotiate();
         });
 
         setScreenSharing(true);
-        await renegotiateTracks();
+        sendDataMessage({ type: "screen-share-status", active: true });
+        await renegotiate();
       } catch {
         console.error("Screen share cancelled");
       }
     }
-  }, [screenSharing, sendSignal]);
+  }, [screenSharing, sendSignal, sendDataMessage]);
 
   // Recording
   const startRecording = useCallback(async () => {
@@ -364,16 +374,13 @@ export function useWebRTC({
       });
       recordedChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-        ? "video/webm;codecs=vp9,opus"
-        : "video/webm";
+        ? "video/webm;codecs=vp9,opus" : "video/webm";
       const recorder = new MediaRecorder(stream, { mimeType });
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
       recorder.onstop = () => stream.getTracks().forEach((t) => t.stop());
-      stream.getVideoTracks()[0].addEventListener("ended", () => {
-        stopRecording();
-      });
+      stream.getVideoTracks()[0].addEventListener("ended", () => stopRecording());
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
@@ -383,9 +390,7 @@ export function useWebRTC({
   }, []);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state !== "inactive") {
-      mediaRecorderRef.current?.stop();
-    }
+    if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
     setIsRecording(false);
   }, []);
 
@@ -394,26 +399,22 @@ export function useWebRTC({
     return new Blob(recordedChunksRef.current, { type: "video/webm" });
   }, []);
 
-  // Cleanup
   const stop = useCallback(async () => {
     await sendSignal("leave", { userId });
-
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
-
+    dataChannelRef.current?.close();
+    dataChannelRef.current = null;
+    setDataChannelReady(false);
     pcRef.current?.close();
     pcRef.current = null;
-
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
-
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current = null;
-
     if (isRecording) stopRecording();
-
   }, [userId, isRecording, stopRecording, sendSignal]);
 
   useEffect(() => {
@@ -421,6 +422,7 @@ export function useWebRTC({
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      dataChannelRef.current?.close();
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, []);
@@ -433,6 +435,7 @@ export function useWebRTC({
     videoEnabled,
     screenSharing,
     isRecording,
+    dataChannelReady,
     start,
     stop,
     toggleMic,
@@ -442,5 +445,6 @@ export function useWebRTC({
     stopRecording,
     getRecordingBlob,
     restartConnection,
+    sendDataMessage,
   };
 }

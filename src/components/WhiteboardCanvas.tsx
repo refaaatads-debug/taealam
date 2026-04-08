@@ -3,17 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
-  MousePointer, Palette
+  Highlighter
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
-type Tool = "pen" | "eraser" | "text" | "rect" | "circle" | "line" | "select";
+type Tool = "pen" | "highlighter" | "eraser" | "text" | "rect" | "circle" | "line";
 
 interface DrawAction {
   type: "path" | "rect" | "circle" | "line" | "text" | "clear";
   points?: { x: number; y: number }[];
   color?: string;
   lineWidth?: number;
+  opacity?: number;
   x?: number;
   y?: number;
   w?: number;
@@ -27,6 +27,9 @@ interface WhiteboardCanvasProps {
   bookingId: string;
   userId: string;
   enabled?: boolean;
+  isTeacher?: boolean;
+  onSendData?: (msg: any) => void;
+  overlay?: boolean;
 }
 
 const COLORS = [
@@ -34,7 +37,14 @@ const COLORS = [
   "#9b59b6", "#1abc9c", "#e67e22", "#ffffff",
 ];
 
-export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: WhiteboardCanvasProps) {
+export default function WhiteboardCanvas({
+  bookingId,
+  userId,
+  enabled = true,
+  isTeacher = true,
+  onSendData,
+  overlay = false,
+}: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("pen");
@@ -47,9 +57,11 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   const actionsRef = useRef<DrawAction[]>([]);
   const undoneRef = useRef<DrawAction[]>([]);
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const channelRef = useRef<any>(null);
+  const throttleRef = useRef<number>(0);
 
-  // Resize canvas to fit container
+  // Can draw: teacher always, student never in current spec
+  const canDraw = isTeacher;
+
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -75,59 +87,37 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
-  // Supabase Realtime Broadcast for live sync
-  useEffect(() => {
-    if (!enabled) return;
-
-    const channel = supabase.channel(`whiteboard-${bookingId}`, {
-      config: { broadcast: { self: false } },
-    });
-
-    channel.on("broadcast", { event: "draw" }, ({ payload }: any) => {
-      if (payload.senderId === userId) return;
-      const action = payload.action as DrawAction;
-      actionsRef.current.push(action);
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      const container = containerRef.current;
-      if (!ctx || !container) return;
-      const rect = container.getBoundingClientRect();
-      redrawAll(ctx, rect.width, rect.height);
-    });
-
-    channel.on("broadcast", { event: "clear" }, ({ payload }: any) => {
-      if (payload.senderId === userId) return;
+  // Receive draw actions from DataChannel (called externally)
+  const handleRemoteAction = useCallback((action: DrawAction) => {
+    if (action.type === "clear") {
       actionsRef.current = [];
       undoneRef.current = [];
-      const canvas = canvasRef.current;
-      const container = containerRef.current;
-      if (!canvas || !container) return;
-      const ctx = canvas.getContext("2d");
-      const rect = container.getBoundingClientRect();
-      if (ctx) {
-        ctx.clearRect(0, 0, rect.width, rect.height);
-        fillBackground(ctx, rect.width, rect.height);
-      }
-    });
+    } else {
+      actionsRef.current.push(action);
+    }
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    const rect = container.getBoundingClientRect();
+    if (ctx) redrawAll(ctx, rect.width, rect.height);
+  }, []);
 
-    channel.subscribe((status) => {
-      if (status !== "SUBSCRIBED") {
-        console.error("Whiteboard channel status:", status);
-      }
-    });
-    channelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [bookingId, userId, enabled]);
+  // Expose handleRemoteAction via ref
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      (canvas as any).__handleRemoteAction = handleRemoteAction;
+    }
+  }, [handleRemoteAction]);
 
   const fillBackground = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    if (overlay) {
+      ctx.clearRect(0, 0, w, h);
+      return;
+    }
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, w, h);
-
-    // Draw grid dots
     ctx.fillStyle = "#e0e0e0";
     for (let x = 20; x < w; x += 20) {
       for (let y = 20; y < h; y += 20) {
@@ -141,7 +131,6 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   const redrawAll = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.clearRect(0, 0, w, h);
     fillBackground(ctx, w, h);
-
     for (const action of actionsRef.current) {
       drawAction(ctx, action);
     }
@@ -149,6 +138,7 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
 
   const drawAction = (ctx: CanvasRenderingContext2D, action: DrawAction) => {
     ctx.save();
+    ctx.globalAlpha = action.opacity ?? 1;
     ctx.strokeStyle = action.color || "#1a1a2e";
     ctx.fillStyle = action.color || "#1a1a2e";
     ctx.lineWidth = action.lineWidth || 3;
@@ -200,22 +190,16 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
     const rect = canvas.getBoundingClientRect();
     const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
     const clientY = "touches" in e ? e.touches[0]?.clientY ?? 0 : e.clientY;
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
   const broadcastAction = (action: DrawAction) => {
-    if (!enabled) return;
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "draw",
-      payload: { senderId: userId, action },
-    });
+    if (!enabled || !onSendData) return;
+    onSendData({ type: "whiteboard-action", action });
   };
 
   const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!canDraw) return;
     e.preventDefault();
     const pt = getCanvasPoint(e);
 
@@ -238,8 +222,7 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
     }
 
     setIsDrawing(true);
-
-    if (tool === "pen" || tool === "eraser") {
+    if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
       currentPathRef.current = [pt];
     } else {
       shapeStartRef.current = pt;
@@ -247,14 +230,19 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   };
 
   const handlePointerMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !canDraw) return;
     e.preventDefault();
+
+    // Throttle: 50ms
+    const now = Date.now();
+    if (now - throttleRef.current < 50) return;
+    throttleRef.current = now;
+
     const pt = getCanvasPoint(e);
 
-    if (tool === "pen" || tool === "eraser") {
+    if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
       currentPathRef.current.push(pt);
 
-      // Live draw for smooth feedback
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
@@ -264,8 +252,21 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
       if (points.length < 2) return;
 
       ctx.save();
-      ctx.strokeStyle = tool === "eraser" ? "#ffffff" : color;
-      ctx.lineWidth = tool === "eraser" ? lineWidth * 4 : lineWidth;
+      if (tool === "highlighter") {
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth * 4;
+      } else if (tool === "eraser") {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = overlay ? "rgba(0,0,0,0)" : "#ffffff";
+        ctx.lineWidth = lineWidth * 4;
+        if (overlay) {
+          ctx.globalCompositeOperation = "destination-out";
+        }
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+      }
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -279,7 +280,7 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   };
 
   const handlePointerUp = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !canDraw) return;
     setIsDrawing(false);
 
     const pt = "changedTouches" in e
@@ -288,12 +289,15 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
 
     let action: DrawAction | null = null;
 
-    if (tool === "pen" || tool === "eraser") {
+    if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
+      const isHighlighter = tool === "highlighter";
+      const isEraser = tool === "eraser";
       action = {
         type: "path",
         points: [...currentPathRef.current],
-        color: tool === "eraser" ? "#ffffff" : color,
-        lineWidth: tool === "eraser" ? lineWidth * 4 : lineWidth,
+        color: isEraser ? (overlay ? "rgba(0,0,0,0)" : "#ffffff") : color,
+        lineWidth: isEraser ? lineWidth * 4 : isHighlighter ? lineWidth * 4 : lineWidth,
+        opacity: isHighlighter ? 0.3 : 1,
       };
     } else if (shapeStartRef.current) {
       const start = shapeStartRef.current;
@@ -326,7 +330,7 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   };
 
   const handleUndo = () => {
-    if (actionsRef.current.length === 0) return;
+    if (actionsRef.current.length === 0 || !canDraw) return;
     const last = actionsRef.current.pop()!;
     undoneRef.current.push(last);
     const canvas = canvasRef.current;
@@ -336,10 +340,11 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
       const rect = container.getBoundingClientRect();
       if (ctx) redrawAll(ctx, rect.width, rect.height);
     }
+    onSendData?.({ type: "whiteboard-undo" });
   };
 
   const handleRedo = () => {
-    if (undoneRef.current.length === 0) return;
+    if (undoneRef.current.length === 0 || !canDraw) return;
     const action = undoneRef.current.pop()!;
     actionsRef.current.push(action);
     broadcastAction(action);
@@ -353,13 +358,10 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   };
 
   const handleClear = () => {
+    if (!canDraw) return;
     actionsRef.current = [];
     undoneRef.current = [];
-    if (enabled) channelRef.current?.send({
-      type: "broadcast",
-      event: "clear",
-      payload: { senderId: userId },
-    });
+    onSendData?.({ type: "whiteboard-clear" });
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (canvas && container) {
@@ -383,6 +385,7 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
 
   const tools: { id: Tool; icon: typeof Pen; label: string }[] = [
     { id: "pen", icon: Pen, label: "قلم" },
+    { id: "highlighter", icon: Highlighter, label: "تحديد" },
     { id: "eraser", icon: Eraser, label: "ممحاة" },
     { id: "text", icon: Type, label: "نص" },
     { id: "line", icon: Minus, label: "خط" },
@@ -391,78 +394,80 @@ export default function WhiteboardCanvas({ bookingId, userId, enabled = true }: 
   ];
 
   return (
-    <div className="flex flex-col h-full bg-card">
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap">
-        {tools.map((t) => (
-          <Button
-            key={t.id}
-            size="icon"
-            variant={tool === t.id ? "default" : "ghost"}
-            className={`h-8 w-8 rounded-lg ${tool === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            onClick={() => setTool(t.id)}
-            title={t.label}
-          >
-            <t.icon className="h-4 w-4" />
+    <div className={`flex flex-col h-full ${overlay ? "bg-transparent" : "bg-card"}`}>
+      {/* Toolbar - only for teacher */}
+      {canDraw && (
+        <div className="flex items-center gap-1 p-2 border-b bg-muted/30 flex-wrap">
+          {tools.map((t) => (
+            <Button
+              key={t.id}
+              size="icon"
+              variant={tool === t.id ? "default" : "ghost"}
+              className={`h-8 w-8 rounded-lg ${tool === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setTool(t.id)}
+              title={t.label}
+            >
+              <t.icon className="h-4 w-4" />
+            </Button>
+          ))}
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          <div className="relative">
+            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => setShowColors(!showColors)}>
+              <div className="w-5 h-5 rounded-full border-2 border-border" style={{ backgroundColor: color }} />
+            </Button>
+            {showColors && (
+              <div className="absolute top-10 left-0 z-50 bg-card rounded-xl shadow-lg border p-2 flex gap-1 flex-wrap w-[120px]">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform ${color === c ? "border-primary scale-110" : "border-transparent hover:scale-105"}`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => { setColor(c); setShowColors(false); }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 mx-1 w-20">
+            <Slider value={[lineWidth]} onValueChange={([v]) => setLineWidth(v)} min={1} max={12} step={1} className="w-full" />
+          </div>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleUndo} title="تراجع">
+            <Undo2 className="h-4 w-4" />
           </Button>
-        ))}
-
-        <div className="w-px h-6 bg-border mx-1" />
-
-        {/* Color picker */}
-        <div className="relative">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 rounded-lg"
-            onClick={() => setShowColors(!showColors)}
-          >
-            <div className="w-5 h-5 rounded-full border-2 border-border" style={{ backgroundColor: color }} />
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleRedo} title="إعادة">
+            <Redo2 className="h-4 w-4" />
           </Button>
-          {showColors && (
-            <div className="absolute top-10 left-0 z-50 bg-card rounded-xl shadow-lg border p-2 flex gap-1 flex-wrap w-[120px]">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  className={`w-6 h-6 rounded-full border-2 transition-transform ${color === c ? "border-primary scale-110" : "border-transparent hover:scale-105"}`}
-                  style={{ backgroundColor: c }}
-                  onClick={() => { setColor(c); setShowColors(false); }}
-                />
-              ))}
-            </div>
-          )}
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:text-destructive" onClick={handleClear} title="مسح الكل">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleDownload} title="تحميل">
+            <Download className="h-4 w-4" />
+          </Button>
         </div>
+      )}
 
-        {/* Line width */}
-        <div className="flex items-center gap-1 mx-1 w-20">
-          <Slider
-            value={[lineWidth]}
-            onValueChange={([v]) => setLineWidth(v)}
-            min={1}
-            max={12}
-            step={1}
-            className="w-full"
-          />
+      {/* Student view-only label */}
+      {!canDraw && !overlay && (
+        <div className="flex items-center gap-2 p-2 border-b bg-muted/30 text-sm text-muted-foreground">
+          <Pen className="h-4 w-4" />
+          <span>السبورة - عرض فقط</span>
+          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground mr-auto" onClick={handleDownload} title="تحميل">
+            <Download className="h-4 w-4" />
+          </Button>
         </div>
-
-        <div className="w-px h-6 bg-border mx-1" />
-
-        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleUndo} title="تراجع">
-          <Undo2 className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleRedo} title="إعادة">
-          <Redo2 className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-destructive hover:text-destructive" onClick={handleClear} title="مسح الكل">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleDownload} title="تحميل">
-          <Download className="h-4 w-4" />
-        </Button>
-      </div>
+      )}
 
       {/* Canvas */}
-      <div ref={containerRef} className="flex-1 relative cursor-crosshair overflow-hidden">
+      <div
+        ref={containerRef}
+        className={`flex-1 relative overflow-hidden ${canDraw ? "cursor-crosshair" : "cursor-default"} ${overlay ? "pointer-events-auto" : ""}`}
+      >
         <canvas
           ref={canvasRef}
           className="absolute inset-0"
