@@ -484,9 +484,17 @@ const LiveSession = () => {
     return () => { supabase.removeChannel(channel); };
   }, [bookingId, user, bookingData, meetingStarted]);
 
-  // Session timer
+  // Set bothJoined when meetingStarted and remoteConnected are both true
   useEffect(() => {
-    if (!meetingStarted) return;
+    if (meetingStarted && remoteConnected && !bothJoined) {
+      setBothJoined(true);
+      toast.success("الطرفان متصلان الآن! بدأ العداد ⏱️");
+    }
+  }, [meetingStarted, remoteConnected, bothJoined]);
+
+  // Session timer - only ticks when bothJoined
+  useEffect(() => {
+    if (!meetingStarted || !bothJoined) return;
     timerRef.current = window.setInterval(() => {
       if (peerDisconnected) return;
 
@@ -512,11 +520,16 @@ const LiveSession = () => {
           return maxSeconds;
         }
 
+        // Sync timer to the other party every 10 seconds
+        if (next % 10 === 0) {
+          sendDataMessage({ type: "timer-sync", elapsed: next });
+        }
+
         return next;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
+  }, [meetingStarted, bothJoined, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
