@@ -16,6 +16,7 @@ const STATUS_OPTIONS = [
   { value: "confirmed", label: "مؤكدة", variant: "default" as const },
   { value: "unconfirmed", label: "غير مؤكدة", variant: "destructive" as const },
   { value: "in_progress", label: "جارية", variant: "secondary" as const },
+  { value: "paid", label: "مدفوعة", variant: "outline" as const },
 ];
 
 const getStatusInfo = (status: string) =>
@@ -136,15 +137,24 @@ export default function TeacherEarningsTab() {
       return;
     }
 
-    const { hours } = getComputedHours();
+    const { hours, minutes } = getComputedHours();
+    const teacherData = teachers.find(t => t.user_id === selectedTeacher);
 
     setLoading(true);
     try {
       if (editingId) {
         const oldEarning = earnings.find(e => e.id === editingId);
+
+        // Block editing paid earnings on client side too
+        if (oldEarning?.status === "paid") {
+          toast.error("لا يمكن تعديل أرباح تم دفعها");
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .update({ amount: amountNum, month, notes: notes || null, status, hours } as any)
+          .update({ amount: amountNum, month, notes: notes || null, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any)
           .eq("id", editingId);
         if (error) throw error;
 
@@ -168,7 +178,7 @@ export default function TeacherEarningsTab() {
       } else {
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours } as any);
+          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any);
         
         if (error) {
           if (error.code === "23505") {
@@ -374,9 +384,13 @@ export default function TeacherEarningsTab() {
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
                         <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
-                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
+                          {e.status === "paid" ? (
+                            <Badge variant="default" className="text-[10px]">مدفوع ✓</Badge>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

@@ -1011,10 +1011,12 @@ export type Database = {
           created_at: string
           hours: number | null
           id: string
+          minutes_snapshot: number | null
           month: string
           notes: string | null
           status: string
           teacher_id: string
+          total_sessions_snapshot: number | null
         }
         Insert: {
           added_by_admin: string
@@ -1022,10 +1024,12 @@ export type Database = {
           created_at?: string
           hours?: number | null
           id?: string
+          minutes_snapshot?: number | null
           month: string
           notes?: string | null
           status?: string
           teacher_id: string
+          total_sessions_snapshot?: number | null
         }
         Update: {
           added_by_admin?: string
@@ -1033,10 +1037,12 @@ export type Database = {
           created_at?: string
           hours?: number | null
           id?: string
+          minutes_snapshot?: number | null
           month?: string
           notes?: string | null
           status?: string
           teacher_id?: string
+          total_sessions_snapshot?: number | null
         }
         Relationships: []
       }
