@@ -36,7 +36,7 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
   throw lastError || new Error("Max retries exceeded");
 }
 
-// ---------- AI Evaluator – rates real quality ----------
+// ---------- AI Evaluator ----------
 async function evaluateOutput(
   apiKey: string,
   inputContext: string,
@@ -51,31 +51,28 @@ async function evaluateOutput(
         messages: [
           {
             role: "system",
-            content: `أنت مقيّم جودة لمخرجات ذكاء اصطناعي تعليمي. قيّم التقرير التالي بدقة.
-
-معايير التقييم (كل معيار من 1-10):
-1. الفائدة: هل يحتوي معلومات مفيدة وقابلة للتنفيذ؟
-2. التخصيص: هل يذكر تفاصيل خاصة بالجلسة (اسم المادة، أرقام، نقاط محددة)؟
-3. الارتباط بالمدخلات: هل المخرجات مرتبطة فعلاً بالبيانات المدخلة؟
-4. عدم التعميم: هل يتجنب العبارات العامة مثل "يجب تحسين الأداء" بدون تفاصيل؟
-
-أجب باستخدام الأداة المتاحة فقط.`,
+            content: `أنت مقيّم جودة. قيّم التقرير. معايير:
+1. الفائدة: هل يحتوي معلومات قابلة للتنفيذ؟
+2. التخصيص: هل يذكر تفاصيل حقيقية من الجلسة (اقتباسات، أرقام)؟
+3. عدم التعميم: هل يتجنب "يجب تحسين الأداء" بدون سياق؟
+4. الارتباط بالبيانات: هل كل جملة مبنية على بيانات مدخلة؟
+أجب باستخدام الأداة فقط.`,
           },
           {
             role: "user",
-            content: `--- بيانات الجلسة (Input) ---\n${inputContext.slice(0, 800)}\n\n--- التقرير المُنتج (Output) ---\n${aiOutput.slice(0, 1500)}`,
+            content: `--- Input ---\n${inputContext.slice(0, 800)}\n\n--- Output ---\n${aiOutput.slice(0, 1500)}`,
           },
         ],
         tools: [{
           type: "function",
           function: {
             name: "rate_output",
-            description: "Rate the AI output quality",
+            description: "Rate quality",
             parameters: {
               type: "object",
               properties: {
-                usefulness_score: { type: "number", minimum: 1, maximum: 10, description: "Overall usefulness 1-10" },
-                feedback: { type: "string", description: "Brief feedback in Arabic" },
+                usefulness_score: { type: "number", minimum: 1, maximum: 10 },
+                feedback: { type: "string" },
               },
               required: ["usefulness_score", "feedback"],
               additionalProperties: false,
@@ -85,20 +82,12 @@ async function evaluateOutput(
         tool_choice: { type: "function", function: { name: "rate_output" } },
       }),
     });
-
-    if (!resp.ok) {
-      await resp.text();
-      return { usefulness_score: 5, feedback: "تعذر التقييم" };
-    }
-
+    if (!resp.ok) { await resp.text(); return { usefulness_score: 5, feedback: "تعذر التقييم" }; }
     const data = await resp.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
       const parsed = JSON.parse(toolCall.function.arguments);
-      return {
-        usefulness_score: Math.max(1, Math.min(10, parsed.usefulness_score || 5)),
-        feedback: parsed.feedback || "",
-      };
+      return { usefulness_score: Math.max(1, Math.min(10, parsed.usefulness_score || 5)), feedback: parsed.feedback || "" };
     }
     return { usefulness_score: 5, feedback: "تعذر تحليل الاستجابة" };
   } catch (e) {
@@ -107,7 +96,34 @@ async function evaluateOutput(
   }
 }
 
-// ---------- Surface-level quality (fast, no AI) ----------
+// ---------- Extract questions from chat ----------
+function extractQuestions(messages: { content: string; sender_id: string }[], studentId: string): string[] {
+  const questionPattern = /[؟?]|كيف|ليش|لماذا|هل |ما هو|ما هي|وش |ايش|مش فاهم|ما فهمت|اشرح/;
+  return messages
+    .filter(m => m.sender_id === studentId && questionPattern.test(m.content))
+    .map(m => m.content)
+    .slice(0, 10);
+}
+
+// ---------- Extract sample exchanges ----------
+function extractSampleExchanges(
+  messages: { content: string; sender_id: string }[],
+  teacherId: string,
+  studentId: string,
+): { student: string; teacher: string }[] {
+  const exchanges: { student: string; teacher: string }[] = [];
+  for (let i = 0; i < messages.length - 1 && exchanges.length < 3; i++) {
+    if (messages[i].sender_id === studentId && messages[i + 1]?.sender_id === teacherId) {
+      exchanges.push({
+        student: messages[i].content.slice(0, 150),
+        teacher: messages[i + 1].content.slice(0, 150),
+      });
+    }
+  }
+  return exchanges;
+}
+
+// ---------- Quality score (fast, no AI) ----------
 function calculateQualityScore(text: string): number {
   if (!text || text.trim().length === 0) return 0;
   let score = 0;
@@ -124,6 +140,23 @@ function calculateQualityScore(text: string): number {
   return Math.min(100, score);
 }
 
+// ---------- Check data sufficiency ----------
+function assessDataSufficiency(
+  totalMessages: number,
+  teacherSpeaking: number,
+  studentSpeaking: number,
+  durationMin: number,
+): { sufficient: boolean; level: "rich" | "moderate" | "minimal" | "none" } {
+  const hasChat = totalMessages >= 3;
+  const hasVoice = teacherSpeaking > 30 || studentSpeaking > 30;
+  const hasTime = durationMin >= 5;
+
+  if (hasChat && hasVoice && hasTime) return { sufficient: true, level: "rich" };
+  if ((hasChat || hasVoice) && hasTime) return { sufficient: true, level: "moderate" };
+  if (hasTime && totalMessages >= 1) return { sufficient: true, level: "minimal" };
+  return { sufficient: false, level: "none" };
+}
+
 // ---------- Main ----------
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -136,7 +169,7 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // ---- Gather data ----
+    // ---- Gather real data ----
     const { data: booking } = await supabase.from("bookings").select("*, subjects(name)").eq("id", booking_id).single();
     if (!booking) throw new Error("Booking not found");
 
@@ -149,19 +182,31 @@ serve(async (req) => {
       .order("created_at");
 
     const totalMessages = allMessages?.length || 0;
-    const teacherMessages = allMessages?.filter(m => m.sender_id === booking.teacher_id).length || 0;
-    const studentMessages = allMessages?.filter(m => m.sender_id === booking.student_id).length || 0;
+    const cleanMessages = allMessages?.filter(m => !m.is_filtered) || [];
+    const teacherMessages = cleanMessages.filter(m => m.sender_id === booking.teacher_id);
+    const studentMessages = cleanMessages.filter(m => m.sender_id === booking.student_id);
     const filteredMessages = allMessages?.filter(m => m.is_filtered).length || 0;
 
     const { count: violationsCount } = await supabase
       .from("violations").select("id", { count: "exact", head: true }).eq("booking_id", booking_id);
 
-    const chatSummary = allMessages?.filter(m => !m.is_filtered).map(m => m.content).join("\n") || "لم يتم تبادل رسائل";
     const subjectName = booking.subjects?.name || "مادة عامة";
-    const durationMin = session?.duration_minutes || booking.duration_minutes || 45;
+    const durationMin = session?.duration_minutes || session_stats?.duration_minutes || booking.duration_minutes || 45;
     const teacherSpeakingTime = session_stats?.teacher_speaking_seconds || 0;
     const studentSpeakingTime = session_stats?.student_speaking_seconds || 0;
+    const questionsDetected = session_stats?.questions_detected || 0;
     const totalViolations = (violationsCount || 0) + (filteredMessages || 0);
+
+    // ---- Extract real data artifacts ----
+    const detectedQuestions = extractQuestions(cleanMessages, booking.student_id);
+    const sampleExchanges = extractSampleExchanges(cleanMessages, booking.teacher_id, booking.student_id);
+    const chatTranscript = cleanMessages.map(m => {
+      const role = m.sender_id === booking.teacher_id ? "المعلم" : "الطالب";
+      return `${role}: ${m.content}`;
+    }).join("\n");
+
+    // ---- Assess data sufficiency ----
+    const sufficiency = assessDataSufficiency(totalMessages, teacherSpeakingTime, studentSpeakingTime, durationMin);
 
     // ---- Performance score ----
     let performanceScore = 80;
@@ -172,32 +217,102 @@ serve(async (req) => {
     if (totalMessages > 20) performanceScore += 5;
     if (durationMin >= 40) performanceScore += 5;
     if (durationMin >= 45) performanceScore += 5;
+    // Voice interaction bonus
+    if (teacherSpeakingTime > 120 && studentSpeakingTime > 60) performanceScore += 5;
+    if (questionsDetected > 3) performanceScore += 5;
     performanceScore = Math.max(0, Math.min(100, performanceScore));
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const inputContext = `المادة: ${subjectName}\nمدة: ${durationMin} دقيقة\nرسائل: ${totalMessages} (معلم ${teacherMessages}، طالب ${studentMessages})\nمخالفات: ${totalViolations}\nالمحادثة:\n${chatSummary.slice(0, 1200)}`;
+    // ---- Build structured report ----
+    const rawStats = {
+      duration_minutes: durationMin,
+      teacher_speaking_minutes: Math.round(teacherSpeakingTime / 60 * 10) / 10,
+      student_speaking_minutes: Math.round(studentSpeakingTime / 60 * 10) / 10,
+      silence_minutes: Math.max(0, Math.round((durationMin * 60 - teacherSpeakingTime - studentSpeakingTime) / 60 * 10) / 10),
+      total_messages: totalMessages,
+      teacher_messages_count: teacherMessages.length,
+      student_messages_count: studentMessages.length,
+      questions_detected: detectedQuestions.length || questionsDetected,
+      violations_count: totalViolations,
+    };
 
-    const systemPrompt = `أنت محلل تعليمي محترف. أنشئ تقريراً مفصلاً ومخصصاً عن حصة تعليمية.
+    // ---- If insufficient data, return limited report ----
+    if (!sufficiency.sufficient) {
+      const limitedReport = {
+        summary: "لا توجد بيانات كافية لتحليل الجلسة بشكل مفصل. الجلسة كانت قصيرة جداً أو لم يتم تبادل أي تفاعل.",
+        performance_score: performanceScore,
+        quality_score: 0,
+        usefulness_score: 0,
+        is_regenerated: false,
+        evaluator_feedback: "بيانات غير كافية",
+        data_level: sufficiency.level,
+        raw_stats: rawStats,
+        sample_exchanges: [],
+        detected_questions: [],
+        generated_at: new Date().toISOString(),
+      };
 
-التقرير يجب أن يحتوي على:
-📋 ملخص الحصة (3-4 جمل تذكر المادة والتفاصيل المحددة)
-📊 إحصائيات الحصة (مدة: ${durationMin}د، رسائل: ${totalMessages}، مخالفات: ${totalViolations})
-🎯 تقييم أداء المعلم (استخدم بيانات محددة)
-💬 ملاحظات على التفاعل (أذكر نقاط محددة من المحادثة)
-⚠️ المخالفات السلوكية
-📝 توصيات مخصصة وقابلة للتنفيذ
+      if (session) {
+        await supabase.from("sessions").update({ ai_report: JSON.stringify(limitedReport) }).eq("id", session.id);
+      }
 
-درجة الأداء: ${performanceScore}/100
-${teacherSpeakingTime > 0 ? `وقت تحدث المعلم: ${Math.floor(teacherSpeakingTime / 60)} دقيقة` : ""}
-${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentSpeakingTime / 60)} دقيقة` : ""}
+      await supabase.from("ai_logs").insert({
+        feature_name: "session_report",
+        input_summary: `مادة: ${subjectName}, مدة: ${durationMin}د, بيانات غير كافية`,
+        output_summary: "تقرير محدود - بيانات غير كافية",
+        status: "success",
+        quality_score: 0,
+        booking_id,
+        user_id: booking.student_id,
+        usefulness_score: 0,
+      });
 
-قواعد حاسمة:
-- اذكر اسم المادة "${subjectName}" بوضوح
-- لا تستخدم عبارات عامة بدون تفاصيل
-- كل توصية يجب أن تكون مخصصة ومحددة
-- لا تكرر الجمل ولا تستخدم حشو`;
+      return new Response(JSON.stringify({ report: limitedReport, points_earned: 5 }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ---- Build context from REAL data only ----
+    const inputContext = `=== بيانات حقيقية من الجلسة ===
+المادة: ${subjectName}
+المدة: ${durationMin} دقيقة
+وقت كلام المعلم: ${rawStats.teacher_speaking_minutes} دقيقة
+وقت كلام الطالب: ${rawStats.student_speaking_minutes} دقيقة
+وقت الصمت: ${rawStats.silence_minutes} دقيقة
+الرسائل: ${totalMessages} (معلم: ${teacherMessages.length}، طالب: ${studentMessages.length})
+الأسئلة المكتشفة: ${detectedQuestions.length || questionsDetected}
+المخالفات: ${totalViolations}
+
+=== أسئلة الطالب الحقيقية ===
+${detectedQuestions.length > 0 ? detectedQuestions.map((q, i) => `${i + 1}. "${q}"`).join("\n") : "لم يتم اكتشاف أسئلة"}
+
+=== نماذج من الحوار الحقيقي ===
+${sampleExchanges.length > 0 ? sampleExchanges.map((e, i) => `حوار ${i + 1}:\n  الطالب: "${e.student}"\n  المعلم: "${e.teacher}"`).join("\n") : "لا توجد حوارات كافية"}
+
+=== المحادثة الكاملة ===
+${chatTranscript.slice(0, 2000) || "لم يتم تبادل رسائل"}`;
+
+    const systemPrompt = `أنت محلل تعليمي. مهمتك إنشاء تقرير مبني حصرياً على البيانات الحقيقية المقدمة.
+
+قواعد صارمة:
+1. كل جملة يجب أن تكون مرتبطة ببيانات حقيقية من الجلسة
+2. يجب اقتباس أسئلة وردود حقيقية من المحادثة
+3. ممنوع استخدام عبارات عامة مثل "يجب تحسين الأداء" أو "ينصح بزيادة المشاركة" بدون ربطها بحدث حقيقي
+4. لا تخترع أي معلومة غير موجودة في البيانات
+5. إذا لم تتوفر بيانات عن نقطة معينة، اكتب "لا تتوفر بيانات"
+
+هيكل التقرير:
+📋 ملخص الحصة (مبني على المحادثة الفعلية فقط - اذكر المواضيع التي نوقشت فعلاً)
+📊 تحليل التفاعل (أرقام حقيقية: وقت كلام كل طرف، عدد الرسائل، نسبة المشاركة)
+💬 أمثلة من الجلسة (اقتبس سؤال حقيقي من الطالب ورد المعلم عليه)
+🎯 تقييم الأداء (بناءً على نسبة كلام المعلم vs الطالب ونوعية الأسئلة)
+⚠️ ملاحظات (مخالفات إن وجدت، فترات صمت طويلة)
+📝 توصيات (مبنية على ما حدث فعلاً - مثال: "الطالب سأل عن X ولم يحصل على إجابة واضحة")
+
+درجة الأداء: ${0}/100
+مستوى البيانات: ${""}`; // will be filled below
 
     let reportText = "";
     let qualityScore = 0;
@@ -208,11 +323,14 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
     let isRegenerated = false;
 
     try {
-      // ---- First generation ----
+      const filledPrompt = systemPrompt
+        .replace(`${0}/100`, `${performanceScore}/100`)
+        .replace(`${""}`, sufficiency.level);
+
       const aiResult = await callAIWithRetry(LOVABLE_API_KEY, {
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: filledPrompt },
           { role: "user", content: inputContext },
         ],
       });
@@ -222,32 +340,27 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
       responseTime = aiResult.responseTime;
       qualityScore = calculateQualityScore(reportText);
 
-      // ---- Evaluate with AI ----
+      // ---- Evaluate ----
       const evaluation = await evaluateOutput(LOVABLE_API_KEY, inputContext, reportText);
       usefulnessScore = evaluation.usefulness_score;
       evaluatorFeedback = evaluation.feedback;
 
       // ---- Regenerate if low quality ----
       if (usefulnessScore < 6) {
-        console.warn(`Low usefulness (${usefulnessScore}/10) – regenerating report for ${booking_id}`);
         isRegenerated = true;
-
         const regenResult = await callAIWithRetry(LOVABLE_API_KEY, {
           model: "google/gemini-3-flash-preview",
           messages: [
             {
               role: "system",
-              content: `أنت محلل تعليمي محترف. التقرير السابق كان ضعيفاً بسبب: "${evaluatorFeedback}".
+              content: `التقرير السابق ضعيف: "${evaluatorFeedback}".
 
-اكتب تقرير مفصل ومخصص جداً بناءً على البيانات التالية. يجب أن:
-- يذكر مادة "${subjectName}" بشكل صريح ومتكرر
-- يشمل أرقام وإحصائيات دقيقة من البيانات
-- يتضمن توصيات محددة وقابلة للتنفيذ (ليست عامة)
-- يحلل المحادثة ويستخرج نقاط قوة وضعف محددة
-
-التقرير يجب أن يحتوي على: 📋 ملخص، 📊 إحصائيات، 🎯 تقييم، 💬 تفاعل، ⚠️ مخالفات، 📝 توصيات
-
-درجة الأداء: ${performanceScore}/100`,
+اكتب تقرير مبني حصرياً على البيانات التالية. لا تخترع أي شيء.
+- اقتبس من المحادثة الحقيقية
+- اذكر أرقام حقيقية فقط
+- كل توصية يجب أن تشير لحدث محدد حصل في الجلسة
+- المادة: ${subjectName}
+- درجة الأداء: ${performanceScore}/100`,
             },
             { role: "user", content: inputContext },
           ],
@@ -258,7 +371,6 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
         responseTime += regenResult.responseTime;
         qualityScore = calculateQualityScore(reportText);
 
-        // Re-evaluate
         const reEval = await evaluateOutput(LOVABLE_API_KEY, inputContext, reportText);
         usefulnessScore = reEval.usefulness_score;
         evaluatorFeedback = reEval.feedback;
@@ -267,7 +379,7 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
       // ---- Log ----
       await supabase.from("ai_logs").insert({
         feature_name: "session_report",
-        input_summary: `مادة: ${subjectName}, مدة: ${durationMin}د, رسائل: ${totalMessages}`,
+        input_summary: `مادة: ${subjectName}, مدة: ${durationMin}د, رسائل: ${totalMessages}, بيانات: ${sufficiency.level}`,
         output_summary: reportText.slice(0, 200),
         status: "success",
         response_time_ms: responseTime,
@@ -298,7 +410,6 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
         is_regenerated: false,
       });
 
-      // Notify admins
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
       if (admins) {
         for (const admin of admins) {
@@ -312,7 +423,7 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
       }
     }
 
-    // ---- Check overall AI quality degradation ----
+    // ---- Quality degradation check ----
     try {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: recentLogs } = await supabase
@@ -332,7 +443,7 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
               await supabase.from("notifications").insert({
                 user_id: admin.user_id,
                 title: "🔴 تدهور جودة AI",
-                body: `${Math.round(weakRatio * 100)}% من تقارير آخر 24 ساعة ضعيفة الجودة (${weakCount}/${recentLogs.length})`,
+                body: `${Math.round(weakRatio * 100)}% من تقارير آخر 24 ساعة ضعيفة (${weakCount}/${recentLogs.length})`,
                 type: "ai_quality_alert",
               });
             }
@@ -343,7 +454,7 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
       console.error("Quality check error:", e);
     }
 
-    // ---- Build report ----
+    // ---- Build structured report ----
     const structuredReport = {
       summary: reportText,
       performance_score: performanceScore,
@@ -351,14 +462,10 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
       usefulness_score: usefulnessScore,
       is_regenerated: isRegenerated,
       evaluator_feedback: evaluatorFeedback,
-      duration_minutes: durationMin,
-      total_messages: totalMessages,
-      teacher_messages: teacherMessages,
-      student_messages: studentMessages,
-      violations_count: totalViolations,
-      teacher_speaking_seconds: teacherSpeakingTime,
-      student_speaking_seconds: studentSpeakingTime,
-      retry_count: retryCount,
+      data_level: sufficiency.level,
+      raw_stats: rawStats,
+      sample_exchanges: sampleExchanges,
+      detected_questions: detectedQuestions.slice(0, 5),
       generated_at: new Date().toISOString(),
     };
 
@@ -367,8 +474,8 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
     }
 
     // Points
-    const { data: points } = await supabase.from("student_points").select("*").eq("user_id", booking.student_id).single();
     const pointsEarned = performanceScore >= 80 ? 50 : performanceScore >= 60 ? 30 : 15;
+    const { data: points } = await supabase.from("student_points").select("*").eq("user_id", booking.student_id).single();
     if (points) {
       await supabase.from("student_points").update({
         total_points: (points.total_points || 0) + pointsEarned,
@@ -386,7 +493,7 @@ ${studentSpeakingTime > 0 ? `وقت تحدث الطالب: ${Math.floor(studentS
     });
     await supabase.from("notifications").insert({
       user_id: booking.teacher_id, title: "تقرير حصة جديد 📊",
-      body: `تقرير حصة ${subjectName} جاهز للمراجعة. درجة الأداء: ${performanceScore}/100`,
+      body: `تقرير حصة ${subjectName} جاهز. درجة الأداء: ${performanceScore}/100`,
       type: "session_report",
     });
 
