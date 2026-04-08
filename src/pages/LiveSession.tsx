@@ -946,26 +946,7 @@ const LiveSession = () => {
           )}
         </div>
 
-        {/* Whiteboard Panel */}
-        <AnimatePresence>
-          {boardOpen && bookingId && user && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="flex-1 min-w-0"
-            >
-              <WhiteboardCanvas
-                bookingId={bookingId}
-                userId={user.id}
-                enabled={meetingStarted}
-                isTeacher={isTeacher}
-                onSendData={handleWhiteboardSend}
-                remoteActions={whiteboardRemoteActions}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Whiteboard Panel removed - drawing is now overlay on screen share */}
 
         {/* Session Report Panel */}
         <AnimatePresence>
