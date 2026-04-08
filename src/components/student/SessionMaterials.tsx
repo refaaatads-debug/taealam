@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,14 +8,17 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface SessionMaterial {
   id: string;
-  booking_id: string;
-  subject_name: string;
-  scheduled_at: string;
-  ai_report: string | null;
+  session_id: string;
+  title: string;
+  description: string | null;
   recording_url: string | null;
-  duration_minutes: number | null;
-  teacher_name: string;
+  whiteboard_data: any;
+  duration_minutes: number;
+  created_at: string;
+  expires_at: string;
   days_remaining: number;
+  ai_report: string | null;
+  subject_name: string;
 }
 
 export default function SessionMaterials() {
@@ -34,61 +36,46 @@ export default function SessionMaterials() {
     if (!user) return;
     setLoading(true);
 
-    // Get completed bookings from last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const { data: bookings } = await supabase
-      .from("bookings")
-      .select("id, scheduled_at, teacher_id, duration_minutes, subjects(name)")
+    const { data: mats } = await supabase
+      .from("session_materials")
+      .select("*")
       .eq("student_id", user.id)
-      .eq("status", "completed")
-      .gte("scheduled_at", sevenDaysAgo.toISOString())
-      .order("scheduled_at", { ascending: false });
+      .eq("is_deleted", false)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false });
 
-    if (!bookings || bookings.length === 0) { setMaterials([]); setLoading(false); return; }
+    if (!mats || mats.length === 0) { setMaterials([]); setLoading(false); return; }
 
-    // Get sessions with AI reports
-    const bookingIds = bookings.map(b => b.id);
+    // Get AI reports from sessions
+    const sessionIds = mats.map(m => m.session_id);
     const { data: sessions } = await supabase
       .from("sessions")
-      .select("booking_id, ai_report, duration_minutes, recording_url")
-      .in("booking_id", bookingIds);
-    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s]));
+      .select("id, ai_report, booking_id")
+      .in("id", sessionIds);
+    const sessionMap = new Map((sessions ?? []).map(s => [s.id, s]));
 
-    // Get teacher names
-    const teacherIds = [...new Set(bookings.map(b => b.teacher_id))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, full_name")
-      .in("user_id", teacherIds);
-    const nameMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
+    // Get subject names from bookings
+    const bookingIds = (sessions ?? []).map(s => s.booking_id).filter(Boolean);
+    const { data: bookings } = await supabase
+      .from("bookings")
+      .select("id, subjects(name)")
+      .in("id", bookingIds);
+    const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    const result: SessionMaterial[] = bookings.map(b => {
-      const session = sessionMap.get(b.id);
-      const expiryDate = new Date(b.scheduled_at);
-      expiryDate.setDate(expiryDate.getDate() + 7);
-      const daysRemaining = Math.max(0, Math.ceil((expiryDate.getTime() - now) / (1000 * 60 * 60 * 24)));
-
+    setMaterials(mats.map(m => {
+      const session = sessionMap.get(m.session_id);
+      const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
       return {
-        id: b.id,
-        booking_id: b.id,
-        subject_name: (b.subjects as any)?.name || "حصة",
-        scheduled_at: b.scheduled_at,
+        ...m,
         ai_report: session?.ai_report || null,
-        recording_url: session?.recording_url || null,
-        duration_minutes: session?.duration_minutes || b.duration_minutes,
-        teacher_name: nameMap.get(b.teacher_id) || "معلم",
-        days_remaining: daysRemaining,
+        subject_name: subjectName,
+        days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
-    });
-
-    setMaterials(result);
+    }));
     setLoading(false);
   };
 
-  // Group by subject
   const grouped = materials.reduce<Record<string, SessionMaterial[]>>((acc, m) => {
     if (!acc[m.subject_name]) acc[m.subject_name] = [];
     acc[m.subject_name].push(m);
@@ -129,9 +116,9 @@ export default function SessionMaterials() {
                         <FileText className="h-4 w-4 text-secondary" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-foreground">حصة مع {m.teacher_name}</p>
+                        <p className="text-sm font-bold text-foreground">{m.title}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(m.scheduled_at).toLocaleDateString("ar-SA")} • {m.duration_minutes} دقيقة
+                          {new Date(m.created_at).toLocaleDateString("ar-SA")} • {m.duration_minutes} دقيقة
                         </p>
                       </div>
                     </div>
@@ -157,18 +144,13 @@ export default function SessionMaterials() {
                                 <Play className="h-4 w-4 text-primary" />
                                 <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                               </div>
-                              <video
-                                src={m.recording_url}
-                                controls
-                                className="w-full rounded-xl max-h-64"
-                                preload="metadata"
-                              />
+                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
                             </div>
                           )}
                           {m.ai_report ? (
                             <div className="bg-accent/30 rounded-xl p-4">
                               <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-gold" />
+                                <Sparkles className="h-4 w-4 text-yellow-500" />
                                 <span className="text-sm font-bold text-foreground">تحليل AI للحصة</span>
                               </div>
                               <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>
