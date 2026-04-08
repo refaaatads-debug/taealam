@@ -218,12 +218,23 @@ export default function TeacherScheduleTable() {
                                       </Link>
                                     </Button>
                                     {(b.status === "confirmed" || b.status === "pending") && (
-                                      <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
-                                        <Link to={`/session?booking=${b.id}`}>
-                                          <Video className="h-3.5 w-3.5" />
-                                          ابدأ
-                                        </Link>
-                                      </Button>
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10"
+                                          onClick={() => handleStartSession(b.id, b.student_name || "الطالب")}
+                                        >
+                                          <Play className="h-3.5 w-3.5" />
+                                          أرسل طلب
+                                        </Button>
+                                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
+                                          <Link to={`/session?booking=${b.id}`}>
+                                            <Video className="h-3.5 w-3.5" />
+                                            ابدأ
+                                          </Link>
+                                        </Button>
+                                      </>
                                     )}
                                     {b.status === "completed" && b.has_subscription && (
                                       <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
