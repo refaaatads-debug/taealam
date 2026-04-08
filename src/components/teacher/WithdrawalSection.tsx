@@ -39,7 +39,7 @@ export default function WithdrawalSection() {
     const [paymentsRes, pendingWRes, earningsRes] = await Promise.all([
       supabase.from("teacher_payments" as any).select("amount").eq("teacher_id", user.id),
       supabase.from("withdrawal_requests" as any).select("amount").eq("teacher_id", user.id).eq("status", "pending"),
-      supabase.from("teacher_earnings" as any).select("amount, month, created_at").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
     ]);
 
     const totalPaid = (paymentsRes.data as any[] ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
