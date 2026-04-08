@@ -51,6 +51,8 @@ const LiveSession = () => {
   const [tenMinWarningShown, setTenMinWarningShown] = useState(false);
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
+  const [bothJoined, setBothJoined] = useState(false);
+  const sessionEndingRef = useRef(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
