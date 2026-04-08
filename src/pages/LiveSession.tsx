@@ -31,6 +31,10 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
+  const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
+  const [questionsDetected, setQuestionsDetected] = useState(0);
+  const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -629,12 +633,13 @@ const LiveSession = () => {
           await supabase.functions.invoke("session-report", { body: { 
             booking_id: bookingId,
             session_stats: {
-              teacher_speaking_seconds: 0,
-              student_speaking_seconds: 0,
+              teacher_speaking_seconds: isTeacher ? teacherSpeakingSec : studentSpeakingSec,
+              student_speaking_seconds: isTeacher ? studentSpeakingSec : teacherSpeakingSec,
               messages_count: messages.length,
               violation_count: violationCount,
               duration_minutes: durationMinutes,
               is_short_session: isShortSession,
+              questions_detected: questionsDetected,
             }
           } });
         } catch {
