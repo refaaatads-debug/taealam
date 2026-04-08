@@ -48,14 +48,37 @@ const LiveSession = () => {
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
+  const [remoteVideoStatus, setRemoteVideoStatus] = useState("idle");
+  const [lastDataMessageType, setLastDataMessageType] = useState("-");
+  const [lastDataMessageAt, setLastDataMessageAt] = useState("-");
+  const [debugEvents, setDebugEvents] = useState<{ time: string; label: string; value: string }[]>([]);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
+  const pushDebugEvent = useCallback((label: string, value: string) => {
+    const time = new Date().toLocaleTimeString("ar-SA", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    setDebugEvents((prev) => [{ time, label, value }, ...prev].slice(0, 8));
+  }, []);
+
   // Handle DataChannel messages (whiteboard sync, screen share status)
   const handleDataMessage = useCallback((msg: any) => {
+    const messageType = msg?.type || "unknown";
+    setLastDataMessageType(messageType);
+    setLastDataMessageAt(new Date().toLocaleTimeString("ar-SA", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }));
+    pushDebugEvent("data", messageType);
+
     if (msg.type === "whiteboard-action") {
       setWhiteboardRemoteActions((prev) => [...prev, msg.action]);
       if (!isTeacher) {
@@ -75,7 +98,7 @@ const LiveSession = () => {
         toast.info("المعلم يشارك الشاشة الآن 🖥️");
       }
     }
-  }, [isTeacher]);
+  }, [isTeacher, pushDebugEvent]);
 
   const {
     localStream,
@@ -98,20 +121,39 @@ const LiveSession = () => {
     bookingId: bookingId || "",
     userId: user?.id || "",
     onRemoteStream: (stream) => {
+      const audioTracks = stream.getAudioTracks().length;
+      const videoTracks = stream.getVideoTracks().length;
+      pushDebugEvent("remote-stream", `audio:${audioTracks} video:${videoTracks}`);
+
       // Check for video tracks (screen sharing from teacher)
-      const hasVideo = stream.getVideoTracks().length > 0;
+      const hasVideo = videoTracks > 0;
       if (hasVideo && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
         setRemoteScreenSharing(true);
       }
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onunmute = () => {
+          setRemoteScreenSharing(true);
+          pushDebugEvent("screen-track", `unmuted:${track.readyState}`);
+        };
+        track.onmute = () => {
+          pushDebugEvent("screen-track", `muted:${track.readyState}`);
+        };
+        track.onended = () => {
+          setRemoteScreenSharing(false);
+          pushDebugEvent("screen-track", "ended");
+        };
+      });
+
       stream.onaddtrack = () => {
         const v = stream.getVideoTracks().length > 0;
+        pushDebugEvent("remote-stream", `track-added video:${stream.getVideoTracks().length}`);
         if (v && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
           setRemoteScreenSharing(true);
         }
       };
       stream.onremovetrack = () => {
+        pushDebugEvent("remote-stream", `track-removed video:${stream.getVideoTracks().length}`);
         if (stream.getVideoTracks().length === 0) {
           setRemoteScreenSharing(false);
         }
@@ -175,14 +217,53 @@ const LiveSession = () => {
     if (remoteAudioRef.current && remoteStream) {
       remoteAudioRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+      remoteAudioRef.current.play().catch(() => {
+        pushDebugEvent("remote-audio", "autoplay-blocked");
+      });
+    }
+  }, [remoteStream, pushDebugEvent]);
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch(() => {});
+    const videoElement = remoteVideoRef.current;
+    if (!videoElement) return;
+
+    if (!remoteStream || !remoteScreenSharing) {
+      videoElement.pause();
+      videoElement.srcObject = null;
+      setRemoteVideoStatus(remoteStream ? "waiting" : "idle");
+      return;
     }
-  }, [remoteStream, remoteScreenSharing]);
+
+    const liveVideoTracks = remoteStream.getVideoTracks().filter((track) => track.readyState === "live");
+
+    if (liveVideoTracks.length === 0) {
+      setRemoteVideoStatus("no-video-track");
+      pushDebugEvent("remote-video", "no-live-video-track");
+      return;
+    }
+
+    const screenOnlyStream = new MediaStream(liveVideoTracks);
+    videoElement.muted = true;
+    videoElement.srcObject = screenOnlyStream;
+    setRemoteVideoStatus("binding");
+
+    videoElement.play()
+      .then(() => {
+        setRemoteVideoStatus("playing");
+        pushDebugEvent("remote-video", `playing:${liveVideoTracks.length}`);
+      })
+      .catch((error) => {
+        setRemoteVideoStatus("play-error");
+        pushDebugEvent("remote-video", error?.name || "play-error");
+      });
+
+    return () => {
+      if (videoElement.srcObject === screenOnlyStream) {
+        videoElement.pause();
+        videoElement.srcObject = null;
+      }
+    };
+  }, [remoteStream, remoteScreenSharing, pushDebugEvent]);
 
   // Chat messages persistence and realtime
   useEffect(() => {
@@ -576,6 +657,9 @@ const LiveSession = () => {
 
   const displayTitle = subjectName ? `${subjectName} - ${otherName}` : otherName;
   const connBadge = getConnectionBadge();
+  const remoteAudioTracks = remoteStream?.getAudioTracks().length || 0;
+  const remoteVideoTracks = remoteStream?.getVideoTracks().length || 0;
+  const remoteLiveVideoTracks = remoteStream?.getVideoTracks().filter((track) => track.readyState === "live").length || 0;
 
   // Callback to pass to whiteboard for sending data
   const handleWhiteboardSend = useCallback((msg: any) => {
@@ -725,6 +809,40 @@ const LiveSession = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
+        {meetingStarted && (
+          <div className="absolute bottom-4 left-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card/90 p-3 shadow-lg backdrop-blur-sm">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-bold text-foreground">Live Debug</p>
+              <span className="text-[10px] text-muted-foreground">مرئي للطرف الحالي</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">الاتصال: <span className="text-muted-foreground">{connectionState}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">DataChannel: <span className="text-muted-foreground">{dataChannelReady ? "open" : "closed"}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Remote stream: <span className="text-muted-foreground">{remoteStream ? "yes" : "no"}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Screen flag: <span className="text-muted-foreground">{remoteScreenSharing ? "on" : "off"}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Audio tracks: <span className="text-muted-foreground">{remoteAudioTracks}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Video tracks: <span className="text-muted-foreground">{remoteVideoTracks} / live {remoteLiveVideoTracks}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Video status: <span className="text-muted-foreground">{remoteVideoStatus}</span></div>
+              <div className="rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Whiteboard: <span className="text-muted-foreground">{whiteboardRemoteActions.length}</span></div>
+              <div className="col-span-2 rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Last data: <span className="text-muted-foreground">{lastDataMessageType} {lastDataMessageAt !== "-" ? `(${lastDataMessageAt})` : ""}</span></div>
+              <div className="col-span-2 rounded-lg bg-muted/40 px-2 py-1.5 text-foreground">Chat msgs: <span className="text-muted-foreground">{messages.length}</span></div>
+            </div>
+            <div className="mt-3 space-y-1 border-t border-border pt-2">
+              {debugEvents.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">لا توجد أحداث بعد.</p>
+              ) : (
+                debugEvents.map((event, index) => (
+                  <div key={`${event.time}-${event.label}-${index}`} className="flex items-start gap-2 text-[11px]">
+                    <span className="shrink-0 text-muted-foreground">{event.time}</span>
+                    <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-foreground">{event.label}</span>
+                    <span className="min-w-0 flex-1 break-words text-muted-foreground">{event.value}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Main area */}
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
@@ -736,7 +854,10 @@ const LiveSession = () => {
                     ref={remoteVideoRef}
                     autoPlay
                     playsInline
+                    muted
                     className="w-full h-full object-contain bg-black"
+                    onLoadedMetadata={() => pushDebugEvent("remote-video", "metadata-loaded")}
+                    onPlaying={() => setRemoteVideoStatus("playing")}
                   />
                   <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
