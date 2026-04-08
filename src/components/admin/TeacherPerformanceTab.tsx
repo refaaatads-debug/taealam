@@ -164,6 +164,7 @@ export default function TeacherPerformanceTab() {
           sessions,
           totalMinutes: totalActualMinutes,
           totalHours: Math.round((totalActualMinutes / 60) * 10) / 10,
+          totalSeconds: totalActualSeconds,
           studentsCount: uniqueStudents.size,
           completedCount: completedBookings.length,
           cancelledCount: cancelledBookings.length,
