@@ -25,6 +25,7 @@ interface TeacherData {
   sessions: SessionDetail[];
   totalMinutes: number;
   totalHours: number;
+  totalSeconds: number;
   studentsCount: number;
   completedCount: number;
   cancelledCount: number;
@@ -39,9 +40,17 @@ interface SessionDetail {
   scheduled_at: string;
   duration_minutes: number;
   actual_duration: number | null;
+  actual_seconds: number | null;
   status: string;
   price: number | null;
 }
+
+const formatDuration = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
 
 export default function TeacherPerformanceTab() {
   const [teachers, setTeachers] = useState<TeacherData[]>([]);
