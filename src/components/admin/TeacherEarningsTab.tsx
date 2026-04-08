@@ -177,7 +177,7 @@ export default function TeacherEarningsTab() {
       } else {
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours } as any);
+          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any);
         
         if (error) {
           if (error.code === "23505") {
