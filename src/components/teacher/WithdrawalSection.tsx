@@ -15,6 +15,7 @@ export default function WithdrawalSection() {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [manualEarnings, setManualEarnings] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,20 +36,17 @@ export default function WithdrawalSection() {
     const totalBalance = Number((tp as any)?.balance) || 0;
 
     // Subtract paid amounts and pending withdrawals
-    const { data: payments } = await supabase
-      .from("teacher_payments" as any)
-      .select("amount")
-      .eq("teacher_id", user.id);
-    const totalPaid = (payments as any[] ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+    const [paymentsRes, pendingWRes, earningsRes] = await Promise.all([
+      supabase.from("teacher_payments" as any).select("amount").eq("teacher_id", user.id),
+      supabase.from("withdrawal_requests" as any).select("amount").eq("teacher_id", user.id).eq("status", "pending"),
+      supabase.from("teacher_earnings" as any).select("amount, month, created_at").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+    ]);
 
-    const { data: pendingW } = await supabase
-      .from("withdrawal_requests" as any)
-      .select("amount")
-      .eq("teacher_id", user.id)
-      .eq("status", "pending");
-    const pendingAmount = (pendingW as any[] ?? []).reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
+    const totalPaid = (paymentsRes.data as any[] ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+    const pendingAmount = (pendingWRes.data as any[] ?? []).reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
     setBalance(Math.max(0, totalBalance - totalPaid - pendingAmount));
+    setManualEarnings(earningsRes.data as any[] ?? []);
 
     const { data: wData } = await supabase
       .from("withdrawal_requests" as any)
@@ -183,6 +181,23 @@ export default function WithdrawalSection() {
           </Button>
         </div>
 
+        {/* Manual Earnings from Admin */}
+        {manualEarnings.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-foreground">أرباح مضافة من الإدارة</p>
+            {manualEarnings.map((e: any, i: number) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/5 border border-secondary/20">
+                <div>
+                  <p className="font-bold text-sm text-foreground">{Number(e.amount).toLocaleString()} ر.س</p>
+                  <p className="text-xs text-muted-foreground">شهر {e.month}</p>
+                </div>
+                <Badge variant="secondary" className="text-xs">مضاف</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Withdrawal History */}
         {withdrawals.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-bold text-foreground">سجل الطلبات</p>

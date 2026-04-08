@@ -929,6 +929,63 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_daily_stats: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          teacher_id: string
+          total_minutes: number
+          total_sessions: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          teacher_id: string
+          total_minutes?: number
+          total_sessions?: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          teacher_id?: string
+          total_minutes?: number
+          total_sessions?: number
+        }
+        Relationships: []
+      }
+      teacher_earnings: {
+        Row: {
+          added_by_admin: string
+          amount: number
+          created_at: string
+          id: string
+          month: string
+          notes: string | null
+          teacher_id: string
+        }
+        Insert: {
+          added_by_admin: string
+          amount: number
+          created_at?: string
+          id?: string
+          month: string
+          notes?: string | null
+          teacher_id: string
+        }
+        Update: {
+          added_by_admin?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          month?: string
+          notes?: string | null
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       teacher_payments: {
         Row: {
           amount: number
