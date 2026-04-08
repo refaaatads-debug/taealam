@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
-  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX
+  Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
+  Pen
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -44,11 +45,44 @@ const LiveSession = () => {
   const [tenMinWarningShown, setTenMinWarningShown] = useState(false);
   const [recordingUploading, setRecordingUploading] = useState(false);
   const [remoteConnected, setRemoteConnected] = useState(false);
-  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
+  const [remoteDrawing, setRemoteDrawing] = useState(false);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
+  const whiteboardRef = useRef<HTMLCanvasElement>(null);
+  const remoteDrawingTimerRef = useRef<number>();
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
+
+  // Handle DataChannel messages (whiteboard sync, screen share status)
+  const handleDataMessage = useCallback((msg: any) => {
+    if (msg.type === "whiteboard-action") {
+      // Forward to whiteboard canvas
+      const canvas = whiteboardRef.current;
+      if (canvas && (canvas as any).__handleRemoteAction) {
+        (canvas as any).__handleRemoteAction(msg.action);
+      }
+      // Show "teacher is drawing" indicator
+      if (!isTeacher) {
+        setRemoteDrawing(true);
+        clearTimeout(remoteDrawingTimerRef.current);
+        remoteDrawingTimerRef.current = window.setTimeout(() => setRemoteDrawing(false), 2000);
+      }
+    } else if (msg.type === "whiteboard-clear") {
+      const canvas = whiteboardRef.current;
+      if (canvas && (canvas as any).__handleRemoteAction) {
+        (canvas as any).__handleRemoteAction({ type: "clear" });
+      }
+    } else if (msg.type === "whiteboard-undo") {
+      // For simplicity, undo on remote side is handled as a full redraw
+      // The teacher's undo doesn't remove from remote - would need action IDs
+    } else if (msg.type === "screen-share-status") {
+      setRemoteScreenSharing(msg.active);
+      if (msg.active && !isTeacher) {
+        toast.info("المعلم يشارك الشاشة الآن 🖥️");
+      }
+    }
+  }, [isTeacher]);
 
   const {
     localStream,
@@ -57,6 +91,7 @@ const LiveSession = () => {
     micEnabled,
     screenSharing,
     isRecording,
+    dataChannelReady,
     start,
     stop,
     toggleMic,
@@ -65,24 +100,28 @@ const LiveSession = () => {
     stopRecording,
     getRecordingBlob,
     restartConnection,
+    sendDataMessage,
   } = useWebRTC({
     bookingId: bookingId || "",
     userId: user?.id || "",
     onRemoteStream: (stream) => {
-      // Check for video tracks (screen sharing)
+      // Check for video tracks (screen sharing from teacher)
       const hasVideo = stream.getVideoTracks().length > 0;
-      setRemoteHasVideo(hasVideo);
       if (hasVideo && remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream;
+        setRemoteScreenSharing(true);
       }
-      // Listen for track additions/removals
       stream.onaddtrack = () => {
         const v = stream.getVideoTracks().length > 0;
-        setRemoteHasVideo(v);
-        if (v && remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+        if (v && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          setRemoteScreenSharing(true);
+        }
       };
       stream.onremovetrack = () => {
-        setRemoteHasVideo(stream.getVideoTracks().length > 0);
+        if (stream.getVideoTracks().length === 0) {
+          setRemoteScreenSharing(false);
+        }
       };
     },
     onRemoteJoin: () => {
@@ -94,12 +133,10 @@ const LiveSession = () => {
       toast.info("غادر المشارك الآخر الجلسة");
     },
     onConnectionState: (state) => {
-      if (state === "connected") {
-        setRemoteConnected(true);
-      } else if (state === "disconnected" || state === "failed") {
-        setRemoteConnected(false);
-      }
+      if (state === "connected") setRemoteConnected(true);
+      else if (state === "disconnected" || state === "failed") setRemoteConnected(false);
     },
+    onDataMessage: handleDataMessage,
   });
 
   // ─── Session Protection System ───
@@ -116,7 +153,6 @@ const LiveSession = () => {
     localStream,
     meetingStarted,
     onMuteUser: () => {
-      // Mute the user's mic
       localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
     },
     onEndSession: () => {
@@ -148,6 +184,7 @@ const LiveSession = () => {
     }
   }, [remoteStream]);
 
+  // Chat messages persistence and realtime
   useEffect(() => {
     if (!bookingId || !user || !meetingStarted) return;
 
@@ -191,7 +228,6 @@ const LiveSession = () => {
             time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
             me: msg.sender_id === user.id,
           };
-
           const exists = prev.some((item) => item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
           return exists ? prev : [...prev, formatted];
         });
@@ -252,7 +288,7 @@ const LiveSession = () => {
     fetchBooking();
   }, [bookingId, user]);
 
-  // Track if teacher has started the session (for student join button)
+  // Track if teacher has started
   const [teacherStarted, setTeacherStarted] = useState(false);
 
   useEffect(() => {
@@ -260,14 +296,12 @@ const LiveSession = () => {
     const isStudent = user.id === bookingData.student_id;
     if (!isStudent || meetingStarted) return;
 
-    // Check if session is already in progress
     if (bookingData.session_status === "in_progress") {
       setTeacherStarted(true);
       toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
       return;
     }
 
-    // Listen for realtime changes
     const channel = supabase
       .channel(`session-status-${bookingId}`)
       .on("postgres_changes", {
@@ -287,11 +321,10 @@ const LiveSession = () => {
     return () => { supabase.removeChannel(channel); };
   }, [bookingId, user, bookingData, meetingStarted]);
 
-  // Session timer - counts only when both connected (anti-cheat)
+  // Session timer
   useEffect(() => {
     if (!meetingStarted) return;
     timerRef.current = window.setInterval(() => {
-      // Only count time when both are connected (anti-cheat)
       if (peerDisconnected) return;
 
       setElapsed((p) => {
@@ -300,7 +333,6 @@ const LiveSession = () => {
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
 
-        // 10-minute warning
         if (next >= tenMinWarning && next < tenMinWarning + 2 && !tenMinWarningShown) {
           setTenMinWarningShown(true);
           toast.warning("⚠️ تنبيه: متبقي 10 دقائق من رصيد باقتك!", { duration: 8000 });
@@ -355,17 +387,14 @@ const LiveSession = () => {
       return;
     }
 
-    // Check subscription balance (must have >= 5 minutes)
     if (hasSubscription && subscriptionRemainingMinutes < 5) {
       toast.error("رصيد الباقة غير كافي. يجب أن يكون لديك 5 دقائق على الأقل.");
       return;
     }
 
-    // Anti-cheat: check for existing active sessions
     const hasConflict = await checkActiveSession();
     if (hasConflict) return;
 
-    // Anti-cheat: check tab lock
     if (isTabLocked) {
       toast.error("هذه الجلسة مفتوحة في تبويب آخر.");
       return;
@@ -375,7 +404,6 @@ const LiveSession = () => {
 
     await start();
 
-    // Only teacher updates booking/session status
     if (isTeacher) {
       await Promise.all([
         supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
@@ -397,7 +425,6 @@ const LiveSession = () => {
     if (!newMessage.trim()) return;
     const msgText = newMessage;
 
-    // ─── Client-side protection filter ───
     const filterResult = filterChatMessage(msgText);
     if (!filterResult.allowed) {
       toast.error(filterResult.reason || "ممنوع مشاركة بيانات شخصية");
@@ -469,9 +496,6 @@ const LiveSession = () => {
 
         await supabase.from("bookings").update({ status: "completed", session_status: "completed" }).eq("id", bookingId);
         
-        // Only set ended_at - the DB trigger auto_complete_session handles:
-        // duration_minutes, deducted_minutes, teacher_earning, short_session,
-        // subscription deduction, and teacher balance update
         await supabase.from("sessions").update({ 
           ended_at: new Date().toISOString(),
         } as any).eq("booking_id", bookingId);
@@ -553,9 +577,21 @@ const LiveSession = () => {
   const displayTitle = subjectName ? `${subjectName} - ${otherName}` : otherName;
   const connBadge = getConnectionBadge();
 
+  // Callback to pass to whiteboard for sending data
+  const handleWhiteboardSend = useCallback((msg: any) => {
+    sendDataMessage(msg);
+  }, [sendDataMessage]);
+
+  // Set whiteboard canvas ref
+  const whiteboardCanvasRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      const canvas = node.querySelector("canvas");
+      if (canvas) whiteboardRef.current = canvas;
+    }
+  }, []);
+
   return (
     <div className="h-screen bg-foreground flex flex-col">
-      {/* Hidden audio element for remote stream */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {/* Top Bar */}
@@ -575,15 +611,13 @@ const LiveSession = () => {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Violation counter badge */}
+        <div className="flex items-center gap-2 flex-wrap">
           {violationCount > 0 && (
             <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold">
               <ShieldAlert className="h-3 w-3" />
               {violationCount} مخالفة
             </span>
           )}
-          {/* System mute indicator */}
           {isMutedBySystem && (
             <span className="flex items-center gap-1.5 text-xs bg-destructive/30 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
               <VolumeX className="h-3 w-3" />
@@ -668,54 +702,95 @@ const LiveSession = () => {
         )}
       </AnimatePresence>
 
+      {/* Indicators for student */}
+      <AnimatePresence>
+        {!isTeacher && remoteScreenSharing && !boardOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-16 right-4 z-30 bg-primary/80 text-primary-foreground px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold"
+          >
+            <Monitor className="h-4 w-4" />
+            المعلم يشارك الشاشة الآن
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {!isTeacher && remoteDrawing && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-16 left-4 z-30 bg-secondary/80 text-secondary-foreground px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold"
+          >
+            <Pen className="h-4 w-4" />
+            المعلم يرسم الآن
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
       <div className="flex-1 flex relative overflow-hidden">
-        {/* Main area - audio session view */}
+        {/* Main area */}
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
-              {/* Screen share display - show to both teacher and student */}
-              {(screenSharing || remoteHasVideo) && (
-                <>
+              {/* Screen share video display (for student viewing teacher's screen) */}
+              {remoteScreenSharing && !isTeacher && (
+                <div className="absolute inset-0 z-10">
                   <video
                     ref={remoteVideoRef}
                     autoPlay
                     playsInline
-                    className={`absolute inset-0 w-full h-full object-contain z-10 ${remoteHasVideo && !isTeacher ? "" : "hidden"}`}
+                    className="w-full h-full object-contain bg-black"
                   />
                   <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                      <Monitor className="h-3 w-3" /> مشاركة الشاشة نشطة
+                      <Monitor className="h-3 w-3" /> مشاركة الشاشة
                     </p>
                   </div>
-                </>
+                </div>
               )}
 
-              {/* Audio session indicator */}
-              {!remoteConnected ? (
-                <div className="text-center">
-                  <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
-                    <Users className="h-12 w-12 text-card/40" />
-                  </div>
-                  <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
-                  <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <div className="w-28 h-28 rounded-full bg-secondary/20 mx-auto mb-4 flex items-center justify-center border-2 border-secondary/40">
-                    <Headphones className="h-14 w-14 text-secondary" />
-                  </div>
-                  <p className="text-card/90 font-bold text-xl mb-1">{otherName}</p>
-                  <p className="text-card/50 text-sm flex items-center gap-1 justify-center">
-                    <Wifi className="h-3 w-3 text-green-400" /> متصل - جلسة صوتية
+              {/* Teacher's own screen share preview */}
+              {screenSharing && isTeacher && (
+                <div className="absolute top-2 right-2 z-20 bg-primary/80 rounded-md px-3 py-1.5">
+                  <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                    <Monitor className="h-3 w-3" /> أنت تشارك الشاشة
                   </p>
-                  {micEnabled && (
-                    <div className="mt-4 flex items-center gap-2 justify-center">
-                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                      <span className="text-xs text-card/40">الميكروفون نشط</span>
+                </div>
+              )}
+
+              {/* Audio session indicator - show when no screen share */}
+              {!(remoteScreenSharing && !isTeacher) && (
+                <>
+                  {!remoteConnected ? (
+                    <div className="text-center">
+                      <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
+                        <Users className="h-12 w-12 text-card/40" />
+                      </div>
+                      <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
+                      <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <div className="w-28 h-28 rounded-full bg-secondary/20 mx-auto mb-4 flex items-center justify-center border-2 border-secondary/40">
+                        <Headphones className="h-14 w-14 text-secondary" />
+                      </div>
+                      <p className="text-card/90 font-bold text-xl mb-1">{otherName}</p>
+                      <p className="text-card/50 text-sm flex items-center gap-1 justify-center">
+                        <Wifi className="h-3 w-3 text-green-400" /> متصل - جلسة صوتية
+                      </p>
+                      {micEnabled && (
+                        <div className="mt-4 flex items-center gap-2 justify-center">
+                          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                          <span className="text-xs text-card/40">الميكروفون نشط</span>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           ) : (
@@ -761,16 +836,28 @@ const LiveSession = () => {
           )}
         </div>
 
-        {/* Whiteboard - Available for both teacher and student */}
+        {/* Whiteboard Panel */}
         <AnimatePresence>
           {boardOpen && bookingId && user && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex-1 min-w-0">
-              <WhiteboardCanvas bookingId={bookingId} userId={user.id} enabled={meetingStarted} />
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="flex-1 min-w-0"
+              ref={whiteboardCanvasRefCallback}
+            >
+              <WhiteboardCanvas
+                bookingId={bookingId}
+                userId={user.id}
+                enabled={meetingStarted}
+                isTeacher={isTeacher}
+                onSendData={handleWhiteboardSend}
+              />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Session Report Panel - Teacher only */}
+        {/* Session Report Panel */}
         <AnimatePresence>
           {showReport && isTeacher && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-96 bg-card border-r absolute md:relative inset-0 md:inset-auto z-10 overflow-y-auto p-4">
@@ -783,7 +870,7 @@ const LiveSession = () => {
           )}
         </AnimatePresence>
 
-        {/* Chat - Available for both */}
+        {/* Chat Panel */}
         <AnimatePresence>
           {chatOpen && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-80 bg-card border-r flex flex-col absolute md:relative inset-0 md:inset-auto z-10">
@@ -850,7 +937,7 @@ const LiveSession = () => {
           <MessageSquare className="h-5 w-5" />
         </Button>
 
-        {/* Student controls: whiteboard + hand raise */}
+        {/* Student controls */}
         {!isTeacher && (
           <>
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setBoardOpen(!boardOpen)}>
@@ -880,7 +967,7 @@ const LiveSession = () => {
           </>
         )}
 
-        {/* End call - for both */}
+        {/* End call */}
         <Button size="icon" className="rounded-xl h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" onClick={endSession}>
           <Phone className="h-5 w-5" />
         </Button>
