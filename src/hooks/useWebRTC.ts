@@ -160,15 +160,38 @@ export function useWebRTC({
 
     // Handle remote tracks
     const remote = new MediaStream();
-    setRemoteStream(remote);
-
-    pc.ontrack = (event) => {
-      event.streams[0]?.getTracks().forEach((track) => {
-        remote.addTrack(track);
-      });
+    const syncRemoteStream = () => {
       const updated = new MediaStream(remote.getTracks());
       setRemoteStream(updated);
       onRemoteStreamRef.current?.(updated);
+    };
+
+    setRemoteStream(remote);
+
+    pc.ontrack = (event) => {
+      const incomingTracks = event.streams[0]?.getTracks().length
+        ? event.streams[0].getTracks()
+        : [event.track];
+
+      incomingTracks.forEach((track) => {
+        const exists = remote.getTracks().some((existingTrack) => existingTrack.id === track.id);
+        if (!exists) {
+          remote.addTrack(track);
+        }
+
+        track.addEventListener("unmute", syncRemoteStream);
+        track.addEventListener("mute", syncRemoteStream);
+        track.addEventListener("ended", () => {
+          remote.getTracks().forEach((existingTrack) => {
+            if (existingTrack.id === track.id) {
+              remote.removeTrack(existingTrack);
+            }
+          });
+          syncRemoteStream();
+        });
+      });
+
+      syncRemoteStream();
     };
 
     pc.onicecandidate = async (event) => {
