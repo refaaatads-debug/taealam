@@ -381,11 +381,14 @@ export default function TeacherEarningsTab() {
                         <td className="py-3"><Badge variant="outline" className="text-xs">{e.month}</Badge></td>
                         <td className="py-3 text-muted-foreground text-xs">{new Date(e.created_at).toLocaleDateString("ar-SA")}</td>
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
-                        <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
                         <td className="py-3">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
-                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
+                          {e.status === "paid" ? (
+                            <Badge variant="default" className="text-[10px]">مدفوع ✓</Badge>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(e)}>
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );
