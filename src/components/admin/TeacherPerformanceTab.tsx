@@ -235,6 +235,7 @@ export default function TeacherPerformanceTab() {
       const filteredSessions = filterByDate(t.sessions);
       const completedFiltered = filteredSessions.filter(s => s.status === "completed");
       const totalMin = completedFiltered.reduce((sum, s) => sum + (s.actual_duration || 0), 0);
+      const totalSec = completedFiltered.reduce((sum, s) => sum + (s.actual_seconds || 0), 0);
       return {
         ...t,
         sessions: filteredSessions,
@@ -242,6 +243,7 @@ export default function TeacherPerformanceTab() {
         cancelledCount: filteredSessions.filter(s => s.status === "cancelled").length,
         totalMinutes: totalMin,
         totalHours: Math.round((totalMin / 60) * 10) / 10,
+        totalSeconds: totalSec,
         studentsCount: new Set(completedFiltered.map(s => s.student_name)).size,
       };
     })
@@ -349,7 +351,7 @@ export default function TeacherPerformanceTab() {
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {teacher.totalHours} ساعة
+                            {formatDuration(teacher.totalSeconds)}
                           </span>
                           <span className="flex items-center gap-1">
                             <BookOpen className="h-3 w-3" />
@@ -369,8 +371,8 @@ export default function TeacherPerformanceTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-primary/10 text-primary border-0 text-xs">
-                        {teacher.totalHours} ساعة فعلية
+                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-mono">
+                        {formatDuration(teacher.totalSeconds)}
                       </Badge>
                       {expandedTeacher === teacher.id ? (
                         <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -394,7 +396,7 @@ export default function TeacherPerformanceTab() {
                           {/* Stats Grid */}
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             {[
-                              { label: "الساعات الفعلية", value: `${teacher.totalHours}`, icon: Clock, color: "text-primary" },
+                              { label: "المدة الفعلية", value: formatDuration(teacher.totalSeconds), icon: Clock, color: "text-primary" },
                               { label: "حصص مكتملة", value: teacher.completedCount, icon: BookOpen, color: "text-green-600" },
                               { label: "حصص ملغاة", value: teacher.cancelledCount, icon: BookOpen, color: "text-destructive" },
                               { label: "عدد الطلاب", value: teacher.studentsCount, icon: Users, color: "text-secondary" },
@@ -468,8 +470,8 @@ export default function TeacherPerformanceTab() {
                                         <td className="py-2 text-muted-foreground">
                                           {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
                                         </td>
-                                        <td className="py-2 text-foreground font-medium">
-                                          {s.actual_duration ? `${s.actual_duration} دقيقة` : `${s.duration_minutes} دقيقة`}
+                                        <td className="py-2 text-foreground font-medium font-mono">
+                                          {s.status === "completed" && s.actual_seconds ? formatDuration(s.actual_seconds) : `${s.duration_minutes} دقيقة`}
                                         </td>
                                         <td className="py-2 text-muted-foreground">
                                           {s.price ? `${s.price} ر.س` : "—"}
