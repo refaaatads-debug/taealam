@@ -27,8 +27,8 @@ const Profile = () => {
 
   // Teacher-specific
   const [bio, setBio] = useState("");
-  const [hourlyRate, setHourlyRate] = useState("");
   const [yearsExp, setYearsExp] = useState("");
+  const [nationality, setNationality] = useState("");
   const [availFrom, setAvailFrom] = useState("");
   const [availTo, setAvailTo] = useState("");
   const [teacherSubjects, setTeacherSubjects] = useState<string[]>([]);
@@ -77,8 +77,8 @@ const Profile = () => {
         if (tp) {
           setTeacherProfileId(tp.id);
           setBio(tp.bio || "");
-          setHourlyRate(String(tp.hourly_rate || ""));
           setYearsExp(String(tp.years_experience || ""));
+          setNationality((tp as any).nationality || "");
           setAvailFrom(tp.available_from || "");
           setAvailTo(tp.available_to || "");
           setBankName((tp as any).bank_name || "");
@@ -96,8 +96,9 @@ const Profile = () => {
   }, [user, isTeacher]);
 
   const toggleSubject = (subjectId: string) => {
+    // Allow only one subject per teacher
     setTeacherSubjects(prev =>
-      prev.includes(subjectId) ? prev.filter(s => s !== subjectId) : [...prev, subjectId]
+      prev.includes(subjectId) ? [] : [subjectId]
     );
   };
 
@@ -117,10 +118,10 @@ const Profile = () => {
       if (isTeacher && teacherProfileId) {
         const { error: teacherErr } = await supabase.from("teacher_profiles").update({
           bio,
-          hourly_rate: Number(hourlyRate) || 0,
           years_experience: Number(yearsExp) || 0,
           available_from: availFrom || null,
           available_to: availTo || null,
+          nationality: nationality || null,
           bank_name: bankName || null,
           iban: iban || null,
           account_holder_name: accountHolder || null,
@@ -264,12 +265,38 @@ const Profile = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-xs font-bold text-muted-foreground">السعر / ساعة (ر.س)</Label>
-                        <Input type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} className="mt-1.5 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
-                      </div>
-                      <div>
                         <Label className="text-xs font-bold text-muted-foreground">سنوات الخبرة</Label>
                         <Input type="number" value={yearsExp} onChange={e => setYearsExp(e.target.value)} className="mt-1.5 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-bold text-muted-foreground">الجنسية</Label>
+                        <select
+                          value={nationality}
+                          onChange={e => setNationality(e.target.value)}
+                          className="mt-1.5 w-full h-10 rounded-xl bg-muted/30 border border-border/50 px-3 text-sm text-right"
+                        >
+                          <option value="">اختر الجنسية</option>
+                          <option value="سعودي">سعودي</option>
+                          <option value="مصري">مصري</option>
+                          <option value="أردني">أردني</option>
+                          <option value="سوري">سوري</option>
+                          <option value="عراقي">عراقي</option>
+                          <option value="يمني">يمني</option>
+                          <option value="فلسطيني">فلسطيني</option>
+                          <option value="لبناني">لبناني</option>
+                          <option value="تونسي">تونسي</option>
+                          <option value="جزائري">جزائري</option>
+                          <option value="مغربي">مغربي</option>
+                          <option value="سوداني">سوداني</option>
+                          <option value="ليبي">ليبي</option>
+                          <option value="إماراتي">إماراتي</option>
+                          <option value="كويتي">كويتي</option>
+                          <option value="بحريني">بحريني</option>
+                          <option value="عماني">عماني</option>
+                          <option value="قطري">قطري</option>
+                          <option value="موريتاني">موريتاني</option>
+                          <option value="أخرى">أخرى</option>
+                        </select>
                       </div>
                     </div>
                     <div>
@@ -289,7 +316,7 @@ const Profile = () => {
                     </div>
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
-                        <Star className="h-3.5 w-3.5" /> التخصصات
+                        <Star className="h-3.5 w-3.5" /> التخصص (اختر تخصص واحد فقط)
                       </Label>
                       <div className="flex flex-wrap gap-2">
                         {allSubjects.map(s => {
