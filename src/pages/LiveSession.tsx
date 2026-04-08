@@ -17,6 +17,7 @@ import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
+import LiveAIAssistant from "@/components/LiveAIAssistant";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
