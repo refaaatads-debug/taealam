@@ -49,6 +49,50 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
   throw lastError || new Error("Max retries exceeded");
 }
 
+async function evaluateOutput(apiKey: string, inputCtx: string, output: string) {
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: `أنت مقيّم لتقارير أداء المعلمين. قيّم: الفائدة، التخصيص، الارتباط بالمدخلات، عدم التعميم. أعطِ درجة 1-10.`,
+          },
+          { role: "user", content: `Input:\n${inputCtx.slice(0, 600)}\n\nOutput:\n${output.slice(0, 1200)}` },
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "rate_output",
+            description: "Rate output quality",
+            parameters: {
+              type: "object",
+              properties: {
+                usefulness_score: { type: "number", minimum: 1, maximum: 10 },
+                feedback: { type: "string" },
+              },
+              required: ["usefulness_score", "feedback"],
+              additionalProperties: false,
+            },
+          },
+        }],
+        tool_choice: { type: "function", function: { name: "rate_output" } },
+      }),
+    });
+    if (!resp.ok) { await resp.text(); return { usefulness_score: 5, feedback: "تعذر التقييم" }; }
+    const data = await resp.json();
+    const tc = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (tc?.function?.arguments) {
+      const p = JSON.parse(tc.function.arguments);
+      return { usefulness_score: Math.max(1, Math.min(10, p.usefulness_score || 5)), feedback: p.feedback || "" };
+    }
+    return { usefulness_score: 5, feedback: "" };
+  } catch { return { usefulness_score: 5, feedback: "خطأ في المقيّم" }; }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -64,7 +108,11 @@ serve(async (req) => {
       `- ${s.student} | ${s.subject} | ${new Date(s.date).toLocaleDateString("ar-SA")} | ${s.duration} دقيقة | ${s.status === "completed" ? "مكتملة" : s.status === "cancelled" ? "ملغاة" : "أخرى"}`
     ).join("\n");
 
-    const inputSummary = `معلم: ${teacher_name}, ساعات: ${total_hours}, حصص: ${total_sessions}, تقييم: ${avg_rating}`;
+    const inputSummary = `معلم: ${teacher_name}, ساعات: ${total_hours}, حصص: ${total_sessions}, ملغاة: ${cancelled_sessions}, تقييم: ${avg_rating}`;
+
+    let isRegenerated = false;
+    let usefulnessScore = 0;
+    let evaluatorFeedback = "";
 
     try {
       const aiResult = await callAIWithRetry(LOVABLE_API_KEY, {
@@ -72,26 +120,47 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `أنت محلل أداء تعليمي محترف. أنشئ تقرير أداء منظم ومختصر عن معلم يتضمن:
-1. **ملخص الأداء العام** (3-4 جمل)
-2. **تحليل الإنتاجية**
-3. **تحليل معدل الإلغاء**
-4. **تحليل التقييمات**
-5. **نقاط القوة** (3-4 نقاط)
-6. **فرص التحسين** (2-3 توصيات)
-7. **التوصيات الإدارية**
-
-قواعد: لا تكرر الجمل، لا حشو، بالعربية، أسلوب مهني.`,
+            content: `أنت محلل أداء تعليمي محترف. أنشئ تقرير أداء مخصص ومفصل عن المعلم "${teacher_name}".
+يجب أن يذكر التقرير: اسم المعلم، أرقام دقيقة، ملاحظات محددة بناءً على البيانات.
+لا تستخدم عبارات عامة مثل "يجب تحسين الأداء" بدون سياق.
+التقرير: ملخص، إنتاجية، إلغاء، تقييمات، نقاط قوة، تحسين، توصيات إدارية.`,
           },
           {
             role: "user",
-            content: `بيانات المعلم:\n- الاسم: ${teacher_name}\n- الساعات: ${total_hours}\n- الحصص: ${total_sessions}\n- الملغاة: ${cancelled_sessions}\n- الطلاب: ${students_count}\n- التقييم: ${avg_rating}/5 (${total_reviews} مراجعة)\n\nالحصص:\n${sessionsText || "لا توجد"}`,
+            content: `بيانات:\n- الاسم: ${teacher_name}\n- الساعات: ${total_hours}\n- الحصص: ${total_sessions}\n- الملغاة: ${cancelled_sessions}\n- الطلاب: ${students_count}\n- التقييم: ${avg_rating}/5 (${total_reviews})\n\nالحصص:\n${sessionsText || "لا توجد"}`,
           },
         ],
       });
 
-      const report = aiResult.result.choices?.[0]?.message?.content || "تعذر إنشاء التقرير";
+      let report = aiResult.result.choices?.[0]?.message?.content || "تعذر إنشاء التقرير";
       const qualityScore = calculateQualityScore(report);
+
+      // Evaluate
+      const evaluation = await evaluateOutput(LOVABLE_API_KEY, inputSummary, report);
+      usefulnessScore = evaluation.usefulness_score;
+      evaluatorFeedback = evaluation.feedback;
+
+      // Regenerate if weak
+      if (usefulnessScore < 6) {
+        isRegenerated = true;
+        const regen = await callAIWithRetry(LOVABLE_API_KEY, {
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: `التقرير السابق كان ضعيفاً: "${evaluatorFeedback}". اكتب تقرير مفصل ومخصص جداً عن "${teacher_name}" مع أرقام محددة وتوصيات قابلة للتنفيذ.`,
+            },
+            {
+              role: "user",
+              content: `الاسم: ${teacher_name}, ساعات: ${total_hours}, حصص: ${total_sessions}, ملغاة: ${cancelled_sessions}, طلاب: ${students_count}, تقييم: ${avg_rating}/5\n${sessionsText}`,
+            },
+          ],
+        });
+        report = regen.result.choices?.[0]?.message?.content || report;
+        const reEval = await evaluateOutput(LOVABLE_API_KEY, inputSummary, report);
+        usefulnessScore = reEval.usefulness_score;
+        evaluatorFeedback = reEval.feedback;
+      }
 
       await supabase.from("ai_logs").insert({
         feature_name: "teacher_performance",
@@ -101,41 +170,33 @@ serve(async (req) => {
         response_time_ms: aiResult.responseTime,
         quality_score: qualityScore,
         retry_count: aiResult.retryCount,
+        usefulness_score: usefulnessScore,
+        is_regenerated: isRegenerated,
+        evaluator_feedback: evaluatorFeedback.slice(0, 500),
       });
 
-      return new Response(JSON.stringify({ report, quality_score: qualityScore }), {
+      return new Response(JSON.stringify({ report, quality_score: qualityScore, usefulness_score: usefulnessScore, is_regenerated: isRegenerated }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (aiError) {
       const errMsg = aiError instanceof Error ? aiError.message : "Unknown";
       await supabase.from("ai_logs").insert({
-        feature_name: "teacher_performance",
-        input_summary: inputSummary.slice(0, 500),
-        status: "failed",
-        error_message: errMsg.slice(0, 500),
-        retry_count: 3,
+        feature_name: "teacher_performance", input_summary: inputSummary.slice(0, 500),
+        status: "failed", error_message: errMsg.slice(0, 500), retry_count: 3,
+        usefulness_score: 0, is_regenerated: false,
       });
-
-      // Notify admins
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
-      if (admins) {
-        for (const a of admins) {
-          await supabase.from("notifications").insert({
-            user_id: a.user_id,
-            title: "⚠️ فشل تقرير أداء المعلم",
-            body: `فشل إنشاء تقرير أداء ${teacher_name}: ${errMsg.slice(0, 100)}`,
-            type: "ai_error",
-          });
-        }
+      if (admins) for (const a of admins) {
+        await supabase.from("notifications").insert({
+          user_id: a.user_id, title: "⚠️ فشل تقرير أداء المعلم",
+          body: `فشل تقرير ${teacher_name}: ${errMsg.slice(0, 100)}`, type: "ai_error",
+        });
       }
-
-      return new Response(JSON.stringify({ error: errMsg }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   } catch (e) {
     console.error("Teacher performance report error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
