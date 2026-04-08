@@ -660,6 +660,13 @@ const LiveSession = () => {
   const remoteVideoTracks = remoteStream?.getVideoTracks().length || 0;
   const remoteLiveVideoTracks = remoteStream?.getVideoTracks().filter((track) => track.readyState === "live").length || 0;
 
+  // Auto-close drawing tools when screen sharing stops
+  useEffect(() => {
+    if (!screenSharing && isTeacher) {
+      setBoardOpen(false);
+    }
+  }, [screenSharing, isTeacher]);
+
   // Callback to pass to whiteboard for sending data
   const handleWhiteboardSend = useCallback((msg: any) => {
     sendDataMessage(msg);
@@ -813,7 +820,7 @@ const LiveSession = () => {
         <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
-              {/* Screen share video display (for student viewing teacher's screen) */}
+            {/* Screen share video display (for student viewing teacher's screen) */}
               {remoteScreenSharing && !isTeacher && (
                 <div className="absolute inset-0 z-10">
                   <video
@@ -825,7 +832,21 @@ const LiveSession = () => {
                     onLoadedMetadata={() => pushDebugEvent("remote-video", "metadata-loaded")}
                     onPlaying={() => setRemoteVideoStatus("playing")}
                   />
-                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-20">
+                  {/* Whiteboard overlay on student's screen share view */}
+                  {bookingId && user && (
+                    <div className="absolute inset-0 z-20 pointer-events-none">
+                      <WhiteboardCanvas
+                        bookingId={bookingId}
+                        userId={user.id}
+                        enabled={meetingStarted}
+                        isTeacher={false}
+                        onSendData={handleWhiteboardSend}
+                        overlay={true}
+                        remoteActions={whiteboardRemoteActions}
+                      />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 bg-primary/80 rounded-md px-2 py-1 z-30">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
                       <Monitor className="h-3 w-3" /> مشاركة الشاشة
                     </p>
@@ -833,12 +854,28 @@ const LiveSession = () => {
                 </div>
               )}
 
-              {/* Teacher's own screen share preview */}
+              {/* Teacher's own screen share preview + overlay drawing */}
               {screenSharing && isTeacher && (
-                <div className="absolute top-2 right-2 z-20 bg-primary/80 rounded-md px-3 py-1.5">
-                  <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
-                    <Monitor className="h-3 w-3" /> أنت تشارك الشاشة
-                  </p>
+                <div className="absolute inset-0 z-15">
+                  {/* Overlay whiteboard for teacher drawing on screen share */}
+                  {boardOpen && bookingId && user && (
+                    <div className="absolute inset-0 z-20">
+                      <WhiteboardCanvas
+                        bookingId={bookingId}
+                        userId={user.id}
+                        enabled={meetingStarted}
+                        isTeacher={true}
+                        onSendData={handleWhiteboardSend}
+                        overlay={true}
+                        remoteActions={whiteboardRemoteActions}
+                      />
+                    </div>
+                  )}
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <Monitor className="h-3 w-3" /> أنت تشارك الشاشة
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -916,26 +953,7 @@ const LiveSession = () => {
           )}
         </div>
 
-        {/* Whiteboard Panel */}
-        <AnimatePresence>
-          {boardOpen && bookingId && user && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="flex-1 min-w-0"
-            >
-              <WhiteboardCanvas
-                bookingId={bookingId}
-                userId={user.id}
-                enabled={meetingStarted}
-                isTeacher={isTeacher}
-                onSendData={handleWhiteboardSend}
-                remoteActions={whiteboardRemoteActions}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Whiteboard Panel removed - drawing is now overlay on screen share */}
 
         {/* Session Report Panel */}
         <AnimatePresence>
@@ -1006,7 +1024,7 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
               <Monitor className="h-5 w-5" />
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }}>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen && screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { setBoardOpen(!boardOpen); setShowReport(false); } }} disabled={!screenSharing} title={screenSharing ? "أدوات الرسم" : "شارك الشاشة أولاً للرسم"}>
               <PenTool className="h-5 w-5" />
             </Button>
           </>
@@ -1023,9 +1041,7 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
               {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setBoardOpen(!boardOpen)}>
-              <PenTool className="h-5 w-5" />
-            </Button>
+            {/* Student sees whiteboard overlay automatically during screen share - no button needed */}
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
               <Hand className="h-5 w-5" />
             </Button>
