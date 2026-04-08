@@ -11,7 +11,8 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
   fn.eq = () => chainable(terminal);
   fn.in = () => chainable(terminal);
   fn.order = () => chainable(terminal);
-  fn.limit = () => Promise.resolve(terminal);
+  fn.limit = () => chainable(terminal);
+  fn.maybeSingle = () => Promise.resolve(terminal);
   fn.single = () => Promise.resolve(terminal);
   fn.gte = () => chainable(terminal);
   fn.lte = () => chainable(terminal);
