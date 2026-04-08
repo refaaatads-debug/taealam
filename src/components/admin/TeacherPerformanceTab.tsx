@@ -222,6 +222,11 @@ export default function TeacherPerformanceTab() {
         totalHours: Math.round((totalMin / 60) * 10) / 10,
         studentsCount: new Set(completedFiltered.map(s => s.student_name)).size,
       };
+    })
+    .filter(t => {
+      // When date filter is active, hide teachers with no matching sessions
+      if (dateFrom || dateTo) return t.sessions.length > 0;
+      return true;
     });
 
   const statusLabel = (status: string) => {
