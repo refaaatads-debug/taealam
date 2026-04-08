@@ -185,15 +185,21 @@ export default function WithdrawalSection() {
         {manualEarnings.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-bold text-foreground">أرباح مضافة من الإدارة</p>
-            {manualEarnings.map((e: any, i: number) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/5 border border-secondary/20">
-                <div>
-                  <p className="font-bold text-sm text-foreground">{Number(e.amount).toLocaleString()} ر.س</p>
-                  <p className="text-xs text-muted-foreground">شهر {e.month}</p>
+            {manualEarnings.map((e: any, i: number) => {
+              const statusLabel = e.status === "confirmed" ? "مؤكدة" : e.status === "in_progress" ? "جارية" : "غير مؤكدة";
+              const statusVariant = e.status === "confirmed" ? "default" as const : e.status === "in_progress" ? "secondary" as const : "destructive" as const;
+              return (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/5 border border-secondary/20">
+                  <div>
+                    <p className="font-bold text-sm text-foreground">{Number(e.amount).toLocaleString()} ر.س</p>
+                    <p className="text-xs text-muted-foreground">
+                      شهر {e.month} {e.hours ? `• ${Number(e.hours).toFixed(1)} ساعة عمل` : ""}
+                    </p>
+                  </div>
+                  <Badge variant={statusVariant} className="text-xs">{statusLabel}</Badge>
                 </div>
-                <Badge variant="secondary" className="text-xs">مضاف</Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
