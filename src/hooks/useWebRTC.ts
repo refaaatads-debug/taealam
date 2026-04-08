@@ -51,7 +51,7 @@ export function useWebRTC({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const screenSenderRef = useRef<RTCRtpSender | null>(null);
+  const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
 
   // Stable refs for callbacks
   const onRemoteStreamRef = useRef(onRemoteStream);
@@ -152,6 +152,11 @@ export function useWebRTC({
         pc.addTrack(track, localStreamRef.current!);
       });
     }
+
+    // Pre-add a video transceiver for screen sharing (inactive by default)
+    // This ensures stable m-line ordering across renegotiations
+    const videoTransceiver = pc.addTransceiver("video", { direction: "sendrecv" });
+    screenTransceiverRef.current = videoTransceiver;
 
     // Handle remote tracks
     const remote = new MediaStream();
