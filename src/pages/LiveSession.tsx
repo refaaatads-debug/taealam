@@ -576,13 +576,6 @@ const LiveSession = () => {
     sendDataMessage(msg);
   }, [sendDataMessage]);
 
-  // Set whiteboard canvas ref
-  const whiteboardCanvasRefCallback = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      const canvas = node.querySelector("canvas");
-      if (canvas) whiteboardRef.current = canvas;
-    }
-  }, []);
 
   return (
     <div className="h-screen bg-foreground flex flex-col">
