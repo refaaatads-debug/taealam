@@ -1066,8 +1066,17 @@ const LiveSession = () => {
         {/* Teacher extra controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); }}>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }}>
               <FileText className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              className={`rounded-xl h-12 w-12 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+              onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
+              disabled={!meetingStarted}
+              title="المساعد الذكي"
+            >
+              <Brain className="h-5 w-5" />
             </Button>
             <Button
               size="icon"
