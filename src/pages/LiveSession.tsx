@@ -670,10 +670,15 @@ const LiveSession = () => {
   const remoteVideoTracks = remoteStream?.getVideoTracks().length || 0;
   const remoteLiveVideoTracks = remoteStream?.getVideoTracks().filter((track) => track.readyState === "live").length || 0;
 
-  // Auto-close drawing tools when screen sharing stops
+  // Auto-open/close drawing tools when screen sharing toggles
   useEffect(() => {
-    if (!screenSharing && isTeacher) {
-      setBoardOpen(false);
+    if (isTeacher) {
+      if (screenSharing) {
+        setBoardOpen(true);
+      } else {
+        setBoardOpen(false);
+        setPageFrozen(false);
+      }
     }
   }, [screenSharing, isTeacher]);
 
