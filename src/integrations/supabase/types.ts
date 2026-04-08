@@ -327,6 +327,33 @@ export type Database = {
           },
         ]
       }
+      financial_months: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          id: string
+          month: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month?: string
+          status?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1011,6 +1038,7 @@ export type Database = {
           created_at: string
           hours: number | null
           id: string
+          invoice_id: string | null
           minutes_snapshot: number | null
           month: string
           notes: string | null
@@ -1024,6 +1052,7 @@ export type Database = {
           created_at?: string
           hours?: number | null
           id?: string
+          invoice_id?: string | null
           minutes_snapshot?: number | null
           month: string
           notes?: string | null
@@ -1037,6 +1066,7 @@ export type Database = {
           created_at?: string
           hours?: number | null
           id?: string
+          invoice_id?: string | null
           minutes_snapshot?: number | null
           month?: string
           notes?: string | null
