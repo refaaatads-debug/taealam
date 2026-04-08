@@ -116,14 +116,15 @@ const StudentDashboard = () => {
         points: pointsData?.total_points || 0,
       });
 
-      // Fetch subscription
-      const { data: sub } = await supabase
+      // Fetch subscription (get most recent active one)
+      const { data: subs } = await supabase
         .from("user_subscriptions")
         .select("*, subscription_plans(name_ar, tier)")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .single();
-      setSubscription(sub);
+        .order("created_at", { ascending: false })
+        .limit(1);
+      setSubscription(subs && subs.length > 0 ? subs[0] : null);
 
       // Check Stripe subscription status
       try {
