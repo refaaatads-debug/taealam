@@ -219,8 +219,6 @@ const TeacherDashboard = () => {
           {/* Teacher Schedule Table */}
           <TeacherScheduleTable />
 
-          {/* Notifications */}
-          <NotificationsSection />
 
           {/* Withdrawal Section */}
           <WithdrawalSection />
