@@ -47,21 +47,20 @@ const LiveSession = () => {
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
+  const [whiteboardRemoteAction, setWhiteboardRemoteAction] = useState<any>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
-  const whiteboardRef = useRef<HTMLCanvasElement>(null);
   const remoteDrawingTimerRef = useRef<number>();
+  const actionCounterRef = useRef(0);
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
   // Handle DataChannel messages (whiteboard sync, screen share status)
   const handleDataMessage = useCallback((msg: any) => {
     if (msg.type === "whiteboard-action") {
-      // Forward to whiteboard canvas
-      const canvas = whiteboardRef.current;
-      if (canvas && (canvas as any).__handleRemoteAction) {
-        (canvas as any).__handleRemoteAction(msg.action);
-      }
+      // Each action needs a unique identity so useEffect triggers on every one
+      actionCounterRef.current += 1;
+      setWhiteboardRemoteAction({ ...msg.action, _seq: actionCounterRef.current });
       // Show "teacher is drawing" indicator
       if (!isTeacher) {
         setRemoteDrawing(true);
@@ -69,13 +68,8 @@ const LiveSession = () => {
         remoteDrawingTimerRef.current = window.setTimeout(() => setRemoteDrawing(false), 2000);
       }
     } else if (msg.type === "whiteboard-clear") {
-      const canvas = whiteboardRef.current;
-      if (canvas && (canvas as any).__handleRemoteAction) {
-        (canvas as any).__handleRemoteAction({ type: "clear" });
-      }
-    } else if (msg.type === "whiteboard-undo") {
-      // For simplicity, undo on remote side is handled as a full redraw
-      // The teacher's undo doesn't remove from remote - would need action IDs
+      actionCounterRef.current += 1;
+      setWhiteboardRemoteAction({ type: "clear", _seq: actionCounterRef.current });
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
       if (msg.active && !isTeacher) {
