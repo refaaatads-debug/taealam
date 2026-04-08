@@ -185,9 +185,11 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
                       ? formatDuration(s.actual_seconds)
-                      : s.status === "completed"
-                        ? <span className="text-muted-foreground">لا توجد بيانات</span>
-                        : `${s.duration_minutes} دقيقة`}
+                      : s.status === "completed" && s.actual_duration != null && s.actual_duration > 0
+                        ? formatDuration(s.actual_duration * 60)
+                        : s.status === "completed"
+                          ? <span className="text-muted-foreground text-xs">لا توجد بيانات</span>
+                          : `${s.duration_minutes} دقيقة`}
                   </td>
                   <td className="py-2 text-muted-foreground">
                     {s.price ? `${s.price} ر.س` : "—"}
@@ -292,6 +294,9 @@ export default function TeacherPerformanceTab() {
             if (actualSeconds > 0) {
               totalActualSeconds += actualSeconds;
             }
+          } else if (b.status === "completed" && session?.duration_minutes) {
+            actualSeconds = session.duration_minutes * 60;
+            totalActualSeconds += actualSeconds;
           }
           if (b.status === "completed" && actualDuration) {
             totalActualMinutes += actualDuration;

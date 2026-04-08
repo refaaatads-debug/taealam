@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -83,6 +83,15 @@ export default function TeacherScheduleTable() {
     } else {
       toast.success("تم حذف الحصة بنجاح");
       fetchBookings();
+    }
+  };
+
+  const handleStartSession = async (bookingId: string, studentName: string) => {
+    const { error } = await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر بدء الجلسة");
+    } else {
+      toast.success(`تم إرسال طلب الانضمام إلى ${studentName}`);
     }
   };
 
@@ -209,12 +218,23 @@ export default function TeacherScheduleTable() {
                                       </Link>
                                     </Button>
                                     {(b.status === "confirmed" || b.status === "pending") && (
-                                      <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
-                                        <Link to={`/session?booking=${b.id}`}>
-                                          <Video className="h-3.5 w-3.5" />
-                                          ابدأ
-                                        </Link>
-                                      </Button>
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10"
+                                          onClick={() => handleStartSession(b.id, b.student_name || "الطالب")}
+                                        >
+                                          <Play className="h-3.5 w-3.5" />
+                                          أرسل طلب
+                                        </Button>
+                                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
+                                          <Link to={`/session?booking=${b.id}`}>
+                                            <Video className="h-3.5 w-3.5" />
+                                            ابدأ
+                                          </Link>
+                                        </Button>
+                                      </>
                                     )}
                                     {b.status === "completed" && b.has_subscription && (
                                       <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
