@@ -53,10 +53,20 @@ const Pricing = () => {
           promo_code: promoCode.trim() || undefined,
         },
       });
-      // Handle edge function errors (returned as data with error field on non-2xx)
+      // Handle edge function errors
       if (error) {
-        const msg = typeof error === "object" && error?.message ? error.message : String(error);
-        throw new Error(msg);
+        let msg = "حدث خطأ أثناء إنشاء جلسة الدفع";
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx instanceof Response) {
+            const body = await ctx.json();
+            if (body?.error) msg = body.error;
+          } else if (typeof error === "object" && (error as any)?.message) {
+            msg = (error as any).message;
+          }
+        } catch { /* fallback */ }
+        toast.error(msg);
+        return;
       }
       if (data?.error) {
         toast.error(data.error);
