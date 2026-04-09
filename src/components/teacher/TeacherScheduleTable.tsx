@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User, Play } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User, Play, PhoneCall } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -95,6 +95,48 @@ export default function TeacherScheduleTable() {
     }
   };
 
+  const handleInstantSession = async (studentId: string, studentName: string) => {
+    if (!user) return;
+    // Check student subscription
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("remaining_minutes")
+      .eq("user_id", studentId)
+      .eq("is_active", true)
+      .gt("remaining_minutes", 4);
+    
+    if (!subs || subs.length === 0) {
+      toast.error(`الطالب ${studentName} ليس لديه رصيد كافٍ في الباقة`);
+      return;
+    }
+
+    // Create a new booking
+    const { data: newBooking, error } = await supabase.from("bookings").insert({
+      teacher_id: user.id,
+      student_id: studentId,
+      scheduled_at: new Date().toISOString(),
+      duration_minutes: 60,
+      status: "confirmed" as any,
+      session_status: "in_progress",
+    }).select("id").single();
+
+    if (error || !newBooking) {
+      toast.error("تعذر إنشاء الجلسة");
+      return;
+    }
+
+    // Send notification to student
+    await supabase.from("notifications").insert({
+      user_id: studentId,
+      title: "📞 طلب جلسة فورية",
+      body: `المعلم يريد بدء جلسة فورية معك. انضم الآن!`,
+      type: "session_request",
+    });
+
+    toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}`);
+    fetchBookings();
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -171,6 +213,15 @@ export default function TeacherScheduleTable() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10"
+                      onClick={(e) => { e.stopPropagation(); handleInstantSession(group.studentId, group.studentName); }}
+                    >
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      جلسة فورية
+                    </Button>
                     <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{group.bookings.length} حصة</Badge>
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
