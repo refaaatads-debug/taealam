@@ -33,6 +33,8 @@ const Chat = () => {
   const [otherName, setOtherName] = useState("المحادثة");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
+  const [isStudent, setIsStudent] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,13 +51,27 @@ const Chat = () => {
         .single();
       
       if (booking) {
-        const otherId = booking.student_id === user.id ? booking.teacher_id : booking.student_id;
+        const isUserStudent = booking.student_id === user.id;
+        setIsStudent(isUserStudent);
+        const otherId = isUserStudent ? booking.teacher_id : booking.student_id;
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
           .eq("user_id", otherId)
           .single();
         if (profile) setOtherName(profile.full_name || "المحادثة");
+
+        // Check student subscription status
+        if (isUserStudent) {
+          const { data: sub } = await supabase
+            .from("user_subscriptions")
+            .select("id, remaining_minutes, is_active")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .gt("remaining_minutes", 0)
+            .limit(1);
+          setHasActiveSubscription(!!(sub && sub.length > 0));
+        }
 
         // Get ALL booking IDs between this pair for unified chat
         const { data: pairBookings } = await supabase
@@ -115,6 +131,10 @@ const Chat = () => {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !bookingId || !user || sending) return;
+    if (isStudent && !hasActiveSubscription) {
+      toast.error("يجب تفعيل باقة للتمكن من إرسال الرسائل");
+      return;
+    }
     setSending(true);
     const content = newMessage.trim();
     setNewMessage("");
@@ -153,6 +173,10 @@ const Chat = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !bookingId || !user) return;
+    if (isStudent && !hasActiveSubscription) {
+      toast.error("يجب تفعيل باقة للتمكن من إرسال الملفات");
+      return;
+    }
 
     // Validate file type (PDF and JPG only)
     const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
@@ -323,43 +347,52 @@ const Chat = () => {
 
       {/* Input */}
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card border-t p-3 z-40">
-        <form
-          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="flex items-center gap-2 max-w-3xl mx-auto"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="rounded-xl shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+        {isStudent && !hasActiveSubscription ? (
+          <div className="flex items-center justify-center gap-3 max-w-3xl mx-auto py-2">
+            <p className="text-sm text-destructive font-medium">⚠️ يجب تفعيل باقة للتمكن من إرسال الرسائل</p>
+            <Button size="sm" asChild className="rounded-xl">
+              <Link to="/pricing">تفعيل باقة</Link>
+            </Button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+            className="flex items-center gap-2 max-w-3xl mx-auto"
           >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-          </Button>
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="اكتب رسالتك..."
-            className="rounded-xl flex-1"
-            dir="rtl"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-xl shrink-0"
-            disabled={!newMessage.trim() || sending}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="rounded-xl shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="اكتب رسالتك..."
+              className="rounded-xl flex-1"
+              dir="rtl"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="rounded-xl shrink-0"
+              disabled={!newMessage.trim() || sending}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        )}
       </div>
 
       <BottomNav />
