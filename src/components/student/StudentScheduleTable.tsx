@@ -84,12 +84,15 @@ export default function StudentScheduleTable() {
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
     const teacherIds = [...new Set(data.map(b => b.teacher_id))];
-    const [{ data: profiles }, { data: subs }] = await Promise.all([
+    const bookingIdsList = data.map(b => b.id);
+    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", [user.id]).eq("is_active", true),
+      supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIdsList),
     ]);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
     const hasSub = (subs ?? []).some(s => s.sessions_remaining > 0);
+    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
     setLiveSessionIds(new Set(inProgress));
@@ -104,6 +107,7 @@ export default function StudentScheduleTable() {
       teacher_name: profileMap.get(b.teacher_id) || "معلم",
       subject_name: (b.subjects as any)?.name || "مادة",
       has_subscription: hasSub,
+      actual_duration_minutes: sessionMap.get(b.id) ?? null,
     })));
     setLoading(false);
   };
