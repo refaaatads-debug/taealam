@@ -367,7 +367,19 @@ export default function StudentScheduleTable() {
                                         ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
                                         : <span className="text-muted-foreground/50">-</span>}
                                     </td>
-                                    <td className="py-2.5 px-3">{getStatusBadge(b.status, isLive)}</td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-2">
+                                        {getStatusBadge(b.status, isLive)}
+                                        {isLive && (
+                                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-6 px-2 text-[10px] shadow-button" asChild>
+                                            <Link to={`/session?booking=${b.id}`}>
+                                              <Video className="h-3 w-3 ml-1" />
+                                              انضم
+                                            </Link>
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </td>
                                   </tr>
                                 );
                               })}
