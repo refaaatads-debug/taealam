@@ -772,9 +772,8 @@ const LiveSession = () => {
   useEffect(() => {
     if (isTeacher) {
       if (screenSharing) {
-        setBoardOpen(true);
+        // keep boardOpen state as-is when screen sharing
       } else {
-        setBoardOpen(false);
         setPageFrozen(false);
       }
     }
@@ -932,7 +931,7 @@ const LiveSession = () => {
       <div className="flex-1 flex relative overflow-hidden">
 
         {/* Main area */}
-        <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
+        <div className={`flex-1 flex flex-col items-center justify-center relative ${showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
             {/* Screen share video display (for student viewing teacher's screen) */}
