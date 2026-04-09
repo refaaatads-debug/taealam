@@ -5,20 +5,13 @@ const buildIceServers = (): RTCConfiguration => {
   const iceServers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    // ExpressTURN server for NAT traversal
+    {
+      urls: "turn:free.expressturn.com:3478",
+      username: "000000002090948296",
+      credential: "3zlpZjzikPoF1g2UNiN/balWNgA=",
+    },
   ];
-
-  // Add TURN server if configured
-  const turnUrl = import.meta.env.VITE_TURN_SERVER_URL;
-  const turnUser = import.meta.env.VITE_TURN_USERNAME;
-  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
-
-  if (turnUrl && turnUser && turnCred) {
-    iceServers.push({
-      urls: turnUrl,
-      username: turnUser,
-      credential: turnCred,
-    });
-  }
 
   return { iceServers };
 };
