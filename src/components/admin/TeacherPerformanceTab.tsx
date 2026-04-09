@@ -230,7 +230,7 @@ export default function TeacherPerformanceTab() {
       // Get all approved teachers with profiles
       const { data: teacherProfiles } = await supabase
         .from("teacher_profiles")
-        .select("id, user_id, avg_rating, total_reviews, total_sessions, is_approved")
+        .select("id, user_id, avg_rating, total_reviews, total_sessions, is_approved, hourly_rate")
         .eq("is_approved", true);
 
       if (!teacherProfiles || teacherProfiles.length === 0) {
