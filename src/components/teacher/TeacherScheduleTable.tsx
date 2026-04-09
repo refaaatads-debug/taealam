@@ -56,12 +56,15 @@ export default function TeacherScheduleTable() {
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
     const studentIds = [...new Set(data.map(b => b.student_id))];
-    const [{ data: profiles }, { data: subs }] = await Promise.all([
+    const bookingIds = data.map(b => b.id);
+    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", studentIds).eq("is_active", true),
+      supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIds),
     ]);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
     const subSet = new Set((subs ?? []).filter(s => s.sessions_remaining > 0).map(s => s.user_id));
+    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
 
     setBookings(data.map(b => ({
       id: b.id,
@@ -72,6 +75,7 @@ export default function TeacherScheduleTable() {
       student_name: profileMap.get(b.student_id) || "طالب",
       subject_name: (b.subjects as any)?.name || "مادة",
       has_subscription: subSet.has(b.student_id),
+      actual_duration_minutes: sessionMap.get(b.id) ?? null,
     })));
     setLoading(false);
   };
