@@ -185,11 +185,9 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
                       ? formatDuration(s.actual_seconds)
-                      : s.status === "completed" && s.actual_duration != null && s.actual_duration > 0
-                        ? formatDuration(s.actual_duration * 60)
-                        : s.status === "completed"
-                          ? <span className="text-muted-foreground text-xs">لا توجد بيانات</span>
-                          : `${s.duration_minutes} دقيقة`}
+                      : s.status !== "completed"
+                        ? `${s.duration_minutes} دقيقة`
+                        : <span className="text-muted-foreground text-xs">لا توجد بيانات</span>}
                   </td>
                   <td className="py-2 text-muted-foreground">
                     {s.price ? `${s.price} ر.س` : "—"}
@@ -262,15 +260,23 @@ export default function TeacherPerformanceTab() {
       const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
       const allBookingIds = (bookingsRes.data ?? []).filter(b => b.status === "completed").map(b => b.id);
 
-      const [studentsRes, subjectsRes, sessionsRes] = await Promise.all([
+      // Batch session queries to avoid 1000-row limit
+      const batchSize = 200;
+      let allSessions: any[] = [];
+      for (let i = 0; i < allBookingIds.length; i += batchSize) {
+        const batch = allBookingIds.slice(i, i + batchSize);
+        const { data } = await supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", batch);
+        if (data) allSessions = allSessions.concat(data);
+      }
+
+      const [studentsRes, subjectsRes] = await Promise.all([
         allStudentIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", allStudentIds) : { data: [] },
         allSubjectIds.length > 0 ? supabase.from("subjects").select("id, name").in("id", allSubjectIds) : { data: [] },
-        allBookingIds.length > 0 ? supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", allBookingIds) : { data: [] },
       ]);
 
       const studentMap = new Map((studentsRes.data ?? []).map(s => [s.user_id, s.full_name]));
       const subjectMap = new Map((subjectsRes.data ?? []).map(s => [s.id, s.name]));
-      const sessionMap = new Map((sessionsRes.data ?? []).map(s => [s.booking_id, s]));
+      const sessionMap = new Map((allSessions as any[]).map(s => [s.booking_id, s]));
 
       // Build teacher data
       const teacherData: TeacherData[] = teacherProfiles.map(tp => {
