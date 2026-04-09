@@ -3,7 +3,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, X } from "lucide-react";
 
 import BookingRequests from "@/components/teacher/BookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
@@ -236,6 +236,25 @@ const TeacherDashboard = () => {
                         </Button>
                         <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                           <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl h-8 w-8 p-0 border-destructive/30 text-destructive hover:bg-destructive/10"
+                          title="رفض الحصة"
+                          onClick={async () => {
+                            await supabase.from("bookings").update({ status: "cancelled" as any, session_status: "rejected" }).eq("id", s.id);
+                            await supabase.from("notifications").insert({
+                              user_id: s.student_id,
+                              title: "❌ تم رفض الحصة",
+                              body: `المعلم رفض الحصة المجدولة. يمكنك حجز حصة أخرى.`,
+                              type: "session_rejected",
+                            });
+                            toast.success("تم رفض الحصة وإبلاغ الطالب");
+                            fetchData();
+                          }}
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </motion.div>
