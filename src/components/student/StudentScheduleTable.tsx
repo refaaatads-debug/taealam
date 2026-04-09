@@ -154,7 +154,7 @@ export default function StudentScheduleTable() {
       scheduled_at: new Date().toISOString(),
       duration_minutes: 60,
       status: "confirmed" as any,
-      session_status: "in_progress",
+      session_status: "waiting_acceptance",
     }).select("id").single();
 
     if (error || !newBooking) {
@@ -316,22 +316,7 @@ export default function StudentScheduleTable() {
                           {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                         </p>
                       </div>
-                      {hasLive && (() => {
-                        const liveBooking = group.bookings.find(b => liveSessionIds.has(b.id));
-                        return liveBooking ? (
-                          <Button
-                            size="sm"
-                            className="gradient-cta text-secondary-foreground rounded-lg h-7 px-3 gap-1 text-[10px] animate-pulse shadow-button mr-2"
-                            onClick={(e) => e.stopPropagation()}
-                            asChild
-                          >
-                            <Link to={`/session?booking=${liveBooking.id}`}>
-                              <Video className="h-3.5 w-3.5" />
-                              انضم الآن
-                            </Link>
-                          </Button>
-                        ) : null;
-                      })()}
+                    {/* Sessions are joined from upcoming sessions section */}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -404,14 +389,7 @@ export default function StudentScheduleTable() {
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-2">
                                         {getStatusBadge(b.status, isLive)}
-                                        {isLive && (
-                                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-6 px-2 text-[10px] shadow-button" asChild>
-                                            <Link to={`/session?booking=${b.id}`}>
-                                              <Video className="h-3 w-3 ml-1" />
-                                              انضم
-                                            </Link>
-                                          </Button>
-                                        )}
+                                        {/* Join from upcoming sessions section */}
                                       </div>
                                     </td>
                                   </tr>
