@@ -29,6 +29,7 @@ interface BookingRow {
   subject_name?: string;
   teacher_id?: string;
   has_subscription?: boolean;
+  actual_duration_minutes?: number | null;
 }
 
 export default function StudentScheduleTable() {
