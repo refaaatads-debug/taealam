@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
-  Pen, Brain, Pause, Play, Paperclip, Download, Loader2, Image as ImageIcon
+  Pen, Brain, Pause, Play, Paperclip, Download, Loader2, Image as ImageIcon, Maximize, Minimize
 } from "lucide-react";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
@@ -70,7 +70,21 @@ const LiveSession = () => {
   const [fileUploading, setFileUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
   const pushDebugEvent = useCallback((label: string, value: string) => {
@@ -1316,7 +1330,9 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
               {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </Button>
-            {/* Student sees whiteboard overlay automatically during screen share - no button needed */}
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
+              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </Button>
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
               <Hand className="h-5 w-5" />
             </Button>
