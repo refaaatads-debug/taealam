@@ -278,7 +278,7 @@ export default function TeacherPerformanceTab() {
 
       const studentMap = new Map((studentsRes.data ?? []).map(s => [s.user_id, s.full_name]));
       const subjectMap = new Map((subjectsRes.data ?? []).map(s => [s.id, s.name]));
-      const sessionMap = new Map((sessionsRes.data ?? []).map(s => [s.booking_id, s]));
+      const sessionMap = new Map((allSessions as any[]).map(s => [s.booking_id, s]));
 
       // Build teacher data
       const teacherData: TeacherData[] = teacherProfiles.map(tp => {
