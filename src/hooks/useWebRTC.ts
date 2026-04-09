@@ -53,6 +53,7 @@ export function useWebRTC({
   const [screenSharing, setScreenSharing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [dataChannelReady, setDataChannelReady] = useState(false);
+  const [iceTransportType, setIceTransportType] = useState<string>("unknown");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -209,6 +210,9 @@ export function useWebRTC({
       const state = pc.connectionState;
       setConnectionState(state);
       onConnectionStateRef.current?.(state);
+      if (state === "connected") {
+        detectIceTransportType(pc);
+      }
       if (state === "failed") {
         setTimeout(() => {
           if (pcRef.current?.connectionState === "failed") restartConnection();
@@ -232,6 +236,45 @@ export function useWebRTC({
 
     return pc;
   }, [sendSignal, setupDataChannel]);
+
+  const detectIceTransportType = useCallback(async (pc: RTCPeerConnection) => {
+    try {
+      const stats = await pc.getStats();
+      let activeCandidatePairId: string | null = null;
+      stats.forEach((report) => {
+        if (report.type === "transport" && report.selectedCandidatePairId) {
+          activeCandidatePairId = report.selectedCandidatePairId;
+        }
+      });
+      if (!activeCandidatePairId) {
+        stats.forEach((report) => {
+          if (report.type === "candidate-pair" && report.state === "succeeded") {
+            activeCandidatePairId = report.id;
+          }
+        });
+      }
+      if (activeCandidatePairId) {
+        const pair = stats.get(activeCandidatePairId);
+        if (pair?.localCandidateId) {
+          const local = stats.get(pair.localCandidateId);
+          if (local) {
+            const cType = local.candidateType;
+            if (cType === "relay") setIceTransportType("TURN Relay");
+            else if (cType === "srflx") setIceTransportType("STUN");
+            else if (cType === "host") setIceTransportType("Direct");
+            else if (cType === "prflx") setIceTransportType("Direct (prflx)");
+            else setIceTransportType(cType || "unknown");
+            console.log("ICE transport type:", cType, "| server:", local.url || local.relayProtocol || "N/A");
+            return;
+          }
+        }
+      }
+      setIceTransportType("unknown");
+    } catch (err) {
+      console.error("Failed to detect ICE transport type:", err);
+      setIceTransportType("unknown");
+    }
+  }, []);
 
   const handleSignal = useCallback(async (signalType: string, payload: any, senderId: string) => {
     if (senderId === userId) return;
@@ -449,6 +492,7 @@ export function useWebRTC({
     screenSharing,
     isRecording,
     dataChannelReady,
+    iceTransportType,
     start,
     stop,
     toggleMic,
