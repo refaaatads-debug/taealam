@@ -143,7 +143,7 @@ export default function TeacherScheduleTable() {
       scheduled_at: new Date().toISOString(),
       duration_minutes: 60,
       status: "confirmed" as any,
-      session_status: "in_progress",
+      session_status: "waiting_acceptance",
     }).select("id").single();
 
     if (error || !newBooking) {
@@ -158,7 +158,7 @@ export default function TeacherScheduleTable() {
       type: "session_request",
     });
 
-    toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}`);
+    toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}. في انتظار قبول الطالب...`);
     fetchBookings();
   };
 
