@@ -1200,11 +1200,8 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
               <Monitor className="h-5 w-5" />
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen && screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { setBoardOpen(!boardOpen); setShowReport(false); } }} disabled={!screenSharing} title={screenSharing ? "أدوات الرسم" : "شارك الشاشة أولاً للرسم"}>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }} disabled={!meetingStarted} title="السبورة">
               <PenTool className="h-5 w-5" />
-            </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${pageFrozen ? "bg-orange-500 hover:bg-orange-600 text-card border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { const next = !pageFrozen; setPageFrozen(next); sendDataMessage({ type: "page-freeze", active: next }); } }} disabled={!screenSharing} title={pageFrozen ? "إلغاء التجميد" : "تجميد الشاشة"}>
-              {pageFrozen ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </Button>
           </>
         )}
