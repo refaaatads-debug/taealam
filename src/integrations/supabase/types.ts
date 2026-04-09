@@ -1477,6 +1477,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_chat_messages: { Args: never; Returns: number }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]

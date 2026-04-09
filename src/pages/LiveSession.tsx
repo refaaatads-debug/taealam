@@ -366,15 +366,36 @@ const LiveSession = () => {
     };
   }, [remoteStream, remoteScreenSharing, pushDebugEvent]);
 
-  // Chat messages persistence and realtime
+   // Chat messages persistence and realtime - UNIFIED across all bookings between pair
   useEffect(() => {
     if (!bookingId || !user || !meetingStarted) return;
 
-    const fetchMessages = async () => {
+    const fetchUnifiedMessages = async () => {
+      // Get booking info to find the pair
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("student_id, teacher_id")
+        .eq("id", bookingId)
+        .single();
+
+      if (!booking) return;
+
+      // Get ALL booking IDs between this pair
+      const { data: pairBookings } = await supabase
+        .from("bookings")
+        .select("id")
+        .or(`and(student_id.eq.${booking.student_id},teacher_id.eq.${booking.teacher_id}),and(student_id.eq.${booking.teacher_id},teacher_id.eq.${booking.student_id})`);
+
+      const allIds = pairBookings?.map(b => b.id) || [bookingId];
+
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
       const { data } = await supabase
         .from("chat_messages")
         .select("id, sender_id, content, created_at, file_url, file_name, file_type")
-        .eq("booking_id", bookingId)
+        .in("booking_id", allIds)
+        .gte("created_at", oneYearAgo.toISOString())
         .order("created_at", { ascending: true });
 
       if (!data) return;
@@ -388,9 +409,15 @@ const LiveSession = () => {
         fileName: msg.file_name,
         fileType: msg.file_type,
       })));
+
+      return allIds;
     };
 
-    fetchMessages();
+    let pairBookingIds: string[] = [];
+
+    fetchUnifiedMessages().then(ids => {
+      if (ids) pairBookingIds = ids;
+    });
 
     if (chatChannelRef.current) {
       supabase.removeChannel(chatChannelRef.current);
@@ -403,9 +430,11 @@ const LiveSession = () => {
         event: "INSERT",
         schema: "public",
         table: "chat_messages",
-        filter: `booking_id=eq.${bookingId}`,
       }, (payload) => {
         const msg = payload.new as any;
+        // Only show messages from bookings between this pair
+        if (pairBookingIds.length > 0 && !pairBookingIds.includes(msg.booking_id)) return;
+        
         const isMe = msg.sender_id === user.id;
         setMessages((prev) => {
           const formatted = {

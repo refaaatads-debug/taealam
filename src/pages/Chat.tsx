@@ -36,6 +36,8 @@ const Chat = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [allBookingIds, setAllBookingIds] = useState<string[]>([]);
+
   useEffect(() => {
     if (!bookingId || !user) return;
 
@@ -54,37 +56,52 @@ const Chat = () => {
           .eq("user_id", otherId)
           .single();
         if (profile) setOtherName(profile.full_name || "المحادثة");
+
+        // Get ALL booking IDs between this pair for unified chat
+        const { data: pairBookings } = await supabase
+          .from("bookings")
+          .select("id")
+          .or(`and(student_id.eq.${booking.student_id},teacher_id.eq.${booking.teacher_id}),and(student_id.eq.${booking.teacher_id},teacher_id.eq.${booking.student_id})`);
+        
+        const ids = pairBookings?.map(b => b.id) || [bookingId];
+        setAllBookingIds(ids);
+
+        // Fetch messages from ALL bookings between this pair
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        
+        const { data: msgs } = await supabase
+          .from("chat_messages")
+          .select("*")
+          .in("booking_id", ids)
+          .gte("created_at", oneYearAgo.toISOString())
+          .order("created_at", { ascending: true });
+        if (msgs) setMessages(msgs as ChatMessage[]);
+        setLoading(false);
       }
     };
 
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("booking_id", bookingId)
-        .order("created_at", { ascending: true });
-      if (data) setMessages(data as ChatMessage[]);
-      setLoading(false);
-    };
-
     fetchBookingInfo();
-    fetchMessages();
 
+    // Listen for new messages globally (filter by pair in handler)
     const channel = supabase
-      .channel(`chat-${bookingId}`)
+      .channel(`unified-chat-${bookingId}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "chat_messages",
-        filter: `booking_id=eq.${bookingId}`,
       }, (payload) => {
         const newMsg = payload.new as ChatMessage;
-        setMessages(prev => {
-          if (prev.some(m => m.id === newMsg.id)) return prev;
-          if (newMsg.sender_id !== user?.id) {
-            playNotificationSound();
-          }
-          return [...prev, newMsg];
+        setAllBookingIds(currentIds => {
+          if (!currentIds.includes(newMsg.booking_id)) return currentIds;
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            if (newMsg.sender_id !== user?.id) {
+              playNotificationSound();
+            }
+            return [...prev, newMsg];
+          });
+          return currentIds;
         });
       })
       .subscribe();
