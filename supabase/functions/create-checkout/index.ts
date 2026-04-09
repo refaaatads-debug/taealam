@@ -61,6 +61,21 @@ serve(async (req) => {
 
     // Handle FREE plans — activate directly without Stripe
     if (plan.price <= 0) {
+      // Check if user already used free trial
+      const { data: existingFreeSubs } = await adminClient
+        .from("user_subscriptions")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("plan_id", 
+          (await adminClient.from("subscription_plans").select("id").lte("price", 0)).data?.map((p: any) => p.id) || []
+        );
+
+      if (existingFreeSubs && existingFreeSubs.length > 0) {
+        return new Response(JSON.stringify({ error: "لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const endsAt = new Date();
       endsAt.setDate(endsAt.getDate() + 30);
 
@@ -74,6 +89,9 @@ serve(async (req) => {
         ends_at: endsAt.toISOString(),
         is_active: true,
       });
+
+      // Mark free trial as used
+      await adminClient.from("profiles").update({ free_trial_used: true }).eq("user_id", user.id);
 
       await adminClient.from("notifications").insert({
         user_id: user.id,
@@ -124,7 +142,7 @@ serve(async (req) => {
         const promoCodes = await stripe.promotionCodes.list({ code: promo_code, active: true, limit: 1 });
         if (promoCodes.data.length > 0) {
           sessionOptions.discounts = [{ promotion_code: promoCodes.data[0].id }];
-          delete sessionOptions.allow_promotion_codes; // Can't use both
+          delete sessionOptions.allow_promotion_codes;
         }
       } catch (e) {
         console.log("Promo code lookup failed, allowing manual entry:", e);
