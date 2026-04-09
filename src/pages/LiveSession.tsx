@@ -37,7 +37,7 @@ const LiveSession = () => {
   const [questionsDetected, setQuestionsDetected] = useState(0);
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
-  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
+  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -66,6 +66,10 @@ const LiveSession = () => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [fileUploading, setFileUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { play: playNotificationSound } = useNotificationSound();
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
