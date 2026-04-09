@@ -71,23 +71,18 @@ export default function StudentScheduleTable() {
       .channel("student-schedule-table")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `student_id=eq.${user.id}` }, async (payload) => {
         const updated = payload.new as any;
-        if (updated?.session_status === "in_progress" && payload.eventType === "INSERT") {
+        const isWaiting = updated?.session_status === "waiting_acceptance";
+        const isInProgress = updated?.session_status === "in_progress";
+        
+        if ((isWaiting || isInProgress) && (payload.eventType === "INSERT" || (payload.eventType === "UPDATE" && !liveSessionIds.has(updated.id)))) {
           playNotificationSound();
-          // Fetch teacher name for new booking
           let teacherName = "المعلم";
           const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", updated.teacher_id).single();
           if (profile) teacherName = profile.full_name;
           setJoinRequest({ bookingId: updated.id, teacherName });
-          setLiveSessionIds(prev => new Set(prev).add(updated.id));
-        } else if (updated?.session_status === "in_progress") {
-          setLiveSessionIds(prev => {
-            if (!prev.has(updated.id)) {
-              playNotificationSound();
-              const booking = bookings.find(b => b.id === updated.id);
-              setJoinRequest({ bookingId: updated.id, teacherName: booking?.teacher_name || "المعلم" });
-            }
-            return new Set(prev).add(updated.id);
-          });
+          if (isInProgress) {
+            setLiveSessionIds(prev => new Set(prev).add(updated.id));
+          }
         }
         fetchBookings();
       })
