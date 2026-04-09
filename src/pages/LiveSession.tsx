@@ -359,7 +359,7 @@ const LiveSession = () => {
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("chat_messages")
-        .select("id, sender_id, content, created_at")
+        .select("id, sender_id, content, created_at, file_url, file_name, file_type")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: true });
 
@@ -370,6 +370,9 @@ const LiveSession = () => {
         text: msg.content,
         time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
         me: msg.sender_id === user.id,
+        fileUrl: msg.file_url,
+        fileName: msg.file_name,
+        fileType: msg.file_type,
       })));
     };
 
@@ -389,16 +392,26 @@ const LiveSession = () => {
         filter: `booking_id=eq.${bookingId}`,
       }, (payload) => {
         const msg = payload.new as any;
+        const isMe = msg.sender_id === user.id;
         setMessages((prev) => {
           const formatted = {
-            sender: msg.sender_id === user.id ? "أنت" : otherName,
+            sender: isMe ? "أنت" : otherName,
             text: msg.content,
             time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-            me: msg.sender_id === user.id,
+            me: isMe,
+            fileUrl: msg.file_url,
+            fileName: msg.file_name,
+            fileType: msg.file_type,
           };
           const exists = prev.some((item) => item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
           return exists ? prev : [...prev, formatted];
         });
+        if (!isMe) {
+          playNotificationSound();
+          if (!chatOpen) {
+            setUnreadCount(prev => prev + 1);
+          }
+        }
       })
       .subscribe();
 
@@ -410,7 +423,7 @@ const LiveSession = () => {
         chatChannelRef.current = null;
       }
     };
-  }, [bookingId, user, meetingStarted, otherName]);
+  }, [bookingId, user, meetingStarted, otherName, chatOpen, playNotificationSound]);
 
   // Fetch booking details
   useEffect(() => {
