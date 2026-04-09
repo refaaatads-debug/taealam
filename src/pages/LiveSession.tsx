@@ -5,8 +5,9 @@ import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
-  Pen, Brain, Pause, Play
+  Pen, Brain, Pause, Play, Paperclip, Download, Loader2, Image as ImageIcon
 } from "lucide-react";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
