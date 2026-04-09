@@ -19,6 +19,7 @@ interface BookingRow {
   subject_name?: string;
   student_id?: string;
   has_subscription?: boolean;
+  actual_duration_minutes?: number | null;
 }
 
 export default function TeacherScheduleTable() {
@@ -55,12 +56,15 @@ export default function TeacherScheduleTable() {
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
     const studentIds = [...new Set(data.map(b => b.student_id))];
-    const [{ data: profiles }, { data: subs }] = await Promise.all([
+    const bookingIds = data.map(b => b.id);
+    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", studentIds).eq("is_active", true),
+      supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIds),
     ]);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
     const subSet = new Set((subs ?? []).filter(s => s.sessions_remaining > 0).map(s => s.user_id));
+    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
 
     setBookings(data.map(b => ({
       id: b.id,
@@ -71,6 +75,7 @@ export default function TeacherScheduleTable() {
       student_name: profileMap.get(b.student_id) || "طالب",
       subject_name: (b.subjects as any)?.name || "مادة",
       has_subscription: subSet.has(b.student_id),
+      actual_duration_minutes: sessionMap.get(b.id) ?? null,
     })));
     setLoading(false);
   };
@@ -243,6 +248,7 @@ export default function TeacherScheduleTable() {
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">التاريخ</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الوقت</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                             </tr>
@@ -254,6 +260,11 @@ export default function TeacherScheduleTable() {
                                 <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
                                 <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
                                 <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">
+                                  {b.status === "completed" && b.actual_duration_minutes != null
+                                    ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
+                                    : <span className="text-muted-foreground/50">-</span>}
+                                </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
                                 <td className="py-2.5 px-3">
                                   <div className="flex items-center gap-1.5">
