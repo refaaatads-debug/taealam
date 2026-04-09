@@ -8,8 +8,8 @@ const buildIceServers = (): RTCConfiguration => {
     // ExpressTURN server for NAT traversal
     {
       urls: "turn:free.expressturn.com:3478",
-      username: "000000002090948296",
-      credential: "3zlpZjzikPoF1g2UNiN/balWNgA=",
+      username: "000000002091120202",
+      credential: "yMcCGKBanSb4GJyhvfTXoyVxOwM=",
     },
   ];
 
