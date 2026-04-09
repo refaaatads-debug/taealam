@@ -85,6 +85,16 @@ const LiveSession = () => {
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  // Listen for toast click to open chat panel inside session
+  useEffect(() => {
+    const handleOpenChat = () => {
+      setChatOpen(true);
+      setUnreadCount(0);
+    };
+    window.addEventListener("open-session-chat", handleOpenChat);
+    return () => window.removeEventListener("open-session-chat", handleOpenChat);
+  }, []);
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
   const pushDebugEvent = useCallback((label: string, value: string) => {

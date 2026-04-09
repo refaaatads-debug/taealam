@@ -31,14 +31,22 @@ export default function ChatNotificationToast() {
         table: "chat_messages",
       }, async (payload) => {
         const msg = payload.new as any;
-        // Don't notify for own messages
         if (msg.sender_id === user.id) return;
 
         // Don't notify if already on chat page for this booking
         const params = new URLSearchParams(location.search);
         if (location.pathname === "/chat" && params.get("booking") === msg.booking_id) return;
 
-        // Check if this booking belongs to the user
+        // If on live session with chat open, skip toast
+        if (location.pathname === "/live-session") {
+          const lsParams = new URLSearchParams(location.search);
+          if (lsParams.get("booking") === msg.booking_id) {
+            // Don't show toast if chat panel is already open in session
+            // The realtime listener in LiveSession handles this
+            return;
+          }
+        }
+
         const { data: booking } = await supabase
           .from("bookings")
           .select("id, student_id, teacher_id")
@@ -48,7 +56,6 @@ export default function ChatNotificationToast() {
         if (!booking) return;
         if (booking.student_id !== user.id && booking.teacher_id !== user.id) return;
 
-        // Get sender name
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
@@ -63,7 +70,6 @@ export default function ChatNotificationToast() {
         const toastId = msg.id;
         setToasts(prev => [...prev.slice(-2), { id: toastId, bookingId: msg.booking_id, senderName, content }]);
 
-        // Auto dismiss after 6 seconds
         setTimeout(() => {
           setToasts(prev => prev.filter(t => t.id !== toastId));
         }, 6000);
@@ -79,6 +85,13 @@ export default function ChatNotificationToast() {
 
   const openChat = (toast: ChatToast) => {
     dismissToast(toast.id);
+
+    // If currently in a live session, open the chat panel instead of navigating away
+    if (location.pathname === "/live-session") {
+      window.dispatchEvent(new CustomEvent("open-session-chat"));
+      return;
+    }
+
     navigate(`/chat?booking=${toast.bookingId}`);
   };
 
