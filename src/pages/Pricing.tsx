@@ -33,16 +33,33 @@ const Pricing = () => {
   const [loading, setLoading] = useState(true);
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
+  const [freeTrialUsed, setFreeTrialUsed] = useState(false);
 
   useEffect(() => {
-    supabase.from("subscription_plans").select("*").order("price").then(({ data }) => {
-      if (data) setPlans(data);
+    const loadPricingData = async () => {
+      setLoading(true);
+      const plansPromise = supabase.from("subscription_plans").select("*").order("price");
+      const profilePromise = user?.id
+        ? supabase.from("profiles").select("free_trial_used").eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+
+      const [{ data: plansData }, { data: profileData }] = await Promise.all([plansPromise, profilePromise]);
+
+      if (plansData) setPlans(plansData);
+      setFreeTrialUsed(Boolean(profileData?.free_trial_used));
       setLoading(false);
-    });
-  }, []);
+    };
+
+    loadPricingData();
+  }, [user?.id]);
 
   const handleSubscribe = async (plan: any) => {
     if (!user) { navigate("/login"); return; }
+    if (plan.price <= 0 && freeTrialUsed) {
+      toast.error("لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة.");
+      return;
+    }
+
     setCheckoutLoading(plan.id);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout", {
@@ -53,7 +70,7 @@ const Pricing = () => {
           promo_code: promoCode.trim() || undefined,
         },
       });
-      // Handle edge function errors
+
       if (error) {
         let msg = "حدث خطأ أثناء إنشاء جلسة الدفع";
         try {
@@ -64,24 +81,30 @@ const Pricing = () => {
           } else if (typeof error === "object" && (error as any)?.message) {
             msg = (error as any).message;
           }
-        } catch { /* fallback */ }
+        } catch {
+          // fallback
+        }
         toast.error(msg);
         return;
       }
+
       if (data?.error) {
         toast.error(data.error);
         return;
       }
 
-      // Handle free plan activation
       if (data?.free && data?.activated) {
         toast.success("تم تفعيل باقتك المجانية بنجاح! 🎉");
+        setFreeTrialUsed(true);
         navigate("/student");
         return;
       }
 
-      if (data?.url) { window.location.href = data.url; }
-      else throw new Error("لم يتم إنشاء رابط الدفع");
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("لم يتم إنشاء رابط الدفع");
+      }
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إنشاء جلسة الدفع");
     } finally {

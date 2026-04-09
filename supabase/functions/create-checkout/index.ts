@@ -69,8 +69,8 @@ serve(async (req) => {
         .single();
 
       if (profile?.free_trial_used === true) {
-        return new Response(JSON.stringify({ error: "لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify({ free: true, eligible: false, error: "لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة." }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
