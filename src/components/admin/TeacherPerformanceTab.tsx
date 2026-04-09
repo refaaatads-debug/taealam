@@ -309,11 +309,18 @@ export default function TeacherPerformanceTab() {
             totalActualMinutes += actualDuration;
           }
 
-          // Calculate price: use booking price if set, otherwise calculate from hourly rate and actual duration
-          let calculatedPrice = b.price;
-          if (calculatedPrice == null && b.status === "completed" && actualSeconds != null && actualSeconds > 0 && hourlyRate > 0) {
-            const actualMinutes = actualSeconds / 60;
-            calculatedPrice = Math.round((hourlyRate / 60) * actualMinutes * 10) / 10;
+          // Always calculate the displayed price from the teacher's current configured hourly rate
+          let calculatedPrice: number | null = null;
+          if (b.status === "completed" && hourlyRate > 0) {
+            const durationInMinutes = actualSeconds != null && actualSeconds > 0
+              ? actualSeconds / 60
+              : actualDuration && actualDuration > 0
+                ? actualDuration
+                : b.duration_minutes;
+
+            if (durationInMinutes > 0) {
+              calculatedPrice = Math.round((hourlyRate / 60) * durationInMinutes * 10) / 10;
+            }
           }
 
           return {
