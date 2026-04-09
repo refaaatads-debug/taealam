@@ -37,12 +37,10 @@ export default function ChatNotificationToast() {
         const params = new URLSearchParams(location.search);
         if (location.pathname === "/chat" && params.get("booking") === msg.booking_id) return;
 
-        // If on live session with chat open, skip toast
-        if (location.pathname === "/live-session") {
+        // If on live session with same booking, skip toast (chat is in-session)
+        if (location.pathname === "/session") {
           const lsParams = new URLSearchParams(location.search);
           if (lsParams.get("booking") === msg.booking_id) {
-            // Don't show toast if chat panel is already open in session
-            // The realtime listener in LiveSession handles this
             return;
           }
         }
