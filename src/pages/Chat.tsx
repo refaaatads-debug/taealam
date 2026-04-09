@@ -347,43 +347,52 @@ const Chat = () => {
 
       {/* Input */}
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card border-t p-3 z-40">
-        <form
-          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="flex items-center gap-2 max-w-3xl mx-auto"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="rounded-xl shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
+        {isStudent && !hasActiveSubscription ? (
+          <div className="flex items-center justify-center gap-3 max-w-3xl mx-auto py-2">
+            <p className="text-sm text-destructive font-medium">⚠️ يجب تفعيل باقة للتمكن من إرسال الرسائل</p>
+            <Button size="sm" asChild className="rounded-xl">
+              <Link to="/pricing">تفعيل باقة</Link>
+            </Button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+            className="flex items-center gap-2 max-w-3xl mx-auto"
           >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-          </Button>
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="اكتب رسالتك..."
-            className="rounded-xl flex-1"
-            dir="rtl"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-xl shrink-0"
-            disabled={!newMessage.trim() || sending}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="rounded-xl shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="اكتب رسالتك..."
+              className="rounded-xl flex-1"
+              dir="rtl"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="rounded-xl shrink-0"
+              disabled={!newMessage.trim() || sending}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        )}
       </div>
 
       <BottomNav />
