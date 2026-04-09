@@ -51,13 +51,27 @@ const Chat = () => {
         .single();
       
       if (booking) {
-        const otherId = booking.student_id === user.id ? booking.teacher_id : booking.student_id;
+        const isUserStudent = booking.student_id === user.id;
+        setIsStudent(isUserStudent);
+        const otherId = isUserStudent ? booking.teacher_id : booking.student_id;
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
           .eq("user_id", otherId)
           .single();
         if (profile) setOtherName(profile.full_name || "المحادثة");
+
+        // Check student subscription status
+        if (isUserStudent) {
+          const { data: sub } = await supabase
+            .from("user_subscriptions")
+            .select("id, remaining_minutes, is_active")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .gt("remaining_minutes", 0)
+            .limit(1);
+          setHasActiveSubscription(!!(sub && sub.length > 0));
+        }
 
         // Get ALL booking IDs between this pair for unified chat
         const { data: pairBookings } = await supabase
