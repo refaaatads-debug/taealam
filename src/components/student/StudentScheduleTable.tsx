@@ -245,6 +245,7 @@ export default function StudentScheduleTable() {
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">التاريخ</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الوقت</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
+                                <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                               </tr>
@@ -258,6 +259,11 @@ export default function StudentScheduleTable() {
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
+                                    <td className="py-2.5 px-3 text-muted-foreground">
+                                      {b.status === "completed" && b.actual_duration_minutes != null
+                                        ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
+                                        : <span className="text-muted-foreground/50">-</span>}
+                                    </td>
                                     <td className="py-2.5 px-3">{getStatusBadge(b.status, isLive)}</td>
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-1.5">
