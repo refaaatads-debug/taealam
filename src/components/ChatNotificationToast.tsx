@@ -85,7 +85,7 @@ export default function ChatNotificationToast() {
     dismissToast(toast.id);
 
     // If currently in a live session, open the chat panel instead of navigating away
-    if (location.pathname === "/live-session") {
+    if (location.pathname === "/session") {
       window.dispatchEvent(new CustomEvent("open-session-chat"));
       return;
     }
