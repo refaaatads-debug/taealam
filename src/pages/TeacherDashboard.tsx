@@ -67,14 +67,31 @@ const TeacherDashboard = () => {
     setOpenRequestsCount(reqCount || 0);
 
     const now = new Date().toISOString();
-    const { data: upcoming } = await supabase
-      .from("bookings")
-      .select("*, subjects(name)")
-      .eq("teacher_id", user.id)
-      .eq("status", "confirmed")
-      .gte("scheduled_at", now)
-      .order("scheduled_at")
-      .limit(10);
+    // Fetch upcoming scheduled sessions + accepted instant sessions (in_progress)
+    const [{ data: upcomingScheduled }, { data: liveSessions }] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .gte("scheduled_at", now)
+        .order("scheduled_at")
+        .limit(10),
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .eq("session_status", "in_progress")
+        .order("scheduled_at", { ascending: false })
+        .limit(5),
+    ]);
+    // Merge and deduplicate
+    const allIds = new Set<string>();
+    const upcoming: typeof upcomingScheduled = [];
+    [...(liveSessions || []), ...(upcomingScheduled || [])].forEach(b => {
+      if (!allIds.has(b.id)) { allIds.add(b.id); upcoming.push(b); }
+    });
 
     if (upcoming && upcoming.length > 0) {
       const studentIds = [...new Set(upcoming.map(b => b.student_id))];

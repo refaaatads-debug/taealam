@@ -244,19 +244,7 @@ export default function TeacherScheduleTable() {
                         {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                       </p>
                     </div>
-                    {hasLive && liveBooking && (
-                      <Button
-                        size="sm"
-                        className="gradient-cta text-secondary-foreground rounded-lg h-7 px-3 gap-1 text-[10px] animate-pulse shadow-button mr-2"
-                        onClick={(e) => e.stopPropagation()}
-                        asChild
-                      >
-                        <Link to={`/session?booking=${liveBooking.id}`}>
-                          <Video className="h-3.5 w-3.5" />
-                          بدء الجلسة
-                        </Link>
-                      </Button>
-                    )}
+                    {/* Removed start session button - sessions start from upcoming sessions section */}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
