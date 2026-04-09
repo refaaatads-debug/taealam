@@ -103,29 +103,7 @@ export default function TeacherScheduleTable() {
   const handleInstantSession = async (studentId: string, studentName: string) => {
     if (!user) return;
 
-    // Check teacher availability
-    const { data: teacherProfile } = await supabase
-      .from("teacher_profiles")
-      .select("available_days, available_from, available_to")
-      .eq("user_id", user.id)
-      .single();
-
-    if (teacherProfile) {
-      const now = new Date();
-      const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-      const today = dayNames[now.getDay()];
-      if (teacherProfile.available_days && !teacherProfile.available_days.includes(today)) {
-        toast.error("أنت غير متاح في هذا اليوم حسب جدول التوفر الخاص بك");
-        return;
-      }
-      if (teacherProfile.available_from && teacherProfile.available_to) {
-        const currentTime = now.toTimeString().slice(0, 5);
-        if (currentTime < teacherProfile.available_from || currentTime > teacherProfile.available_to) {
-          toast.error("أنت خارج ساعات التوفر الخاصة بك");
-          return;
-        }
-      }
-    }
+    // Instant sessions are NOT bound by teacher availability schedule
 
     // Check student subscription
     const { data: subs } = await supabase
