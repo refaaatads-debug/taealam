@@ -346,63 +346,6 @@ const StudentDashboard = () => {
             {/* Session Materials */}
             <SessionMaterials />
 
-            {/* Past Classes */}
-            {pastClasses.length > 0 && (
-              <Card className="border-0 shadow-card">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-bold">سجل الحصص المكتملة</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {pastClasses.map((c: any) => {
-                    const session = Array.isArray(c.sessions) ? c.sessions[0] : c.sessions;
-                    let duration = "";
-                    if (session?.started_at && session?.ended_at) {
-                      const secs = Math.floor((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000);
-                      duration = formatDuration(secs);
-                    }
-                    return (
-                      <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
-                        <div>
-                          <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(c.scheduled_at).toLocaleDateString("ar-SA")}</p>
-                          {duration && <p className="text-xs text-secondary font-semibold">⏱ {duration}</p>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {c.reviews?.[0] && Array.from({ length: c.reviews[0].rating }).map((_, j) => (
-                            <Star key={j} className="h-3.5 w-3.5 fill-gold text-gold" />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Cancelled/Incomplete Classes */}
-            {cancelledClasses.length > 0 && (
-              <Card className="border-0 shadow-card">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                    <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    </div>
-                    الحصص غير المكتملة
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {cancelledClasses.map((c: any) => (
-                    <div key={c.id} className="flex items-center justify-between p-4 rounded-xl bg-destructive/5 hover:bg-destructive/10 transition-colors">
-                      <div>
-                        <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(c.scheduled_at).toLocaleDateString("ar-SA")}</p>
-                      </div>
-                      <Badge variant="destructive" className="text-xs">ملغاة</Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Sidebar */}
