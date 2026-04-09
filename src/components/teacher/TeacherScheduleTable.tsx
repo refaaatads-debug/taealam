@@ -83,7 +83,7 @@ export default function TeacherScheduleTable() {
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, student_id, subject_id, subjects(name)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, subjects(name)")
       .eq("teacher_id", user.id)
       .in("status", ["confirmed", "completed", "pending"])
       .order("scheduled_at", { ascending: false });
@@ -101,11 +101,15 @@ export default function TeacherScheduleTable() {
     const subSet = new Set((subs ?? []).filter(s => s.sessions_remaining > 0).map(s => s.user_id));
     const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
 
+    const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
+    setLiveSessionIds(new Set(inProgress));
+
     setBookings(data.map(b => ({
       id: b.id,
       scheduled_at: b.scheduled_at,
       duration_minutes: b.duration_minutes,
       status: b.status,
+      session_status: b.session_status,
       student_id: b.student_id,
       student_name: profileMap.get(b.student_id) || "طالب",
       subject_name: (b.subjects as any)?.name || "مادة",
