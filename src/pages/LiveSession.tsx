@@ -1212,16 +1212,43 @@ const LiveSession = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((m, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}
-                      {m.text}
+                      <p>{m.text}</p>
+                      {m.fileUrl && m.fileType?.startsWith("image/") && (
+                        <div className="mt-2">
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
+                          </a>
+                          <a href={m.fileUrl} download={m.fileName} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
+                            <Download className="h-3 w-3" /> تحميل
+                          </a>
+                        </div>
+                      )}
+                      {m.fileUrl && (m.fileType === "application/pdf" || m.fileName?.endsWith(".pdf")) && (
+                        <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
+                          <FileText className="h-4 w-4 shrink-0 text-destructive" />
+                          <span className="text-xs truncate flex-1">{m.fileName || "PDF"}</span>
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] underline text-primary shrink-0">فتح</a>
+                          <a href={m.fileUrl} download={m.fileName} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary">
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">{m.time}</p>
                   </motion.div>
                 ))}
               </div>
               <div className="p-3 border-t">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleChatFileUpload}
+                />
                 {isChatBlocked ? (
                   <div className="flex items-center gap-2 justify-center text-destructive text-sm font-bold py-2">
                     <VolumeX className="h-4 w-4" />
@@ -1229,6 +1256,15 @@ const LiveSession = () => {
                   </div>
                 ) : (
                   <div className="flex gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-10 w-10 rounded-xl shrink-0"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={fileUploading}
+                    >
+                      {fileUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </Button>
                     <Input
                       placeholder="اكتب رسالة..."
                       className="text-right h-10 rounded-xl bg-muted/30 border-0"
