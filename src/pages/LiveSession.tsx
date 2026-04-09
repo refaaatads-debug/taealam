@@ -5,8 +5,9 @@ import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
-  Pen, Brain, Pause, Play
+  Pen, Brain, Pause, Play, Paperclip, Download, Loader2, Image as ImageIcon
 } from "lucide-react";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +37,7 @@ const LiveSession = () => {
   const [questionsDetected, setQuestionsDetected] = useState(0);
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
-  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean }[]>([]);
+  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -65,6 +66,10 @@ const LiveSession = () => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [fileUploading, setFileUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { play: playNotificationSound } = useNotificationSound();
 
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
@@ -354,7 +359,7 @@ const LiveSession = () => {
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("chat_messages")
-        .select("id, sender_id, content, created_at")
+        .select("id, sender_id, content, created_at, file_url, file_name, file_type")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: true });
 
@@ -365,6 +370,9 @@ const LiveSession = () => {
         text: msg.content,
         time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
         me: msg.sender_id === user.id,
+        fileUrl: msg.file_url,
+        fileName: msg.file_name,
+        fileType: msg.file_type,
       })));
     };
 
@@ -384,16 +392,26 @@ const LiveSession = () => {
         filter: `booking_id=eq.${bookingId}`,
       }, (payload) => {
         const msg = payload.new as any;
+        const isMe = msg.sender_id === user.id;
         setMessages((prev) => {
           const formatted = {
-            sender: msg.sender_id === user.id ? "أنت" : otherName,
+            sender: isMe ? "أنت" : otherName,
             text: msg.content,
             time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-            me: msg.sender_id === user.id,
+            me: isMe,
+            fileUrl: msg.file_url,
+            fileName: msg.file_name,
+            fileType: msg.file_type,
           };
           const exists = prev.some((item) => item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
           return exists ? prev : [...prev, formatted];
         });
+        if (!isMe) {
+          playNotificationSound();
+          if (!chatOpen) {
+            setUnreadCount(prev => prev + 1);
+          }
+        }
       })
       .subscribe();
 
@@ -405,7 +423,7 @@ const LiveSession = () => {
         chatChannelRef.current = null;
       }
     };
-  }, [bookingId, user, meetingStarted, otherName]);
+  }, [bookingId, user, meetingStarted, otherName, chatOpen, playNotificationSound]);
 
   // Fetch booking details
   useEffect(() => {
@@ -594,6 +612,46 @@ const LiveSession = () => {
           type: "session",
         });
       }
+    }
+  };
+
+  const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !bookingId || !user) return;
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("يُسمح فقط بملفات PDF و JPG و PNG");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("حجم الملف يجب أن لا يتجاوز 10 ميجابايت");
+      return;
+    }
+
+    setFileUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${bookingId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("chat-files").upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(filePath);
+      const { error: msgError } = await supabase.from("chat_messages").insert({
+        booking_id: bookingId,
+        sender_id: user.id,
+        content: `📎 ${file.name}`,
+        file_url: urlData.publicUrl,
+        file_name: file.name,
+        file_type: file.type,
+      });
+      if (msgError) throw msgError;
+      toast.success("تم إرسال الملف بنجاح");
+    } catch (err: any) {
+      toast.error(err.message || "فشل في رفع الملف");
+    } finally {
+      setFileUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -1154,16 +1212,43 @@ const LiveSession = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((m, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}
-                      {m.text}
+                      <p>{m.text}</p>
+                      {m.fileUrl && m.fileType?.startsWith("image/") && (
+                        <div className="mt-2">
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
+                          </a>
+                          <a href={m.fileUrl} download={m.fileName} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
+                            <Download className="h-3 w-3" /> تحميل
+                          </a>
+                        </div>
+                      )}
+                      {m.fileUrl && (m.fileType === "application/pdf" || m.fileName?.endsWith(".pdf")) && (
+                        <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
+                          <FileText className="h-4 w-4 shrink-0 text-destructive" />
+                          <span className="text-xs truncate flex-1">{m.fileName || "PDF"}</span>
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] underline text-primary shrink-0">فتح</a>
+                          <a href={m.fileUrl} download={m.fileName} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary">
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">{m.time}</p>
                   </motion.div>
                 ))}
               </div>
               <div className="p-3 border-t">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleChatFileUpload}
+                />
                 {isChatBlocked ? (
                   <div className="flex items-center gap-2 justify-center text-destructive text-sm font-bold py-2">
                     <VolumeX className="h-4 w-4" />
@@ -1171,6 +1256,15 @@ const LiveSession = () => {
                   </div>
                 ) : (
                   <div className="flex gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-10 w-10 rounded-xl shrink-0"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={fileUploading}
+                    >
+                      {fileUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </Button>
                     <Input
                       placeholder="اكتب رسالة..."
                       className="text-right h-10 rounded-xl bg-muted/30 border-0"
@@ -1207,8 +1301,13 @@ const LiveSession = () => {
         )}
 
         {/* Chat - for both */}
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setChatOpen(!chatOpen)}>
+        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnreadCount(0); }}>
           <MessageSquare className="h-5 w-5" />
+          {unreadCount > 0 && !chatOpen && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse-soft">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </Button>
 
         {/* Student controls */}
