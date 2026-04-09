@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, RotateCcw, Trash2, ChevronDown, ChevronUp, User, Play, PhoneCall } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -29,6 +29,26 @@ export default function TeacherScheduleTable() {
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
+
+  // Compute total unread per student
+  const unreadByStudent = useMemo(() => {
+    const result: Record<string, number> = {};
+    bookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      result[key] = (result[key] || 0) + (unreadCounts[b.id] || 0);
+    });
+    return result;
+  }, [bookings, unreadCounts]);
+
+  // Get latest booking id per student for chat link
+  const latestBookingByStudent = useMemo(() => {
+    const result: Record<string, string> = {};
+    bookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      if (!result[key]) result[key] = b.id; // bookings are ordered desc, first is latest
+    });
+    return result;
+  }, [bookings]);
 
   useEffect(() => {
     if (!user) return;
@@ -80,28 +100,33 @@ export default function TeacherScheduleTable() {
     setLoading(false);
   };
 
-  const handleDelete = async (bookingId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
-    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
-    if (error) {
-      toast.error("تعذر حذف الحصة");
-    } else {
-      toast.success("تم حذف الحصة بنجاح");
-      fetchBookings();
-    }
-  };
-
-  const handleStartSession = async (bookingId: string, studentName: string) => {
-    const { error } = await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId);
-    if (error) {
-      toast.error("تعذر بدء الجلسة");
-    } else {
-      toast.success(`تم إرسال طلب الانضمام إلى ${studentName}`);
-    }
-  };
-
   const handleInstantSession = async (studentId: string, studentName: string) => {
     if (!user) return;
+
+    // Check teacher availability
+    const { data: teacherProfile } = await supabase
+      .from("teacher_profiles")
+      .select("available_days, available_from, available_to")
+      .eq("user_id", user.id)
+      .single();
+
+    if (teacherProfile) {
+      const now = new Date();
+      const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+      const today = dayNames[now.getDay()];
+      if (teacherProfile.available_days && !teacherProfile.available_days.includes(today)) {
+        toast.error("أنت غير متاح في هذا اليوم حسب جدول التوفر الخاص بك");
+        return;
+      }
+      if (teacherProfile.available_from && teacherProfile.available_to) {
+        const currentTime = now.toTimeString().slice(0, 5);
+        if (currentTime < teacherProfile.available_from || currentTime > teacherProfile.available_to) {
+          toast.error("أنت خارج ساعات التوفر الخاصة بك");
+          return;
+        }
+      }
+    }
+
     // Check student subscription
     const { data: subs } = await supabase
       .from("user_subscriptions")
@@ -115,7 +140,6 @@ export default function TeacherScheduleTable() {
       return;
     }
 
-    // Create a new booking
     const { data: newBooking, error } = await supabase.from("bookings").insert({
       teacher_id: user.id,
       student_id: studentId,
@@ -130,7 +154,6 @@ export default function TeacherScheduleTable() {
       return;
     }
 
-    // Send notification to student
     await supabase.from("notifications").insert({
       user_id: studentId,
       title: "📞 طلب جلسة فورية",
@@ -155,7 +178,6 @@ export default function TeacherScheduleTable() {
     }
   };
 
-  // Group bookings by student
   const groupedByStudent = useMemo(() => {
     const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
     bookings.forEach(b => {
@@ -197,6 +219,8 @@ export default function TeacherScheduleTable() {
             const isExpanded = expandedStudent === group.studentId;
             const completedCount = group.bookings.filter(b => b.status === "completed").length;
             const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+            const groupUnread = unreadByStudent[group.studentId] || 0;
+            const chatBookingId = latestBookingByStudent[group.studentId];
 
             return (
               <div key={group.studentId} className="rounded-xl border bg-muted/20 overflow-hidden">
@@ -227,6 +251,25 @@ export default function TeacherScheduleTable() {
                       <PhoneCall className="h-3.5 w-3.5" />
                       جلسة فورية
                     </Button>
+                    {chatBookingId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg h-7 px-2 gap-1 text-[10px] relative"
+                        onClick={(e) => e.stopPropagation()}
+                        asChild
+                      >
+                        <Link to={`/chat?booking=${chatBookingId}`}>
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          دردشة
+                          {groupUnread > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                              {groupUnread}
+                            </span>
+                          )}
+                        </Link>
+                      </Button>
+                    )}
                     <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{group.bookings.length} حصة</Badge>
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   </div>
@@ -250,7 +293,6 @@ export default function TeacherScheduleTable() {
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
-                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -266,54 +308,6 @@ export default function TeacherScheduleTable() {
                                     : <span className="text-muted-foreground/50">-</span>}
                                 </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
-                                <td className="py-2.5 px-3">
-                                  <div className="flex items-center gap-1.5">
-                                    <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] relative" asChild>
-                                      <Link to={`/chat?booking=${b.id}`}>
-                                        <MessageSquare className="h-3.5 w-3.5" />
-                                        دردشة
-                                        {(unreadCounts[b.id] || 0) > 0 && (
-                                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
-                                            {unreadCounts[b.id]}
-                                          </span>
-                                        )}
-                                      </Link>
-                                    </Button>
-                                    {(b.status === "confirmed" || b.status === "pending") && (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10"
-                                          onClick={() => handleStartSession(b.id, b.student_name || "الطالب")}
-                                        >
-                                          <Play className="h-3.5 w-3.5" />
-                                          أرسل طلب
-                                        </Button>
-                                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-7 px-2 gap-1 text-[10px] shadow-button" asChild>
-                                          <Link to={`/session?booking=${b.id}`}>
-                                            <Video className="h-3.5 w-3.5" />
-                                            ابدأ
-                                          </Link>
-                                        </Button>
-                                      </>
-                                    )}
-                                    {b.status === "completed" && b.has_subscription && (
-                                      <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10" asChild>
-                                        <Link to={`/session?booking=${b.id}&new=true`}>
-                                          <RotateCcw className="h-3.5 w-3.5" />
-                                          جلسة جديدة
-                                        </Link>
-                                      </Button>
-                                    )}
-                                    {b.status === "completed" && (
-                                      <Button size="sm" variant="outline" className="rounded-lg h-7 px-2 gap-1 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(b.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                        حذف
-                                      </Button>
-                                    )}
-                                  </div>
-                                </td>
                               </tr>
                             ))}
                           </tbody>
