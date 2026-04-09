@@ -53,7 +53,15 @@ const Pricing = () => {
           promo_code: promoCode.trim() || undefined,
         },
       });
-      if (error) throw error;
+      // Handle edge function errors (returned as data with error field on non-2xx)
+      if (error) {
+        const msg = typeof error === "object" && error?.message ? error.message : String(error);
+        throw new Error(msg);
+      }
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
 
       // Handle free plan activation
       if (data?.free && data?.activated) {
