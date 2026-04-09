@@ -216,27 +216,47 @@ export default function TeacherScheduleTable() {
             const isExpanded = expandedStudent === group.studentId;
             const completedCount = group.bookings.filter(b => b.status === "completed").length;
             const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+            const hasLive = group.bookings.some(b => liveSessionIds.has(b.id));
+            const liveBooking = group.bookings.find(b => liveSessionIds.has(b.id));
+            const waitingBooking = group.bookings.find(b => b.session_status === "waiting_acceptance");
             const groupUnread = unreadByStudent[group.studentId] || 0;
             const chatBookingId = latestBookingByStudent[group.studentId];
 
             return (
-              <div key={group.studentId} className="rounded-xl border bg-muted/20 overflow-hidden">
+              <div key={group.studentId} className={`rounded-xl border overflow-hidden ${hasLive ? "border-secondary/50 bg-secondary/5" : "bg-muted/20"}`}>
                 <button
                   onClick={() => setExpandedStudent(isExpanded ? null : group.studentId)}
                   className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-right"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <User className="h-4 w-4 text-primary" />
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${hasLive ? "bg-secondary/20" : "bg-primary/10"}`}>
+                      <User className={`h-4 w-4 ${hasLive ? "text-secondary" : "text-primary"}`} />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-foreground">{group.studentName}</p>
+                      <p className="text-sm font-bold text-foreground">
+                        {group.studentName}
+                        {hasLive && <span className="text-secondary text-xs mr-2 animate-pulse">● الطالب جاهز</span>}
+                        {waitingBooking && !hasLive && <span className="text-amber-500 text-xs mr-2">⏳ في انتظار القبول</span>}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {activeCount > 0 && <span className="text-secondary">{activeCount} حصة قادمة</span>}
                         {activeCount > 0 && completedCount > 0 && " • "}
                         {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                       </p>
                     </div>
+                    {hasLive && liveBooking && (
+                      <Button
+                        size="sm"
+                        className="gradient-cta text-secondary-foreground rounded-lg h-7 px-3 gap-1 text-[10px] animate-pulse shadow-button mr-2"
+                        onClick={(e) => e.stopPropagation()}
+                        asChild
+                      >
+                        <Link to={`/session?booking=${liveBooking.id}`}>
+                          <Video className="h-3.5 w-3.5" />
+                          بدء الجلسة
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
