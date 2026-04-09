@@ -110,10 +110,17 @@ const TeacherDashboard = () => {
       .select("student_id", { count: "exact", head: true })
       .eq("teacher_id", user.id);
 
-    const balance = Number(tp?.balance) || 0;
+    // Calculate current month earnings from teacher_earnings table
+    const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const { data: monthEarnings } = await supabase
+      .from("teacher_earnings")
+      .select("amount")
+      .eq("teacher_id", user.id)
+      .eq("month", currentMonth);
+    const totalMonthEarnings = (monthEarnings || []).reduce((sum, e) => sum + Number(e.amount), 0);
 
     setStats({
-      earnings: balance,
+      earnings: totalMonthEarnings,
       students: studentCount || 0,
       sessions: tp?.total_sessions || 0,
       rating: Number(tp?.avg_rating) || 0,
