@@ -1265,8 +1265,13 @@ const LiveSession = () => {
         )}
 
         {/* Chat - for both */}
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setChatOpen(!chatOpen)}>
+        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnreadCount(0); }}>
           <MessageSquare className="h-5 w-5" />
+          {unreadCount > 0 && !chatOpen && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse-soft">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </Button>
 
         {/* Student controls */}
