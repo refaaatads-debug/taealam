@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -15,6 +16,7 @@ interface BookingRow {
   scheduled_at: string;
   duration_minutes: number;
   status: string;
+  session_status?: string | null;
   student_name?: string;
   subject_name?: string;
   student_id?: string;
