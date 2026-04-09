@@ -173,6 +173,10 @@ const Chat = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !bookingId || !user) return;
+    if (isStudent && !hasActiveSubscription) {
+      toast.error("يجب تفعيل باقة للتمكن من إرسال الملفات");
+      return;
+    }
 
     // Validate file type (PDF and JPG only)
     const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
