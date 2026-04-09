@@ -285,6 +285,7 @@ export default function TeacherPerformanceTab() {
         const completedBookings = bookings.filter(b => b.status === "completed");
         const cancelledBookings = bookings.filter(b => b.status === "cancelled");
         const uniqueStudents = new Set(completedBookings.map(b => b.student_id));
+        const hourlyRate = Number(tp.hourly_rate) || 0;
 
         let totalActualMinutes = 0;
         let totalActualSeconds = 0;
@@ -307,6 +308,14 @@ export default function TeacherPerformanceTab() {
           if (b.status === "completed" && actualDuration) {
             totalActualMinutes += actualDuration;
           }
+
+          // Calculate price: use booking price if set, otherwise calculate from hourly rate and actual duration
+          let calculatedPrice = b.price;
+          if (calculatedPrice == null && b.status === "completed" && actualSeconds != null && actualSeconds > 0 && hourlyRate > 0) {
+            const actualMinutes = actualSeconds / 60;
+            calculatedPrice = Math.round((hourlyRate / 60) * actualMinutes * 10) / 10;
+          }
+
           return {
             booking_id: b.id,
             student_name: studentMap.get(b.student_id) || "غير معروف",
@@ -316,7 +325,7 @@ export default function TeacherPerformanceTab() {
             actual_duration: actualDuration,
             actual_seconds: actualSeconds,
             status: b.status,
-            price: b.price,
+            price: calculatedPrice,
           };
         });
 
