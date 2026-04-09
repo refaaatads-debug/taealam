@@ -61,16 +61,14 @@ serve(async (req) => {
 
     // Handle FREE plans — activate directly without Stripe
     if (plan.price <= 0) {
-      // Check if user already used free trial
-      const { data: existingFreeSubs } = await adminClient
-        .from("user_subscriptions")
-        .select("id")
+      // Check if user already used free trial via profile flag
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("free_trial_used")
         .eq("user_id", user.id)
-        .in("plan_id", 
-          (await adminClient.from("subscription_plans").select("id").lte("price", 0)).data?.map((p: any) => p.id) || []
-        );
+        .single();
 
-      if (existingFreeSubs && existingFreeSubs.length > 0) {
+      if (profile?.free_trial_used === true) {
         return new Response(JSON.stringify({ error: "لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة." }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
