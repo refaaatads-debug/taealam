@@ -458,15 +458,20 @@ ${extractedTopics.length > 0 ? extractedTopics.join("، ") : "لم يتم اكت
       if (admins) { for (const admin of admins) { await supabase.from("notifications").insert({ user_id: admin.user_id, title: "⚠️ فشل تقرير AI", body: `فشل: ${errMsg.slice(0, 100)}`, type: "ai_error" }); } }
     }
 
-    // Quality degradation check
+    // Quality degradation check - only alert once per 6 hours
     try {
       const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+      const sixHoursAgo = new Date(Date.now() - 6 * 3600000).toISOString();
       const { data: recentLogs } = await supabase.from("ai_logs").select("usefulness_score").eq("feature_name", "session_report").gte("created_at", oneDayAgo).not("usefulness_score", "is", null);
       if (recentLogs && recentLogs.length >= 5) {
         const weakCount = recentLogs.filter((l: any) => (l.usefulness_score || 0) < 6).length;
         if (weakCount / recentLogs.length > 0.2) {
-          const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
-          if (admins) { for (const a of admins) { await supabase.from("notifications").insert({ user_id: a.user_id, title: "🔴 تدهور جودة AI", body: `${Math.round(weakCount / recentLogs.length * 100)}% ضعيفة`, type: "ai_quality_alert" }); } }
+          // Check if we already sent this alert recently (within 6 hours)
+          const { count: recentAlerts } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("type", "ai_quality_alert").gte("created_at", sixHoursAgo);
+          if (!recentAlerts || recentAlerts === 0) {
+            const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+            if (admins) { for (const a of admins) { await supabase.from("notifications").insert({ user_id: a.user_id, title: "🔴 تدهور جودة AI", body: `${Math.round(weakCount / recentLogs.length * 100)}% ضعيفة`, type: "ai_quality_alert" }); } }
+          }
         }
       }
     } catch {}
