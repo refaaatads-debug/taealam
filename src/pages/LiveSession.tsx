@@ -164,6 +164,7 @@ const LiveSession = () => {
     screenSharing,
     isRecording,
     dataChannelReady,
+    iceTransportType,
     start,
     stop,
     toggleMic,
@@ -954,6 +955,16 @@ const LiveSession = () => {
           {recordingUploading && (
             <span className="flex items-center gap-1.5 text-xs bg-secondary/20 text-secondary px-3 py-1.5 rounded-lg font-bold">
               جاري الرفع...
+            </span>
+          )}
+          {connectionState === "connected" && (
+            <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${
+              iceTransportType === "TURN Relay" ? "text-blue-400 bg-blue-400/10" :
+              iceTransportType === "STUN" ? "text-cyan-400 bg-cyan-400/10" :
+              iceTransportType.startsWith("Direct") ? "text-green-400 bg-green-400/10" :
+              "text-muted-foreground bg-muted/30"
+            }`}>
+              {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
             </span>
           )}
           {connectionState === "failed" && isTeacher && (
