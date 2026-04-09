@@ -217,18 +217,57 @@ export default function StudentScheduleTable() {
           <DialogHeader>
             <DialogTitle className="text-lg">🎓 دعوة للانضمام للحصة</DialogTitle>
             <DialogDescription className="text-sm mt-2">
-              المعلم <strong>{joinRequest?.teacherName}</strong> بدأ الحصة ويدعوك للانضمام الآن!
+              المعلم <strong>{joinRequest?.teacherName}</strong> يدعوك لبدء جلسة فورية. هل تريد الانضمام؟
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:justify-center mt-4">
-            <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-2 flex-1" asChild>
-              <Link to={`/session?booking=${joinRequest?.bookingId}`} onClick={() => setJoinRequest(null)}>
-                <Video className="h-4 w-4" />
-                انضم الآن
-              </Link>
+            <Button
+              className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-2 flex-1"
+              onClick={async () => {
+                if (joinRequest?.bookingId) {
+                  // Accept: update session_status to in_progress
+                  await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", joinRequest.bookingId);
+                  setLiveSessionIds(prev => new Set(prev).add(joinRequest.bookingId));
+                  // Notify teacher
+                  const booking = bookings.find(b => b.id === joinRequest.bookingId);
+                  if (booking?.teacher_id) {
+                    await supabase.from("notifications").insert({
+                      user_id: booking.teacher_id,
+                      title: "✅ الطالب قبل الجلسة",
+                      body: "الطالب قبل طلب الجلسة الفورية. يمكنك بدء الجلسة الآن!",
+                      type: "session_request",
+                    });
+                  }
+                  setJoinRequest(null);
+                  window.location.href = `/session?booking=${joinRequest.bookingId}`;
+                }
+              }}
+            >
+              <Video className="h-4 w-4" />
+              انضم الآن
             </Button>
-            <Button variant="outline" className="rounded-xl flex-1" onClick={() => setJoinRequest(null)}>
-              لاحقاً
+            <Button
+              variant="outline"
+              className="rounded-xl flex-1"
+              onClick={async () => {
+                if (joinRequest?.bookingId) {
+                  // Reject: cancel the booking
+                  await supabase.from("bookings").update({ session_status: "rejected", status: "cancelled" as any }).eq("id", joinRequest.bookingId);
+                  const booking = bookings.find(b => b.id === joinRequest.bookingId);
+                  if (booking?.teacher_id) {
+                    await supabase.from("notifications").insert({
+                      user_id: booking.teacher_id,
+                      title: "❌ الطالب رفض الجلسة",
+                      body: "الطالب رفض طلب الجلسة الفورية.",
+                      type: "session_request",
+                    });
+                  }
+                }
+                setJoinRequest(null);
+                fetchBookings();
+              }}
+            >
+              رفض
             </Button>
           </DialogFooter>
         </DialogContent>
