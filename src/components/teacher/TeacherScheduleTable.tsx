@@ -29,8 +29,10 @@ export default function TeacherScheduleTable() {
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+  const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
+  const { play: playNotificationSound } = useNotificationSound();
 
   // Compute total unread per student
   const unreadByStudent = useMemo(() => {
