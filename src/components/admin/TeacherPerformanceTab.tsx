@@ -260,11 +260,21 @@ export default function TeacherPerformanceTab() {
       const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
       const allBookingIds = (bookingsRes.data ?? []).filter(b => b.status === "completed").map(b => b.id);
 
-      const [studentsRes, subjectsRes, sessionsRes] = await Promise.all([
+      // Batch session queries to avoid 1000-row limit
+      const batchSize = 200;
+      const sessionBatches: Promise<any>[] = [];
+      for (let i = 0; i < allBookingIds.length; i += batchSize) {
+        const batch = allBookingIds.slice(i, i + batchSize);
+        sessionBatches.push(supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", batch));
+      }
+
+      const [studentsRes, subjectsRes, ...sessionBatchResults] = await Promise.all([
         allStudentIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", allStudentIds) : { data: [] },
         allSubjectIds.length > 0 ? supabase.from("subjects").select("id, name").in("id", allSubjectIds) : { data: [] },
-        allBookingIds.length > 0 ? supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", allBookingIds) : { data: [] },
+        ...sessionBatches,
       ]);
+
+      const allSessions = sessionBatchResults.flatMap(r => r.data ?? []);
 
       const studentMap = new Map((studentsRes.data ?? []).map(s => [s.user_id, s.full_name]));
       const subjectMap = new Map((subjectsRes.data ?? []).map(s => [s.id, s.name]));
