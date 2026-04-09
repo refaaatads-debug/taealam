@@ -32,6 +32,7 @@ import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
+import SessionPricingTab from "@/components/admin/SessionPricingTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -45,6 +46,7 @@ const AdminDashboard = () => {
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [violations, setViolations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [violationSearchQuery, setViolationSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
@@ -359,7 +361,8 @@ const AdminDashboard = () => {
     .filter((v: any) => violationStatusFilter === "all" 
       || (violationStatusFilter === "unreviewed" && !v.is_reviewed)
       || (violationStatusFilter === "reviewed" && v.is_reviewed && !v.is_false_positive)
-      || (violationStatusFilter === "false_positive" && v.is_false_positive));
+      || (violationStatusFilter === "false_positive" && v.is_false_positive))
+    .filter((v: any) => !violationSearchQuery || v.user_name?.toLowerCase().includes(violationSearchQuery.toLowerCase()));
 
   if (loading) {
     return (
@@ -494,6 +497,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="materials_monitor" className="rounded-lg gap-1.5">
               <BookOpen className="h-4 w-4" />
               مراقبة المواد
+            </TabsTrigger>
+            <TabsTrigger value="session_pricing" className="rounded-lg gap-1.5">
+              <DollarSign className="h-4 w-4" />
+              أسعار الحصص
             </TabsTrigger>
           </TabsList>
 
@@ -694,6 +701,12 @@ const AdminDashboard = () => {
                     المخالفات المكتشفة ({filteredViolations.length})
                   </CardTitle>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      placeholder="بحث بالاسم..."
+                      value={violationSearchQuery}
+                      onChange={e => setViolationSearchQuery(e.target.value)}
+                      className="w-40 rounded-xl text-sm h-9"
+                    />
                     <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
                       { value: "unreviewed", label: "قيد المراجعة" }, { value: "reviewed", label: "مؤكدة" },
                       { value: "false_positive", label: "ملغاة" },
@@ -958,6 +971,9 @@ const AdminDashboard = () => {
           </TabsContent>
           <TabsContent value="materials_monitor" className="space-y-4">
             <MaterialsMonitorTab />
+          </TabsContent>
+          <TabsContent value="session_pricing" className="space-y-4">
+            <SessionPricingTab />
           </TabsContent>
         </Tabs>
       </div>

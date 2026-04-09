@@ -772,9 +772,8 @@ const LiveSession = () => {
   useEffect(() => {
     if (isTeacher) {
       if (screenSharing) {
-        setBoardOpen(true);
+        // keep boardOpen state as-is when screen sharing
       } else {
-        setBoardOpen(false);
         setPageFrozen(false);
       }
     }
@@ -932,7 +931,7 @@ const LiveSession = () => {
       <div className="flex-1 flex relative overflow-hidden">
 
         {/* Main area */}
-        <div className={`flex-1 flex flex-col items-center justify-center relative ${boardOpen || showReport ? "hidden md:flex" : ""}`}>
+        <div className={`flex-1 flex flex-col items-center justify-center relative ${showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
             <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
             {/* Screen share video display (for student viewing teacher's screen) */}
@@ -1002,8 +1001,49 @@ const LiveSession = () => {
                 </div>
               )}
 
-              {/* Audio session indicator - show when no screen share */}
-              {!(remoteScreenSharing && !isTeacher) && (
+              {/* Standalone Whiteboard in main area */}
+              {boardOpen && !screenSharing && isTeacher && bookingId && user && (
+                <div className="absolute inset-0 z-10 bg-white">
+                  <WhiteboardCanvas
+                    bookingId={bookingId}
+                    userId={user.id}
+                    enabled={meetingStarted}
+                    isTeacher={true}
+                    onSendData={handleWhiteboardSend}
+                    overlay={false}
+                    remoteActions={whiteboardRemoteActions}
+                  />
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <PenTool className="h-3 w-3" /> السبورة
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Student whiteboard view (standalone, no screen share) */}
+              {boardOpen && !remoteScreenSharing && !isTeacher && bookingId && user && (
+                <div className="absolute inset-0 z-10 bg-white">
+                  <WhiteboardCanvas
+                    bookingId={bookingId}
+                    userId={user.id}
+                    enabled={meetingStarted}
+                    isTeacher={false}
+                    onSendData={handleWhiteboardSend}
+                    overlay={false}
+                    remoteActions={whiteboardRemoteActions}
+                    remoteLaserPos={remoteLaserPos}
+                  />
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <PenTool className="h-3 w-3" /> السبورة
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Audio session indicator - show when no screen share and no standalone whiteboard */}
+              {!(remoteScreenSharing && !isTeacher) && !(boardOpen && !screenSharing) && (
                 <>
                   {!remoteConnected ? (
                     <div className="text-center">
@@ -1160,11 +1200,8 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
               <Monitor className="h-5 w-5" />
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen && screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { setBoardOpen(!boardOpen); setShowReport(false); } }} disabled={!screenSharing} title={screenSharing ? "أدوات الرسم" : "شارك الشاشة أولاً للرسم"}>
+            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }} disabled={!meetingStarted} title="السبورة">
               <PenTool className="h-5 w-5" />
-            </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${pageFrozen ? "bg-orange-500 hover:bg-orange-600 text-card border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"} ${!screenSharing ? "opacity-40 cursor-not-allowed" : ""}`} onClick={() => { if (screenSharing) { const next = !pageFrozen; setPageFrozen(next); sendDataMessage({ type: "page-freeze", active: next }); } }} disabled={!screenSharing} title={pageFrozen ? "إلغاء التجميد" : "تجميد الشاشة"}>
-              {pageFrozen ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </Button>
           </>
         )}
