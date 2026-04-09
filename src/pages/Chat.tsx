@@ -33,6 +33,8 @@ const Chat = () => {
   const [otherName, setOtherName] = useState("المحادثة");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
+  const [isStudent, setIsStudent] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
