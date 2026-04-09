@@ -131,6 +131,10 @@ const Chat = () => {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !bookingId || !user || sending) return;
+    if (isStudent && !hasActiveSubscription) {
+      toast.error("يجب تفعيل باقة للتمكن من إرسال الرسائل");
+      return;
+    }
     setSending(true);
     const content = newMessage.trim();
     setNewMessage("");
