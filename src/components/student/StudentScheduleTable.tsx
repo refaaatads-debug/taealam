@@ -69,17 +69,22 @@ export default function StudentScheduleTable() {
 
     const channel = supabase
       .channel("student-schedule-table")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `student_id=eq.${user.id}` }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `student_id=eq.${user.id}` }, async (payload) => {
         const updated = payload.new as any;
-        if (updated?.session_status === "in_progress") {
+        if (updated?.session_status === "in_progress" && payload.eventType === "INSERT") {
+          playNotificationSound();
+          // Fetch teacher name for new booking
+          let teacherName = "المعلم";
+          const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", updated.teacher_id).single();
+          if (profile) teacherName = profile.full_name;
+          setJoinRequest({ bookingId: updated.id, teacherName });
+          setLiveSessionIds(prev => new Set(prev).add(updated.id));
+        } else if (updated?.session_status === "in_progress") {
           setLiveSessionIds(prev => {
             if (!prev.has(updated.id)) {
               playNotificationSound();
               const booking = bookings.find(b => b.id === updated.id);
-              setJoinRequest({
-                bookingId: updated.id,
-                teacherName: booking?.teacher_name || "المعلم",
-              });
+              setJoinRequest({ bookingId: updated.id, teacherName: booking?.teacher_name || "المعلم" });
             }
             return new Set(prev).add(updated.id);
           });
@@ -89,7 +94,7 @@ export default function StudentScheduleTable() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, bookings]);
+  }, [user]);
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -277,6 +282,22 @@ export default function StudentScheduleTable() {
                           {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                         </p>
                       </div>
+                      {hasLive && (() => {
+                        const liveBooking = group.bookings.find(b => liveSessionIds.has(b.id));
+                        return liveBooking ? (
+                          <Button
+                            size="sm"
+                            className="gradient-cta text-secondary-foreground rounded-lg h-7 px-3 gap-1 text-[10px] animate-pulse shadow-button mr-2"
+                            onClick={(e) => e.stopPropagation()}
+                            asChild
+                          >
+                            <Link to={`/session?booking=${liveBooking.id}`}>
+                              <Video className="h-3.5 w-3.5" />
+                              انضم الآن
+                            </Link>
+                          </Button>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -346,7 +367,19 @@ export default function StudentScheduleTable() {
                                         ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
                                         : <span className="text-muted-foreground/50">-</span>}
                                     </td>
-                                    <td className="py-2.5 px-3">{getStatusBadge(b.status, isLive)}</td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-2">
+                                        {getStatusBadge(b.status, isLive)}
+                                        {isLive && (
+                                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-lg h-6 px-2 text-[10px] shadow-button" asChild>
+                                            <Link to={`/session?booking=${b.id}`}>
+                                              <Video className="h-3 w-3 ml-1" />
+                                              انضم
+                                            </Link>
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </td>
                                   </tr>
                                 );
                               })}
