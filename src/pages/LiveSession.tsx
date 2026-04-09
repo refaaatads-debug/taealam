@@ -1001,8 +1001,49 @@ const LiveSession = () => {
                 </div>
               )}
 
-              {/* Audio session indicator - show when no screen share */}
-              {!(remoteScreenSharing && !isTeacher) && (
+              {/* Standalone Whiteboard in main area */}
+              {boardOpen && !screenSharing && isTeacher && bookingId && user && (
+                <div className="absolute inset-0 z-10 bg-white">
+                  <WhiteboardCanvas
+                    bookingId={bookingId}
+                    userId={user.id}
+                    enabled={meetingStarted}
+                    isTeacher={true}
+                    onSendData={handleWhiteboardSend}
+                    overlay={false}
+                    remoteActions={whiteboardRemoteActions}
+                  />
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <PenTool className="h-3 w-3" /> السبورة
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Student whiteboard view (standalone, no screen share) */}
+              {boardOpen && !remoteScreenSharing && !isTeacher && bookingId && user && (
+                <div className="absolute inset-0 z-10 bg-white">
+                  <WhiteboardCanvas
+                    bookingId={bookingId}
+                    userId={user.id}
+                    enabled={meetingStarted}
+                    isTeacher={false}
+                    onSendData={handleWhiteboardSend}
+                    overlay={false}
+                    remoteActions={whiteboardRemoteActions}
+                    remoteLaserPos={remoteLaserPos}
+                  />
+                  <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
+                    <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
+                      <PenTool className="h-3 w-3" /> السبورة
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Audio session indicator - show when no screen share and no standalone whiteboard */}
+              {!(remoteScreenSharing && !isTeacher) && !(boardOpen && !screenSharing) && (
                 <>
                   {!remoteConnected ? (
                     <div className="text-center">
