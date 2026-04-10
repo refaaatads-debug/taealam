@@ -258,6 +258,7 @@ export default function TeacherPerformanceTab() {
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [sessionFilterStats, setSessionFilterStats] = useState<Record<string, FilteredStats | null>>({});
 
   useEffect(() => {
     fetchTeacherPerformance();
