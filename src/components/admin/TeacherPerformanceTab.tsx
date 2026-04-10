@@ -64,7 +64,7 @@ const formatDuration = (totalSeconds: number): string => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
+function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: SessionDetail[]; onFilteredStatsChange?: (stats: FilteredStats) => void }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sessionDateFrom, setSessionDateFrom] = useState("");
@@ -88,6 +88,27 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
       return true;
     });
   }, [sessions, studentFilter, statusFilter, sessionDateFrom, sessionDateTo, priceFilter]);
+
+  const hasActiveFilter = studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
+
+  // Report filtered stats to parent
+  useEffect(() => {
+    if (onFilteredStatsChange && hasActiveFilter) {
+      const completed = filtered.filter(s => s.status === "completed");
+      onFilteredStatsChange({
+        completedCount: completed.length,
+        cancelledCount: filtered.filter(s => s.status === "cancelled").length,
+        studentsCount: new Set(completed.map(s => s.student_name)).size,
+        totalSeconds: completed.reduce((sum, s) => sum + (s.actual_seconds || 0), 0),
+        totalPrice: completed.reduce((sum, s) => sum + (s.price || 0), 0),
+        avgRating: -1, // Can't recalculate from session data
+        totalReviews: -1,
+      });
+    } else if (onFilteredStatsChange && !hasActiveFilter) {
+      // Reset - signal no filter active
+      onFilteredStatsChange(null as any);
+    }
+  }, [filtered, hasActiveFilter]);
 
   const statusLbl = (status: string) => {
     switch (status) {
@@ -159,7 +180,7 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
           <Input type="date" value={sessionDateTo} onChange={e => setSessionDateTo(e.target.value)} className="h-8 w-36 text-xs rounded-xl" />
         </div>
 
-        {(studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo) && (
+        {hasActiveFilter && (
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {
             setStudentFilter("");
             setStatusFilter("all");
@@ -180,6 +201,7 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                 <th className="text-right pb-2 font-medium">الطالب</th>
                 <th className="text-right pb-2 font-medium">المادة</th>
                 <th className="text-right pb-2 font-medium">التاريخ</th>
+                <th className="text-right pb-2 font-medium">ساعة الدخول</th>
                 <th className="text-right pb-2 font-medium">المدة الفعلية</th>
                 <th className="text-right pb-2 font-medium">السعر</th>
                 <th className="text-right pb-2 font-medium">الحالة</th>
@@ -192,6 +214,11 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
                   <td className="py-2 text-muted-foreground">
                     {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
+                  </td>
+                  <td className="py-2 text-muted-foreground font-mono">
+                    {s.started_at
+                      ? new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+                      : "—"}
                   </td>
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
