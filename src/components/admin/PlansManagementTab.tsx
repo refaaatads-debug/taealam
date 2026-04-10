@@ -15,6 +15,7 @@ interface Plan {
   tier: string;
   price: number;
   sessions_count: number;
+  session_duration_minutes: number;
   has_ai_tutor: boolean;
   has_recording: boolean;
   has_priority_booking: boolean;
@@ -39,7 +40,7 @@ const PlansManagementTab = () => {
   const [newPlan, setNewPlan] = useState<Partial<Plan>>({
     name_ar: "", tier: "basic", price: 0, sessions_count: 4,
     has_ai_tutor: false, has_recording: false, has_priority_booking: false,
-    features: [], assigned_user_id: null,
+    features: [], assigned_user_id: null, session_duration_minutes: 45,
   });
   const [newFeature, setNewFeature] = useState("");
   const [editFeature, setEditFeature] = useState("");
@@ -213,6 +214,15 @@ const PlansManagementTab = () => {
               </Select>
               <Input type="number" placeholder="السعر" value={newPlan.price || ""} onChange={e => setNewPlan(p => ({ ...p, price: Number(e.target.value) }))} className="rounded-lg text-sm" />
               <Input type="number" placeholder="عدد الحصص" value={newPlan.sessions_count || ""} onChange={e => setNewPlan(p => ({ ...p, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" />
+            </div>
+            {newPlan.tier === "free" && (
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">مدة الحصة المجانية (بالدقائق)</label>
+                <Input type="number" placeholder="45" value={newPlan.session_duration_minutes || ""} onChange={e => setNewPlan(p => ({ ...p, session_duration_minutes: Number(e.target.value) }))} className="rounded-lg text-sm w-48" />
+              </div>
+            )}
+            <div className="hidden">
+            {/* closing grid div is handled below */}
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد (اختياري)</label>
