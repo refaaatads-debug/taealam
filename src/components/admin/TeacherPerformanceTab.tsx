@@ -395,6 +395,7 @@ export default function TeacherPerformanceTab() {
           studentsCount: uniqueStudents.size,
           completedCount: completedBookings.length,
           cancelledCount: cancelledBookings.length,
+          totalPrice: sessions.filter(s => s.status === "completed").reduce((sum, s) => sum + (s.price || 0), 0),
           aiReport: null,
           aiReportLoading: false,
         };
