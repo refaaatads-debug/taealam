@@ -669,7 +669,10 @@ export default function TeacherPerformanceTab() {
                           </div>
 
                           {/* Sessions List */}
-                          <SessionDetailsTable sessions={teacher.sessions} />
+                          <SessionDetailsTable 
+                            sessions={teacher.sessions} 
+                            onFilteredStatsChange={(stats) => setSessionFilterStats(prev => ({ ...prev, [teacher.id]: stats }))}
+                          />
                         </div>
                       </motion.div>
                     )}
