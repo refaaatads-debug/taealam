@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   GraduationCap, Clock, Users, Star, Search, ChevronDown, ChevronUp,
-  Sparkles, Loader2, BookOpen, TrendingUp, Award, Filter
+  Sparkles, Loader2, BookOpen, TrendingUp, Award, Filter, DollarSign
 } from "lucide-react";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
@@ -27,9 +27,13 @@ interface TeacherData {
   totalMinutes: number;
   totalHours: number;
   totalSeconds: number;
+  totalSeconds: number;
   studentsCount: number;
   completedCount: number;
   cancelledCount: number;
+  totalPrice: number;
+  aiReport: string | null;
+  aiReportLoading: boolean;
   aiReport: string | null;
   aiReportLoading: boolean;
 }
