@@ -221,9 +221,6 @@ const PlansManagementTab = () => {
                 <Input type="number" placeholder="45" value={newPlan.session_duration_minutes || ""} onChange={e => setNewPlan(p => ({ ...p, session_duration_minutes: Number(e.target.value) }))} className="rounded-lg text-sm w-48" />
               </div>
             )}
-            <div className="hidden">
-            {/* closing grid div is handled below */}
-            </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد (اختياري)</label>
               <StudentSelector value={newPlan.assigned_user_id} onChange={v => setNewPlan(p => ({ ...p, assigned_user_id: v }))} />
