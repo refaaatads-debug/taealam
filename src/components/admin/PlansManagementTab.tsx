@@ -15,6 +15,7 @@ interface Plan {
   tier: string;
   price: number;
   sessions_count: number;
+  session_duration_minutes: number;
   has_ai_tutor: boolean;
   has_recording: boolean;
   has_priority_booking: boolean;
@@ -39,7 +40,7 @@ const PlansManagementTab = () => {
   const [newPlan, setNewPlan] = useState<Partial<Plan>>({
     name_ar: "", tier: "basic", price: 0, sessions_count: 4,
     has_ai_tutor: false, has_recording: false, has_priority_booking: false,
-    features: [], assigned_user_id: null,
+    features: [], assigned_user_id: null, session_duration_minutes: 45,
   });
   const [newFeature, setNewFeature] = useState("");
   const [editFeature, setEditFeature] = useState("");
@@ -101,6 +102,7 @@ const PlansManagementTab = () => {
         name_ar: editData.name_ar,
         price: editData.price,
         sessions_count: editData.sessions_count,
+        session_duration_minutes: editData.session_duration_minutes || 45,
         has_ai_tutor: editData.has_ai_tutor,
         has_recording: editData.has_recording,
         has_priority_booking: editData.has_priority_booking,
@@ -125,6 +127,7 @@ const PlansManagementTab = () => {
       tier: newPlan.tier as any,
       price: newPlan.price!,
       sessions_count: newPlan.sessions_count!,
+      session_duration_minutes: newPlan.session_duration_minutes || 45,
       has_ai_tutor: newPlan.has_ai_tutor,
       has_recording: newPlan.has_recording,
       has_priority_booking: newPlan.has_priority_booking,
@@ -136,7 +139,7 @@ const PlansManagementTab = () => {
     } else {
       toast.success("تم إنشاء الباقة بنجاح");
       setShowNewForm(false);
-      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [], assigned_user_id: null });
+      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [], assigned_user_id: null, session_duration_minutes: 45 });
       fetchPlans();
     }
     setSaving(null);
@@ -214,6 +217,12 @@ const PlansManagementTab = () => {
               <Input type="number" placeholder="السعر" value={newPlan.price || ""} onChange={e => setNewPlan(p => ({ ...p, price: Number(e.target.value) }))} className="rounded-lg text-sm" />
               <Input type="number" placeholder="عدد الحصص" value={newPlan.sessions_count || ""} onChange={e => setNewPlan(p => ({ ...p, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" />
             </div>
+            {newPlan.tier === "free" && (
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">مدة الحصة المجانية (بالدقائق)</label>
+                <Input type="number" placeholder="45" value={newPlan.session_duration_minutes || ""} onChange={e => setNewPlan(p => ({ ...p, session_duration_minutes: Number(e.target.value) }))} className="rounded-lg text-sm w-48" />
+              </div>
+            )}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد (اختياري)</label>
               <StudentSelector value={newPlan.assigned_user_id} onChange={v => setNewPlan(p => ({ ...p, assigned_user_id: v }))} />
@@ -275,6 +284,12 @@ const PlansManagementTab = () => {
                     <Input type="number" value={editData.price || ""} onChange={e => setEditData(d => ({ ...d, price: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="السعر" />
                     <Input type="number" value={editData.sessions_count || ""} onChange={e => setEditData(d => ({ ...d, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="عدد الحصص" />
                   </div>
+                  {plan.tier === "free" && (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">مدة الحصة المجانية (بالدقائق)</label>
+                      <Input type="number" value={editData.session_duration_minutes || ""} onChange={e => setEditData(d => ({ ...d, session_duration_minutes: Number(e.target.value) }))} className="rounded-lg text-sm w-48" placeholder="45" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد</label>
                     <StudentSelector value={editData.assigned_user_id} onChange={v => setEditData(d => ({ ...d, assigned_user_id: v }))} />
@@ -337,6 +352,7 @@ const PlansManagementTab = () => {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {plan.price} ر.س • {plan.sessions_count} حصة
+                        {plan.tier === "free" && plan.session_duration_minutes ? ` • ${plan.session_duration_minutes} دقيقة` : ""}
                         {plan.has_ai_tutor && " • AI"}
                         {plan.has_recording && " • تسجيل"}
                         {plan.has_priority_booking && " • أولوية"}

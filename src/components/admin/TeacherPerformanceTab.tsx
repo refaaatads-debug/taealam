@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   GraduationCap, Clock, Users, Star, Search, ChevronDown, ChevronUp,
-  Sparkles, Loader2, BookOpen, TrendingUp, Award, Filter
+  Sparkles, Loader2, BookOpen, TrendingUp, Award, Filter, DollarSign
 } from "lucide-react";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
@@ -30,6 +30,7 @@ interface TeacherData {
   studentsCount: number;
   completedCount: number;
   cancelledCount: number;
+  totalPrice: number;
   aiReport: string | null;
   aiReportLoading: boolean;
 }
@@ -39,11 +40,22 @@ interface SessionDetail {
   student_name: string;
   subject_name: string;
   scheduled_at: string;
+  started_at: string | null;
   duration_minutes: number;
   actual_duration: number | null;
   actual_seconds: number | null;
   status: string;
   price: number | null;
+}
+
+interface FilteredStats {
+  completedCount: number;
+  cancelledCount: number;
+  studentsCount: number;
+  totalSeconds: number;
+  totalPrice: number;
+  avgRating: number;
+  totalReviews: number;
 }
 
 const formatDuration = (totalSeconds: number): string => {
@@ -53,7 +65,7 @@ const formatDuration = (totalSeconds: number): string => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
+function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: SessionDetail[]; onFilteredStatsChange?: (stats: FilteredStats) => void }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sessionDateFrom, setSessionDateFrom] = useState("");
@@ -77,6 +89,27 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
       return true;
     });
   }, [sessions, studentFilter, statusFilter, sessionDateFrom, sessionDateTo, priceFilter]);
+
+  const hasActiveFilter = studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
+
+  // Report filtered stats to parent
+  useEffect(() => {
+    if (onFilteredStatsChange && hasActiveFilter) {
+      const completed = filtered.filter(s => s.status === "completed");
+      onFilteredStatsChange({
+        completedCount: completed.length,
+        cancelledCount: filtered.filter(s => s.status === "cancelled").length,
+        studentsCount: new Set(completed.map(s => s.student_name)).size,
+        totalSeconds: completed.reduce((sum, s) => sum + (s.actual_seconds || 0), 0),
+        totalPrice: completed.reduce((sum, s) => sum + (s.price || 0), 0),
+        avgRating: -1, // Can't recalculate from session data
+        totalReviews: -1,
+      });
+    } else if (onFilteredStatsChange && !hasActiveFilter) {
+      // Reset - signal no filter active
+      onFilteredStatsChange(null as any);
+    }
+  }, [filtered, hasActiveFilter]);
 
   const statusLbl = (status: string) => {
     switch (status) {
@@ -148,7 +181,7 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
           <Input type="date" value={sessionDateTo} onChange={e => setSessionDateTo(e.target.value)} className="h-8 w-36 text-xs rounded-xl" />
         </div>
 
-        {(studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo) && (
+        {hasActiveFilter && (
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {
             setStudentFilter("");
             setStatusFilter("all");
@@ -169,6 +202,7 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                 <th className="text-right pb-2 font-medium">الطالب</th>
                 <th className="text-right pb-2 font-medium">المادة</th>
                 <th className="text-right pb-2 font-medium">التاريخ</th>
+                <th className="text-right pb-2 font-medium">ساعة الدخول</th>
                 <th className="text-right pb-2 font-medium">المدة الفعلية</th>
                 <th className="text-right pb-2 font-medium">السعر</th>
                 <th className="text-right pb-2 font-medium">الحالة</th>
@@ -181,6 +215,11 @@ function SessionDetailsTable({ sessions }: { sessions: SessionDetail[] }) {
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
                   <td className="py-2 text-muted-foreground">
                     {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
+                  </td>
+                  <td className="py-2 text-muted-foreground font-mono">
+                    {s.started_at
+                      ? new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+                      : "—"}
                   </td>
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
@@ -219,6 +258,7 @@ export default function TeacherPerformanceTab() {
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [sessionFilterStats, setSessionFilterStats] = useState<Record<string, FilteredStats | null>>({});
 
   useEffect(() => {
     fetchTeacherPerformance();
@@ -328,6 +368,7 @@ export default function TeacherPerformanceTab() {
             student_name: studentMap.get(b.student_id) || "غير معروف",
             subject_name: b.subject_id ? (subjectMap.get(b.subject_id) || "عامة") : "عامة",
             scheduled_at: b.scheduled_at,
+            started_at: session?.started_at || null,
             duration_minutes: b.duration_minutes,
             actual_duration: actualDuration,
             actual_seconds: actualSeconds,
@@ -355,6 +396,7 @@ export default function TeacherPerformanceTab() {
           studentsCount: uniqueStudents.size,
           completedCount: completedBookings.length,
           cancelledCount: cancelledBookings.length,
+          totalPrice: sessions.filter(s => s.status === "completed").reduce((sum, s) => sum + (s.price || 0), 0),
           aiReport: null,
           aiReportLoading: false,
         };
@@ -432,6 +474,7 @@ export default function TeacherPerformanceTab() {
         totalHours: Math.round((totalMin / 60) * 10) / 10,
         totalSeconds: totalSec,
         studentsCount: new Set(completedFiltered.map(s => s.student_name)).size,
+        totalPrice: completedFiltered.reduce((sum, s) => sum + (s.price || 0), 0),
       };
     })
     .filter(t => {
@@ -564,21 +607,35 @@ export default function TeacherPerformanceTab() {
                       >
                         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
                           {/* Stats Grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                            {[
-                              { label: "المدة الفعلية", value: formatDuration(teacher.totalSeconds), icon: Clock, color: "text-primary" },
-                              { label: "حصص مكتملة", value: teacher.completedCount, icon: BookOpen, color: "text-green-600" },
-                              { label: "حصص ملغاة", value: teacher.cancelledCount, icon: BookOpen, color: "text-destructive" },
-                              { label: "عدد الطلاب", value: teacher.studentsCount, icon: Users, color: "text-secondary" },
-                              { label: "التقييم", value: teacher.avg_rating > 0 ? `${teacher.avg_rating.toFixed(1)} (${teacher.total_reviews})` : "—", icon: Star, color: "text-yellow-500" },
-                            ].map((stat, i) => (
-                              <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
-                                <stat.icon className={`h-4 w-4 mx-auto mb-1 ${stat.color}`} />
-                                <p className="text-lg font-black text-foreground">{stat.value}</p>
-                                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                          {(() => {
+                            const fs = sessionFilterStats[teacher.id];
+                            const displayStats = {
+                              totalSeconds: fs ? fs.totalSeconds : teacher.totalSeconds,
+                              completedCount: fs ? fs.completedCount : teacher.completedCount,
+                              cancelledCount: fs ? fs.cancelledCount : teacher.cancelledCount,
+                              studentsCount: fs ? fs.studentsCount : teacher.studentsCount,
+                              totalPrice: fs ? fs.totalPrice : teacher.totalPrice,
+                              rating: teacher.avg_rating > 0 ? `${teacher.avg_rating.toFixed(1)} (${teacher.total_reviews})` : "—",
+                            };
+                            return (
+                              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                {[
+                                  { label: "المدة الفعلية", value: formatDuration(displayStats.totalSeconds), icon: Clock, color: "text-primary" },
+                                  { label: "حصص مكتملة", value: displayStats.completedCount, icon: BookOpen, color: "text-green-600" },
+                                  { label: "حصص ملغاة", value: displayStats.cancelledCount, icon: BookOpen, color: "text-destructive" },
+                                  { label: "عدد الطلاب", value: displayStats.studentsCount, icon: Users, color: "text-secondary" },
+                                  { label: "إجمالي السعر", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
+                                  { label: "التقييم", value: displayStats.rating, icon: Star, color: "text-yellow-500" },
+                                ].map((stat, i) => (
+                                  <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
+                                    <stat.icon className={`h-4 w-4 mx-auto mb-1 ${stat.color}`} />
+                                    <p className="text-lg font-black text-foreground">{stat.value}</p>
+                                    <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })()}
 
                           {/* AI Report */}
                           <div className="bg-accent/20 rounded-xl p-4">
@@ -612,7 +669,10 @@ export default function TeacherPerformanceTab() {
                           </div>
 
                           {/* Sessions List */}
-                          <SessionDetailsTable sessions={teacher.sessions} />
+                          <SessionDetailsTable 
+                            sessions={teacher.sessions} 
+                            onFilteredStatsChange={(stats) => setSessionFilterStats(prev => ({ ...prev, [teacher.id]: stats }))}
+                          />
                         </div>
                       </motion.div>
                     )}
