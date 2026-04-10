@@ -39,11 +39,22 @@ interface SessionDetail {
   student_name: string;
   subject_name: string;
   scheduled_at: string;
+  started_at: string | null;
   duration_minutes: number;
   actual_duration: number | null;
   actual_seconds: number | null;
   status: string;
   price: number | null;
+}
+
+interface FilteredStats {
+  completedCount: number;
+  cancelledCount: number;
+  studentsCount: number;
+  totalSeconds: number;
+  totalPrice: number;
+  avgRating: number;
+  totalReviews: number;
 }
 
 const formatDuration = (totalSeconds: number): string => {
