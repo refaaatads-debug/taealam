@@ -102,6 +102,7 @@ const PlansManagementTab = () => {
         name_ar: editData.name_ar,
         price: editData.price,
         sessions_count: editData.sessions_count,
+        session_duration_minutes: editData.session_duration_minutes || 45,
         has_ai_tutor: editData.has_ai_tutor,
         has_recording: editData.has_recording,
         has_priority_booking: editData.has_priority_booking,
@@ -126,6 +127,7 @@ const PlansManagementTab = () => {
       tier: newPlan.tier as any,
       price: newPlan.price!,
       sessions_count: newPlan.sessions_count!,
+      session_duration_minutes: newPlan.session_duration_minutes || 45,
       has_ai_tutor: newPlan.has_ai_tutor,
       has_recording: newPlan.has_recording,
       has_priority_booking: newPlan.has_priority_booking,
@@ -137,7 +139,7 @@ const PlansManagementTab = () => {
     } else {
       toast.success("تم إنشاء الباقة بنجاح");
       setShowNewForm(false);
-      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [], assigned_user_id: null });
+      setNewPlan({ name_ar: "", tier: "basic", price: 0, sessions_count: 4, has_ai_tutor: false, has_recording: false, has_priority_booking: false, features: [], assigned_user_id: null, session_duration_minutes: 45 });
       fetchPlans();
     }
     setSaving(null);
