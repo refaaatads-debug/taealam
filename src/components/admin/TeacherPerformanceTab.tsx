@@ -607,21 +607,35 @@ export default function TeacherPerformanceTab() {
                       >
                         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
                           {/* Stats Grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                            {[
-                              { label: "المدة الفعلية", value: formatDuration(teacher.totalSeconds), icon: Clock, color: "text-primary" },
-                              { label: "حصص مكتملة", value: teacher.completedCount, icon: BookOpen, color: "text-green-600" },
-                              { label: "حصص ملغاة", value: teacher.cancelledCount, icon: BookOpen, color: "text-destructive" },
-                              { label: "عدد الطلاب", value: teacher.studentsCount, icon: Users, color: "text-secondary" },
-                              { label: "التقييم", value: teacher.avg_rating > 0 ? `${teacher.avg_rating.toFixed(1)} (${teacher.total_reviews})` : "—", icon: Star, color: "text-yellow-500" },
-                            ].map((stat, i) => (
-                              <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
-                                <stat.icon className={`h-4 w-4 mx-auto mb-1 ${stat.color}`} />
-                                <p className="text-lg font-black text-foreground">{stat.value}</p>
-                                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                          {(() => {
+                            const fs = sessionFilterStats[teacher.id];
+                            const displayStats = {
+                              totalSeconds: fs ? fs.totalSeconds : teacher.totalSeconds,
+                              completedCount: fs ? fs.completedCount : teacher.completedCount,
+                              cancelledCount: fs ? fs.cancelledCount : teacher.cancelledCount,
+                              studentsCount: fs ? fs.studentsCount : teacher.studentsCount,
+                              totalPrice: fs ? fs.totalPrice : teacher.totalPrice,
+                              rating: teacher.avg_rating > 0 ? `${teacher.avg_rating.toFixed(1)} (${teacher.total_reviews})` : "—",
+                            };
+                            return (
+                              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                {[
+                                  { label: "المدة الفعلية", value: formatDuration(displayStats.totalSeconds), icon: Clock, color: "text-primary" },
+                                  { label: "حصص مكتملة", value: displayStats.completedCount, icon: BookOpen, color: "text-green-600" },
+                                  { label: "حصص ملغاة", value: displayStats.cancelledCount, icon: BookOpen, color: "text-destructive" },
+                                  { label: "عدد الطلاب", value: displayStats.studentsCount, icon: Users, color: "text-secondary" },
+                                  { label: "إجمالي السعر", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
+                                  { label: "التقييم", value: displayStats.rating, icon: Star, color: "text-yellow-500" },
+                                ].map((stat, i) => (
+                                  <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
+                                    <stat.icon className={`h-4 w-4 mx-auto mb-1 ${stat.color}`} />
+                                    <p className="text-lg font-black text-foreground">{stat.value}</p>
+                                    <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })()}
 
                           {/* AI Report */}
                           <div className="bg-accent/20 rounded-xl p-4">
