@@ -284,6 +284,12 @@ const PlansManagementTab = () => {
                     <Input type="number" value={editData.price || ""} onChange={e => setEditData(d => ({ ...d, price: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="السعر" />
                     <Input type="number" value={editData.sessions_count || ""} onChange={e => setEditData(d => ({ ...d, sessions_count: Number(e.target.value) }))} className="rounded-lg text-sm" placeholder="عدد الحصص" />
                   </div>
+                  {plan.tier === "free" && (
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">مدة الحصة المجانية (بالدقائق)</label>
+                      <Input type="number" value={editData.session_duration_minutes || ""} onChange={e => setEditData(d => ({ ...d, session_duration_minutes: Number(e.target.value) }))} className="rounded-lg text-sm w-48" placeholder="45" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">تخصيص لطالب محدد</label>
                     <StudentSelector value={editData.assigned_user_id} onChange={v => setEditData(d => ({ ...d, assigned_user_id: v }))} />
@@ -346,6 +352,7 @@ const PlansManagementTab = () => {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {plan.price} ر.س • {plan.sessions_count} حصة
+                        {plan.tier === "free" && plan.session_duration_minutes ? ` • ${plan.session_duration_minutes} دقيقة` : ""}
                         {plan.has_ai_tutor && " • AI"}
                         {plan.has_recording && " • تسجيل"}
                         {plan.has_priority_booking && " • أولوية"}
