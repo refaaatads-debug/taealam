@@ -842,6 +842,7 @@ export type Database = {
           id: string
           name_ar: string
           price: number
+          session_duration_minutes: number
           sessions_count: number
           tier: Database["public"]["Enums"]["subscription_tier"]
         }
@@ -855,6 +856,7 @@ export type Database = {
           id?: string
           name_ar: string
           price: number
+          session_duration_minutes?: number
           sessions_count: number
           tier: Database["public"]["Enums"]["subscription_tier"]
         }
@@ -868,6 +870,7 @@ export type Database = {
           id?: string
           name_ar?: string
           price?: number
+          session_duration_minutes?: number
           sessions_count?: number
           tier?: Database["public"]["Enums"]["subscription_tier"]
         }
