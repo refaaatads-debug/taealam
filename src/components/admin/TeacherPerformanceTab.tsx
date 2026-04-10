@@ -473,6 +473,7 @@ export default function TeacherPerformanceTab() {
         totalHours: Math.round((totalMin / 60) * 10) / 10,
         totalSeconds: totalSec,
         studentsCount: new Set(completedFiltered.map(s => s.student_name)).size,
+        totalPrice: completedFiltered.reduce((sum, s) => sum + (s.price || 0), 0),
       };
     })
     .filter(t => {
