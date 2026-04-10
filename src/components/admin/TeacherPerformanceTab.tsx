@@ -339,6 +339,7 @@ export default function TeacherPerformanceTab() {
             student_name: studentMap.get(b.student_id) || "غير معروف",
             subject_name: b.subject_id ? (subjectMap.get(b.subject_id) || "عامة") : "عامة",
             scheduled_at: b.scheduled_at,
+            started_at: session?.started_at || null,
             duration_minutes: b.duration_minutes,
             actual_duration: actualDuration,
             actual_seconds: actualSeconds,
