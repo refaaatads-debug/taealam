@@ -535,6 +535,7 @@ export function useWebRTC({
     toggleVideo,
     toggleScreenShare,
     startRecording,
+    startAutoRecording,
     stopRecording,
     getRecordingBlob,
     restartConnection,
