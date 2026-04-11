@@ -11,6 +11,7 @@ import { toast } from "sonner";
 export default function WithdrawalSection() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
+  const [totalEarnings, setTotalEarnings] = useState(0);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
@@ -26,35 +27,25 @@ export default function WithdrawalSection() {
   const fetchData = async () => {
     if (!user) return;
 
-    // Get teacher balance directly from teacher_profiles
-    const { data: tp } = await supabase
-      .from("teacher_profiles")
-      .select("balance")
-      .eq("user_id", user.id)
-      .single();
-    
-    const totalBalance = Number((tp as any)?.balance) || 0;
-
-    // Subtract paid amounts and pending withdrawals
-    const [paymentsRes, pendingWRes, earningsRes] = await Promise.all([
+    // Get all confirmed earnings (total from admin)
+    const [earningsRes, paymentsRes, pendingWRes, wData] = await Promise.all([
+      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("teacher_payments" as any).select("amount").eq("teacher_id", user.id),
       supabase.from("withdrawal_requests" as any).select("amount").eq("teacher_id", user.id).eq("status", "pending"),
-      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
     ]);
 
+    const allEarnings = earningsRes.data as any[] ?? [];
+    const confirmedEarnings = allEarnings.filter((e: any) => e.status === "confirmed" || e.status === "paid");
+    const totalConfirmed = confirmedEarnings.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+    
     const totalPaid = (paymentsRes.data as any[] ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
     const pendingAmount = (pendingWRes.data as any[] ?? []).reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-    setBalance(Math.max(0, totalBalance - totalPaid - pendingAmount));
-    setManualEarnings(earningsRes.data as any[] ?? []);
-
-    const { data: wData } = await supabase
-      .from("withdrawal_requests" as any)
-      .select("*")
-      .eq("teacher_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    setWithdrawals(wData as any[] || []);
+    setTotalEarnings(totalConfirmed);
+    setBalance(Math.max(0, totalConfirmed - totalPaid - pendingAmount));
+    setManualEarnings(allEarnings);
+    setWithdrawals(wData.data as any[] || []);
   };
 
   const requestWithdrawal = async () => {
@@ -126,10 +117,15 @@ export default function WithdrawalSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-accent/50 border border-secondary/20">
-          <div>
-            <p className="text-sm text-muted-foreground">الرصيد المتاح</p>
+        {/* Balance Summary */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-4 rounded-2xl bg-accent/50 border border-secondary/20">
+            <p className="text-sm text-muted-foreground">الرصيد المتاح للسحب</p>
             <p className="text-2xl font-black text-foreground">{balance.toLocaleString()} ر.س</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
+            <p className="text-sm text-muted-foreground">إجمالي الأرباح المقررة</p>
+            <p className="text-2xl font-black text-primary">{totalEarnings.toLocaleString()} ر.س</p>
           </div>
         </div>
 
@@ -186,8 +182,8 @@ export default function WithdrawalSection() {
           <div className="space-y-2">
             <p className="text-sm font-bold text-foreground">أرباح مضافة من الإدارة</p>
             {manualEarnings.map((e: any, i: number) => {
-              const statusLabel = e.status === "confirmed" ? "مؤكدة" : e.status === "in_progress" ? "جارية" : "غير مؤكدة";
-              const statusVariant = e.status === "confirmed" ? "default" as const : e.status === "in_progress" ? "secondary" as const : "destructive" as const;
+              const statusLabel = e.status === "confirmed" ? "مؤكدة" : e.status === "in_progress" ? "جارية" : e.status === "paid" ? "مدفوعة" : "غير مؤكدة";
+              const statusVariant = e.status === "confirmed" ? "default" as const : e.status === "in_progress" ? "secondary" as const : e.status === "paid" ? "outline" as const : "destructive" as const;
               return (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/5 border border-secondary/20">
                   <div>
