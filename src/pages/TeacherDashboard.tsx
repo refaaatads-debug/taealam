@@ -52,6 +52,7 @@ const TeacherDashboard = () => {
 
   const fetchData = async () => {
     if (!user) return;
+    try {
 
     const { data: tp } = await supabase
       .from("teacher_profiles")
