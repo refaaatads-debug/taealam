@@ -686,6 +686,16 @@ const AdminDashboard = () => {
                               <p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p>
                             </div>
                           )}
+                          {t.teaching_stages && t.teaching_stages.length > 0 && (
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">المراحل الدراسية</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {t.teaching_stages.map((stage: string) => (
+                                  <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {t.bio && (
                             <div className="col-span-2 md:col-span-4">
                               <span className="text-muted-foreground">النبذة التعريفية</span>
