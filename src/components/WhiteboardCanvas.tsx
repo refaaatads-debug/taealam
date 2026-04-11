@@ -202,7 +202,8 @@ export default function WhiteboardCanvas({
 
   useEffect(() => {
     if (!remoteActions || canDraw) return;
-    actionsRef.current = [...remoteActions];
+    // Denormalize remote actions from virtual canvas to local coordinates
+    actionsRef.current = remoteActions.map(a => denormalizeAction(a));
     undoneRef.current = [];
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -210,7 +211,7 @@ export default function WhiteboardCanvas({
     const ctx = canvas.getContext("2d");
     const rect = container.getBoundingClientRect();
     if (ctx) redrawAll(ctx, rect.width, rect.height);
-  }, [remoteActions, canDraw, redrawAll]);
+  }, [remoteActions, canDraw, redrawAll, denormalizeAction]);
 
   const broadcastAction = (action: DrawAction) => {
     if (!enabled || !onSendData) return;
