@@ -421,7 +421,7 @@ export function useWebRTC({
     }
   }, [screenSharing, sendDataMessage]);
 
-  // Recording
+  // Manual recording (screen share based - kept for manual use)
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -445,6 +445,41 @@ export function useWebRTC({
     }
   }, []);
 
+  // Auto recording - combines local + remote audio silently (no user prompt)
+  const startAutoRecording = useCallback(() => {
+    try {
+      const localAudio = localStreamRef.current;
+      const remoteAudio = remoteStream;
+      if (!localAudio && !remoteAudio) return;
+
+      const audioCtx = new AudioContext();
+      const dest = audioCtx.createMediaStreamDestination();
+
+      if (localAudio) {
+        const localSource = audioCtx.createMediaStreamSource(localAudio);
+        localSource.connect(dest);
+      }
+      if (remoteAudio) {
+        const remoteSource = audioCtx.createMediaStreamSource(remoteAudio);
+        remoteSource.connect(dest);
+      }
+
+      recordedChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus" : "audio/webm";
+      const recorder = new MediaRecorder(dest.stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      console.log("Auto recording started (audio only)");
+    } catch (err) {
+      console.error("Auto recording failed:", err);
+    }
+  }, [remoteStream]);
+
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
     setIsRecording(false);
@@ -452,7 +487,8 @@ export function useWebRTC({
 
   const getRecordingBlob = useCallback(() => {
     if (recordedChunksRef.current.length === 0) return null;
-    return new Blob(recordedChunksRef.current, { type: "video/webm" });
+    const mimeType = recordedChunksRef.current[0]?.type || "audio/webm";
+    return new Blob(recordedChunksRef.current, { type: mimeType });
   }, []);
 
   const stop = useCallback(async () => {
