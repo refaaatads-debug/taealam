@@ -135,6 +135,22 @@ const TeacherDashboard = () => {
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+        <Navbar />
+        <div className="container py-16 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-muted-foreground">جاري تحميل لوحة التحكم...</p>
+          </div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
   // Show pending approval screen if teacher is not approved
   if (teacherProfile && !isApproved) {
     return (
