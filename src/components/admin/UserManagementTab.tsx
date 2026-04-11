@@ -419,8 +419,7 @@ export default function UserManagementTab() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
-                                title="حظر/فك حظر"
+                                className="h-auto px-2 py-1 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-100"
                                 onClick={async () => {
                                   // Check if already banned
                                   const { data: warnings } = await supabase
@@ -463,9 +462,11 @@ export default function UserManagementTab() {
                                     });
                                     toast.success(`تم حظر ${u.full_name}`);
                                   }
+                                  fetchUsers();
                                 }}
                               >
-                                <Ban className="h-3.5 w-3.5" />
+                                {/* We'll check ban status inline - for now show both options */}
+                                حظر المستخدم
                               </Button>
                               <Button
                                 size="sm"
