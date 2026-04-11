@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
@@ -415,18 +415,71 @@ export default function UserManagementTab() {
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
                           {!isCurrentUser && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => {
-                                if (window.confirm(`هل أنت متأكد من حذف بيانات ${u.full_name}؟`)) {
-                                  deleteUser(u.user_id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+                                title="حظر/فك حظر"
+                                onClick={async () => {
+                                  // Check if already banned
+                                  const { data: warnings } = await supabase
+                                    .from("user_warnings")
+                                    .select("id, is_banned")
+                                    .eq("user_id", u.user_id)
+                                    .eq("warning_type", "admin_ban")
+                                    .maybeSingle();
+                                  
+                                  if (warnings?.is_banned) {
+                                    // Unban
+                                    await supabase.from("user_warnings").update({
+                                      is_banned: false, banned_until: null,
+                                    }).eq("id", warnings.id);
+                                    await supabase.from("notifications").insert({
+                                      user_id: u.user_id,
+                                      title: "✅ تم فك حظر حسابك",
+                                      body: "تم فك تقييد حسابك من قبل الإدارة. يمكنك الآن استخدام المنصة بشكل طبيعي.",
+                                      type: "account_status",
+                                    });
+                                    toast.success(`تم فك حظر ${u.full_name}`);
+                                  } else {
+                                    if (!window.confirm(`هل تريد حظر ${u.full_name}؟`)) return;
+                                    // Ban
+                                    if (warnings) {
+                                      await supabase.from("user_warnings").update({
+                                        is_banned: true, banned_until: null, warning_count: (warnings as any).warning_count + 1,
+                                      }).eq("id", warnings.id);
+                                    } else {
+                                      await supabase.from("user_warnings").insert({
+                                        user_id: u.user_id, warning_type: "admin_ban",
+                                        is_banned: true, description: "حظر من قبل الإدارة",
+                                      });
+                                    }
+                                    await supabase.from("notifications").insert({
+                                      user_id: u.user_id,
+                                      title: "🚫 تم تقييد حسابك",
+                                      body: "تم تقييد حسابك من قبل الإدارة. يرجى مراجعة خدمة العملاء لحل الأمر.",
+                                      type: "account_status",
+                                    });
+                                    toast.success(`تم حظر ${u.full_name}`);
+                                  }
+                                }}
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  if (window.confirm(`هل أنت متأكد من حذف بيانات ${u.full_name}؟`)) {
+                                    deleteUser(u.user_id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </td>
