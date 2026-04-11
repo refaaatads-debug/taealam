@@ -82,12 +82,15 @@ export default function UserManagementTab() {
     fetchUsers();
   }, []);
 
+  const [bannedUsers, setBannedUsers] = useState<Set<string>>(new Set());
+
   const fetchUsers = async () => {
     setLoading(true);
-    const [usersRes, rolesRes, permsRes] = await Promise.all([
+    const [usersRes, rolesRes, permsRes, bannedRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("user_roles").select("user_id, role"),
       (supabase as any).from("user_permissions").select("user_id, permission"),
+      supabase.from("user_warnings").select("user_id, is_banned").eq("warning_type", "admin_ban").eq("is_banned", true),
     ]);
     setAllUsers(usersRes.data ?? []);
     const rMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
@@ -100,6 +103,7 @@ export default function UserManagementTab() {
       pMap.set(p.user_id, existing);
     });
     setUserPermissionsMap(pMap);
+    setBannedUsers(new Set((bannedRes.data ?? []).map((b: any) => b.user_id)));
     setLoading(false);
   };
 
@@ -419,22 +423,21 @@ export default function UserManagementTab() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
-                                title="حظر/فك حظر"
+                                className={`h-auto px-2 py-1 text-xs ${bannedUsers.has(u.user_id) ? "text-green-600 hover:text-green-700 hover:bg-green-100" : "text-destructive hover:text-destructive hover:bg-destructive/10"}`}
                                 onClick={async () => {
-                                  // Check if already banned
-                                  const { data: warnings } = await supabase
-                                    .from("user_warnings")
-                                    .select("id, is_banned")
-                                    .eq("user_id", u.user_id)
-                                    .eq("warning_type", "admin_ban")
-                                    .maybeSingle();
-                                  
-                                  if (warnings?.is_banned) {
-                                    // Unban
-                                    await supabase.from("user_warnings").update({
-                                      is_banned: false, banned_until: null,
-                                    }).eq("id", warnings.id);
+                                  const isBanned = bannedUsers.has(u.user_id);
+                                  if (isBanned) {
+                                    const { data: warnings } = await supabase
+                                      .from("user_warnings")
+                                      .select("id")
+                                      .eq("user_id", u.user_id)
+                                      .eq("warning_type", "admin_ban")
+                                      .maybeSingle();
+                                    if (warnings) {
+                                      await supabase.from("user_warnings").update({
+                                        is_banned: false, banned_until: null,
+                                      }).eq("id", warnings.id);
+                                    }
                                     await supabase.from("notifications").insert({
                                       user_id: u.user_id,
                                       title: "✅ تم فك حظر حسابك",
@@ -444,7 +447,12 @@ export default function UserManagementTab() {
                                     toast.success(`تم فك حظر ${u.full_name}`);
                                   } else {
                                     if (!window.confirm(`هل تريد حظر ${u.full_name}؟`)) return;
-                                    // Ban
+                                    const { data: warnings } = await supabase
+                                      .from("user_warnings")
+                                      .select("id, warning_count")
+                                      .eq("user_id", u.user_id)
+                                      .eq("warning_type", "admin_ban")
+                                      .maybeSingle();
                                     if (warnings) {
                                       await supabase.from("user_warnings").update({
                                         is_banned: true, banned_until: null, warning_count: (warnings as any).warning_count + 1,
@@ -463,9 +471,10 @@ export default function UserManagementTab() {
                                     });
                                     toast.success(`تم حظر ${u.full_name}`);
                                   }
+                                  fetchUsers();
                                 }}
                               >
-                                <Ban className="h-3.5 w-3.5" />
+                                {bannedUsers.has(u.user_id) ? "فك الحظر" : "حظر المستخدم"}
                               </Button>
                               <Button
                                 size="sm"

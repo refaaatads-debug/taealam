@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export default function AdminNotificationsTab() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [targetType, setTargetType] = useState<"all_students" | "all_teachers" | "specific">("all_students");
+  const [targetType, setTargetType] = useState<"all" | "all_students" | "all_teachers" | "specific">("all_students");
   const [specificUserId, setSpecificUserId] = useState("");
   const [loading, setSending] = useState(false);
   const [users, setUsers] = useState<{ user_id: string; full_name: string; role: string }[]>([]);
@@ -48,6 +48,9 @@ export default function AdminNotificationsTab() {
           return;
         }
         targetUsers = [specificUserId];
+      } else if (targetType === "all") {
+        const { data: allProfiles } = await supabase.from("profiles").select("user_id");
+        targetUsers = (allProfiles ?? []).map(p => p.user_id);
       } else {
         const targetRole = targetType === "all_students" ? "student" : "teacher";
         const { data: roleData } = await supabase.from("user_roles").select("user_id").eq("role", targetRole);
@@ -76,7 +79,7 @@ export default function AdminNotificationsTab() {
       setSentHistory(prev => [{
         title: title.trim(),
         body: body.trim(),
-        target: targetType === "all_students" ? "جميع الطلاب" : targetType === "all_teachers" ? "جميع المعلمين" : users.find(u => u.user_id === specificUserId)?.full_name || "مستخدم",
+        target: targetType === "all" ? "جميع المستخدمين" : targetType === "all_students" ? "جميع الطلاب" : targetType === "all_teachers" ? "جميع المعلمين" : users.find(u => u.user_id === specificUserId)?.full_name || "مستخدم",
         count: targetUsers.length,
         date: new Date().toLocaleString("ar-SA"),
       }, ...prev]);
@@ -113,6 +116,9 @@ export default function AdminNotificationsTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">
+                    <span className="flex items-center gap-2"><Users className="h-4 w-4" /> جميع المستخدمين</span>
+                  </SelectItem>
                   <SelectItem value="all_students">
                     <span className="flex items-center gap-2"><Users className="h-4 w-4" /> جميع الطلاب</span>
                   </SelectItem>
