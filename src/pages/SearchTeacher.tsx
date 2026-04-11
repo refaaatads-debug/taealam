@@ -57,12 +57,15 @@ const SearchTeacher = () => {
 
   // Quick booking form state
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedStage, setSelectedStage] = useState("");
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
+
+  const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   // Fetch student's remaining sessions
   useEffect(() => {
     if (!user) return;
