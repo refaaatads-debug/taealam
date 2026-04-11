@@ -339,6 +339,7 @@ const Profile = () => {
                             </button>
                           );
                         })}
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
