@@ -638,27 +638,78 @@ const AdminDashboard = () => {
                 ) : (
                   <div className="space-y-3">
                     {filteredTeachers.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
-                            <GraduationCap className="h-5 w-5 text-secondary" />
+                      <div key={t.id} className="p-4 bg-muted/30 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
+                              <GraduationCap className="h-5 w-5 text-secondary" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
+                              <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="rounded-lg bg-green-600 hover:bg-green-700 text-white gap-1" onClick={() => approveTeacher(t.id)}>
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              موافقة
+                            </Button>
+                            <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
+                              <XCircle className="h-3.5 w-3.5" />
+                              رفض
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-background/60 rounded-lg p-3">
+                          <div>
+                            <span className="text-muted-foreground">سنوات الخبرة</span>
+                            <p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p>
                           </div>
                           <div>
-                            <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
-                            <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
-                            <p className="text-xs text-muted-foreground">خبرة: {t.years_experience || 0} سنوات</p>
+                            <span className="text-muted-foreground">الجنسية</span>
+                            <p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p>
                           </div>
+                          <div>
+                            <span className="text-muted-foreground">المواد</span>
+                            <p className="font-medium text-foreground mt-0.5">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">أوقات التوفر</span>
+                            <p className="font-medium text-foreground mt-0.5">
+                              {t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}
+                            </p>
+                          </div>
+                          {t.available_days && t.available_days.length > 0 && (
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">أيام التوفر</span>
+                              <p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p>
+                            </div>
+                          )}
+                          {t.bio && (
+                            <div className="col-span-2 md:col-span-4">
+                              <span className="text-muted-foreground">النبذة التعريفية</span>
+                              <p className="font-medium text-foreground mt-0.5">{t.bio}</p>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" className="rounded-lg bg-green-600 hover:bg-green-700 text-white gap-1" onClick={() => approveTeacher(t.id)}>
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            موافقة
-                          </Button>
-                          <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
-                            <XCircle className="h-3.5 w-3.5" />
-                            رفض
-                          </Button>
-                        </div>
+
+                        {t.certificates && t.certificates.length > 0 && (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {t.certificates.map((c: any) => (
+                                <a key={c.id} href={c.file_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                                  <FileText className="h-3 w-3" />
+                                  {c.name}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
                       </div>
                     ))}
                   </div>
