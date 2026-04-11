@@ -445,50 +445,124 @@ export function useWebRTC({
     }
   }, []);
 
-  // Auto recording - combines local + remote audio silently (no user prompt)
+  // Auto video recording - captures remote video/screen + combined audio using offscreen canvas
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasIntervalRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
   const startAutoRecording = useCallback(() => {
     try {
-      const localAudio = localStreamRef.current;
-      const remoteAudio = remoteStream;
-      if (!localAudio && !remoteAudio) return;
+      const localAudioStream = localStreamRef.current;
+      const remoteMediaStream = remoteStream;
+      if (!localAudioStream && !remoteMediaStream) return;
 
+      // Create offscreen canvas for video capture
+      const canvas = document.createElement("canvas");
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext("2d")!;
+      canvasRef.current = canvas;
+
+      // Draw remote video frames onto canvas
+      // We need a hidden video element to pull frames from remoteStream
+      const hiddenVideo = document.createElement("video");
+      hiddenVideo.srcObject = remoteMediaStream;
+      hiddenVideo.muted = true;
+      hiddenVideo.playsInline = true;
+      hiddenVideo.play().catch(() => {});
+
+      // Draw loop - captures at ~15fps for reasonable file size
+      canvasIntervalRef.current = window.setInterval(() => {
+        ctx.fillStyle = "#1a1a2e";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (hiddenVideo.readyState >= 2) {
+          // Calculate aspect-ratio-preserving dimensions
+          const vw = hiddenVideo.videoWidth || canvas.width;
+          const vh = hiddenVideo.videoHeight || canvas.height;
+          const scale = Math.min(canvas.width / vw, canvas.height / vh);
+          const dw = vw * scale;
+          const dh = vh * scale;
+          const dx = (canvas.width - dw) / 2;
+          const dy = (canvas.height - dh) / 2;
+          ctx.drawImage(hiddenVideo, dx, dy, dw, dh);
+        } else {
+          // No video yet - show placeholder
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "24px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("جلسة مباشرة - تسجيل جارٍ...", canvas.width / 2, canvas.height / 2);
+        }
+
+        // Add timestamp overlay
+        const now = new Date();
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(canvas.width - 200, canvas.height - 40, 200, 40);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "14px monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(now.toLocaleTimeString("ar-SA"), canvas.width - 10, canvas.height - 12);
+      }, 66); // ~15fps
+
+      // Combine canvas video stream + mixed audio
+      const canvasStream = canvas.captureStream(15);
+
+      // Mix local + remote audio
       const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
       const dest = audioCtx.createMediaStreamDestination();
 
-      if (localAudio) {
-        const localSource = audioCtx.createMediaStreamSource(localAudio);
+      if (localAudioStream) {
+        const localSource = audioCtx.createMediaStreamSource(localAudioStream);
         localSource.connect(dest);
       }
-      if (remoteAudio) {
-        const remoteSource = audioCtx.createMediaStreamSource(remoteAudio);
+      if (remoteMediaStream) {
+        const remoteSource = audioCtx.createMediaStreamSource(remoteMediaStream);
         remoteSource.connect(dest);
       }
 
+      // Combine video + audio tracks into one stream
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...dest.stream.getAudioTracks(),
+      ]);
+
       recordedChunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus" : "audio/webm";
-      const recorder = new MediaRecorder(dest.stream, { mimeType });
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
+          : "video/webm";
+      const recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 1_000_000 });
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
-      console.log("Auto recording started (audio only)");
+      console.log("Auto video recording started (canvas + mixed audio)");
     } catch (err) {
-      console.error("Auto recording failed:", err);
+      console.error("Auto video recording failed:", err);
     }
   }, [remoteStream]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
+    if (canvasIntervalRef.current) {
+      clearInterval(canvasIntervalRef.current);
+      canvasIntervalRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+    canvasRef.current = null;
     setIsRecording(false);
   }, []);
 
   const getRecordingBlob = useCallback(() => {
     if (recordedChunksRef.current.length === 0) return null;
-    const mimeType = recordedChunksRef.current[0]?.type || "audio/webm";
-    return new Blob(recordedChunksRef.current, { type: mimeType });
+    return new Blob(recordedChunksRef.current, { type: "video/webm" });
   }, []);
 
   const stop = useCallback(async () => {
