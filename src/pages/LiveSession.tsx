@@ -565,6 +565,15 @@ const LiveSession = () => {
     }
   }, [meetingStarted, remoteConnected, bothJoined]);
 
+  // Auto-start recording when both parties join
+  useEffect(() => {
+    if (bothJoined && !isRecording) {
+      startAutoRecording();
+      toast.info("🔴 يتم تسجيل الحصة تلقائياً");
+    }
+  }, [bothJoined]);
+  }, [meetingStarted, remoteConnected, bothJoined]);
+
   // Session timer - only ticks when bothJoined
   useEffect(() => {
     if (!meetingStarted || !bothJoined) return;
