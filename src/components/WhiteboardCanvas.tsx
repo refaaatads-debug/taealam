@@ -200,45 +200,6 @@ export default function WhiteboardCanvas({
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
-  useEffect(() => {
-    if (!remoteActions || canDraw) return;
-    // Denormalize remote actions from virtual canvas to local coordinates
-    actionsRef.current = remoteActions.map(a => denormalizeAction(a));
-    undoneRef.current = [];
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const ctx = canvas.getContext("2d");
-    const rect = container.getBoundingClientRect();
-    if (ctx) redrawAll(ctx, rect.width, rect.height);
-  }, [remoteActions, canDraw, redrawAll, denormalizeAction]);
-
-  const broadcastAction = (action: DrawAction) => {
-    if (!enabled || !onSendData) return;
-    // Normalize action to virtual canvas coordinates before sending
-    const container = containerRef.current;
-    if (!container) { onSendData({ type: "whiteboard-action", action }); return; }
-    const rect = container.getBoundingClientRect();
-    const scaleX = VIRTUAL_W / rect.width;
-    const scaleY = VIRTUAL_H / rect.height;
-    const normalized = normalizeAction(action, scaleX, scaleY);
-    onSendData({ type: "whiteboard-action", action: normalized });
-  };
-
-  // Normalize action coordinates to virtual canvas
-  const normalizeAction = (action: DrawAction, sx: number, sy: number): DrawAction => {
-    const a = { ...action };
-    if (a.points) a.points = a.points.map(p => ({ x: p.x * sx, y: p.y * sy }));
-    if (a.x !== undefined) a.x = a.x * sx;
-    if (a.y !== undefined) a.y = a.y * sy;
-    if (a.w !== undefined) a.w = a.w * sx;
-    if (a.h !== undefined) a.h = a.h * sy;
-    if (a.r !== undefined) a.r = a.r * Math.min(sx, sy);
-    if (a.lineWidth !== undefined) a.lineWidth = a.lineWidth * Math.min(sx, sy);
-    if (a.fontSize !== undefined) a.fontSize = a.fontSize * Math.min(sx, sy);
-    return a;
-  };
-
   // Denormalize action from virtual canvas to local coordinates
   const denormalizeAction = useCallback((action: DrawAction): DrawAction => {
     const container = containerRef.current;
@@ -257,6 +218,43 @@ export default function WhiteboardCanvas({
     if (a.fontSize !== undefined) a.fontSize = a.fontSize * Math.min(sx, sy);
     return a;
   }, []);
+
+  // Normalize action coordinates to virtual canvas
+  const normalizeAction = (action: DrawAction, sx: number, sy: number): DrawAction => {
+    const a = { ...action };
+    if (a.points) a.points = a.points.map(p => ({ x: p.x * sx, y: p.y * sy }));
+    if (a.x !== undefined) a.x = a.x * sx;
+    if (a.y !== undefined) a.y = a.y * sy;
+    if (a.w !== undefined) a.w = a.w * sx;
+    if (a.h !== undefined) a.h = a.h * sy;
+    if (a.r !== undefined) a.r = a.r * Math.min(sx, sy);
+    if (a.lineWidth !== undefined) a.lineWidth = a.lineWidth * Math.min(sx, sy);
+    if (a.fontSize !== undefined) a.fontSize = a.fontSize * Math.min(sx, sy);
+    return a;
+  };
+
+  useEffect(() => {
+    if (!remoteActions || canDraw) return;
+    actionsRef.current = remoteActions.map(a => denormalizeAction(a));
+    undoneRef.current = [];
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const ctx = canvas.getContext("2d");
+    const rect = container.getBoundingClientRect();
+    if (ctx) redrawAll(ctx, rect.width, rect.height);
+  }, [remoteActions, canDraw, redrawAll, denormalizeAction]);
+
+  const broadcastAction = (action: DrawAction) => {
+    if (!enabled || !onSendData) return;
+    const container = containerRef.current;
+    if (!container) { onSendData({ type: "whiteboard-action", action }); return; }
+    const rect = container.getBoundingClientRect();
+    const scaleX = VIRTUAL_W / rect.width;
+    const scaleY = VIRTUAL_H / rect.height;
+    const normalized = normalizeAction(action, scaleX, scaleY);
+    onSendData({ type: "whiteboard-action", action: normalized });
+  };
 
   const getCanvasPoint = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
