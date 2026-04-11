@@ -116,6 +116,9 @@ export default function AdminNotificationsTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">
+                    <span className="flex items-center gap-2"><Users className="h-4 w-4" /> جميع المستخدمين</span>
+                  </SelectItem>
                   <SelectItem value="all_students">
                     <span className="flex items-center gap-2"><Users className="h-4 w-4" /> جميع الطلاب</span>
                   </SelectItem>
