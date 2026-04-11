@@ -33,6 +33,7 @@ import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
+import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -501,6 +502,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="session_pricing" className="rounded-lg gap-1.5">
               <DollarSign className="h-4 w-4" />
               أسعار الحصص
+            </TabsTrigger>
+            <TabsTrigger value="admin_notifications" className="rounded-lg gap-1.5">
+              <AlertTriangle className="h-4 w-4" />
+              الإشعارات
             </TabsTrigger>
           </TabsList>
 
@@ -974,6 +979,9 @@ const AdminDashboard = () => {
           </TabsContent>
           <TabsContent value="session_pricing" className="space-y-4">
             <SessionPricingTab />
+          </TabsContent>
+          <TabsContent value="admin_notifications" className="space-y-4">
+            <AdminNotificationsTab />
           </TabsContent>
         </Tabs>
       </div>
