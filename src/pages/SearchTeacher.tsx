@@ -287,7 +287,7 @@ const SearchTeacher = () => {
           });
         }
 
-        const stageText = selectedStage ? ` - ${selectedStage}` : "";
+        const stageText = selectedStage && selectedStage !== "all_stages" ? ` - ${selectedStage}` : "";
         const notifications = eligibleTeachers.map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
             title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}${stageText}`,
