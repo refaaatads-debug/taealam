@@ -1271,7 +1271,7 @@ export type Database = {
           ends_at: string
           id: string
           is_active: boolean | null
-          plan_id: string
+          plan_id: string | null
           remaining_minutes: number
           sessions_remaining: number
           starts_at: string
@@ -1285,7 +1285,7 @@ export type Database = {
           ends_at: string
           id?: string
           is_active?: boolean | null
-          plan_id: string
+          plan_id?: string | null
           remaining_minutes?: number
           sessions_remaining?: number
           starts_at?: string
@@ -1299,7 +1299,7 @@ export type Database = {
           ends_at?: string
           id?: string
           is_active?: boolean | null
-          plan_id?: string
+          plan_id?: string | null
           remaining_minutes?: number
           sessions_remaining?: number
           starts_at?: string
