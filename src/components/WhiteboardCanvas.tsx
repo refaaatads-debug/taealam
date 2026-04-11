@@ -45,6 +45,10 @@ const COLORS = [
   "#9b59b6", "#1abc9c", "#e67e22", "#ffffff",
 ];
 
+// Virtual canvas size for coordinate normalization (same for all users)
+const VIRTUAL_W = 1920;
+const VIRTUAL_H = 1080;
+
 const CURSOR_MAP: Record<Tool, string> = {
   pen: "crosshair",
   highlighter: "crosshair",
