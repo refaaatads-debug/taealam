@@ -57,12 +57,15 @@ const SearchTeacher = () => {
 
   // Quick booking form state
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedStage, setSelectedStage] = useState("");
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
+
+  const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   // Fetch student's remaining sessions
   useEffect(() => {
     if (!user) return;
@@ -98,14 +101,28 @@ const SearchTeacher = () => {
   useEffect(() => {
     if (!selectedSubject) { setTeacherCount(0); return; }
     const countTeachers = async () => {
-      const { count } = await supabase
+      // Get teacher IDs for selected subject
+      const { data: tsData } = await supabase
         .from("teacher_subjects")
-        .select("teacher_id", { count: "exact", head: true })
+        .select("teacher_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
         .eq("subject_id", selectedSubject);
-      setTeacherCount(count || 0);
+      
+      if (!tsData) { setTeacherCount(0); return; }
+      
+      let filtered = (tsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
+      
+      // Filter by stage if selected
+      if (selectedStage && selectedStage !== "all_stages") {
+        filtered = filtered.filter((ts: any) => {
+          const stages = ts.teacher_profiles?.teaching_stages || [];
+          return stages.includes(selectedStage);
+        });
+      }
+      
+      setTeacherCount(filtered.length);
     };
     countTeachers();
-  }, [selectedSubject]);
+  }, [selectedSubject, selectedStage]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase.from("subjects").select("id, name").order("name");
@@ -252,20 +269,29 @@ const SearchTeacher = () => {
       const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
       if (error) throw error;
 
-      // Notify teachers
+      // Notify only teachers matching subject AND stage
       const { data: teacherSubjectsData } = await supabase
         .from("teacher_subjects")
-        .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
+        .select("teacher_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
         .eq("subject_id", selectedSubject);
 
       if (teacherSubjectsData) {
         const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
-        const notifications = (teacherSubjectsData as any[])
-          .filter((ts: any) => ts.teacher_profiles?.is_approved)
-          .map((ts: any) => ({
+        let eligibleTeachers = (teacherSubjectsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
+        
+        // Filter by stage if selected
+        if (selectedStage && selectedStage !== "all_stages") {
+          eligibleTeachers = eligibleTeachers.filter((ts: any) => {
+            const stages = ts.teacher_profiles?.teaching_stages || [];
+            return stages.includes(selectedStage);
+          });
+        }
+
+        const stageText = selectedStage && selectedStage !== "all_stages" ? ` - ${selectedStage}` : "";
+        const notifications = eligibleTeachers.map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
-            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}`,
-            body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
+            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}${stageText}`,
+            body: `طالب يبحث عن معلم ${subjectName}${stageText}: ${slotsText}. سارع بالقبول!`,
             type: "booking_request",
           }));
 
@@ -282,6 +308,7 @@ const SearchTeacher = () => {
       }));
       setBookingSuccess({ slots: successSlots, subjectName: successSubjectName, teacherCount });
       setSelectedSubject("");
+      setSelectedStage("");
       setSelectedSlots([]);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -355,7 +382,7 @@ const SearchTeacher = () => {
               <p className="text-sm text-muted-foreground">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-end">
                 {/* Subject */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -374,6 +401,24 @@ const SearchTeacher = () => {
                   {selectedSubject && teacherCount > 0 && (
                     <p className="text-[11px] text-secondary mt-1 font-semibold">✅ {teacherCount} معلم متخصص</p>
                   )}
+                </div>
+
+                {/* Stage */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    🎓 المرحلة الدراسية
+                  </p>
+                  <Select value={selectedStage} onValueChange={setSelectedStage}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="اختر المرحلة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_stages">جميع المراحل</SelectItem>
+                      {teachingStagesOptions.map(stage => (
+                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Day */}
