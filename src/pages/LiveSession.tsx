@@ -170,6 +170,7 @@ const LiveSession = () => {
     toggleMic,
     toggleScreenShare,
     startRecording,
+    startAutoRecording,
     stopRecording,
     getRecordingBlob,
     restartConnection,
