@@ -87,11 +87,10 @@ export default function SmartMatchWidget() {
                       </div>
                       <div>
                         <p className="font-bold text-sm text-foreground">{t.name}</p>
-                        <p className="text-xs text-muted-foreground">{t.subject} • {t.hourly_rate} ر.س/ساعة • <Star className="h-3 w-3 inline fill-gold text-gold" /> {t.rating}</p>
+                        <p className="text-xs text-muted-foreground">{t.subject} • <Star className="h-3 w-3 inline fill-gold text-gold" /> {t.rating}</p>
                       </div>
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-black text-primary">{t.hourly_rate} <span className="text-[10px] text-muted-foreground font-normal">ر.س</span></p>
                       <div className="flex items-center gap-1">
                         <Award className="h-3 w-3 text-gold" />
                         <span className="text-[10px] font-bold text-gold">{t.match_score}%</span>
