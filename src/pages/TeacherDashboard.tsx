@@ -25,6 +25,7 @@ const TeacherDashboard = () => {
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
   const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
   const unreadCounts = useUnreadMessages(scheduleIds);
