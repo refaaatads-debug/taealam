@@ -127,6 +127,9 @@ const TeacherDashboard = () => {
       sessions: tp?.total_sessions || 0,
       rating: Number(tp?.avg_rating) || 0,
     });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const displayName = profile?.full_name || "معلم";
