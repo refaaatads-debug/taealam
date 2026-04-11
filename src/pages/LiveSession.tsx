@@ -572,7 +572,6 @@ const LiveSession = () => {
       toast.info("🔴 يتم تسجيل الحصة تلقائياً");
     }
   }, [bothJoined]);
-  }, [meetingStarted, remoteConnected, bothJoined]);
 
   // Session timer - only ticks when bothJoined
   useEffect(() => {
