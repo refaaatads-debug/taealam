@@ -101,14 +101,28 @@ const SearchTeacher = () => {
   useEffect(() => {
     if (!selectedSubject) { setTeacherCount(0); return; }
     const countTeachers = async () => {
-      const { count } = await supabase
+      // Get teacher IDs for selected subject
+      const { data: tsData } = await supabase
         .from("teacher_subjects")
-        .select("teacher_id", { count: "exact", head: true })
+        .select("teacher_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
         .eq("subject_id", selectedSubject);
-      setTeacherCount(count || 0);
+      
+      if (!tsData) { setTeacherCount(0); return; }
+      
+      let filtered = (tsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
+      
+      // Filter by stage if selected
+      if (selectedStage) {
+        filtered = filtered.filter((ts: any) => {
+          const stages = ts.teacher_profiles?.teaching_stages || [];
+          return stages.includes(selectedStage);
+        });
+      }
+      
+      setTeacherCount(filtered.length);
     };
     countTeachers();
-  }, [selectedSubject]);
+  }, [selectedSubject, selectedStage]);
 
   const fetchSubjects = async () => {
     const { data } = await supabase.from("subjects").select("id, name").order("name");
