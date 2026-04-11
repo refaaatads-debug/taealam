@@ -257,6 +257,7 @@ const SearchTeacher = () => {
       const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
 
       // Insert all booking requests
+      const stageValue = selectedStage && selectedStage !== "all_stages" ? selectedStage : null;
       const requests = scheduledDates.map(sd => ({
         student_id: user.id,
         subject_id: selectedSubject,
@@ -264,6 +265,7 @@ const SearchTeacher = () => {
         duration_minutes: 45,
         status: "open",
         expires_at: expiresAt,
+        teaching_stage: stageValue,
       }));
 
       const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
