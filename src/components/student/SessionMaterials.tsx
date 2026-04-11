@@ -144,7 +144,11 @@ export default function SessionMaterials() {
                                 <Play className="h-4 w-4 text-primary" />
                                 <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                               </div>
-                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
+                              {m.recording_url.includes('.webm') || m.recording_url.includes('audio') ? (
+                                <audio src={m.recording_url} controls className="w-full" preload="metadata" />
+                              ) : (
+                                <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
+                              )}
                             </div>
                           )}
                           {m.ai_report ? (
