@@ -3,7 +3,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, X } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, X, Loader2 } from "lucide-react";
 
 import BookingRequests from "@/components/teacher/BookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
@@ -25,6 +25,7 @@ const TeacherDashboard = () => {
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
   const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
   const unreadCounts = useUnreadMessages(scheduleIds);
@@ -51,6 +52,7 @@ const TeacherDashboard = () => {
 
   const fetchData = async () => {
     if (!user) return;
+    try {
 
     const { data: tp } = await supabase
       .from("teacher_profiles")
@@ -125,10 +127,29 @@ const TeacherDashboard = () => {
       sessions: tp?.total_sessions || 0,
       rating: Number(tp?.avg_rating) || 0,
     });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+        <Navbar />
+        <div className="container py-16 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-muted-foreground">جاري تحميل لوحة التحكم...</p>
+          </div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
 
   // Show pending approval screen if teacher is not approved
   if (teacherProfile && !isApproved) {
