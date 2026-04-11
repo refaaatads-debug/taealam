@@ -35,6 +35,7 @@ const Profile = () => {
   const [allSubjects, setAllSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null);
   const [loadingTeacher, setLoadingTeacher] = useState(false);
+  const [teachingStages, setTeachingStages] = useState<string[]>([]);
 
   // Payment details
   const [bankName, setBankName] = useState("");
