@@ -190,11 +190,7 @@ export default function BookingRequests() {
       toast.success("تم قبول الطلب وإنشاء الحجز بنجاح! 🎉");
       fetchRequests();
     } catch (e: any) {
-      if (e.message?.includes("0 rows")) {
-        toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
-      } else {
-        toast.error(e.message || "حدث خطأ");
-      }
+      toast.error(e.message || "حدث خطأ");
       fetchRequests();
     } finally {
       setAccepting(null);
