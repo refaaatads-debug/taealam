@@ -269,20 +269,29 @@ const SearchTeacher = () => {
       const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
       if (error) throw error;
 
-      // Notify teachers
+      // Notify only teachers matching subject AND stage
       const { data: teacherSubjectsData } = await supabase
         .from("teacher_subjects")
-        .select("teacher_id, teacher_profiles!inner(user_id, is_approved)")
+        .select("teacher_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
         .eq("subject_id", selectedSubject);
 
       if (teacherSubjectsData) {
         const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
-        const notifications = (teacherSubjectsData as any[])
-          .filter((ts: any) => ts.teacher_profiles?.is_approved)
-          .map((ts: any) => ({
+        let eligibleTeachers = (teacherSubjectsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
+        
+        // Filter by stage if selected
+        if (selectedStage) {
+          eligibleTeachers = eligibleTeachers.filter((ts: any) => {
+            const stages = ts.teacher_profiles?.teaching_stages || [];
+            return stages.includes(selectedStage);
+          });
+        }
+
+        const stageText = selectedStage ? ` - ${selectedStage}` : "";
+        const notifications = eligibleTeachers.map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
-            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}`,
-            body: `طالب يبحث عن معلم ${subjectName}: ${slotsText}. سارع بالقبول!`,
+            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}${stageText}`,
+            body: `طالب يبحث عن معلم ${subjectName}${stageText}: ${slotsText}. سارع بالقبول!`,
             type: "booking_request",
           }));
 
