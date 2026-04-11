@@ -112,7 +112,7 @@ const SearchTeacher = () => {
       let filtered = (tsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
       
       // Filter by stage if selected
-      if (selectedStage) {
+      if (selectedStage && selectedStage !== "all_stages") {
         filtered = filtered.filter((ts: any) => {
           const stages = ts.teacher_profiles?.teaching_stages || [];
           return stages.includes(selectedStage);
@@ -280,7 +280,7 @@ const SearchTeacher = () => {
         let eligibleTeachers = (teacherSubjectsData as any[]).filter((ts: any) => ts.teacher_profiles?.is_approved);
         
         // Filter by stage if selected
-        if (selectedStage) {
+        if (selectedStage && selectedStage !== "all_stages") {
           eligibleTeachers = eligibleTeachers.filter((ts: any) => {
             const stages = ts.teacher_profiles?.teaching_stages || [];
             return stages.includes(selectedStage);
