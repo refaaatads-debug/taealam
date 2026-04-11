@@ -130,6 +130,42 @@ const TeacherDashboard = () => {
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
 
+  // Show pending approval screen if teacher is not approved
+  if (teacherProfile && !isApproved) {
+    return (
+      <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+        <Navbar />
+        <div className="container py-16 flex items-center justify-center">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full">
+            <Card className="border-0 shadow-card text-center">
+              <CardContent className="p-10 space-y-6">
+                <div className="w-20 h-20 rounded-2xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center mx-auto">
+                  <AlertCircle className="h-10 w-10 text-amber-600" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black text-foreground mb-2">مرحباً، {displayName} 👋</h1>
+                  <p className="text-lg font-bold text-amber-600 mb-2">حسابك في انتظار الموافقة</p>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    تم استلام طلبك بنجاح وسيتم مراجعته من قبل الإدارة. ستتمكن من استخدام لوحة التحكم بعد الموافقة على حسابك.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button variant="outline" className="rounded-xl gap-2" asChild>
+                    <Link to="/profile"><Settings className="h-4 w-4" /> أكمل ملفك الشخصي</Link>
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl gap-2" onClick={() => window.location.href = "/support"}>
+                    <MessageSquare className="h-4 w-4" /> تواصل مع خدمة العملاء
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
       <Navbar />
@@ -138,29 +174,13 @@ const TeacherDashboard = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl md:text-3xl font-black text-foreground">مرحباً، {displayName} 👋</h1>
             <p className="text-muted-foreground">
-              {isApproved ? `لديك ${openRequestsCount} طلب متاح و ${schedule.length} حصة قادمة` : "حسابك في انتظار الموافقة"}
+              لديك {openRequestsCount} طلب متاح و {schedule.length} حصة قادمة
             </p>
           </motion.div>
           <Button variant="outline" className="rounded-xl gap-2" asChild>
             <Link to="/profile"><Settings className="h-4 w-4" /> إعدادات الحساب</Link>
           </Button>
         </div>
-
-        {!isApproved && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="border-0 shadow-card mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
-                  <AlertCircle className="h-6 w-6 text-amber-600" />
-                </div>
-                <div>
-                  <p className="font-black text-foreground mb-1">حسابك في انتظار الموافقة</p>
-                  <p className="text-sm text-muted-foreground">سيتم مراجعة حسابك من قبل الإدارة وتفعيله قريباً.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
 
         {/* Stats - removed pricing/hourly rate */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
