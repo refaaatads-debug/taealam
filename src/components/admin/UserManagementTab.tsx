@@ -82,12 +82,15 @@ export default function UserManagementTab() {
     fetchUsers();
   }, []);
 
+  const [bannedUsers, setBannedUsers] = useState<Set<string>>(new Set());
+
   const fetchUsers = async () => {
     setLoading(true);
-    const [usersRes, rolesRes, permsRes] = await Promise.all([
+    const [usersRes, rolesRes, permsRes, bannedRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("user_roles").select("user_id, role"),
       (supabase as any).from("user_permissions").select("user_id, permission"),
+      supabase.from("user_warnings").select("user_id, is_banned").eq("warning_type", "admin_ban").eq("is_banned", true),
     ]);
     setAllUsers(usersRes.data ?? []);
     const rMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
@@ -100,6 +103,7 @@ export default function UserManagementTab() {
       pMap.set(p.user_id, existing);
     });
     setUserPermissionsMap(pMap);
+    setBannedUsers(new Set((bannedRes.data ?? []).map((b: any) => b.user_id)));
     setLoading(false);
   };
 
