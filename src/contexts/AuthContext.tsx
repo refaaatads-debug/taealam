@@ -82,11 +82,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-            fetchRoles(session.user.id);
-            applyPendingRole(session.user.id);
-          }, 0);
+          // Small delay to ensure DB triggers have completed
+          setTimeout(async () => {
+            await fetchProfile(session.user.id);
+            await fetchRoles(session.user.id);
+            await applyPendingRole(session.user.id);
+          }, 500);
         } else {
           setProfile(null);
           setRoles([]);
