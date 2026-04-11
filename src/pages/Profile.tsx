@@ -85,6 +85,7 @@ const Profile = () => {
           setBankName((tp as any).bank_name || "");
           setIban((tp as any).iban || "");
           setAccountHolder((tp as any).account_holder_name || "");
+          setTeachingStages((tp as any).teaching_stages || []);
           supabase.from("teacher_subjects").select("subject_id").eq("teacher_id", tp.id).then(({ data: ts }) => {
             if (ts) setTeacherSubjects(ts.map(t => t.subject_id));
           });
