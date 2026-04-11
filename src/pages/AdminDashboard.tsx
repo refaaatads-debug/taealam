@@ -205,9 +205,31 @@ const AdminDashboard = () => {
       if (pendingRaw) {
         const userIds = pendingRaw.map(t => t.user_id);
         if (userIds.length > 0) {
-          const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds);
+          const tpIds = pendingRaw.map(t => t.id);
+          const [{ data: profiles }, { data: subjects }, { data: certs }] = await Promise.all([
+            supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", userIds),
+            supabase.from("teacher_subjects").select("teacher_id, subjects(name)").in("teacher_id", tpIds),
+            supabase.from("teacher_certificates" as any).select("*").in("teacher_id", userIds),
+          ]);
           const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
-          setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id) })));
+          const subjectMap = new Map<string, string[]>();
+          (subjects ?? []).forEach((s: any) => {
+            const existing = subjectMap.get(s.teacher_id) || [];
+            existing.push(s.subjects?.name || "");
+            subjectMap.set(s.teacher_id, existing);
+          });
+          const certMap = new Map<string, any[]>();
+          (certs ?? []).forEach((c: any) => {
+            const existing = certMap.get(c.teacher_id) || [];
+            existing.push(c);
+            certMap.set(c.teacher_id, existing);
+          });
+          setPendingTeachers(pendingRaw.map(t => ({
+            ...t,
+            profile: profileMap.get(t.user_id),
+            subjects: subjectMap.get(t.id) || [],
+            certificates: certMap.get(t.user_id) || [],
+          })));
         } else {
           setPendingTeachers([]);
         }
