@@ -804,7 +804,11 @@ const LiveSession = () => {
     // Notify the other party to end session too
     sendDataMessage({ type: "session-end", elapsed });
 
-    if (isRecording) stopRecording();
+    if (isRecording) {
+      stopRecording();
+      // Give MediaRecorder time to flush final chunks
+      await new Promise(r => setTimeout(r, 500));
+    }
     await stop();
     await cleanupSession();
     logEvent("end_session", { elapsed_seconds: elapsed });
