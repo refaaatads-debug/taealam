@@ -767,13 +767,10 @@ const LiveSession = () => {
     if (!blob || !bookingId || !user) return;
     setRecordingUploading(true);
     try {
-      const isAudio = blob.type.startsWith("audio/");
-      const ext = isAudio ? "webm" : "webm";
-      const contentType = blob.type || "audio/webm";
-      const fileName = `${user.id}/${bookingId}_${Date.now()}.${ext}`;
+      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
-        .upload(fileName, blob, { contentType, upsert: true });
+        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
       if (uploadErr) throw uploadErr;
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
