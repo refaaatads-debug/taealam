@@ -128,17 +128,19 @@ export default function BookingRequests() {
 
     setAccepting(request.id);
     try {
-      const { error: updateError } = await supabase
-        .from("booking_requests" as any)
-        .update({
-          status: "accepted",
-          accepted_by: user.id,
-          accepted_at: new Date().toISOString(),
-        } as any)
-        .eq("id", request.id)
-        .eq("status", "open");
+      // Atomic acceptance - prevents double-acceptance by multiple teachers
+      const { data: accepted, error: rpcError } = await supabase.rpc(
+        "accept_booking_request" as any,
+        { _request_id: request.id, _teacher_id: user.id }
+      );
 
-      if (updateError) throw updateError;
+      if (rpcError) throw rpcError;
+      if (!accepted) {
+        toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
+        fetchRequests();
+        setAccepting(null);
+        return;
+      }
 
       // Link booking to student's active subscription (deduction happens after session completion)
       const { data: activeSub } = await supabase
@@ -188,11 +190,7 @@ export default function BookingRequests() {
       toast.success("تم قبول الطلب وإنشاء الحجز بنجاح! 🎉");
       fetchRequests();
     } catch (e: any) {
-      if (e.message?.includes("0 rows")) {
-        toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
-      } else {
-        toast.error(e.message || "حدث خطأ");
-      }
+      toast.error(e.message || "حدث خطأ");
       fetchRequests();
     } finally {
       setAccepting(null);

@@ -1480,6 +1480,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_booking_request: {
+        Args: { _request_id: string; _teacher_id: string }
+        Returns: boolean
+      }
       cleanup_old_chat_messages: { Args: never; Returns: number }
       has_permission: {
         Args: {
