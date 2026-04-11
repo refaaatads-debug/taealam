@@ -308,6 +308,7 @@ const SearchTeacher = () => {
       }));
       setBookingSuccess({ slots: successSlots, subjectName: successSubjectName, teacherCount });
       setSelectedSubject("");
+      setSelectedStage("");
       setSelectedSlots([]);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
