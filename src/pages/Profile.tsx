@@ -339,6 +339,29 @@ const Profile = () => {
                             </button>
                           );
                         })}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
+                        <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية (يمكن اختيار أكثر من مرحلة)
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"].map(stage => {
+                          const selected = teachingStages.includes(stage);
+                          return (
+                            <button
+                              key={stage}
+                              onClick={() => setTeachingStages(prev => prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage])}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                selected
+                                  ? "bg-secondary text-secondary-foreground shadow-button"
+                                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                              }`}
+                            >
+                              {selected && <CheckCircle className="h-3 w-3 inline ml-1" />}
+                              {stage}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </>
