@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award } from "lucide-react";
+import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
