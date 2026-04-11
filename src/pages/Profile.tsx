@@ -127,6 +127,7 @@ const Profile = () => {
           bank_name: bankName || null,
           iban: iban || null,
           account_holder_name: accountHolder || null,
+          teaching_stages: teachingStages,
         } as any).eq("id", teacherProfileId);
         if (teacherErr) throw teacherErr;
 
