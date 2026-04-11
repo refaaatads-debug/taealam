@@ -767,14 +767,27 @@ const LiveSession = () => {
     if (!blob || !bookingId || !user) return;
     setRecordingUploading(true);
     try {
-      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+      const isAudio = blob.type.startsWith("audio/");
+      const ext = isAudio ? "webm" : "webm";
+      const contentType = blob.type || "audio/webm";
+      const fileName = `${user.id}/${bookingId}_${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
-        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+        .upload(fileName, blob, { contentType, upsert: true });
       if (uploadErr) throw uploadErr;
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      await supabase.from("sessions").update({ recording_url: urlData.publicUrl }).eq("booking_id", bookingId);
+      const recordingUrl = urlData.publicUrl;
+
+      // Update session with recording URL
+      await supabase.from("sessions").update({ recording_url: recordingUrl }).eq("booking_id", bookingId);
+
+      // Also update session_materials with the recording URL
+      const { data: sessionData } = await supabase.from("sessions").select("id").eq("booking_id", bookingId).single();
+      if (sessionData) {
+        await supabase.from("session_materials").update({ recording_url: recordingUrl }).eq("session_id", sessionData.id);
+      }
+
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch {
       toast.error("تعذر رفع التسجيل");
