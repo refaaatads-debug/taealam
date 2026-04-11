@@ -381,7 +381,7 @@ const SearchTeacher = () => {
               <p className="text-sm text-muted-foreground">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-end">
                 {/* Subject */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -400,6 +400,24 @@ const SearchTeacher = () => {
                   {selectedSubject && teacherCount > 0 && (
                     <p className="text-[11px] text-secondary mt-1 font-semibold">✅ {teacherCount} معلم متخصص</p>
                   )}
+                </div>
+
+                {/* Stage */}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                    🎓 المرحلة الدراسية
+                  </p>
+                  <Select value={selectedStage} onValueChange={setSelectedStage}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="اختر المرحلة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_stages">جميع المراحل</SelectItem>
+                      {teachingStagesOptions.map(stage => (
+                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Day */}
