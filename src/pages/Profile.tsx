@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award } from "lucide-react";
+import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,7 @@ const Profile = () => {
   const [allSubjects, setAllSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null);
   const [loadingTeacher, setLoadingTeacher] = useState(false);
+  const [teachingStages, setTeachingStages] = useState<string[]>([]);
 
   // Payment details
   const [bankName, setBankName] = useState("");
@@ -84,6 +85,7 @@ const Profile = () => {
           setBankName((tp as any).bank_name || "");
           setIban((tp as any).iban || "");
           setAccountHolder((tp as any).account_holder_name || "");
+          setTeachingStages((tp as any).teaching_stages || []);
           supabase.from("teacher_subjects").select("subject_id").eq("teacher_id", tp.id).then(({ data: ts }) => {
             if (ts) setTeacherSubjects(ts.map(t => t.subject_id));
           });
@@ -125,6 +127,7 @@ const Profile = () => {
           bank_name: bankName || null,
           iban: iban || null,
           account_holder_name: accountHolder || null,
+          teaching_stages: teachingStages,
         } as any).eq("id", teacherProfileId);
         if (teacherErr) throw teacherErr;
 
@@ -333,6 +336,30 @@ const Profile = () => {
                             >
                               {selected && <CheckCircle className="h-3 w-3 inline ml-1" />}
                               {s.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
+                        <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية (يمكن اختيار أكثر من مرحلة)
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"].map(stage => {
+                          const selected = teachingStages.includes(stage);
+                          return (
+                            <button
+                              key={stage}
+                              onClick={() => setTeachingStages(prev => prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage])}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                selected
+                                  ? "bg-secondary text-secondary-foreground shadow-button"
+                                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                              }`}
+                            >
+                              {selected && <CheckCircle className="h-3 w-3 inline ml-1" />}
+                              {stage}
                             </button>
                           );
                         })}

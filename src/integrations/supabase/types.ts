@@ -1134,6 +1134,7 @@ export type Database = {
           is_approved: boolean | null
           is_verified: boolean | null
           nationality: string | null
+          teaching_stages: string[] | null
           total_reviews: number | null
           total_sessions: number | null
           updated_at: string
@@ -1156,6 +1157,7 @@ export type Database = {
           is_approved?: boolean | null
           is_verified?: boolean | null
           nationality?: string | null
+          teaching_stages?: string[] | null
           total_reviews?: number | null
           total_sessions?: number | null
           updated_at?: string
@@ -1178,6 +1180,7 @@ export type Database = {
           is_approved?: boolean | null
           is_verified?: boolean | null
           nationality?: string | null
+          teaching_stages?: string[] | null
           total_reviews?: number | null
           total_sessions?: number | null
           updated_at?: string
