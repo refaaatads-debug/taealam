@@ -49,6 +49,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (data) setRoles(data.map((r) => r.role));
   };
 
+  // Apply pending role after OAuth redirect (e.g. teacher signup via Google)
+  const applyPendingRole = async (userId: string) => {
+    const pendingRole = localStorage.getItem("pending_role");
+    if (!pendingRole) return;
+    localStorage.removeItem("pending_role");
+
+    if (pendingRole === "teacher") {
+      try {
+        const { error } = await supabase.rpc("set_new_user_role", { _role: "teacher" });
+        if (!error) {
+          // Re-fetch roles after update
+          await fetchRoles(userId);
+          window.location.href = "/teacher";
+          return;
+        }
+        console.log("Role update skipped:", error.message);
+      } catch (e) {
+        console.error("Error setting role:", e);
+      }
+    }
+  };
+
   useEffect(() => {
     // Safety timeout to prevent infinite loading
     const timeout = setTimeout(() => {
@@ -63,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setTimeout(() => {
             fetchProfile(session.user.id);
             fetchRoles(session.user.id);
+            applyPendingRole(session.user.id);
           }, 0);
         } else {
           setProfile(null);
@@ -78,6 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         fetchProfile(session.user.id);
         fetchRoles(session.user.id);
+        applyPendingRole(session.user.id);
       }
       setLoading(false);
     }).catch(() => {
