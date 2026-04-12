@@ -13,9 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle } from "lucide-react";
+import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
