@@ -230,8 +230,9 @@ const SearchTeacher = () => {
       return;
     }
 
-    if (sessionsRemaining < selectedSlots.length) {
-      toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+    const maxSlots = Math.floor(remainingMinutes / 45);
+    if (maxSlots > 0 && selectedSlots.length > maxSlots) {
+      toast.error(`رصيدك ${remainingMinutes} دقيقة (${maxSlots} حصة). قللّ عدد الحصص أو جدّد باقتك.`);
       return;
     }
 
