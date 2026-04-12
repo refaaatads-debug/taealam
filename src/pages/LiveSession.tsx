@@ -1297,7 +1297,7 @@ const LiveSession = () => {
                 <h3 className="font-bold text-foreground">المحادثة</h3>
                 <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors">✕</button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={(el) => { if (el) setTimeout(() => el.scrollTop = el.scrollHeight, 50); }}>
                 {messages.map((m, i) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
