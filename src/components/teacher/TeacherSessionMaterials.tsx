@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play } from "lucide-react";
+import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +25,7 @@ export default function TeacherSessionMaterials() {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<SessionMaterial[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function TeacherSessionMaterials() {
     const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    setMaterials(mats.map(m => {
+    const result = mats.map(m => {
       const session = sessionMap.get(m.session_id);
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
       return {
@@ -75,15 +76,27 @@ export default function TeacherSessionMaterials() {
         student_name: nameMap.get(m.student_id) || "طالب",
         days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
-    }));
+    });
+    setMaterials(result);
+    // Auto-expand first student
+    const firstStudent = result[0]?.student_name;
+    if (firstStudent) setExpandedStudents(new Set([firstStudent]));
     setLoading(false);
   };
 
   const grouped = materials.reduce<Record<string, SessionMaterial[]>>((acc, m) => {
-    if (!acc[m.subject_name]) acc[m.subject_name] = [];
-    acc[m.subject_name].push(m);
+    if (!acc[m.student_name]) acc[m.student_name] = [];
+    acc[m.student_name].push(m);
     return acc;
   }, {});
+
+  const toggleStudent = (name: string) => {
+    setExpandedStudents(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
 
   if (loading || materials.length === 0) return null;
 
@@ -99,96 +112,119 @@ export default function TeacherSessionMaterials() {
         </CardTitle>
         <p className="text-xs text-muted-foreground">تقارير وتحليلات الحصص المكتملة (متاحة لمدة 7 أيام)</p>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {Object.entries(grouped).map(([subjectName, items]) => (
-          <div key={subjectName}>
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="h-4 w-4 text-secondary" />
-              <span className="text-sm font-bold text-foreground">{subjectName}</span>
-              <Badge variant="outline" className="text-[10px]">{items.length}</Badge>
-            </div>
-            <div className="space-y-2">
-              {items.map(m => (
-                <motion.div key={m.id} layout className="rounded-xl border bg-muted/30 overflow-hidden">
-                  <button
-                    onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
-                    className="w-full flex items-center justify-between p-3 text-right hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                        <FileText className="h-4 w-4 text-secondary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground">حصة مع {m.student_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(m.created_at).toLocaleDateString("ar-SA")} • {m.duration_minutes} دقيقة
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-orange-500/10 text-orange-600 border-0 text-[10px]">
-                        {m.days_remaining} يوم متبقي
-                      </Badge>
-                      {expandedId === m.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-                  <AnimatePresence>
-                    {expandedId === m.id && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="border-t"
-                      >
-                        <div className="p-4 space-y-3">
-                          {m.recording_url && (
+      <CardContent className="space-y-3">
+        {Object.entries(grouped).map(([studentName, items]) => (
+          <div key={studentName} className="rounded-2xl border bg-muted/20 overflow-hidden">
+            <button
+              onClick={() => toggleStudent(studentName)}
+              className="w-full flex items-center justify-between p-3 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-foreground">{studentName}</p>
+                  <p className="text-[11px] text-muted-foreground">{items.length} حصة</p>
+                </div>
+              </div>
+              {expandedStudents.has(studentName)
+                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            <AnimatePresence>
+              {expandedStudents.has(studentName) && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="border-t"
+                >
+                  <div className="p-3 space-y-2">
+                    {items.map(m => (
+                      <motion.div key={m.id} layout className="rounded-xl border bg-card overflow-hidden">
+                        <button
+                          onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
+                          className="w-full flex items-center justify-between p-3 text-right hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                              <FileText className="h-4 w-4 text-secondary" />
+                            </div>
                             <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Play className="h-4 w-4 text-primary" />
-                                <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
-                              </div>
-                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
+                              <p className="text-sm font-bold text-foreground">{m.subject_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(m.created_at).toLocaleDateString("ar-SA")} • {m.duration_minutes} دقيقة
+                              </p>
                             </div>
-                          )}
-                          {m.ai_report ? (
-                            <div className="bg-accent/30 rounded-xl p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-yellow-500" />
-                                <span className="text-sm font-bold text-foreground">تحليل AI للحصة</span>
-                              </div>
-                              {(() => {
-                                try {
-                                  const parsed = JSON.parse(m.ai_report!);
-                                  const summary = parsed.summary || m.ai_report;
-                                  const score = parsed.performance_score;
-                                  return (
-                                    <div className="space-y-2">
-                                      {score !== undefined && (
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <span className="text-sm font-bold">🎯 تقييم الأداء:</span>
-                                          <Badge className={`${score >= 80 ? "bg-green-500/10 text-green-600" : score >= 60 ? "bg-yellow-500/10 text-yellow-600" : "bg-destructive/10 text-destructive"} border-0`}>
-                                            {score}/100
-                                          </Badge>
-                                        </div>
-                                      )}
-                                      <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{summary}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-orange-500/10 text-orange-600 border-0 text-[10px]">
+                              {m.days_remaining} يوم متبقي
+                            </Badge>
+                            {expandedId === m.id ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {expandedId === m.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="border-t"
+                            >
+                              <div className="p-4 space-y-3">
+                                {m.recording_url && (
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Play className="h-4 w-4 text-primary" />
+                                      <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                                     </div>
-                                  );
-                                } catch {
-                                  return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>;
-                                }
-                              })()}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">لم يتم إنشاء تقرير لهذه الحصة بعد</p>
+                                    <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
+                                  </div>
+                                )}
+                                {m.ai_report ? (
+                                  <div className="bg-accent/30 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Sparkles className="h-4 w-4 text-yellow-500" />
+                                      <span className="text-sm font-bold text-foreground">تحليل AI للحصة</span>
+                                    </div>
+                                    {(() => {
+                                      try {
+                                        const parsed = JSON.parse(m.ai_report!);
+                                        const summary = parsed.summary || m.ai_report;
+                                        const score = parsed.performance_score;
+                                        return (
+                                          <div className="space-y-2">
+                                            {score !== undefined && (
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-sm font-bold">🎯 تقييم الأداء:</span>
+                                                <Badge className={`${score >= 80 ? "bg-green-500/10 text-green-600" : score >= 60 ? "bg-yellow-500/10 text-yellow-600" : "bg-destructive/10 text-destructive"} border-0`}>
+                                                  {score}/100
+                                                </Badge>
+                                              </div>
+                                            )}
+                                            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{summary}</p>
+                                          </div>
+                                        );
+                                      } catch {
+                                        return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>;
+                                      }
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground text-center py-4">لم يتم إنشاء تقرير لهذه الحصة بعد</p>
+                                )}
+                              </div>
+                            </motion.div>
                           )}
-                        </div>
+                        </AnimatePresence>
                       </motion.div>
-                    )}
-                  </AnimatePresence>
+                    ))}
+                  </div>
                 </motion.div>
-              ))}
-            </div>
+              )}
+            </AnimatePresence>
           </div>
         ))}
       </CardContent>
