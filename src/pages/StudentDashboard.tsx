@@ -13,9 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle } from "lucide-react";
+import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +44,33 @@ const StudentDashboard = () => {
   const [subscription, setSubscription] = useState<any>(null);
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const handleCancelBooking = async (booking: any) => {
+    setCancellingId(booking.id);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled" as any })
+        .eq("id", booking.id)
+        .eq("student_id", user!.id);
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: booking.teacher_id,
+        title: "تم إلغاء حصة",
+        body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
+        type: "booking_cancelled",
+      });
+
+      toast.success("تم إلغاء الحصة بنجاح");
+      setUpcomingClasses(prev => prev.filter(c => c.id !== booking.id));
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الحصة");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -351,6 +383,32 @@ const StudentDashboard = () => {
                             <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                               <Link to={`/session?booking=${c.id}`}>انضم للجلسة</Link>
                             </Button>
+                          )}
+                          {c.session_status !== "in_progress" && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
+                                  {cancellingId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    هل أنت متأكد من إلغاء حصة {c.subjects?.name || "حصة"} مع {c.teacher_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>تراجع</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleCancelBooking(c)}
+                                  >
+                                    نعم، إلغاء الحصة
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                         </div>
                       </motion.div>

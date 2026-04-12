@@ -2,24 +2,62 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Video, MessageSquare } from "lucide-react";
+import { Calendar, Clock, Video, MessageSquare, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   upcomingClasses: any[];
+  onRefresh?: () => void;
 }
 
-export default function UpcomingSchedule({ upcomingClasses }: Props) {
+export default function UpcomingSchedule({ upcomingClasses, onRefresh }: Props) {
   const { user } = useAuth();
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const classIds = useMemo(() => upcomingClasses.map(c => c.id), [upcomingClasses]);
   const unreadCounts = useUnreadMessages(classIds);
   const { play: playNotificationSound } = useNotificationSound();
+
+  const handleCancel = async (bookingId: string) => {
+    setCancellingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled" as any })
+        .eq("id", bookingId)
+        .eq("student_id", user!.id);
+
+      if (error) throw error;
+
+      // Send notification to teacher
+      const booking = upcomingClasses.find(c => c.id === bookingId);
+      if (booking) {
+        await supabase.from("notifications").insert({
+          user_id: booking.teacher_id,
+          title: "تم إلغاء حصة",
+          body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
+          type: "booking_cancelled",
+        });
+      }
+
+      toast.success("تم إلغاء الحصة بنجاح");
+      onRefresh?.();
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الحصة");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!user || upcomingClasses.length === 0) return;
@@ -133,6 +171,32 @@ export default function UpcomingSchedule({ upcomingClasses }: Props) {
                             )}
                           </Link>
                         </Button>
+                        {!isLive && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10">
+                                {cancellingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  هل أنت متأكد من إلغاء حصة {c.subjects?.name || "حصة"} مع {c.teacher_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>تراجع</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleCancel(c.id)}
+                                >
+                                  نعم، إلغاء الحصة
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </td>
                   </tr>
