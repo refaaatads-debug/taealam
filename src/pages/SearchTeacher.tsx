@@ -27,6 +27,7 @@ interface TeacherResult {
   years_experience: number;
   available_from: string | null;
   available_to: string | null;
+  teaching_stages: string[];
   profile?: { full_name: string; avatar_url: string | null };
   subjects: string[];
 }
