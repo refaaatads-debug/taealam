@@ -147,13 +147,46 @@ export default function SessionMaterials() {
                               <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
                             </div>
                           )}
-                          {m.ai_report ? (
-                            <div className="bg-accent/30 rounded-xl p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-yellow-500" />
-                                <span className="text-sm font-bold text-foreground">تحليل AI للحصة</span>
-                              </div>
-                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>
+                          {(() => {
+                            try {
+                              const parsed = JSON.parse(m.ai_report!);
+                              const summary = parsed.summary || m.ai_report;
+                              const score = parsed.performance_score;
+                              const topics = parsed.extracted_topics as string[] | undefined;
+                              const gaps = parsed.gap_warnings as { description: string }[] | undefined;
+                              return (
+                                <div className="space-y-3">
+                                  {score !== undefined && (
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="text-sm font-bold">🎯 تقييم الأداء:</span>
+                                      <Badge className={`${score >= 80 ? "bg-green-500/10 text-green-600" : score >= 60 ? "bg-yellow-500/10 text-yellow-600" : "bg-destructive/10 text-destructive"} border-0`}>
+                                        {score}/100
+                                      </Badge>
+                                    </div>
+                                  )}
+                                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{summary}</p>
+                                  {topics && topics.length > 0 && (
+                                    <div>
+                                      <p className="text-xs font-bold text-foreground mb-1">🔍 المواضيع المشروحة:</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {topics.map((t, idx) => <Badge key={idx} variant="outline" className="text-[10px]">{t}</Badge>)}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {gaps && gaps.length > 0 && (
+                                    <div>
+                                      <p className="text-xs font-bold text-destructive mb-1">⚠️ فجوات تعليمية:</p>
+                                      <ul className="text-xs text-muted-foreground space-y-1">
+                                        {gaps.map((g, idx) => <li key={idx}>• {g.description}</li>)}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            } catch {
+                              return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>;
+                            }
+                          })()}
                             </div>
                           ) : (
                             <p className="text-sm text-muted-foreground text-center py-4">لم يتم إنشاء تقرير لهذه الحصة بعد</p>
