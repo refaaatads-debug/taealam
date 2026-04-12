@@ -66,6 +66,11 @@ const SearchTeacher = () => {
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
 
+  // Filters for "اختر معلم محدد" section
+  const [filterName, setFilterName] = useState("");
+  const [filterStage, setFilterStage] = useState("all");
+  const [filterSubject, setFilterSubject] = useState("all");
+
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   // Fetch student's remaining sessions
   useEffect(() => {
