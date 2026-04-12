@@ -186,7 +186,11 @@ const SearchTeacher = () => {
       const name = t.profile?.full_name || "";
       const matchSearch = name.includes(search) || t.subjects.some(s => s.includes(search));
       const matchSubject = subject === "all" || t.subjects.includes(subject);
-      return matchSearch && matchSubject;
+      // Additional filters for "اختر معلم محدد"
+      const matchFilterName = !filterName || name.includes(filterName);
+      const matchFilterSubject = filterSubject === "all" || t.subjects.includes(filterSubject);
+      const matchFilterStage = filterStage === "all" || t.teaching_stages.includes(filterStage);
+      return matchSearch && matchSubject && matchFilterName && matchFilterSubject && matchFilterStage;
     })
     .sort((a, b) => sort === "rating" ? b.avg_rating - a.avg_rating : a.hourly_rate - b.hourly_rate);
 
