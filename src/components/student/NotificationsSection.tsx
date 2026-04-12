@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, CheckCheck, Video, CreditCard, AlertTriangle, MessageSquare, Gift, Loader2 } from "lucide-react";
+import { Bell, CheckCheck, Video, CreditCard, AlertTriangle, MessageSquare, Gift, Loader2, FileText, Image, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +16,8 @@ interface Notification {
   type: string | null;
   is_read: boolean | null;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
 }
 
 const typeIcons: Record<string, typeof Bell> = {
@@ -156,6 +158,19 @@ export default function NotificationsSection() {
                       </p>
                       {n.body && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                      )}
+                      {n.file_url && (
+                        <a
+                          href={n.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 text-primary text-[11px] font-medium transition-colors"
+                        >
+                          {n.file_name?.endsWith(".pdf") ? <FileText className="h-3.5 w-3.5" /> : <Image className="h-3.5 w-3.5" />}
+                          {n.file_name || "مرفق"}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       )}
                       <p className="text-[10px] text-muted-foreground/60 mt-1">
                         {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ar })}

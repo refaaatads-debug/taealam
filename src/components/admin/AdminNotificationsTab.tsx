@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Send, Loader2, Users, GraduationCap, User } from "lucide-react";
+import { Bell, Send, Loader2, Users, GraduationCap, User, Paperclip, X, FileText, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,6 +17,9 @@ export default function AdminNotificationsTab() {
   const [users, setUsers] = useState<{ user_id: string; full_name: string; role: string }[]>([]);
   const [sentHistory, setSentHistory] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -29,6 +32,39 @@ export default function AdminNotificationsTab() {
     ]);
     const roleMap = new Map((roles ?? []).map(r => [r.user_id, r.role]));
     setUsers((profiles ?? []).map(p => ({ ...p, role: roleMap.get(p.user_id) || "student" })));
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(selected.type)) {
+      toast.error("يُسمح فقط بالصور (PNG, JPG) وملفات PDF");
+      return;
+    }
+    if (selected.size > 5 * 1024 * 1024) {
+      toast.error("الحد الأقصى لحجم الملف 5 ميجا");
+      return;
+    }
+    setFile(selected);
+  };
+
+  const uploadFile = async (): Promise<{ url: string; name: string } | null> => {
+    if (!file) return null;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `notifications/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("site-assets").upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("site-assets").getPublicUrl(path);
+      return { url: urlData.publicUrl, name: file.name };
+    } catch (e: any) {
+      toast.error("فشل رفع الملف: " + (e.message || "خطأ"));
+      return null;
+    } finally {
+      setUploading(false);
+    }
   };
 
   const sendNotification = async () => {
@@ -63,17 +99,30 @@ export default function AdminNotificationsTab() {
         return;
       }
 
+      // Upload file if exists
+      let fileData: { url: string; name: string } | null = null;
+      if (file) {
+        fileData = await uploadFile();
+        if (!fileData) {
+          setSending(false);
+          return;
+        }
+      }
+
       const notifications = targetUsers.map(uid => ({
         user_id: uid,
         title: title.trim(),
         body: body.trim(),
         type: "admin_broadcast",
+        file_url: fileData?.url || null,
+        file_name: fileData?.name || null,
       }));
 
       // Insert in batches of 100
       for (let i = 0; i < notifications.length; i += 100) {
         const batch = notifications.slice(i, i + 100);
-        await supabase.from("notifications").insert(batch);
+        const { error } = await supabase.from("notifications").insert(batch as any);
+        if (error) throw error;
       }
 
       setSentHistory(prev => [{
@@ -82,11 +131,13 @@ export default function AdminNotificationsTab() {
         target: targetType === "all" ? "جميع المستخدمين" : targetType === "all_students" ? "جميع الطلاب" : targetType === "all_teachers" ? "جميع المعلمين" : users.find(u => u.user_id === specificUserId)?.full_name || "مستخدم",
         count: targetUsers.length,
         date: new Date().toLocaleString("ar-SA"),
+        hasFile: !!fileData,
       }, ...prev]);
 
       toast.success(`تم إرسال الإشعار إلى ${targetUsers.length} مستخدم`);
       setTitle("");
       setBody("");
+      setFile(null);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
     } finally {
@@ -97,6 +148,8 @@ export default function AdminNotificationsTab() {
   const filteredUsers = users.filter(u =>
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const isImage = file?.type.startsWith("image/");
 
   return (
     <div className="space-y-4">
@@ -175,13 +228,48 @@ export default function AdminNotificationsTab() {
               />
             </div>
 
+            {/* File attachment */}
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">مرفق (اختياري)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,application/pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {file ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border/50">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    {isImage ? <Image className="h-4 w-4 text-primary" /> : <FileText className="h-4 w-4 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setFile(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl border-dashed gap-2 text-muted-foreground"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                  إرفاق صورة أو ملف PDF
+                </Button>
+              )}
+            </div>
+
             <Button
               onClick={sendNotification}
-              disabled={loading || !title.trim() || !body.trim()}
+              disabled={loading || uploading || !title.trim() || !body.trim()}
               className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button gap-2"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              إرسال الإشعار
+              {loading || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {uploading ? "جاري رفع الملف..." : "إرسال الإشعار"}
             </Button>
           </div>
         </CardContent>
@@ -201,7 +289,10 @@ export default function AdminNotificationsTab() {
                     <span className="text-[10px] text-muted-foreground">{h.date}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">{h.body}</p>
-                  <p className="text-[10px] text-primary">📤 {h.target} • {h.count} مستخدم</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] text-primary">📤 {h.target} • {h.count} مستخدم</p>
+                    {h.hasFile && <span className="text-[10px] text-muted-foreground">📎 مرفق</span>}
+                  </div>
                 </div>
               ))}
             </div>
