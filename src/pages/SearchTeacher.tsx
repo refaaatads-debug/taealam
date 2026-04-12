@@ -27,6 +27,7 @@ interface TeacherResult {
   years_experience: number;
   available_from: string | null;
   available_to: string | null;
+  teaching_stages: string[];
   profile?: { full_name: string; avatar_url: string | null };
   subjects: string[];
 }
@@ -64,6 +65,11 @@ const SearchTeacher = () => {
   const [teacherCount, setTeacherCount] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
+
+  // Filters for "اختر معلم محدد" section
+  const [filterName, setFilterName] = useState("");
+  const [filterStage, setFilterStage] = useState("all");
+  const [filterSubject, setFilterSubject] = useState("all");
 
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   // Fetch student's remaining sessions
@@ -166,6 +172,7 @@ const SearchTeacher = () => {
       total_reviews: t.total_reviews || 0,
       is_verified: t.is_verified || false,
       years_experience: t.years_experience || 0,
+      teaching_stages: t.teaching_stages || [],
       profile: profileMap.get(t.user_id) || { full_name: "معلم", avatar_url: null },
       subjects: subjectMap.get(t.id) || [],
     }));
@@ -179,7 +186,11 @@ const SearchTeacher = () => {
       const name = t.profile?.full_name || "";
       const matchSearch = name.includes(search) || t.subjects.some(s => s.includes(search));
       const matchSubject = subject === "all" || t.subjects.includes(subject);
-      return matchSearch && matchSubject;
+      // Additional filters for "اختر معلم محدد"
+      const matchFilterName = !filterName || name.includes(filterName);
+      const matchFilterSubject = filterSubject === "all" || t.subjects.includes(filterSubject);
+      const matchFilterStage = filterStage === "all" || t.teaching_stages.includes(filterStage);
+      return matchSearch && matchSubject && matchFilterName && matchFilterSubject && matchFilterStage;
     })
     .sort((a, b) => sort === "rating" ? b.avg_rating - a.avg_rating : a.hourly_rate - b.hourly_rate);
 
@@ -572,6 +583,41 @@ const SearchTeacher = () => {
           <div className="flex-1 h-px bg-border" />
           <span className="text-sm font-bold text-muted-foreground">أو اختر معلم محدد</span>
           <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {/* Teacher List Filters */}
+        <div className="flex flex-col md:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="ابحث باسم المعلم..."
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              className="h-11 pr-10 rounded-xl"
+            />
+          </div>
+          <Select value={filterSubject} onValueChange={setFilterSubject}>
+            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
+              <SelectValue placeholder="المادة الدراسية" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع المواد</SelectItem>
+              {subjects.map(s => (
+                <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterStage} onValueChange={setFilterStage}>
+            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
+              <SelectValue placeholder="المرحلة الدراسية" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع المراحل</SelectItem>
+              {teachingStagesOptions.map(stage => (
+                <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center justify-between mb-4 md:mb-6">
