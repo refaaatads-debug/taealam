@@ -44,6 +44,7 @@ const StudentDashboard = () => {
   const [subscription, setSubscription] = useState<any>(null);
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
