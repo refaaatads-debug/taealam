@@ -224,7 +224,7 @@ const SearchTeacher = () => {
     if (!selectedSubject || selectedSlots.length === 0) return;
 
     // Check subscription - if no subscription, redirect to pricing
-    if (sessionsRemaining <= 0) {
+    if (remainingMinutes <= 0) {
       toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
       navigate("/pricing");
       return;
