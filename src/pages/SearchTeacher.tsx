@@ -460,9 +460,9 @@ const SearchTeacher = () => {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" /> اختر الساعات
-                    <Badge className={`mr-auto border-0 text-[10px] ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                    <Badge className={`mr-auto border-0 text-[10px] ${remainingMinutes > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                       <Package className="h-3 w-3 ml-1" />
-                      {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
+                      {remainingMinutes > 0 ? `${remainingMinutes} دقيقة متبقية` : "لا يوجد رصيد"}
                     </Badge>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
