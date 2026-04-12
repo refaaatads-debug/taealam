@@ -20,12 +20,44 @@ interface Props {
   onRefresh?: () => void;
 }
 
-export default function UpcomingSchedule({ upcomingClasses }: Props) {
+export default function UpcomingSchedule({ upcomingClasses, onRefresh }: Props) {
   const { user } = useAuth();
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const classIds = useMemo(() => upcomingClasses.map(c => c.id), [upcomingClasses]);
   const unreadCounts = useUnreadMessages(classIds);
   const { play: playNotificationSound } = useNotificationSound();
+
+  const handleCancel = async (bookingId: string) => {
+    setCancellingId(bookingId);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled" as any })
+        .eq("id", bookingId)
+        .eq("student_id", user!.id);
+
+      if (error) throw error;
+
+      // Send notification to teacher
+      const booking = upcomingClasses.find(c => c.id === bookingId);
+      if (booking) {
+        await supabase.from("notifications").insert({
+          user_id: booking.teacher_id,
+          title: "تم إلغاء حصة",
+          body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
+          type: "booking_cancelled",
+        });
+      }
+
+      toast.success("تم إلغاء الحصة بنجاح");
+      onRefresh?.();
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الحصة");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!user || upcomingClasses.length === 0) return;
