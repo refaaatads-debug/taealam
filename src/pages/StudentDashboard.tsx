@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
-import GamificationCard from "@/components/GamificationCard";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
@@ -303,37 +302,6 @@ const StudentDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* AI Tutor CTA */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <Card className="border-0 shadow-card overflow-hidden gradient-hero text-primary-foreground">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-5 w-5 text-gold" />
-                      <span className="text-sm font-bold">المدرس الذكي AI</span>
-                    </div>
-                    <p className="text-lg font-black mb-1">هل تحتاج مساعدة في الواجب؟</p>
-                    <p className="text-sm opacity-80">اسأل المدرس الذكي أي سؤال واحصل على إجابة فورية</p>
-                  </div>
-                  <Button className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0 rounded-xl backdrop-blur-sm" asChild>
-                    <Link to="/ai-tutor"><MessageSquare className="ml-2 h-4 w-4" />اسأل الآن</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Subscription Balance */}
-            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
-
-            {/* Pending Booking Requests with Countdown + Cancel */}
-            <PendingBookingRequests />
-
-            {/* Warnings */}
-            <WarningsSection />
-
-            {/* Upcoming Schedule Table */}
-            <StudentScheduleTable />
-
             {/* Upcoming Classes Cards */}
             <Card className="border-0 shadow-card">
               <CardHeader className="pb-3">
@@ -342,6 +310,9 @@ const StudentDashboard = () => {
                     <Video className="h-4 w-4 text-secondary" />
                   </div>
                   الحصص القادمة
+                  {upcomingClasses.length > 0 && (
+                    <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs">{upcomingClasses.length}</Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -418,14 +389,42 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Pending Booking Requests */}
+            <PendingBookingRequests />
+
+            {/* Warnings */}
+            <WarningsSection />
+
             {/* Session Materials */}
             <SessionMaterials />
-
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <GamificationCard />
+            {/* Subscription Balance */}
+            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
+
+            {/* AI Tutor CTA */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <Card className="border-0 shadow-card overflow-hidden gradient-hero text-primary-foreground">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-5 w-5 text-gold" />
+                    <span className="text-sm font-bold">المدرس الذكي AI</span>
+                  </div>
+                  <p className="text-base font-black mb-1">هل تحتاج مساعدة؟</p>
+                  <p className="text-xs opacity-80 mb-4">اسأل المدرس الذكي أي سؤال واحصل على إجابة فورية</p>
+                  <Button className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0 rounded-xl backdrop-blur-sm" asChild>
+                    <Link to="/ai-tutor"><MessageSquare className="ml-2 h-4 w-4" />اسأل الآن</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Schedule Table */}
+            <StudentScheduleTable />
+
+            {/* Smart Match */}
             <SmartMatchWidget />
           </div>
         </div>
