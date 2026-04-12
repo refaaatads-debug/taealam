@@ -159,6 +159,19 @@ export default function NotificationsSection() {
                       {n.body && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
                       )}
+                      {n.file_url && (
+                        <a
+                          href={n.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 text-primary text-[11px] font-medium transition-colors"
+                        >
+                          {n.file_name?.endsWith(".pdf") ? <FileText className="h-3.5 w-3.5" /> : <Image className="h-3.5 w-3.5" />}
+                          {n.file_name || "مرفق"}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
                       <p className="text-[10px] text-muted-foreground/60 mt-1">
                         {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ar })}
                       </p>
