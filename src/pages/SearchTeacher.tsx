@@ -714,7 +714,16 @@ const SearchTeacher = () => {
                             </div>
                           </div>
                         </div>
-                        <p className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed line-clamp-2">{t.bio || `مدرس خبرة ${t.years_experience} سنوات`}</p>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-2 leading-relaxed line-clamp-2">{t.bio || `مدرس خبرة ${t.years_experience} سنوات`}</p>
+                        {t.teaching_stages.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {t.teaching_stages.map(stage => (
+                              <Badge key={stage} variant="outline" className="text-[10px] px-2 py-0.5 rounded-lg border-border/50 text-muted-foreground">
+                                🎓 {stage}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="p-4 md:p-5 pt-0">
                         <div className="flex items-center justify-between mb-3 md:mb-4 pt-3 border-t">
