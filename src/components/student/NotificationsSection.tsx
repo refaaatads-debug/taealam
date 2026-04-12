@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, CheckCheck, Video, CreditCard, AlertTriangle, MessageSquare, Gift, Loader2 } from "lucide-react";
+import { Bell, CheckCheck, Video, CreditCard, AlertTriangle, MessageSquare, Gift, Loader2, FileText, Image, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +16,8 @@ interface Notification {
   type: string | null;
   is_read: boolean | null;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
 }
 
 const typeIcons: Record<string, typeof Bell> = {
