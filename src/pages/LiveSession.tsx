@@ -923,78 +923,101 @@ const LiveSession = () => {
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-3 glass-strong border-b border-border/10">
+      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-l from-foreground via-foreground/95 to-foreground border-b border-card/10 backdrop-blur-xl">
+        {/* Right section - Session info */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center">
-            <Users className="h-4 w-4 text-secondary-foreground" />
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
+              <Users className="h-4.5 w-4.5 text-white" />
+            </div>
+            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-foreground ${connectionState === "connected" ? "bg-green-400" : connectionState === "connecting" ? "bg-yellow-400 animate-pulse" : "bg-muted-foreground"}`} />
           </div>
-          <div>
-            <p className="text-sm font-bold text-card">{displayTitle}</p>
-            <div className="flex items-center gap-2">
-              <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${connBadge.color}`}>
-                <connBadge.icon className="h-3 w-3" />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-card truncate max-w-[180px]">{displayTitle}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium ${connBadge.color}`}>
+                <connBadge.icon className="h-2.5 w-2.5" />
                 {connBadge.text}
               </span>
-              <span className="text-xs text-card/60 font-mono">
-                {!bothJoined && meetingStarted ? "⏳ بانتظار الطرف الآخر..." : formatTime(elapsed)}
-              </span>
+              {connectionState === "connected" && (
+                <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                  iceTransportType === "TURN Relay" ? "text-blue-400 bg-blue-400/10" :
+                  iceTransportType === "STUN" ? "text-cyan-400 bg-cyan-400/10" :
+                  iceTransportType.startsWith("Direct") ? "text-green-400 bg-green-400/10" :
+                  "text-muted-foreground bg-muted/30"
+                }`}>
+                  {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
+                </span>
+              )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {violationCount > 0 && (
-            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold">
-              <ShieldAlert className="h-3 w-3" />
-              {violationCount} مخالفة
-            </span>
-          )}
-          {isMutedBySystem && (
-            <span className="flex items-center gap-1.5 text-xs bg-destructive/30 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
-              <VolumeX className="h-3 w-3" />
-              محظور {muteCountdown}ث
-            </span>
-          )}
-          {meetingStarted && (
-            <>
-              <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${getRemainingColor()} bg-card/10`}>
-                <Clock className="h-3 w-3" />
-                <span className="font-mono">{getRemainingTime()}</span>
-                <span className="hidden sm:inline">متبقي</span>
-              </span>
-              {hasSubscription && (
-                <span className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold text-card/60 bg-card/10">
-                  المتبقي من باقتك: {getRemainingMinutesValue()} دقيقة
+
+        {/* Center section - Timer & Status */}
+        <div className="flex items-center gap-2">
+          {meetingStarted ? (
+            <div className="flex items-center gap-2 bg-card/5 rounded-xl px-3 py-1.5 border border-card/10">
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-card/40 font-medium">الوقت المنقضي</span>
+                <span className="text-sm font-mono font-bold text-card">
+                  {!bothJoined ? "⏳" : formatTime(elapsed)}
                 </span>
+              </div>
+              <div className="w-px h-6 bg-card/10" />
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-card/40 font-medium">المتبقي</span>
+                <span className={`text-sm font-mono font-bold ${getRemainingColor()}`}>
+                  {getRemainingTime()}
+                </span>
+              </div>
+              {hasSubscription && (
+                <>
+                  <div className="w-px h-6 bg-card/10" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-card/40 font-medium">رصيد الباقة</span>
+                    <span className="text-sm font-mono font-bold text-secondary">
+                      {getRemainingMinutesValue()} <span className="text-[10px] font-normal">د</span>
+                    </span>
+                  </div>
+                </>
               )}
-            </>
+            </div>
+          ) : (
+            <span className="text-xs text-card/40 font-medium">بانتظار بدء الجلسة...</span>
           )}
+        </div>
+
+        {/* Left section - Status badges & actions */}
+        <div className="flex items-center gap-1.5">
           {isRecording && (
-            <span className="flex items-center gap-1.5 text-xs bg-destructive/20 text-destructive px-3 py-1.5 rounded-lg font-bold animate-pulse-soft">
-              <span className="w-2 h-2 rounded-full bg-destructive" /> REC
+            <span className="flex items-center gap-1.5 text-[11px] bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg font-bold animate-pulse-soft border border-destructive/20">
+              <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" /> REC
             </span>
           )}
           {recordingUploading && (
-            <span className="flex items-center gap-1.5 text-xs bg-secondary/20 text-secondary px-3 py-1.5 rounded-lg font-bold">
-              جاري الرفع...
+            <span className="flex items-center gap-1.5 text-[11px] bg-secondary/15 text-secondary px-2.5 py-1 rounded-lg font-bold border border-secondary/20">
+              <Loader2 className="h-3 w-3 animate-spin" /> جاري الرفع
             </span>
           )}
-          {connectionState === "connected" && (
-            <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold ${
-              iceTransportType === "TURN Relay" ? "text-blue-400 bg-blue-400/10" :
-              iceTransportType === "STUN" ? "text-cyan-400 bg-cyan-400/10" :
-              iceTransportType.startsWith("Direct") ? "text-green-400 bg-green-400/10" :
-              "text-muted-foreground bg-muted/30"
-            }`}>
-              {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
+          {violationCount > 0 && (
+            <span className="flex items-center gap-1.5 text-[11px] bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg font-bold border border-destructive/20">
+              <ShieldAlert className="h-3 w-3" />
+              {violationCount}
+            </span>
+          )}
+          {isMutedBySystem && (
+            <span className="flex items-center gap-1.5 text-[11px] bg-destructive/20 text-destructive px-2.5 py-1 rounded-lg font-bold animate-pulse-soft border border-destructive/30">
+              <VolumeX className="h-3 w-3" />
+              {muteCountdown}ث
             </span>
           )}
           {connectionState === "failed" && isTeacher && (
-            <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 gap-1" onClick={restartConnection}>
-              <RefreshCw className="h-3 w-3" /> إعادة الاتصال
+            <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 gap-1 h-7 text-[11px] rounded-lg" onClick={restartConnection}>
+              <RefreshCw className="h-3 w-3" /> إعادة
             </Button>
           )}
           {isTeacher && (
-            <Button size="icon" variant="ghost" className="text-card/60 hover:text-card h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
+            <Button size="icon" variant="ghost" className="text-card/50 hover:text-card hover:bg-card/10 h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
               <MoreVertical className="h-4 w-4" />
             </Button>
           )}
