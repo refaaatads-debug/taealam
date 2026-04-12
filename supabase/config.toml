@@ -1,7 +1,7 @@
-project_id = "kvrxiovdyiylevxyfvhr"
+project_id = "vxtapurbpcgzgntqewol"
 
 [functions.create-checkout]
 verify_jwt = false
 
 [functions.stripe-webhook]
-verify_jwt = false
+verify_jwt = false 
