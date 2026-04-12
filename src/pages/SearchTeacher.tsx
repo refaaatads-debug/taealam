@@ -491,7 +491,7 @@ const SearchTeacher = () => {
 
                 {/* Selected Slots Summary + Submit */}
                 <div className="space-y-2">
-                  {sessionsRemaining <= 0 && (
+                  {remainingMinutes <= 0 && (
                     <div className="rounded-xl p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
                       <CreditCard className="h-4 w-4 shrink-0" />
                       <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
@@ -509,7 +509,7 @@ const SearchTeacher = () => {
                       ))}
                     </div>
                   )}
-                  {sessionsRemaining <= 0 ? (
+                  {remainingMinutes <= 0 ? (
                     <Button
                       className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
                       onClick={() => navigate("/pricing")}
