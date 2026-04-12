@@ -361,6 +361,8 @@ export type Database = {
         Row: {
           body: string | null
           created_at: string
+          file_name: string | null
+          file_url: string | null
           id: string
           is_read: boolean | null
           title: string
@@ -370,6 +372,8 @@ export type Database = {
         Insert: {
           body?: string | null
           created_at?: string
+          file_name?: string | null
+          file_url?: string | null
           id?: string
           is_read?: boolean | null
           title: string
@@ -379,6 +383,8 @@ export type Database = {
         Update: {
           body?: string | null
           created_at?: string
+          file_name?: string | null
+          file_url?: string | null
           id?: string
           is_read?: boolean | null
           title?: string
