@@ -313,7 +313,7 @@ export default function AdminNotificationsTab() {
                   </div>
                   <p className="text-xs text-muted-foreground">{h.body}</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-[10px] text-primary">📤 {h.target} • {h.count} مستخدم</p>
+                    <p className="text-[10px] text-primary">📤 {h.count} مستخدم</p>
                     {h.hasFile && <span className="text-[10px] text-muted-foreground">📎 مرفق</span>}
                   </div>
                 </div>
