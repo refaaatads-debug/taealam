@@ -46,6 +46,32 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  const handleCancelBooking = async (booking: any) => {
+    setCancellingId(booking.id);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled" as any })
+        .eq("id", booking.id)
+        .eq("student_id", user!.id);
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: booking.teacher_id,
+        title: "تم إلغاء حصة",
+        body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
+        type: "booking_cancelled",
+      });
+
+      toast.success("تم إلغاء الحصة بنجاح");
+      setUpcomingClasses(prev => prev.filter(c => c.id !== booking.id));
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الحصة");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
 
