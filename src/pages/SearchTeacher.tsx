@@ -63,6 +63,7 @@ const SearchTeacher = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
+  const [remainingMinutes, setRemainingMinutes] = useState(0);
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
 
@@ -77,14 +78,15 @@ const SearchTeacher = () => {
     if (!user) return;
     supabase
       .from("user_subscriptions")
-      .select("sessions_remaining")
+      .select("sessions_remaining, remaining_minutes")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .gt("sessions_remaining", 0)
+      .gt("remaining_minutes", 0)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
       .then(({ data }) => {
+        setRemainingMinutes(data?.remaining_minutes || 0);
         setSessionsRemaining(data?.sessions_remaining || 0);
       });
   }, [user]);
@@ -222,14 +224,15 @@ const SearchTeacher = () => {
     if (!selectedSubject || selectedSlots.length === 0) return;
 
     // Check subscription - if no subscription, redirect to pricing
-    if (sessionsRemaining <= 0) {
+    if (remainingMinutes <= 0) {
       toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
       navigate("/pricing");
       return;
     }
 
-    if (sessionsRemaining < selectedSlots.length) {
-      toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+    const maxSlots = Math.floor(remainingMinutes / 45);
+    if (maxSlots > 0 && selectedSlots.length > maxSlots) {
+      toast.error(`رصيدك ${remainingMinutes} دقيقة (${maxSlots} حصة). قللّ عدد الحصص أو جدّد باقتك.`);
       return;
     }
 
@@ -458,9 +461,9 @@ const SearchTeacher = () => {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5" /> اختر الساعات
-                    <Badge className={`mr-auto border-0 text-[10px] ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                    <Badge className={`mr-auto border-0 text-[10px] ${remainingMinutes > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                       <Package className="h-3 w-3 ml-1" />
-                      {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
+                      {remainingMinutes > 0 ? `${remainingMinutes} دقيقة متبقية` : "لا يوجد رصيد"}
                     </Badge>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
@@ -489,7 +492,7 @@ const SearchTeacher = () => {
 
                 {/* Selected Slots Summary + Submit */}
                 <div className="space-y-2">
-                  {sessionsRemaining <= 0 && (
+                  {remainingMinutes <= 0 && (
                     <div className="rounded-xl p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
                       <CreditCard className="h-4 w-4 shrink-0" />
                       <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
@@ -507,7 +510,7 @@ const SearchTeacher = () => {
                       ))}
                     </div>
                   )}
-                  {sessionsRemaining <= 0 ? (
+                  {remainingMinutes <= 0 ? (
                     <Button
                       className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
                       onClick={() => navigate("/pricing")}
@@ -586,39 +589,66 @@ const SearchTeacher = () => {
         </div>
 
         {/* Teacher List Filters */}
-        <div className="flex flex-col md:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="ابحث باسم المعلم..."
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
-              className="h-11 pr-10 rounded-xl"
-            />
-          </div>
-          <Select value={filterSubject} onValueChange={setFilterSubject}>
-            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
-              <SelectValue placeholder="المادة الدراسية" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">جميع المواد</SelectItem>
-              {subjects.map(s => (
-                <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterStage} onValueChange={setFilterStage}>
-            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
-              <SelectValue placeholder="المرحلة الدراسية" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">جميع المراحل</SelectItem>
-              {teachingStagesOptions.map(stage => (
-                <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Card className="border-0 shadow-card mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-3 items-end">
+              <div className="relative flex-1">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5" /> اسم المعلم
+                </p>
+                <div className="relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="ابحث باسم المعلم..."
+                    value={filterName}
+                    onChange={(e) => setFilterName(e.target.value)}
+                    className="h-11 pr-10 rounded-xl bg-muted/30 border-border/50"
+                  />
+                </div>
+              </div>
+              <div className="w-full md:w-48">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" /> المادة الدراسية
+                </p>
+                <Select value={filterSubject} onValueChange={setFilterSubject}>
+                  <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                    <SelectValue placeholder="جميع المواد" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المواد</SelectItem>
+                    {subjects.map(s => (
+                      <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full md:w-48">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">🎓 المرحلة الدراسية</p>
+                <Select value={filterStage} onValueChange={setFilterStage}>
+                  <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                    <SelectValue placeholder="جميع المراحل" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المراحل</SelectItem>
+                    {teachingStagesOptions.map(stage => (
+                      <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(filterName || filterSubject !== "all" || filterStage !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground h-11 rounded-xl"
+                  onClick={() => { setFilterName(""); setFilterSubject("all"); setFilterStage("all"); }}
+                >
+                  <X className="h-3.5 w-3.5 ml-1" /> مسح الفلاتر
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <p className="text-muted-foreground font-medium text-sm md:text-base">{filtered.length} مدرس متاح</p>
