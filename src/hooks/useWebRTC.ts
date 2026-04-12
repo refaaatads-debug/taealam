@@ -547,17 +547,25 @@ export function useWebRTC({
   }, [remoteStream]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
-    if (canvasIntervalRef.current) {
-      clearInterval(canvasIntervalRef.current);
-      canvasIntervalRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
-    canvasRef.current = null;
-    setIsRecording(false);
+    return new Promise<void>((resolve) => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.addEventListener("stop", () => resolve(), { once: true });
+        recorder.stop();
+      } else {
+        resolve();
+      }
+      if (canvasIntervalRef.current) {
+        clearInterval(canvasIntervalRef.current);
+        canvasIntervalRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
+      canvasRef.current = null;
+      setIsRecording(false);
+    });
   }, []);
 
   const getRecordingBlob = useCallback(() => {
