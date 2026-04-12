@@ -171,6 +171,32 @@ export default function UpcomingSchedule({ upcomingClasses, onRefresh }: Props) 
                             )}
                           </Link>
                         </Button>
+                        {!isLive && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" className="rounded-lg h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10">
+                                {cancellingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  هل أنت متأكد من إلغاء حصة {c.subjects?.name || "حصة"} مع {c.teacher_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>تراجع</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleCancel(c.id)}
+                                >
+                                  نعم، إلغاء الحصة
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </td>
                   </tr>
