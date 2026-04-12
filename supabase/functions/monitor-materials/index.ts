@@ -33,13 +33,18 @@ Deno.serve(async (req) => {
     const sessionIds = sessions.map(s => s.id);
     const { data: existingMats } = await supabase
       .from("session_materials")
-      .select("session_id")
+      .select("id, session_id, recording_url")
       .in("session_id", sessionIds);
 
-    const existingSet = new Set((existingMats ?? []).map(m => m.session_id));
-    const missingSessions = sessions.filter(s => !existingSet.has(s.id));
+    const existingMap = new Map((existingMats ?? []).map(m => [m.session_id, m]));
+    const missingSessions = sessions.filter(s => !existingMap.has(s.id));
+    const missingRecordingLinks = sessions.filter((s) => {
+      const material = existingMap.get(s.id);
+      return Boolean(material && s.recording_url && !material.recording_url);
+    });
 
     let repaired = 0;
+    let repairedLinks = 0;
     let failed = 0;
 
     for (const session of missingSessions) {
@@ -82,6 +87,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    for (const session of missingRecordingLinks) {
+      const material = existingMap.get(session.id);
+      if (!material) continue;
+
+      const { error } = await supabase
+        .from("session_materials")
+        .update({ recording_url: session.recording_url })
+        .eq("id", material.id);
+
+      if (error) {
+        failed++;
+        await supabase.from("system_logs").insert({
+          level: "error",
+          source: "materials_monitor",
+          message: "Recording link repair failed: " + error.message,
+          metadata: { session_id: session.id, material_id: material.id },
+        });
+      } else {
+        repairedLinks++;
+      }
+    }
+
     // 2. Alert if failure rate > 5%
     const totalSessions = sessions.length;
     const missingCount = missingSessions.length;
@@ -107,7 +134,7 @@ Deno.serve(async (req) => {
         level: "warn",
         source: "materials_monitor",
         message: `High failure rate: ${failureRate.toFixed(1)}%`,
-        metadata: { total: totalSessions, missing: missingCount, repaired, failed },
+        metadata: { total: totalSessions, missing: missingCount, repaired, repaired_links: repairedLinks, failed },
       });
     }
 
@@ -116,13 +143,14 @@ Deno.serve(async (req) => {
       level: "info",
       source: "materials_monitor",
       message: "Monitoring run completed",
-      metadata: { total: totalSessions, missing: missingCount, repaired, failed },
+      metadata: { total: totalSessions, missing: missingCount, repaired, repaired_links: repairedLinks, failed },
     });
 
     return new Response(JSON.stringify({
       total: totalSessions,
       missing: missingCount,
       repaired,
+      repaired_links: repairedLinks,
       failed,
       failure_rate: failureRate.toFixed(1) + "%",
     }), {

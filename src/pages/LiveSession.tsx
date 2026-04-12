@@ -777,18 +777,19 @@ const LiveSession = () => {
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
       const recordingUrl = urlData.publicUrl;
 
-      // Update session with recording URL
-      await supabase.from("sessions").update({ recording_url: recordingUrl }).eq("booking_id", bookingId);
+      const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
+        body: {
+          booking_id: bookingId,
+          recording_url: recordingUrl,
+        },
+      });
 
-      // Also update session_materials with the recording URL
-      const { data: sessionData } = await supabase.from("sessions").select("id").eq("booking_id", bookingId).single();
-      if (sessionData) {
-        await supabase.from("session_materials").update({ recording_url: recordingUrl }).eq("session_id", sessionData.id);
-      }
+      if (saveRecordingError) throw saveRecordingError;
 
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
-    } catch {
-      toast.error("تعذر رفع التسجيل");
+    } catch (error) {
+      console.error("Recording upload failed:", error);
+      toast.error("تعذر حفظ التسجيل في المواد التعليمية");
     } finally {
       setRecordingUploading(false);
     }
