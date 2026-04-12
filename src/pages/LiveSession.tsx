@@ -573,12 +573,13 @@ const LiveSession = () => {
     }
   }, [bothJoined]);
 
-  // Session timer - only ticks when bothJoined
+  // Session timer - only ticks when bothJoined AND peer is connected
   useEffect(() => {
-    if (!meetingStarted || !bothJoined) return;
+    if (!meetingStarted || !bothJoined || peerDisconnected) {
+      clearInterval(timerRef.current);
+      return;
+    }
     timerRef.current = window.setInterval(() => {
-      if (peerDisconnected) return;
-
       setElapsed((p) => {
         const next = p + 1;
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
@@ -610,7 +611,7 @@ const LiveSession = () => {
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, bothJoined, sessionDuration, hasSubscription, subscriptionRemainingMinutes, peerDisconnected]);
+  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
