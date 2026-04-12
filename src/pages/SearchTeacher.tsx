@@ -172,6 +172,7 @@ const SearchTeacher = () => {
       total_reviews: t.total_reviews || 0,
       is_verified: t.is_verified || false,
       years_experience: t.years_experience || 0,
+      teaching_stages: t.teaching_stages || [],
       profile: profileMap.get(t.user_id) || { full_name: "معلم", avatar_url: null },
       subjects: subjectMap.get(t.id) || [],
     }));
