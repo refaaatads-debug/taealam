@@ -78,14 +78,15 @@ const SearchTeacher = () => {
     if (!user) return;
     supabase
       .from("user_subscriptions")
-      .select("sessions_remaining")
+      .select("sessions_remaining, remaining_minutes")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .gt("sessions_remaining", 0)
+      .gt("remaining_minutes", 0)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
       .then(({ data }) => {
+        setRemainingMinutes(data?.remaining_minutes || 0);
         setSessionsRemaining(data?.sessions_remaining || 0);
       });
   }, [user]);
