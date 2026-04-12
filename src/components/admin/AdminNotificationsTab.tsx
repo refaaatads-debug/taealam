@@ -155,14 +155,7 @@ export default function AdminNotificationsTab() {
         if (error) throw error;
       }
 
-      setSentHistory(prev => [{
-        title: title.trim(),
-        body: body.trim(),
-        target: targetType === "all" ? "جميع المستخدمين" : targetType === "all_students" ? "جميع الطلاب" : targetType === "all_teachers" ? "جميع المعلمين" : users.find(u => u.user_id === specificUserId)?.full_name || "مستخدم",
-        count: targetUsers.length,
-        date: new Date().toLocaleString("ar-SA"),
-        hasFile: !!fileData,
-      }, ...prev]);
+      await fetchSentHistory();
 
       toast.success(`تم إرسال الإشعار إلى ${targetUsers.length} مستخدم`);
       setTitle("");
