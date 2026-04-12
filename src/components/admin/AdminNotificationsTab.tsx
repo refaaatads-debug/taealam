@@ -23,7 +23,37 @@ export default function AdminNotificationsTab() {
 
   useEffect(() => {
     fetchUsers();
+    fetchSentHistory();
   }, []);
+
+  const fetchSentHistory = async () => {
+    // Get distinct admin broadcasts grouped by title+body+created_at (within 1 min)
+    const { data } = await supabase
+      .from("notifications")
+      .select("title, body, type, file_url, file_name, created_at, user_id")
+      .eq("type", "admin_broadcast")
+      .order("created_at", { ascending: false })
+      .limit(1000);
+
+    if (!data || data.length === 0) return;
+
+    // Group by title+body+truncated timestamp (same minute = same broadcast)
+    const groups = new Map<string, { title: string; body: string; count: number; date: string; hasFile: boolean }>();
+    for (const n of data) {
+      const key = `${n.title}||${n.body}||${n.created_at?.slice(0, 16)}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          title: n.title,
+          body: n.body || "",
+          count: 0,
+          date: new Date(n.created_at).toLocaleString("ar-SA"),
+          hasFile: !!n.file_url,
+        });
+      }
+      groups.get(key)!.count++;
+    }
+    setSentHistory(Array.from(groups.values()));
+  };
 
   const fetchUsers = async () => {
     const [{ data: profiles }, { data: roles }] = await Promise.all([
