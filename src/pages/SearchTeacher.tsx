@@ -589,39 +589,66 @@ const SearchTeacher = () => {
         </div>
 
         {/* Teacher List Filters */}
-        <div className="flex flex-col md:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="ابحث باسم المعلم..."
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
-              className="h-11 pr-10 rounded-xl"
-            />
-          </div>
-          <Select value={filterSubject} onValueChange={setFilterSubject}>
-            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
-              <SelectValue placeholder="المادة الدراسية" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">جميع المواد</SelectItem>
-              {subjects.map(s => (
-                <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterStage} onValueChange={setFilterStage}>
-            <SelectTrigger className="h-11 w-full md:w-48 rounded-xl">
-              <SelectValue placeholder="المرحلة الدراسية" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">جميع المراحل</SelectItem>
-              {teachingStagesOptions.map(stage => (
-                <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Card className="border-0 shadow-card mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-3 items-end">
+              <div className="relative flex-1">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5" /> اسم المعلم
+                </p>
+                <div className="relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="ابحث باسم المعلم..."
+                    value={filterName}
+                    onChange={(e) => setFilterName(e.target.value)}
+                    className="h-11 pr-10 rounded-xl bg-muted/30 border-border/50"
+                  />
+                </div>
+              </div>
+              <div className="w-full md:w-48">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" /> المادة الدراسية
+                </p>
+                <Select value={filterSubject} onValueChange={setFilterSubject}>
+                  <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                    <SelectValue placeholder="جميع المواد" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المواد</SelectItem>
+                    {subjects.map(s => (
+                      <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full md:w-48">
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">🎓 المرحلة الدراسية</p>
+                <Select value={filterStage} onValueChange={setFilterStage}>
+                  <SelectTrigger className="h-11 rounded-xl bg-muted/30 border-border/50">
+                    <SelectValue placeholder="جميع المراحل" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المراحل</SelectItem>
+                    {teachingStagesOptions.map(stage => (
+                      <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(filterName || filterSubject !== "all" || filterStage !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground h-11 rounded-xl"
+                  onClick={() => { setFilterName(""); setFilterSubject("all"); setFilterStage("all"); }}
+                >
+                  <X className="h-3.5 w-3.5 ml-1" /> مسح الفلاتر
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <p className="text-muted-foreground font-medium text-sm md:text-base">{filtered.length} مدرس متاح</p>
