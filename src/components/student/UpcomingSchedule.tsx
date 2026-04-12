@@ -17,6 +17,7 @@ import {
 
 interface Props {
   upcomingClasses: any[];
+  onRefresh?: () => void;
 }
 
 export default function UpcomingSchedule({ upcomingClasses }: Props) {
