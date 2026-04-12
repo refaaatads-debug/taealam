@@ -23,7 +23,37 @@ export default function AdminNotificationsTab() {
 
   useEffect(() => {
     fetchUsers();
+    fetchSentHistory();
   }, []);
+
+  const fetchSentHistory = async () => {
+    // Get distinct admin broadcasts grouped by title+body+created_at (within 1 min)
+    const { data } = await supabase
+      .from("notifications")
+      .select("title, body, type, file_url, file_name, created_at, user_id")
+      .eq("type", "admin_broadcast")
+      .order("created_at", { ascending: false })
+      .limit(1000);
+
+    if (!data || data.length === 0) return;
+
+    // Group by title+body+truncated timestamp (same minute = same broadcast)
+    const groups = new Map<string, { title: string; body: string; count: number; date: string; hasFile: boolean }>();
+    for (const n of data) {
+      const key = `${n.title}||${n.body}||${n.created_at?.slice(0, 16)}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          title: n.title,
+          body: n.body || "",
+          count: 0,
+          date: new Date(n.created_at).toLocaleString("ar-SA"),
+          hasFile: !!n.file_url,
+        });
+      }
+      groups.get(key)!.count++;
+    }
+    setSentHistory(Array.from(groups.values()));
+  };
 
   const fetchUsers = async () => {
     const [{ data: profiles }, { data: roles }] = await Promise.all([
@@ -125,14 +155,7 @@ export default function AdminNotificationsTab() {
         if (error) throw error;
       }
 
-      setSentHistory(prev => [{
-        title: title.trim(),
-        body: body.trim(),
-        target: targetType === "all" ? "جميع المستخدمين" : targetType === "all_students" ? "جميع الطلاب" : targetType === "all_teachers" ? "جميع المعلمين" : users.find(u => u.user_id === specificUserId)?.full_name || "مستخدم",
-        count: targetUsers.length,
-        date: new Date().toLocaleString("ar-SA"),
-        hasFile: !!fileData,
-      }, ...prev]);
+      await fetchSentHistory();
 
       toast.success(`تم إرسال الإشعار إلى ${targetUsers.length} مستخدم`);
       setTitle("");
@@ -290,7 +313,7 @@ export default function AdminNotificationsTab() {
                   </div>
                   <p className="text-xs text-muted-foreground">{h.body}</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-[10px] text-primary">📤 {h.target} • {h.count} مستخدم</p>
+                    <p className="text-[10px] text-primary">📤 {h.count} مستخدم</p>
                     {h.hasFile && <span className="text-[10px] text-muted-foreground">📎 مرفق</span>}
                   </div>
                 </div>
