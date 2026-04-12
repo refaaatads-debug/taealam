@@ -2,7 +2,6 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
-import PendingBookingRequests from "@/components/student/PendingBookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
