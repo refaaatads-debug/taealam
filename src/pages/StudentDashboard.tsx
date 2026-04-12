@@ -384,6 +384,32 @@ const StudentDashboard = () => {
                               <Link to={`/session?booking=${c.id}`}>انضم للجلسة</Link>
                             </Button>
                           )}
+                          {c.session_status !== "in_progress" && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
+                                  {cancellingId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    هل أنت متأكد من إلغاء حصة {c.subjects?.name || "حصة"} مع {c.teacher_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>تراجع</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleCancelBooking(c)}
+                                  >
+                                    نعم، إلغاء الحصة
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
                         </div>
                       </motion.div>
                     );
