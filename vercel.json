@@ -1,7 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/auth/v1/(.*)",
+      "destination": "https://tujscqqosagwdugqgdkq.supabase.co/auth/v1/$1"
+    },
+    {
+      "source": "/(.* )",
       "destination": "/index.html"
     }
   ]
