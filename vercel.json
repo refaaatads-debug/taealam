@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/~oauth/(.*)",
-      "destination": "https://lovable.dev/api/cloud-auth/~oauth/$1"
+      "source": "/~oauth/:path*",
+      "destination": "https://lovable.dev/api/cloud-auth/~oauth/:path*"
     },
     {
       "source": "/(.* )",
