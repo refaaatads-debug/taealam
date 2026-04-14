@@ -57,8 +57,10 @@ const Booking = () => {
   });
 
   // Filter days based on teacher availability for direct booking
-  const days = directTeacherId && teacherAvailableDays.length > 0
-    ? allDays.filter(d => teacherAvailableDays.includes(d.dayKey))
+  const days = directTeacherId
+    ? (teacherAvailableDays.length > 0
+      ? allDays.filter(d => teacherAvailableDays.includes(d.dayKey))
+      : allDays.slice(0, 14))
     : allDays.slice(0, 7);
 
   // Generate time slots from teacher's available hours
@@ -245,7 +247,7 @@ const Booking = () => {
   };
 
   const availableSubjects = directTeacherId ? teacherSubjects : subjects;
-  const noAvailability = directTeacherId && teacherAvailableDays.length === 0;
+  const noAvailability = directTeacherId && teacherAvailableDays.length === 0 && !teacherAvailableFrom && !teacherAvailableTo;
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
