@@ -1226,6 +1226,13 @@ export type Database = {
             foreignKeyName: "teacher_subjects_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
+            referencedRelation: "public_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
             referencedRelation: "teacher_profiles"
             referencedColumns: ["id"]
           },
@@ -1489,7 +1496,96 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          level: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      public_teacher_profiles: {
+        Row: {
+          available_days: string[] | null
+          available_from: string | null
+          available_to: string | null
+          avg_rating: number | null
+          bio: string | null
+          created_at: string | null
+          hourly_rate: number | null
+          id: string | null
+          is_approved: boolean | null
+          is_verified: boolean | null
+          nationality: string | null
+          teaching_stages: string[] | null
+          total_reviews: number | null
+          total_sessions: number | null
+          updated_at: string | null
+          user_id: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_booking_request: {
