@@ -384,25 +384,113 @@ const SearchTeacher = () => {
       </div>
 
       <div className="container py-6 md:py-8 flex-1">
-        {/* Quick Booking Form */}
+        {/* Quick Booking Form - Redesigned */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
-          <Card className="border-0 shadow-card overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <CalendarCheck className="h-4 w-4 text-secondary" />
+          {bookingSuccess ? (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", duration: 0.5 }}>
+              <Card className="border-2 border-secondary/30 shadow-card overflow-hidden bg-gradient-to-br from-secondary/5 via-card to-accent/10">
+                <CardContent className="py-8 px-6">
+                  <div className="flex flex-col items-center text-center mb-6">
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.2, stiffness: 200 }}
+                      className="w-16 h-16 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 shadow-lg shadow-secondary/10">
+                      <PartyPopper className="h-8 w-8 text-secondary" />
+                    </motion.div>
+                    <h3 className="text-xl font-black text-foreground">تم إرسال طلبك بنجاح! 🎉</h3>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                      تم إرسال {bookingSuccess.slots.length} طلب حصة لـ {bookingSuccess.teacherCount} معلم متخصص في {bookingSuccess.subjectName}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                    {bookingSuccess.slots.map((slot, i) => (
+                      <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.1 }}
+                        className="flex items-center gap-3 p-3.5 rounded-xl bg-card border border-border/50 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center shrink-0">
+                          <CalendarCheck className="h-5 w-5 text-primary-foreground" />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-foreground">{slot.dayLabel} - {slot.time}</p>
+                          <p className="text-[11px] text-muted-foreground">{slot.date} • 45 دقيقة • {bookingSuccess.subjectName}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button variant="outline" className="rounded-xl" onClick={() => setBookingSuccess(null)}>
+                      حجز حصة أخرى
+                    </Button>
+                    <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                      <Link to="/student">
+                        <CheckCircle className="h-4 w-4" />
+                        متابعة للوحة الطالب
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ) : (
+            <Card className="border-0 shadow-card overflow-hidden relative">
+              {/* Decorative top bar */}
+              <div className="h-1.5 w-full bg-gradient-to-l from-primary via-secondary to-primary" />
+
+              <CardHeader className="pb-2 pt-5">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-lg flex items-center gap-2.5 font-bold">
+                    <motion.div whileHover={{ rotate: 15 }} className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shadow-sm">
+                      <CalendarCheck className="h-5 w-5 text-secondary" />
+                    </motion.div>
+                    اطلب حصة سريعة
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-secondary/10 text-secondary border-0 text-xs font-bold px-3 py-1 rounded-full">
+                      ⚡ أسرع طريقة
+                    </Badge>
+                    {remainingMinutes > 0 && (
+                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-bold px-3 py-1 rounded-full">
+                        <Package className="h-3 w-3 ml-1" />
+                        {remainingMinutes} دقيقة
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                اطلب حصة سريعة
-                <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs">أسرع طريقة</Badge>
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-end">
-                {/* Subject */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <BookOpen className="h-3.5 w-3.5" /> اختر المادة
+                <p className="text-sm text-muted-foreground mt-1">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
+              </CardHeader>
+
+              <CardContent className="pt-2 pb-5">
+                {/* Step indicators */}
+                <div className="flex items-center gap-0 mb-5 px-1">
+                  {[
+                    { num: 1, label: "المادة والمرحلة", done: !!selectedSubject },
+                    { num: 2, label: "اليوم", done: selectedSlots.length > 0 || selectedDay >= 0 },
+                    { num: 3, label: "الساعات", done: selectedSlots.length > 0 },
+                  ].map((step, idx) => (
+                    <div key={step.num} className="flex items-center flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <motion.div
+                          animate={step.done ? { scale: [1, 1.15, 1] } : {}}
+                          transition={{ duration: 0.3 }}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
+                            step.done
+                              ? "bg-secondary text-secondary-foreground shadow-md shadow-secondary/30"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {step.done ? <CheckCircle className="h-3.5 w-3.5" /> : step.num}
+                        </motion.div>
+                        <span className={`text-[11px] font-semibold hidden sm:inline ${step.done ? "text-secondary" : "text-muted-foreground"}`}>
+                          {step.label}
+                        </span>
+                      </div>
+                      {idx < 2 && <div className={`flex-1 h-0.5 mx-2 rounded-full transition-all duration-500 ${step.done ? "bg-secondary/40" : "bg-muted"}`} />}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Row 1: Subject + Stage */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                  <motion.div whileHover={{ y: -1 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5 text-primary" /> اختر المادة
                   </p>
                   <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                     <SelectTrigger className="h-11 rounded-xl">
