@@ -35,12 +35,58 @@ serve(async (req) => {
       });
     }
 
-    const { booking_id, amount, teacher_name, subject_name, success_url, cancel_url } = await req.json();
-    if (!booking_id || !amount) {
+    const { booking_id, success_url, cancel_url } = await req.json();
+    if (!booking_id) {
       return new Response(JSON.stringify({ error: "بيانات ناقصة" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // SECURITY: Fetch booking from DB to get the real price — never trust client amount
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: booking, error: bookingError } = await adminClient.from("bookings")
+      .select("id, price, student_id, teacher_id, status")
+      .eq("id", booking_id)
+      .single();
+
+    if (bookingError || !booking) {
+      return new Response(JSON.stringify({ error: "الحجز غير موجود" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify the user owns this booking
+    if (booking.student_id !== user.id) {
+      return new Response(JSON.stringify({ error: "غير مصرح بالدفع لهذا الحجز" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Don't allow paying for already confirmed bookings
+    if (booking.status === "confirmed" || booking.status === "completed") {
+      return new Response(JSON.stringify({ error: "الحجز مؤكد بالفعل" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const amount = booking.price || 0;
+    if (amount <= 0) {
+      return new Response(JSON.stringify({ error: "سعر الحجز غير صالح" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get teacher name for description
+    const { data: teacherProfile } = await adminClient.from("profiles")
+      .select("full_name")
+      .eq("user_id", booking.teacher_id)
+      .single();
+
+    const description = `حصة مع ${teacherProfile?.full_name || "معلم"}`;
 
     // Check for existing Stripe customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
@@ -48,8 +94,6 @@ serve(async (req) => {
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
     }
-
-    const description = `حصة مع ${teacher_name || "معلم"}${subject_name ? ` - ${subject_name}` : ""}`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -76,16 +120,12 @@ serve(async (req) => {
       },
     });
 
-    // Record payment
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // Record payment with the server-side amount
     await adminClient.from("payment_records").insert({
       user_id: user.id,
       booking_id,
       stripe_session_id: session.id,
-      amount: Number(amount),
+      amount,
       payment_type: "session",
       status: "pending",
     });
