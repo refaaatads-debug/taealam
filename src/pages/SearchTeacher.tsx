@@ -491,70 +491,92 @@ const SearchTeacher = () => {
                   <motion.div whileHover={{ y: -1 }} className="group">
                     <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-primary" /> اختر المادة
-                  </p>
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger className="h-11 rounded-xl">
-                      <SelectValue placeholder="المادة الدراسية" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedSubject && teacherCount > 0 && (
-                    <p className="text-[11px] text-secondary mt-1 font-semibold">✅ {teacherCount} معلم متخصص</p>
-                  )}
+                    </p>
+                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                      <SelectTrigger className={`h-12 rounded-xl border-2 transition-all duration-200 ${selectedSubject ? "border-secondary/40 bg-secondary/5" : "border-border hover:border-primary/30"}`}>
+                        <SelectValue placeholder="المادة الدراسية" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedSubject && teacherCount > 0 && (
+                      <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                        className="text-[11px] text-secondary mt-1.5 font-bold flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" /> {teacherCount} معلم متخصص جاهز
+                      </motion.p>
+                    )}
+                  </motion.div>
+
+                  <motion.div whileHover={{ y: -1 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                      🎓 المرحلة الدراسية
+                    </p>
+                    <Select value={selectedStage} onValueChange={setSelectedStage}>
+                      <SelectTrigger className={`h-12 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/40 bg-secondary/5" : "border-border hover:border-primary/30"}`}>
+                        <SelectValue placeholder="اختر المرحلة" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_stages">جميع المراحل</SelectItem>
+                        {teachingStagesOptions.map(stage => (
+                          <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </motion.div>
                 </div>
 
-                {/* Stage */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                    🎓 المرحلة الدراسية
+                {/* Row 2: Days */}
+                <div className="mb-5">
+                  <p className="text-xs font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
+                    📅 اختر اليوم
                   </p>
-                  <Select value={selectedStage} onValueChange={setSelectedStage}>
-                    <SelectTrigger className="h-11 rounded-xl">
-                      <SelectValue placeholder="اختر المرحلة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all_stages">جميع المراحل</SelectItem>
-                      {teachingStagesOptions.map(stage => (
-                        <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Day */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">اختر اليوم (لعرض الساعات)</p>
-                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {days.map((d, i) => {
                       const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                      const isActive = selectedDay === i;
                       return (
-                        <button key={i} onClick={() => setSelectedDay(i)}
-                          className={`flex flex-col items-center px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all min-w-[52px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                          <span className="text-[10px] opacity-80">{d.label}</span>
-                          <span className="text-sm font-black">{d.date}</span>
+                        <motion.button
+                          key={i}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setSelectedDay(i)}
+                          className={`relative flex flex-col items-center px-4 py-3 rounded-2xl text-xs font-medium whitespace-nowrap transition-all min-w-[64px] border-2 ${
+                            isActive
+                              ? "gradient-cta text-secondary-foreground shadow-lg shadow-secondary/20 border-transparent"
+                              : "bg-card text-muted-foreground hover:bg-accent/50 border-border/50 hover:border-primary/30"
+                          }`}
+                        >
+                          <span className={`text-[10px] mb-0.5 ${isActive ? "opacity-90" : "opacity-60"}`}>{d.label}</span>
+                          <span className="text-lg font-black">{d.date}</span>
+                          {i === 0 && <span className={`text-[9px] mt-0.5 font-bold ${isActive ? "text-secondary-foreground/80" : "text-primary"}`}>اليوم</span>}
                           {daySlotCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-black flex items-center justify-center">{daySlotCount}</span>
+                            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center shadow-sm">
+                              {daySlotCount}
+                            </motion.span>
                           )}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Time */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5" /> اختر الساعات
-                    <Badge className={`mr-auto border-0 text-[10px] ${remainingMinutes > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-                      <Package className="h-3 w-3 ml-1" />
-                      {remainingMinutes > 0 ? `${remainingMinutes} دقيقة متبقية` : "لا يوجد رصيد"}
-                    </Badge>
-                  </p>
-                  <div className="flex gap-1.5 flex-wrap">
+                {/* Row 3: Time slots */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-primary" /> اختر الساعات
+                    </p>
+                    {remainingMinutes <= 0 && (
+                      <Badge className="bg-destructive/10 text-destructive border-0 text-[10px] px-2.5 py-1 rounded-full">
+                        لا يوجد رصيد
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                     {allTimeSlots.map((t) => {
                       const isToday = selectedDay === 0;
                       const slotHour = parseTimeSlotHour(t);
@@ -562,53 +584,75 @@ const SearchTeacher = () => {
                       const isPast = isToday && slotHour <= currentHour;
                       const isSelected = selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
                       return (
-                        <button key={t} onClick={() => !isPast && toggleSlot(selectedDay, t)}
+                        <motion.button
+                          key={t}
+                          whileHover={!isPast ? { scale: 1.05 } : {}}
+                          whileTap={!isPast ? { scale: 0.92 } : {}}
+                          onClick={() => !isPast && toggleSlot(selectedDay, t)}
                           disabled={isPast}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                          className={`px-2 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${
                             isPast
-                              ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                              ? "bg-muted/20 text-muted-foreground/30 cursor-not-allowed line-through border-transparent"
                               : isSelected
-                                ? "gradient-cta text-secondary-foreground shadow-button"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}>
+                                ? "gradient-cta text-secondary-foreground shadow-md shadow-secondary/20 border-transparent"
+                                : "bg-card text-foreground hover:bg-accent/50 border-border/50 hover:border-primary/30"
+                          }`}
+                        >
                           {t}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Selected Slots Summary + Submit */}
-                <div className="space-y-2">
-                  {remainingMinutes <= 0 && (
-                    <div className="rounded-xl p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 shrink-0" />
-                      <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                {/* Selected slots summary */}
+                {selectedSlots.length > 0 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mb-4">
+                    <div className="p-3.5 rounded-xl bg-accent/30 border border-accent">
+                      <p className="text-xs font-bold text-accent-foreground mb-2 flex items-center gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        {selectedSlots.length} حصة محددة
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedSlots.map((s, i) => (
+                          <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
+                            <Badge className="bg-card text-foreground border border-border/50 text-[11px] gap-1.5 pl-1 py-1 px-2.5 rounded-lg shadow-sm">
+                              📅 {days[s.dayIndex].label} {s.time}
+                              <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive transition-colors">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                  {selectedSlots.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {selectedSlots.map((s, i) => (
-                        <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-[10px] gap-1 pl-1">
-                          {days[s.dayIndex].label} {s.time}
-                          <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {remainingMinutes <= 0 ? (
-                    <Button
-                      className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
-                      onClick={() => navigate("/pricing")}
-                    >
+                  </motion.div>
+                )}
+
+                {/* No subscription warning */}
+                {remainingMinutes <= 0 && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
                       <CreditCard className="h-4 w-4" />
-                      اشترك في باقة للحجز
-                    </Button>
-                  ) : (
+                    </div>
+                    <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                  </motion.div>
+                )}
+
+                {/* Submit button */}
+                {remainingMinutes <= 0 ? (
+                  <Button
+                    className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-sm"
+                    onClick={() => navigate("/pricing")}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    اشترك في باقة للحجز
+                  </Button>
+                ) : (
+                  <motion.div whileHover={{ scale: 1.005 }}>
                     <Button
-                      className="w-full h-11 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold"
+                      className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-sm disabled:opacity-40"
                       disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
                       onClick={handleQuickBooking}
                     >
@@ -619,55 +663,12 @@ const SearchTeacher = () => {
                         </>
                       )}
                     </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Booking Success Confirmation */}
-        {bookingSuccess && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-            <Card className="border-2 border-secondary/30 shadow-card overflow-hidden bg-secondary/5">
-              <CardContent className="py-6">
-                <div className="flex flex-col items-center text-center mb-5">
-                  <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
-                    <PartyPopper className="h-7 w-7 text-secondary" />
-                  </div>
-                  <h3 className="text-lg font-black text-foreground">تم إرسال طلبك بنجاح! 🎉</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    تم إرسال {bookingSuccess.slots.length} طلب حصة لـ {bookingSuccess.teacherCount} معلم متخصص في {bookingSuccess.subjectName}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-                  {bookingSuccess.slots.map((slot, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-card border">
-                      <div className="w-9 h-9 rounded-lg gradient-hero flex items-center justify-center">
-                        <CalendarCheck className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-foreground">{slot.dayLabel} - {slot.time}</p>
-                        <p className="text-[11px] text-muted-foreground">{slot.date} • 45 دقيقة • {bookingSuccess.subjectName}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                  <Button variant="outline" className="rounded-xl" onClick={() => setBookingSuccess(null)}>
-                    حجز حصة أخرى
-                  </Button>
-                  <Button className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                    <Link to="/student">
-                      <CheckCircle className="h-4 w-4" />
-                      متابعة للوحة الطالب
-                    </Link>
-                  </Button>
-                </div>
+                  </motion.div>
+                )}
               </CardContent>
             </Card>
-          </motion.div>
-        )}
+          )}
+        </motion.div>
 
         {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
