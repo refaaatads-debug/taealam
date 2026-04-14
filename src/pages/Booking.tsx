@@ -250,7 +250,7 @@ const Booking = () => {
   };
 
   const availableSubjects = directTeacherId ? teacherSubjects : subjects;
-  const noAvailability = directTeacherId && teacherAvailableDays.length === 0;
+  const noAvailability = directTeacherId && !teacherLoading && teacherAvailableDays.length === 0;
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
