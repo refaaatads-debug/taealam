@@ -35,10 +35,10 @@ const Footer = () => (
         <div>
           <h4 className="font-bold mb-4 text-base">الدعم</h4>
           <div className="flex flex-col gap-3 text-sm opacity-70">
-            <span className="cursor-pointer hover:opacity-100 transition-opacity">الأسئلة الشائعة</span>
-            <span className="cursor-pointer hover:opacity-100 transition-opacity">سياسة الخصوصية</span>
-            <span className="cursor-pointer hover:opacity-100 transition-opacity">الشروط والأحكام</span>
-            <span className="cursor-pointer hover:opacity-100 transition-opacity">سياسة الاسترجاع</span>
+            <Link to="/faq" className="hover:opacity-100 transition-opacity">الأسئلة الشائعة</Link>
+            <Link to="/privacy" className="hover:opacity-100 transition-opacity">سياسة الخصوصية</Link>
+            <Link to="/terms" className="hover:opacity-100 transition-opacity">الشروط والأحكام</Link>
+            <Link to="/refund" className="hover:opacity-100 transition-opacity">سياسة الاسترجاع</Link>
           </div>
         </div>
         <div>
