@@ -287,7 +287,12 @@ const Booking = () => {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  {noAvailability ? (
+                  {teacherLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                      <p className="text-sm text-muted-foreground">جاري تحميل بيانات المعلم...</p>
+                    </div>
+                  ) : noAvailability ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
                       <p className="font-bold text-foreground mb-1">المعلم لم يحدد مواعيد متاحة بعد</p>
