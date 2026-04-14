@@ -104,6 +104,7 @@ const Booking = () => {
     }
 
     if (directTeacherId) {
+      setTeacherLoading(true);
       Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single(),
         supabase.from("teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
@@ -122,9 +123,12 @@ const Booking = () => {
                   name: t.subjects.name,
                 })));
               }
+              setTeacherLoading(false);
             });
+        } else {
+          setTeacherLoading(false);
         }
-      });
+      }).catch(() => setTeacherLoading(false));
     }
   }, [directTeacherId, user]);
 
