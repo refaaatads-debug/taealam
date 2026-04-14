@@ -34,7 +34,6 @@ const Booking = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [teacherLoading, setTeacherLoading] = useState(!!searchParams.get("teacher"));
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
@@ -104,7 +103,6 @@ const Booking = () => {
     }
 
     if (directTeacherId) {
-      setTeacherLoading(true);
       Promise.all([
         supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single(),
         supabase.from("teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
@@ -123,12 +121,9 @@ const Booking = () => {
                   name: t.subjects.name,
                 })));
               }
-              setTeacherLoading(false);
             });
-        } else {
-          setTeacherLoading(false);
         }
-      }).catch(() => setTeacherLoading(false));
+      });
     }
   }, [directTeacherId, user]);
 
@@ -250,7 +245,7 @@ const Booking = () => {
   };
 
   const availableSubjects = directTeacherId ? teacherSubjects : subjects;
-  const noAvailability = directTeacherId && !teacherLoading && teacherAvailableDays.length === 0;
+  const noAvailability = directTeacherId && teacherAvailableDays.length === 0;
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
@@ -287,12 +282,7 @@ const Booking = () => {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  {teacherLoading ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                      <p className="text-sm text-muted-foreground">جاري تحميل بيانات المعلم...</p>
-                    </div>
-                  ) : noAvailability ? (
+                  {noAvailability ? (
                     <div className="text-center py-8">
                       <AlertCircle className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
                       <p className="font-bold text-foreground mb-1">المعلم لم يحدد مواعيد متاحة بعد</p>
