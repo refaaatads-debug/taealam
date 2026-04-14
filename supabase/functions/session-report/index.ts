@@ -232,15 +232,47 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { booking_id, session_stats } = await req.json();
-    if (!booking_id) throw new Error("booking_id is required");
+    // --- Authentication ---
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Verify user with anon client
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user: authUser }, error: authError } = await authClient.auth.getUser();
+    if (authError || !authUser) {
+      return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { booking_id, session_stats } = await req.json();
+    if (!booking_id) throw new Error("booking_id is required");
+
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const { data: booking } = await supabase.from("bookings").select("*, subjects(name)").eq("id", booking_id).single();
     if (!booking) throw new Error("Booking not found");
+
+    // --- Authorization: only participants or admins ---
+    const isParticipant = authUser.id === booking.student_id || authUser.id === booking.teacher_id;
+    if (!isParticipant) {
+      const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", authUser.id).eq("role", "admin").maybeSingle();
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: "Access denied" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const { data: session } = await supabase.from("sessions").select("*").eq("booking_id", booking_id).single();
 
