@@ -404,7 +404,7 @@ const AdminDashboard = () => {
       || (violationStatusFilter === "false_positive" && v.is_false_positive))
     .filter((v: any) => !violationSearchQuery || v.user_name?.toLowerCase().includes(violationSearchQuery.toLowerCase()));
 
-  if (loading) {
+  if (loading || !adminVerified) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
