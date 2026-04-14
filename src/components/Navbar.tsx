@@ -54,7 +54,7 @@ const Navbar = () => {
           <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center transition-transform group-hover:scale-110">
             <GraduationCap className="h-5 w-5 text-secondary-foreground" />
           </div>
-          <span className="font-extrabold text-xl text-foreground">تعلّم</span>
+          <span className="font-extrabold text-xl text-foreground">تعلم المستقبل</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
