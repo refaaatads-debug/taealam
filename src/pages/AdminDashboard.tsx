@@ -67,12 +67,29 @@ const AdminDashboard = () => {
   const [violationDateTo, setViolationDateTo] = useState("");
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
   const [violationStatusFilter, setViolationStatusFilter] = useState("all");
-  // Verify admin access
+  const [adminVerified, setAdminVerified] = useState(false);
+
+  // Verify admin access server-side
   useEffect(() => {
-    if (!currentUserRoles.includes("admin")) {
+    if (!user) {
       navigate("/login");
+      return;
     }
-  }, [currentUserRoles, navigate]);
+    const verifyAdmin = async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      if (!data) {
+        navigate("/login");
+      } else {
+        setAdminVerified(true);
+      }
+    };
+    verifyAdmin();
+  }, [user, navigate]);
 
   const fetchBadgeCounts = async () => {
     const ts = seenTimestamps;
