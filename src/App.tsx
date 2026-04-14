@@ -30,6 +30,10 @@ const Chat = lazy(() => import("./pages/Chat"));
 const SupportChat = lazy(() => import("./pages/SupportChat"));
 const SubscriptionDetails = lazy(() => import("./pages/SubscriptionDetails"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +84,10 @@ const App = () => (
               <Route path="/ai-tutor" element={<ProtectedRoute><AITutor /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/refund" element={<RefundPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
