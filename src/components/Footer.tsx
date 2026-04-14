@@ -10,7 +10,7 @@ const Footer = () => (
             <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center">
               <GraduationCap className="h-5 w-5 text-secondary-foreground" />
             </div>
-            <span className="font-extrabold text-xl">تعلّم</span>
+            <span className="font-extrabold text-xl">تعلم المستقبل</span>
           </div>
           <p className="text-sm opacity-70 leading-relaxed mb-6">
             منصة تعليمية ذكية تربط الطلاب بأفضل المدرسين في السعودية والوطن العربي، مدعومة بالذكاء الاصطناعي.
@@ -51,7 +51,7 @@ const Footer = () => (
         </div>
       </div>
       <div className="border-t border-background/10 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between text-sm opacity-50">
-        <span>© 2026 تعلّم. جميع الحقوق محفوظة.</span>
+        <span>© 2026 تعلم المستقبل. جميع الحقوق محفوظة.</span>
         <span>صُنع بـ ❤️ في السعودية</span>
       </div>
     </div>
