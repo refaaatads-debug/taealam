@@ -34,6 +34,7 @@ const Booking = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [teacherLoading, setTeacherLoading] = useState(!!searchParams.get("teacher"));
   const [sessionsRemaining, setSessionsRemaining] = useState(0);
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
