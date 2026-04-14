@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -12,6 +13,12 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, roles, signOut } = useAuth();
+  const { getSetting, loading } = useSiteSettings("header");
+
+  const siteName = getSetting("site_name", "تعلم المستقبل");
+  const loginText = getSetting("header_login_text", "تسجيل الدخول");
+  const ctaText = getSetting("header_cta_text", "ابدأ مجاناً");
+  const logoUrl = getSetting("header_logo", "");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -22,7 +29,6 @@ const Navbar = () => {
   const isAdmin = roles.includes("admin");
   const isTeacher = roles.includes("teacher");
   const isStudent = roles.includes("student");
-  const isParent = roles.includes("parent");
 
   const links = [
     ...(!isStudent && !isTeacher ? [{ label: "الرئيسية", to: "/" }] : []),
@@ -51,10 +57,14 @@ const Navbar = () => {
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "glass-strong shadow-card border-b" : "bg-card/60 backdrop-blur-md border-b border-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center transition-transform group-hover:scale-110">
-            <GraduationCap className="h-5 w-5 text-secondary-foreground" />
-          </div>
-          <span className="font-extrabold text-xl text-foreground">تعلم المستقبل</span>
+          {logoUrl ? (
+            <img src={logoUrl} alt={siteName} className="h-9 w-9 rounded-xl object-cover transition-transform group-hover:scale-110" />
+          ) : (
+            <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center transition-transform group-hover:scale-110">
+              <GraduationCap className="h-5 w-5 text-secondary-foreground" />
+            </div>
+          )}
+          <span className="font-extrabold text-xl text-foreground">{siteName}</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
@@ -87,10 +97,10 @@ const Navbar = () => {
           ) : (
             <>
               <Button variant="ghost" className="rounded-xl text-sm" asChild>
-                <Link to="/login">تسجيل الدخول</Link>
+                <Link to="/login">{loginText}</Link>
               </Button>
               <Button className="gradient-cta shadow-button text-secondary-foreground rounded-xl text-sm px-5" asChild>
-                <Link to="/login">ابدأ مجاناً</Link>
+                <Link to="/login">{ctaText}</Link>
               </Button>
             </>
           )}
@@ -117,8 +127,8 @@ const Navbar = () => {
                   <Button variant="outline" className="flex-1 rounded-xl" onClick={handleSignOut}>تسجيل الخروج</Button>
                 ) : (
                   <>
-                    <Button variant="outline" className="flex-1 rounded-xl" asChild><Link to="/login">تسجيل الدخول</Link></Button>
-                    <Button className="flex-1 gradient-cta shadow-button text-secondary-foreground rounded-xl" asChild><Link to="/login">ابدأ مجاناً</Link></Button>
+                    <Button variant="outline" className="flex-1 rounded-xl" asChild><Link to="/login">{loginText}</Link></Button>
+                    <Button className="flex-1 gradient-cta shadow-button text-secondary-foreground rounded-xl" asChild><Link to="/login">{ctaText}</Link></Button>
                   </>
                 )}
               </div>

@@ -11,6 +11,8 @@ import { useSiteSettings, SiteSetting } from "@/hooks/useSiteSettings";
 
 const categoryLabels: Record<string, string> = {
   homepage: "الصفحة الرئيسية",
+  header: "الهيدر (شريط التنقل)",
+  footer: "الفوتر (أسفل الصفحة)",
   general: "إعدادات عامة",
 };
 
