@@ -77,7 +77,7 @@ export default function StudentScheduleTable() {
         if ((isWaiting || isInProgress) && (payload.eventType === "INSERT" || (payload.eventType === "UPDATE" && !liveSessionIds.has(updated.id)))) {
           playNotificationSound();
           let teacherName = "المعلم";
-          const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", updated.teacher_id).single();
+          const { data: profile } = await supabase.from("public_profiles").select("full_name").eq("user_id", updated.teacher_id).single();
           if (profile) teacherName = profile.full_name;
           setJoinRequest({ bookingId: updated.id, teacherName });
           if (isInProgress) {
@@ -105,7 +105,7 @@ export default function StudentScheduleTable() {
     const teacherIds = [...new Set(data.map(b => b.teacher_id))];
     const bookingIdsList = data.map(b => b.id);
     const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
+      supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").in("user_id", [user.id]).eq("is_active", true),
       supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIdsList),
     ]);

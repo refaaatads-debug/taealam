@@ -65,7 +65,7 @@ const SubscriptionDetails = () => {
 
       const [sessionsRes, profilesRes] = await Promise.all([
         supabase.from("sessions").select("booking_id, duration_minutes, deducted_minutes, teacher_earning, short_session, started_at, ended_at").in("booking_id", bookingIds),
-        supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
+        supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
       ]);
 
       const sessionsMap = new Map((sessionsRes.data ?? []).map(s => [s.booking_id, s]));

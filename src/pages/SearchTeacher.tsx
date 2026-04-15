@@ -140,7 +140,7 @@ const SearchTeacher = () => {
   const fetchTeachers = async () => {
     setLoading(true);
     const { data: teacherProfiles } = await supabase
-      .from("teacher_profiles")
+      .from("public_teacher_profiles")
       .select("*")
       .eq("is_approved", true)
       .order("avg_rating", { ascending: false });

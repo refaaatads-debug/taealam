@@ -52,7 +52,7 @@ export default function TeacherSessionMaterials() {
 
     const [{ data: sessions }, { data: profiles }] = await Promise.all([
       supabase.from("sessions").select("id, ai_report, booking_id").in("id", sessionIds),
-      supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
+      supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds),
     ]);
 
     const sessionMap = new Map((sessions ?? []).map(s => [s.id, s]));
