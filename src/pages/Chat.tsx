@@ -55,7 +55,7 @@ const Chat = () => {
         setIsStudent(isUserStudent);
         const otherId = isUserStudent ? booking.teacher_id : booking.student_id;
         const { data: profile } = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("full_name")
           .eq("user_id", otherId)
           .single();

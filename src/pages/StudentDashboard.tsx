@@ -107,7 +107,7 @@ const StudentDashboard = () => {
       if (upcoming && upcoming.length > 0) {
         const teacherIds = [...new Set(upcoming.map(b => b.teacher_id))];
         const { data: teacherProfiles } = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("user_id, full_name")
           .in("user_id", teacherIds);
         const tMap = new Map((teacherProfiles ?? []).map(p => [p.user_id, p.full_name]));
