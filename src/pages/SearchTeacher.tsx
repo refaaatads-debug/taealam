@@ -140,7 +140,7 @@ const SearchTeacher = () => {
   const fetchTeachers = async () => {
     setLoading(true);
     const { data: teacherProfiles } = await supabase
-      .from("teacher_profiles")
+      .from("public_teacher_profiles")
       .select("*")
       .eq("is_approved", true)
       .order("avg_rating", { ascending: false });
@@ -149,7 +149,7 @@ const SearchTeacher = () => {
 
     const userIds = teacherProfiles.map(t => t.user_id);
     const { data: profiles } = await supabase
-      .from("profiles")
+      .from("public_profiles")
       .select("user_id, full_name, avatar_url")
       .in("user_id", userIds);
     const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));

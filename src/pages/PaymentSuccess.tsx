@@ -39,7 +39,7 @@ const PaymentSuccess = () => {
 
           // Get teacher name
           const { data: prof } = await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select("full_name")
             .eq("user_id", b.teacher_id)
             .single();

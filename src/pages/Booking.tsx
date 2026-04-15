@@ -106,8 +106,8 @@ const Booking = () => {
 
     if (directTeacherId) {
       Promise.all([
-        supabase.from("profiles").select("full_name").eq("user_id", directTeacherId).single(),
-        supabase.from("teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
+        supabase.from("public_profiles").select("full_name").eq("user_id", directTeacherId).single(),
+        supabase.from("public_teacher_profiles").select("available_days, available_from, available_to, id").eq("user_id", directTeacherId).single(),
       ]).then(([profileRes, teacherRes]) => {
         if (profileRes.data) setDirectTeacherName(profileRes.data.full_name);
         if (teacherRes.data) {

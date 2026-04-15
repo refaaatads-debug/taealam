@@ -55,7 +55,7 @@ export default function ChatNotificationToast() {
         if (booking.student_id !== user.id && booking.teacher_id !== user.id) return;
 
         const { data: profile } = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("full_name")
           .eq("user_id", msg.sender_id)
           .single();

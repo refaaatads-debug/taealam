@@ -497,7 +497,7 @@ const LiveSession = () => {
 
       const otherId = user.id === booking.student_id ? booking.teacher_id : booking.student_id;
       const { data: otherProfile } = await supabase
-        .from("profiles")
+        .from("public_profiles")
         .select("full_name")
         .eq("user_id", otherId)
         .maybeSingle();

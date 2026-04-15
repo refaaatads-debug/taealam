@@ -79,7 +79,7 @@ export default function BookingRequests() {
     const subjectIds = [...new Set(validData.map((r: any) => r.subject_id).filter(Boolean))];
 
     const [{ data: profiles }, { data: subjects }] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
+      supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds),
       subjectIds.length > 0 ? supabase.from("subjects").select("id, name").in("id", subjectIds) : { data: [] },
     ]);
 

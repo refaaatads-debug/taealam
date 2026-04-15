@@ -93,7 +93,7 @@ export default function TeacherScheduleTable() {
     const studentIds = [...new Set(data.map(b => b.student_id))];
     const bookingIds = data.map(b => b.id);
     const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds),
+      supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", studentIds).eq("is_active", true),
       supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIds),
     ]);
