@@ -62,12 +62,13 @@ const Profile = () => {
   useEffect(() => {
     if (!user) return;
 
-    supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry")
+    supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry, teaching_stage")
       .eq("user_id", user.id).single().then(({ data }) => {
         if (data) {
           setNotifyBefore(data.notify_before_session ?? true);
           setNotifyAfter(data.notify_after_session ?? true);
           setNotifyExpiry(data.notify_subscription_expiry ?? true);
+          setStudentStage((data as any).teaching_stage || "");
         }
       });
 
