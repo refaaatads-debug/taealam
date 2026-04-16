@@ -184,7 +184,7 @@ export default function TeacherWallet() {
                       <TableCell className="text-xs">
                         {new Date(log.created_at).toLocaleString("ar-SA")}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{log.student_phone || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{log.student_phone ? `••••${log.student_phone.slice(-4)}` : "—"}</TableCell>
                       <TableCell>{log.estimated_minutes} د</TableCell>
                       <TableCell>{Number(log.cost).toFixed(2)} ريال</TableCell>
                       <TableCell>
