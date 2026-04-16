@@ -419,36 +419,84 @@ export function useWebRTC({
     if (!pc || !transceiver) return;
 
     if (screenSharing) {
-      // Stop screen sharing - replace track with null
+      // Stop screen sharing or rear camera
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       await transceiver.sender.replaceTrack(null);
       transceiver.direction = "sendrecv";
       setScreenSharing(false);
       sendDataMessage({ type: "screen-share-status", active: false });
-    } else {
+      return;
+    }
+
+    // Detect mobile/tablet
+    const ua = navigator.userAgent;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    const supportsDisplayMedia = !!navigator.mediaDevices?.getDisplayMedia;
+
+    let stream: MediaStream | null = null;
+    let usedFallback = false;
+
+    // Try native screen share first (works on desktop + iPad Safari 16+ as PWA)
+    if (supportsDisplayMedia && !isMobile) {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        screenStreamRef.current = screenStream;
-        const screenTrack = screenStream.getVideoTracks()[0];
-        
-        // Use replaceTrack on the pre-created transceiver - no renegotiation needed
-        await transceiver.sender.replaceTrack(screenTrack);
-        transceiver.direction = "sendrecv";
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      } catch (err: any) {
+        if (err?.name === "NotAllowedError") {
+          console.log("Screen share cancelled by user");
+          return;
+        }
+        console.warn("getDisplayMedia failed, will try rear camera:", err);
+      }
+    } else if (supportsDisplayMedia && isMobile) {
+      // Try on mobile (iPad Safari 16+ supports it)
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      } catch (err: any) {
+        if (err?.name === "NotAllowedError") {
+          console.log("Screen share cancelled by user");
+          return;
+        }
+        console.log("getDisplayMedia not supported on this mobile, falling back to rear camera");
+        usedFallback = true;
+      }
+    } else {
+      usedFallback = true;
+    }
 
-        screenTrack.addEventListener("ended", async () => {
-          await transceiver.sender.replaceTrack(null);
-          setScreenSharing(false);
-          screenStreamRef.current = null;
-          sendDataMessage({ type: "screen-share-status", active: false });
+    // Fallback for mobile: use rear camera as document/whiteboard sharing
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
         });
-
-        setScreenSharing(true);
-        sendDataMessage({ type: "screen-share-status", active: true });
-      } catch {
-        console.error("Screen share cancelled");
+        usedFallback = true;
+      } catch (err) {
+        console.error("Rear camera unavailable:", err);
+        return;
       }
     }
+
+    screenStreamRef.current = stream;
+    const videoTrack = stream.getVideoTracks()[0];
+
+    await transceiver.sender.replaceTrack(videoTrack);
+    transceiver.direction = "sendrecv";
+
+    videoTrack.addEventListener("ended", async () => {
+      await transceiver.sender.replaceTrack(null);
+      setScreenSharing(false);
+      screenStreamRef.current = null;
+      sendDataMessage({ type: "screen-share-status", active: false });
+    });
+
+    setScreenSharing(true);
+    sendDataMessage({ type: "screen-share-status", active: true, fallback: usedFallback });
   }, [screenSharing, sendDataMessage]);
 
   // Manual recording (screen share based - kept for manual use)
