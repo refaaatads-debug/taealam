@@ -118,7 +118,8 @@ const Profile = () => {
         notify_before_session: notifyBefore,
         notify_after_session: notifyAfter,
         notify_subscription_expiry: notifyExpiry,
-      }).eq("user_id", user.id);
+        ...(isStudent ? { teaching_stage: studentStage || null } : {}),
+      } as any).eq("user_id", user.id);
       if (profileErr) throw profileErr;
 
       if (isTeacher && teacherProfileId) {
