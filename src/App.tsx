@@ -34,6 +34,7 @@ const FAQ = lazy(() => import("./pages/FAQ"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
+const TeacherWallet = lazy(() => import("./pages/TeacherWallet"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
+              <Route path="/teacher/wallet" element={<ProtectedRoute><TeacherWallet /></ProtectedRoute>} />
               <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
               <Route path="/booking" element={<ProtectedRoute><Booking /></ProtectedRoute>} />
               <Route path="/session" element={<ProtectedRoute><LiveSession /></ProtectedRoute>} />
