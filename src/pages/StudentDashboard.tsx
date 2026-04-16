@@ -44,6 +44,20 @@ const StudentDashboard = () => {
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("full_name, phone, teaching_stage")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const complete = !!(data?.full_name && data?.phone && (data as any)?.teaching_stage);
+        setProfileIncomplete(!complete);
+      });
+  }, [user]);
 
   const handleCancelBooking = async (booking: any) => {
     setCancellingId(booking.id);
@@ -262,6 +276,27 @@ const StudentDashboard = () => {
             </p>
           </motion.div>
         </div>
+
+        {profileIncomplete && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20">
+              <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">استكمل بياناتك للبدء بالحجز والاشتراك</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">الاسم الكامل، رقم الهاتف، والمرحلة الدراسية مطلوبة</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="rounded-lg shrink-0">
+                  <Link to="/complete-profile?redirect=/student">استكمال الآن</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Stats */}
         {loading ? (
