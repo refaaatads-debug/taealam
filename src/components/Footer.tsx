@@ -6,13 +6,13 @@ const Footer = () => {
   const { getSetting } = useSiteSettings("footer");
   const headerSettings = useSiteSettings("header");
 
-  const siteName = headerSettings.getSetting("site_name", "تعلم المستقبل");
+  const siteName = headerSettings.getSetting("site_name", "منصة أجيال المعرفة");
   const logoUrl = headerSettings.getSetting("header_logo", "");
   const description = getSetting("footer_description", "منصة تعليمية ذكية تربط الطلاب بأفضل المدرسين في السعودية والوطن العربي، مدعومة بالذكاء الاصطناعي.");
   const email = getSetting("footer_email", "info@taallam.com");
   const phone = getSetting("footer_phone", "+966 50 000 0000");
   const address = getSetting("footer_address", "الرياض، المملكة العربية السعودية");
-  const copyright = getSetting("footer_copyright", "© 2026 تعلم المستقبل. جميع الحقوق محفوظة.");
+  const copyright = getSetting("footer_copyright", "© 2026 منصة أجيال المعرفة. جميع الحقوق محفوظة.");
   const madeWith = getSetting("footer_made_with", "صُنع بـ ❤️ في السعودية");
   const twitterUrl = getSetting("footer_twitter_url", "");
   const linkedinUrl = getSetting("footer_linkedin_url", "");

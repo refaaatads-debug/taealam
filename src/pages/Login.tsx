@@ -157,10 +157,10 @@ const Login = () => {
                 <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
                   <GraduationCap className="h-5 w-5 text-secondary-foreground" />
                 </div>
-                <span className="font-extrabold text-2xl text-foreground">تعلّم</span>
+                <span className="font-extrabold text-2xl text-foreground">أجيال المعرفة</span>
               </Link>
               <h2 className="text-2xl font-black text-center text-foreground mb-1">
-                {isLogin ? "مرحباً بعودتك! 👋" : "انضم لمجتمع تعلّم"}
+                {isLogin ? "مرحباً بعودتك! 👋" : "انضم لمنصة أجيال المعرفة"}
               </h2>
               <p className="text-center text-muted-foreground text-sm">
                 {isLogin ? "سجّل دخولك للمتابعة" : "أكثر من 10,000 طالب يثقون بنا"}

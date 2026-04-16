@@ -15,7 +15,7 @@ const Navbar = () => {
   const { user, profile, roles, signOut } = useAuth();
   const { getSetting, loading } = useSiteSettings("header");
 
-  const siteName = getSetting("site_name", "تعلم المستقبل");
+  const siteName = getSetting("site_name", "منصة أجيال المعرفة");
   const loginText = getSetting("header_login_text", "تسجيل الدخول");
   const ctaText = getSetting("header_cta_text", "ابدأ مجاناً");
   const logoUrl = getSetting("header_logo", "");
@@ -56,7 +56,7 @@ const Navbar = () => {
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "glass-strong shadow-card border-b" : "bg-card/60 backdrop-blur-md border-b border-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
-        <Link to="/" className="flex items-center gap-2.5 group">
+        <Link to={isAdmin ? "/admin" : isTeacher ? "/teacher" : isStudent ? "/student" : "/"} className="flex items-center gap-2.5 group">
           {logoUrl ? (
             <img src={logoUrl} alt={siteName} className="h-9 w-9 rounded-xl object-cover transition-transform group-hover:scale-110" />
           ) : (
