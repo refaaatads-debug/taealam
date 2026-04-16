@@ -28,6 +28,7 @@ interface MenuItemConfig {
   title: string;
   icon: React.ElementType;
   badge?: number;
+  permission?: string;
 }
 
 interface MenuGroupConfig {
@@ -45,64 +46,70 @@ interface AdminSidebarProps {
     unreviewed: number;
   };
   pendingTeachersCount: number;
+  isFullAdmin: boolean;
+  permissions: Set<string>;
 }
 
-const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCount }: AdminSidebarProps) => {
+const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCount, isFullAdmin, permissions }: AdminSidebarProps) => {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
 
-  const menuGroups: MenuGroupConfig[] = [
+  const allGroups: MenuGroupConfig[] = [
     {
       label: "الرئيسية",
       items: [
-        { id: "overview", title: "نظرة عامة", icon: BarChart3 },
+        { id: "overview", title: "نظرة عامة", icon: BarChart3, permission: "view_overview" },
       ],
     },
     {
       label: "إدارة المستخدمين",
       items: [
-        { id: "users", title: "المستخدمين", icon: Users },
-        { id: "teachers", title: "طلبات المعلمين", icon: UserCheck, badge: pendingTeachersCount },
-        { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp },
+        { id: "users", title: "المستخدمين", icon: Users, permission: "manage_users" },
+        { id: "teachers", title: "طلبات المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_teachers" },
+        { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
       ],
     },
     {
       label: "الحجوزات والحصص",
       items: [
-        { id: "bookings", title: "الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings },
-        { id: "session_reports", title: "تقارير الحصص", icon: FileText },
-        { id: "session_pricing", title: "أسعار الحصص", icon: DollarSign },
-        { id: "materials_monitor", title: "مراقبة المواد", icon: BookOpen },
+        { id: "bookings", title: "الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings, permission: "manage_bookings" },
+        { id: "session_reports", title: "تقارير الحصص", icon: FileText, permission: "manage_session_reports" },
+        { id: "session_pricing", title: "أسعار الحصص", icon: DollarSign, permission: "manage_session_pricing" },
+        { id: "materials_monitor", title: "مراقبة المواد", icon: BookOpen, permission: "manage_materials" },
       ],
     },
     {
       label: "المالية",
       items: [
-        { id: "plans", title: "الباقات", icon: CreditCard },
-        { id: "coupons", title: "الكوبونات", icon: Tag },
-        { id: "withdrawals", title: "سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals },
-        { id: "teacher_payments", title: "المدفوعات", icon: DollarSign },
-        { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign },
-        { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet },
+        { id: "plans", title: "الباقات", icon: CreditCard, permission: "manage_plans" },
+        { id: "coupons", title: "الكوبونات", icon: Tag, permission: "manage_coupons" },
+        { id: "withdrawals", title: "سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
+        { id: "teacher_payments", title: "المدفوعات", icon: DollarSign, permission: "manage_teacher_payments" },
+        { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign, permission: "manage_teacher_earnings" },
+        { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet, permission: "manage_wallets" },
       ],
     },
     {
       label: "الأمان والمراقبة",
       items: [
-        { id: "violations", title: "المخالفات", icon: ShieldAlert, badge: badgeCounts.unreviewed },
-        { id: "ai_audit", title: "فحص AI", icon: Brain },
+        { id: "violations", title: "المخالفات", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
+        { id: "ai_audit", title: "فحص AI", icon: Brain, permission: "manage_ai_audit" },
       ],
     },
     {
       label: "النظام",
       items: [
-        { id: "site", title: "المحتوى", icon: Settings },
-        { id: "support", title: "الدعم الفني", icon: MessageSquare, badge: badgeCounts.support },
-        { id: "admin_notifications", title: "الإشعارات", icon: Bell },
+        { id: "site", title: "المحتوى", icon: Settings, permission: "manage_content" },
+        { id: "support", title: "الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
+        { id: "admin_notifications", title: "الإشعارات", icon: Bell, permission: "manage_notifications" },
       ],
     },
   ];
+
+  const menuGroups = allGroups
+    .map(g => ({ ...g, items: g.items.filter(i => isFullAdmin || !i.permission || permissions.has(i.permission)) }))
+    .filter(g => g.items.length > 0);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
