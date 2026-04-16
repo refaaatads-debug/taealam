@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, BookOpen, Clock, Star, Loader2, CheckCircle, X, CreditCard, FileText, Upload, Trash2, Award, GraduationCap } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,9 +18,11 @@ import { toast } from "sonner";
 const Profile = () => {
   const { user, profile, roles, signOut } = useAuth();
   const isTeacher = roles.includes("teacher");
+  const isStudent = !isTeacher && (roles.length === 0 || roles.includes("student"));
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [studentStage, setStudentStage] = useState("");
   const [notifyBefore, setNotifyBefore] = useState(true);
   const [notifyAfter, setNotifyAfter] = useState(true);
   const [notifyExpiry, setNotifyExpiry] = useState(true);
@@ -59,12 +62,13 @@ const Profile = () => {
   useEffect(() => {
     if (!user) return;
 
-    supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry")
+    supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry, teaching_stage")
       .eq("user_id", user.id).single().then(({ data }) => {
         if (data) {
           setNotifyBefore(data.notify_before_session ?? true);
           setNotifyAfter(data.notify_after_session ?? true);
           setNotifyExpiry(data.notify_subscription_expiry ?? true);
+          setStudentStage((data as any).teaching_stage || "");
         }
       });
 
@@ -114,7 +118,8 @@ const Profile = () => {
         notify_before_session: notifyBefore,
         notify_after_session: notifyAfter,
         notify_subscription_expiry: notifyExpiry,
-      }).eq("user_id", user.id);
+        ...(isStudent ? { teaching_stage: studentStage || null } : {}),
+      } as any).eq("user_id", user.id);
       if (profileErr) throw profileErr;
 
       if (isTeacher && teacherProfileId) {
@@ -243,6 +248,25 @@ const Profile = () => {
                 <Label className="text-xs font-bold text-muted-foreground">رقم الجوال</Label>
                 <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
               </div>
+              {isStudent && (
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                    <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية
+                  </Label>
+                  <Select value={studentStage} onValueChange={setStudentStage}>
+                    <SelectTrigger className="mt-1.5 rounded-xl bg-muted/30 border-border/50">
+                      <SelectValue placeholder="اختر مرحلتك الدراسية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kindergarten">رياض الأطفال</SelectItem>
+                      <SelectItem value="primary">ابتدائي</SelectItem>
+                      <SelectItem value="middle">متوسط / إعدادي</SelectItem>
+                      <SelectItem value="high_school">ثانوي</SelectItem>
+                      <SelectItem value="university">جامعي</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
