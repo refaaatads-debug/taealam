@@ -214,14 +214,34 @@ export default function UserManagementTab() {
     setEditMode(false);
   };
 
-  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string }> = {
-    customer_support: { label: "خدمة العملاء", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬" },
-    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅" },
-    manage_teachers: { label: "إدارة المعلمين", description: "مراجعة طلبات المعلمين والموافقة عليها", icon: "👨‍🏫" },
-    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝" },
-    view_reports: { label: "عرض التقارير", description: "الوصول للإحصائيات وتقارير الأداء", icon: "📊" },
-    manage_payments: { label: "إدارة المدفوعات", description: "عرض وإدارة المدفوعات وطلبات السحب", icon: "💰" },
-    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️" },
+  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string; group: string }> = {
+    // الرئيسية
+    view_overview: { label: "نظرة عامة", description: "عرض الإحصائيات والرسوم البيانية", icon: "📊", group: "الرئيسية" },
+    // المستخدمين
+    manage_users: { label: "إدارة المستخدمين", description: "عرض وتعديل وحذف المستخدمين", icon: "👥", group: "المستخدمين" },
+    manage_teachers: { label: "طلبات المعلمين", description: "مراجعة طلبات تسجيل المعلمين والموافقة عليها", icon: "👨‍🏫", group: "المستخدمين" },
+    view_teacher_performance: { label: "أداء المعلمين", description: "عرض تقارير أداء المعلمين", icon: "📈", group: "المستخدمين" },
+    // الحصص
+    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅", group: "الحصص" },
+    manage_session_reports: { label: "تقارير الحصص", description: "الوصول لتقارير AI للحصص", icon: "📄", group: "الحصص" },
+    manage_session_pricing: { label: "أسعار الحصص", description: "تعديل أسعار ساعات المعلمين", icon: "💵", group: "الحصص" },
+    manage_materials: { label: "مراقبة المواد", description: "متابعة المواد التعليمية والتسجيلات", icon: "📚", group: "الحصص" },
+    // المالية
+    manage_plans: { label: "إدارة الباقات", description: "إنشاء وتعديل باقات الاشتراك", icon: "💳", group: "المالية" },
+    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️", group: "المالية" },
+    manage_withdrawals: { label: "طلبات السحب", description: "مراجعة طلبات سحب أرباح المعلمين", icon: "💸", group: "المالية" },
+    manage_teacher_payments: { label: "مدفوعات المعلمين", description: "سجل المدفوعات للمعلمين", icon: "💰", group: "المالية" },
+    manage_teacher_earnings: { label: "الأرباح اليدوية", description: "إضافة أرباح يدوية للمعلمين", icon: "✏️", group: "المالية" },
+    manage_wallets: { label: "المحافظ والمكالمات", description: "إدارة محافظ المعلمين وسجل المكالمات", icon: "👛", group: "المالية" },
+    manage_payments: { label: "إدارة المدفوعات (عام)", description: "صلاحية شاملة للمدفوعات", icon: "💼", group: "المالية" },
+    // الأمان
+    manage_violations: { label: "المخالفات", description: "مراجعة مخالفات الطلاب والمعلمين", icon: "⚠️", group: "الأمان" },
+    manage_ai_audit: { label: "فحص AI", description: "مراجعة جودة استجابات الذكاء الاصطناعي", icon: "🧠", group: "الأمان" },
+    // النظام
+    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝", group: "النظام" },
+    customer_support: { label: "الدعم الفني", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬", group: "النظام" },
+    manage_notifications: { label: "الإشعارات", description: "إرسال إشعارات للمستخدمين", icon: "🔔", group: "النظام" },
+    view_reports: { label: "عرض التقارير (عام)", description: "صلاحية شاملة للتقارير", icon: "📋", group: "النظام" },
   };
 
   const togglePermission = async (userId: string, permission: string, currentlyHas: boolean) => {
@@ -785,28 +805,60 @@ export default function UserManagementTab() {
                   </div>
                 )}
 
-                {/* Permissions */}
+                {/* Permissions grouped by section */}
                 <div className="bg-muted/30 rounded-xl p-4">
                   <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                    <KeyRound className="h-4 w-4 text-primary" /> الصلاحيات المخصصة
+                    <KeyRound className="h-4 w-4 text-primary" /> صلاحيات أقسام لوحة الإدارة
                   </h3>
-                  <div className="space-y-3">
-                    {Object.entries(PERMISSION_LABELS).map(([key, info]) => {
-                      const hasPermission = (selectedUser.permissions || []).includes(key);
+                  <p className="text-xs text-muted-foreground mb-3">
+                    اختر الأقسام التي يمكن لهذا المستخدم الوصول إليها. كل صلاحية تتحكم في إظهار/إخفاء قسم في لوحة الأدمن.
+                  </p>
+                  <div className="space-y-4">
+                    {Array.from(new Set(Object.values(PERMISSION_LABELS).map(p => p.group))).map(groupName => {
+                      const groupPerms = Object.entries(PERMISSION_LABELS).filter(([, info]) => info.group === groupName);
+                      const groupKeys = groupPerms.map(([k]) => k);
+                      const userPerms = selectedUser.permissions || [];
+                      const allChecked = groupKeys.every(k => userPerms.includes(k));
                       return (
-                        <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg">{info.icon}</span>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{info.label}</p>
-                              <p className="text-[10px] text-muted-foreground">{info.description}</p>
-                            </div>
+                        <div key={groupName} className="border rounded-lg p-3 bg-background/40">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold text-primary">{groupName}</h4>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px]"
+                              disabled={selectedUser.user_id === currentUser?.id}
+                              onClick={() => {
+                                groupKeys.forEach(k => {
+                                  const has = userPerms.includes(k);
+                                  if (allChecked ? has : !has) togglePermission(selectedUser.user_id, k, has);
+                                });
+                              }}
+                            >
+                              {allChecked ? "إلغاء الكل" : "منح الكل"}
+                            </Button>
                           </div>
-                          <Switch
-                            checked={hasPermission}
-                            onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
-                            disabled={selectedUser.user_id === currentUser?.id}
-                          />
+                          <div className="space-y-2">
+                            {groupPerms.map(([key, info]) => {
+                              const hasPermission = userPerms.includes(key);
+                              return (
+                                <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-2.5">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="text-base">{info.icon}</span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium text-foreground truncate">{info.label}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">{info.description}</p>
+                                    </div>
+                                  </div>
+                                  <Switch
+                                    checked={hasPermission}
+                                    onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
+                                    disabled={selectedUser.user_id === currentUser?.id}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}

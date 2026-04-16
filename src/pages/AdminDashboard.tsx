@@ -33,6 +33,8 @@ import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { Lock } from "lucide-react";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -61,6 +63,7 @@ const TAB_TITLES: Record<string, string> = {
 const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const access = useAdminPermissions();
   const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0, pendingTeachers: 0, completedSessions: 0, cancelledBookings: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
@@ -281,7 +284,42 @@ const AdminDashboard = () => {
     );
   }
 
+  // ربط كل تبويب بصلاحيته
+  const TAB_PERMISSIONS: Record<string, string> = {
+    overview: "view_overview",
+    users: "manage_users",
+    teachers: "manage_teachers",
+    teacher_performance: "view_teacher_performance",
+    bookings: "manage_bookings",
+    session_reports: "manage_session_reports",
+    session_pricing: "manage_session_pricing",
+    materials_monitor: "manage_materials",
+    plans: "manage_plans",
+    coupons: "manage_coupons",
+    withdrawals: "manage_withdrawals",
+    teacher_payments: "manage_teacher_payments",
+    teacher_earnings: "manage_teacher_earnings",
+    wallets: "manage_wallets",
+    violations: "manage_violations",
+    ai_audit: "manage_ai_audit",
+    site: "manage_content",
+    support: "customer_support",
+    admin_notifications: "manage_notifications",
+  };
+
   const renderContent = () => {
+    const requiredPerm = TAB_PERMISSIONS[activeTab];
+    if (requiredPerm && !access.can(requiredPerm)) {
+      return (
+        <Card className="border-destructive/30">
+          <CardContent className="py-12 text-center space-y-3">
+            <Lock className="h-12 w-12 mx-auto text-destructive" />
+            <h3 className="text-lg font-bold">لا تملك صلاحية الوصول لهذا القسم</h3>
+            <p className="text-sm text-muted-foreground">تواصل مع المدير العام لمنحك الصلاحية المطلوبة.</p>
+          </CardContent>
+        </Card>
+      );
+    }
     switch (activeTab) {
       case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} />;
       case "users": return <UserManagementTab />;
@@ -315,6 +353,8 @@ const AdminDashboard = () => {
             onTabChange={handleTabChange}
             badgeCounts={badgeCounts}
             pendingTeachersCount={pendingTeachers.length}
+            isFullAdmin={access.isFullAdmin}
+            permissions={access.permissions}
           />
           <SidebarInset>
             {/* Top Bar */}
