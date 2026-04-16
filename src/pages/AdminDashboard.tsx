@@ -54,6 +54,7 @@ const TAB_TITLES: Record<string, string> = {
   teacher_payments: "سجل المدفوعات",
   teacher_earnings: "الأرباح اليدوية",
   violations: "المخالفات المكتشفة",
+  call_transcripts: "تفريغ المكالمات الهاتفية",
   ai_audit: "فحص الذكاء الاصطناعي",
   site: "إدارة المحتوى",
   support: "الدعم الفني",
