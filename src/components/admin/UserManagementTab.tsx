@@ -214,14 +214,34 @@ export default function UserManagementTab() {
     setEditMode(false);
   };
 
-  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string }> = {
-    customer_support: { label: "خدمة العملاء", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬" },
-    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅" },
-    manage_teachers: { label: "إدارة المعلمين", description: "مراجعة طلبات المعلمين والموافقة عليها", icon: "👨‍🏫" },
-    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝" },
-    view_reports: { label: "عرض التقارير", description: "الوصول للإحصائيات وتقارير الأداء", icon: "📊" },
-    manage_payments: { label: "إدارة المدفوعات", description: "عرض وإدارة المدفوعات وطلبات السحب", icon: "💰" },
-    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️" },
+  const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string; group: string }> = {
+    // الرئيسية
+    view_overview: { label: "نظرة عامة", description: "عرض الإحصائيات والرسوم البيانية", icon: "📊", group: "الرئيسية" },
+    // المستخدمين
+    manage_users: { label: "إدارة المستخدمين", description: "عرض وتعديل وحذف المستخدمين", icon: "👥", group: "المستخدمين" },
+    manage_teachers: { label: "طلبات المعلمين", description: "مراجعة طلبات تسجيل المعلمين والموافقة عليها", icon: "👨‍🏫", group: "المستخدمين" },
+    view_teacher_performance: { label: "أداء المعلمين", description: "عرض تقارير أداء المعلمين", icon: "📈", group: "المستخدمين" },
+    // الحصص
+    manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅", group: "الحصص" },
+    manage_session_reports: { label: "تقارير الحصص", description: "الوصول لتقارير AI للحصص", icon: "📄", group: "الحصص" },
+    manage_session_pricing: { label: "أسعار الحصص", description: "تعديل أسعار ساعات المعلمين", icon: "💵", group: "الحصص" },
+    manage_materials: { label: "مراقبة المواد", description: "متابعة المواد التعليمية والتسجيلات", icon: "📚", group: "الحصص" },
+    // المالية
+    manage_plans: { label: "إدارة الباقات", description: "إنشاء وتعديل باقات الاشتراك", icon: "💳", group: "المالية" },
+    manage_coupons: { label: "إدارة الكوبونات", description: "إنشاء وتعديل أكواد الخصم", icon: "🎟️", group: "المالية" },
+    manage_withdrawals: { label: "طلبات السحب", description: "مراجعة طلبات سحب أرباح المعلمين", icon: "💸", group: "المالية" },
+    manage_teacher_payments: { label: "مدفوعات المعلمين", description: "سجل المدفوعات للمعلمين", icon: "💰", group: "المالية" },
+    manage_teacher_earnings: { label: "الأرباح اليدوية", description: "إضافة أرباح يدوية للمعلمين", icon: "✏️", group: "المالية" },
+    manage_wallets: { label: "المحافظ والمكالمات", description: "إدارة محافظ المعلمين وسجل المكالمات", icon: "👛", group: "المالية" },
+    manage_payments: { label: "إدارة المدفوعات (عام)", description: "صلاحية شاملة للمدفوعات", icon: "💼", group: "المالية" },
+    // الأمان
+    manage_violations: { label: "المخالفات", description: "مراجعة مخالفات الطلاب والمعلمين", icon: "⚠️", group: "الأمان" },
+    manage_ai_audit: { label: "فحص AI", description: "مراجعة جودة استجابات الذكاء الاصطناعي", icon: "🧠", group: "الأمان" },
+    // النظام
+    manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝", group: "النظام" },
+    customer_support: { label: "الدعم الفني", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬", group: "النظام" },
+    manage_notifications: { label: "الإشعارات", description: "إرسال إشعارات للمستخدمين", icon: "🔔", group: "النظام" },
+    view_reports: { label: "عرض التقارير (عام)", description: "صلاحية شاملة للتقارير", icon: "📋", group: "النظام" },
   };
 
   const togglePermission = async (userId: string, permission: string, currentlyHas: boolean) => {
