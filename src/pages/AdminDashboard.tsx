@@ -33,6 +33,8 @@ import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { Lock } from "lucide-react";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -315,6 +317,8 @@ const AdminDashboard = () => {
             onTabChange={handleTabChange}
             badgeCounts={badgeCounts}
             pendingTeachersCount={pendingTeachers.length}
+            isFullAdmin={access.isFullAdmin}
+            permissions={access.permissions}
           />
           <SidebarInset>
             {/* Top Bar */}
