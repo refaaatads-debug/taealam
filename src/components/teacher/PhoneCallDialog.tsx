@@ -198,6 +198,21 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
                 )}
               </div>
 
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/30 text-sm">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-destructive">
+                      تنبيه قانوني — يُسمع للطرفين قبل الوصل:
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      ستُشغّل المنصة رسالة صوتية تحذّر من تبادل المعلومات الشخصية (أرقام، واتساب، روابط خارجية).
+                      أي مخالفة موثّقة من الطالب قد تؤدي لإيقاف حسابك.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <Label>المدة المقدّرة (دقائق)</Label>
                 <Input type="number" value={minutes} onChange={(e) => setMinutes(Math.max(1, Number(e.target.value) || 1))} min={1} max={60} />

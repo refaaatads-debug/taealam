@@ -69,13 +69,17 @@ serve(async (req) => {
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID")!;
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN")!;
     const fromNumber = Deno.env.get("TWILIO_PHONE_NUMBER")!;
-    const rawTwiml = Deno.env.get("TWIML_URL");
-    const twimlUrl = rawTwiml && /^https?:\/\//i.test(rawTwiml)
-      ? rawTwiml
-      : "http://demo.twilio.com/docs/voice.xml";
 
     const credentials = btoa(`${accountSid}:${authToken}`);
     const statusCallbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/call-status-webhook`;
+
+    // ⚠️ Inline TwiML — privacy/legal warning before connecting both parties
+    const warningTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Zeina" language="arb">تنبيه من منصة تعلم المستقبل. هذه المكالمة تعليمية بحتة. يُمنع منعاً باتاً تبادل أي معلومات شخصية مثل أرقام الهواتف أو الواتساب أو وسائل التواصل الخارجية. أي مخالفة قد تؤدي إلى إيقاف الحساب نهائياً.</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Zeina" language="arb">سيتم الآن وصلكم بالمعلم.</Say>
+</Response>`;
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
@@ -89,7 +93,7 @@ serve(async (req) => {
           const p = new URLSearchParams({
             From: fromNumber,
             To: normalizedPhone,
-            Url: twimlUrl,
+            Twiml: warningTwiml,
             StatusCallback: statusCallbackUrl,
             StatusCallbackMethod: "POST",
           });
