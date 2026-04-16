@@ -94,6 +94,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "الأمان والمراقبة",
       items: [
         { id: "violations", title: "المخالفات", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
+        { id: "call_transcripts", title: "تفريغ المكالمات", icon: MessageSquare, permission: "manage_violations" },
         { id: "ai_audit", title: "فحص AI", icon: Brain, permission: "manage_ai_audit" },
       ],
     },
