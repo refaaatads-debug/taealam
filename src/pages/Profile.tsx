@@ -248,6 +248,25 @@ const Profile = () => {
                 <Label className="text-xs font-bold text-muted-foreground">رقم الجوال</Label>
                 <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
               </div>
+              {isStudent && (
+                <div>
+                  <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                    <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية
+                  </Label>
+                  <Select value={studentStage} onValueChange={setStudentStage}>
+                    <SelectTrigger className="mt-1.5 rounded-xl bg-muted/30 border-border/50">
+                      <SelectValue placeholder="اختر مرحلتك الدراسية" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kindergarten">رياض الأطفال</SelectItem>
+                      <SelectItem value="primary">ابتدائي</SelectItem>
+                      <SelectItem value="middle">متوسط / إعدادي</SelectItem>
+                      <SelectItem value="high_school">ثانوي</SelectItem>
+                      <SelectItem value="university">جامعي</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
