@@ -1,22 +1,20 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
-  CheckCircle, XCircle, Eye, Shield, BarChart3, Clock,
-  UserCheck, UserX, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings, MessageSquare, Tag
+  CheckCircle, XCircle, Shield, BarChart3, Clock,
+  UserCheck, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
@@ -37,26 +35,41 @@ import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
+const TAB_TITLES: Record<string, string> = {
+  overview: "نظرة عامة",
+  users: "إدارة المستخدمين",
+  teachers: "طلبات تسجيل المعلمين",
+  teacher_performance: "أداء المعلمين",
+  bookings: "إدارة الحجوزات",
+  session_reports: "تقارير الحصص",
+  session_pricing: "أسعار الحصص",
+  materials_monitor: "مراقبة المواد",
+  plans: "إدارة الباقات",
+  coupons: "إدارة الكوبونات",
+  withdrawals: "طلبات سحب الأرباح",
+  teacher_payments: "سجل المدفوعات",
+  teacher_earnings: "الأرباح اليدوية",
+  violations: "المخالفات المكتشفة",
+  ai_audit: "فحص الذكاء الاصطناعي",
+  site: "إدارة المحتوى",
+  support: "الدعم الفني",
+  admin_notifications: "مركز الإشعارات",
+};
+
 const AdminDashboard = () => {
-  const { user, roles: currentUserRoles } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0, pendingTeachers: 0, completedSessions: 0, cancelledBookings: 0 });
   const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [violations, setViolations] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [violationSearchQuery, setViolationSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
-  const [monthlyRevenue, setMonthlyRevenue] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
   const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}");
-    } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
   });
   const [activeTab, setActiveTab] = useState("overview");
   const [teacherDateFrom, setTeacherDateFrom] = useState("");
@@ -69,52 +82,27 @@ const AdminDashboard = () => {
   const [violationStatusFilter, setViolationStatusFilter] = useState("all");
   const [adminVerified, setAdminVerified] = useState(false);
 
-  // Verify admin access server-side
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
+    if (!user) { navigate("/login"); return; }
     const verifyAdmin = async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (!data) {
-        navigate("/login");
-      } else {
-        setAdminVerified(true);
-      }
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!data) { navigate("/login"); } else { setAdminVerified(true); }
     };
     verifyAdmin();
   }, [user, navigate]);
 
   const fetchBadgeCounts = async () => {
     const ts = seenTimestamps;
-    
     let withdrawalsQuery = supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
     if (ts.withdrawals) withdrawalsQuery = withdrawalsQuery.gt("created_at", ts.withdrawals);
-    
     let supportQuery = supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open");
     if (ts.support) supportQuery = supportQuery.gt("created_at", ts.support);
-    
     let bookingsQuery = supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
     if (ts.bookings) bookingsQuery = bookingsQuery.gt("created_at", ts.bookings);
-    
     let violationsQuery = (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false);
     if (ts.violations) violationsQuery = violationsQuery.gt("created_at", ts.violations);
-
-    const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([
-      withdrawalsQuery, supportQuery, bookingsQuery, violationsQuery,
-    ]);
-    setBadgeCounts({
-      withdrawals: withdrawalsRes.count ?? 0,
-      support: supportRes.count ?? 0,
-      pendingBookings: pendingBookingsRes.count ?? 0,
-      unreviewed: unreviewedRes.count ?? 0,
-    });
+    const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([withdrawalsQuery, supportQuery, bookingsQuery, violationsQuery]);
+    setBadgeCounts({ withdrawals: withdrawalsRes.count ?? 0, support: supportRes.count ?? 0, pendingBookings: pendingBookingsRes.count ?? 0, unreviewed: unreviewedRes.count ?? 0 });
   };
 
   const markTabSeen = (tabKey: string) => {
@@ -124,9 +112,16 @@ const AdminDashboard = () => {
     localStorage.setItem("admin_seen_tabs", JSON.stringify(updated));
   };
 
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    if (val === "withdrawals") { markTabSeen("withdrawals"); setBadgeCounts(prev => ({ ...prev, withdrawals: 0 })); }
+    if (val === "support") { markTabSeen("support"); setBadgeCounts(prev => ({ ...prev, support: 0 })); }
+    if (val === "bookings") { markTabSeen("bookings"); setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 })); }
+    if (val === "violations") { markTabSeen("violations"); setBadgeCounts(prev => ({ ...prev, unreviewed: 0 })); }
+  };
+
   useEffect(() => {
     fetchData();
-
     const channels = [
       supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, () => fetchBadgeCounts()),
       supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchBadgeCounts()),
@@ -134,7 +129,6 @@ const AdminDashboard = () => {
       supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => fetchBadgeCounts()),
     ];
     channels.forEach(ch => ch.subscribe());
-
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
   }, []);
 
@@ -149,13 +143,9 @@ const AdminDashboard = () => {
         (supabase as any).from("violations").select("id", { count: "exact", head: true }),
       ]);
 
-      // Real bookings data for charts
       const { data: allBookingsData } = await supabase.from("bookings").select("created_at, status, price");
-      
-      // Build monthly bookings chart
       const monthMap = new Map<string, { bookings: number; revenue: number }>();
       const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-      
       (allBookingsData ?? []).forEach(b => {
         const d = new Date(b.created_at);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -164,8 +154,6 @@ const AdminDashboard = () => {
         existing.revenue += Number(b.price || 0);
         monthMap.set(key, existing);
       });
-
-      // Also add payment revenue
       (paymentsRes.data ?? []).forEach((p: any) => {
         const d = new Date(p.created_at);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -173,52 +161,27 @@ const AdminDashboard = () => {
         existing.revenue += Number(p.amount || 0);
         monthMap.set(key, existing);
       });
-
-      const sortedMonths = [...monthMap.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6)
-        .map(([key, val]) => {
-          const monthIdx = parseInt(key.split("-")[1]);
-          return { name: arabicMonths[monthIdx], حجوزات: val.bookings, إيرادات: Math.round(val.revenue) };
-        });
+      const sortedMonths = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-6).map(([key, val]) => {
+        const monthIdx = parseInt(key.split("-")[1]);
+        return { name: arabicMonths[monthIdx], حجوزات: val.bookings, إيرادات: Math.round(val.revenue) };
+      });
       setMonthlyBookings(sortedMonths);
 
-      // Booking status distribution
       const statusCount = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
-      (allBookingsData ?? []).forEach(b => {
-        if (b.status in statusCount) statusCount[b.status as keyof typeof statusCount]++;
-      });
+      (allBookingsData ?? []).forEach(b => { if (b.status in statusCount) statusCount[b.status as keyof typeof statusCount]++; });
       setBookingStatusData([
-        { name: "معلقة", value: statusCount.pending },
-        { name: "مؤكدة", value: statusCount.confirmed },
-        { name: "مكتملة", value: statusCount.completed },
-        { name: "ملغاة", value: statusCount.cancelled },
+        { name: "معلقة", value: statusCount.pending }, { name: "مؤكدة", value: statusCount.confirmed },
+        { name: "مكتملة", value: statusCount.completed }, { name: "ملغاة", value: statusCount.cancelled },
       ].filter(d => d.value > 0));
 
       const revenue = (paymentsRes.data ?? []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-      const pendingCount = (allBookingsData ?? []).filter(b => b.status === "pending").length;
-      const completedCount = statusCount.completed;
-      const cancelledCount = statusCount.cancelled;
-
       setStats({
-        users: profilesRes.count ?? 0,
-        teachers: teachersRes.count ?? 0,
-        bookings: bookingsRes.count ?? 0,
-        revenue,
-        violations: violationsRes.count ?? 0,
-        pendingTeachers: 0,
-        completedSessions: completedCount,
-        cancelledBookings: cancelledCount,
+        users: profilesRes.count ?? 0, teachers: teachersRes.count ?? 0, bookings: bookingsRes.count ?? 0,
+        revenue, violations: violationsRes.count ?? 0, pendingTeachers: 0, completedSessions: statusCount.completed, cancelledBookings: statusCount.cancelled,
       });
 
       // Pending teachers
-      const { data: pendingRaw } = await supabase
-        .from("teacher_profiles")
-        .select("*")
-        .eq("is_approved", false)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
+      const { data: pendingRaw } = await supabase.from("teacher_profiles").select("*").eq("is_approved", false).order("created_at", { ascending: false }).limit(20);
       if (pendingRaw) {
         const userIds = pendingRaw.map(t => t.user_id);
         if (userIds.length > 0) {
@@ -230,116 +193,49 @@ const AdminDashboard = () => {
           ]);
           const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p]));
           const subjectMap = new Map<string, string[]>();
-          (subjects ?? []).forEach((s: any) => {
-            const existing = subjectMap.get(s.teacher_id) || [];
-            existing.push(s.subjects?.name || "");
-            subjectMap.set(s.teacher_id, existing);
-          });
+          (subjects ?? []).forEach((s: any) => { const ex = subjectMap.get(s.teacher_id) || []; ex.push(s.subjects?.name || ""); subjectMap.set(s.teacher_id, ex); });
           const certMap = new Map<string, any[]>();
-          (certs ?? []).forEach((c: any) => {
-            const existing = certMap.get(c.teacher_id) || [];
-            existing.push(c);
-            certMap.set(c.teacher_id, existing);
-          });
-          setPendingTeachers(pendingRaw.map(t => ({
-            ...t,
-            profile: profileMap.get(t.user_id),
-            subjects: subjectMap.get(t.id) || [],
-            certificates: certMap.get(t.user_id) || [],
-          })));
-        } else {
-          setPendingTeachers([]);
-        }
+          (certs ?? []).forEach((c: any) => { const ex = certMap.get(c.teacher_id) || []; ex.push(c); certMap.set(c.teacher_id, ex); });
+          setPendingTeachers(pendingRaw.map(t => ({ ...t, profile: profileMap.get(t.user_id), subjects: subjectMap.get(t.id) || [], certificates: certMap.get(t.user_id) || [] })));
+        } else { setPendingTeachers([]); }
         setStats(prev => ({ ...prev, pendingTeachers: pendingRaw.length }));
       }
 
-      // Recent bookings with user names
-      const { data: bookings } = await supabase
-        .from("bookings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      
+      // Recent bookings
+      const { data: bookings } = await supabase.from("bookings").select("*").order("created_at", { ascending: false }).limit(10);
       if (bookings && bookings.length > 0) {
-        const studentIds = [...new Set(bookings.map(b => b.student_id))];
-        const teacherIds = [...new Set(bookings.map(b => b.teacher_id))];
-        const allIds = [...new Set([...studentIds, ...teacherIds])];
+        const allIds = [...new Set([...bookings.map(b => b.student_id), ...bookings.map(b => b.teacher_id)])];
         const { data: bProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", allIds);
         const nameMap = new Map((bProfiles ?? []).map(p => [p.user_id, p.full_name]));
         setRecentBookings(bookings.map(b => ({ ...b, student_name: nameMap.get(b.student_id) || "—", teacher_name: nameMap.get(b.teacher_id) || "—" })));
-      } else {
-        setRecentBookings([]);
-      }
+      } else { setRecentBookings([]); }
 
-      // All users with roles
-      const { data: users } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      setAllUsers(users ?? []);
-
-      if (users && users.length > 0) {
-        const uids = users.map(u => u.user_id);
-        const { data: rolesData } = await supabase.from("user_roles").select("user_id, role").in("user_id", uids);
-        const rMap = new Map((rolesData ?? []).map(r => [r.user_id, r.role]));
-        setUserRolesMap(rMap);
-      }
-
-      // Violations with user details
-      const { data: viol } = await (supabase as any)
-        .from("violations")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      // Violations
+      const { data: viol } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(50);
       if (viol) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
         if (vUserIds.length > 0) {
-          const [profilesRes, rolesRes, warningsRes] = await Promise.all([
+          const [profilesRes2, rolesRes, warningsRes] = await Promise.all([
             supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
             supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
             supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
           ]);
-          const nameMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p.full_name]));
+          const nameMap = new Map((profilesRes2.data ?? []).map(p => [p.user_id, p.full_name]));
           const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
           const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
           setViolations(viol.map((v: any) => {
             const warning = warningMap.get(v.user_id);
-            return {
-              ...v,
-              user_name: nameMap.get(v.user_id) || "غير معروف",
-              user_role: roleMap.get(v.user_id) || "student",
-              warning_count: warning?.warning_count || 0,
-              is_banned: warning?.is_banned || false,
-              banned_until: warning?.banned_until || null,
-            };
+            return { ...v, user_name: nameMap.get(v.user_id) || "غير معروف", user_role: roleMap.get(v.user_id) || "student", warning_count: warning?.warning_count || 0, is_banned: warning?.is_banned || false, banned_until: warning?.banned_until || null };
           }));
-        } else {
-          setViolations([]);
-        }
+        } else { setViolations([]); }
       }
-
-      // Fetch badge counts
       await fetchBadgeCounts();
-
-
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const approveTeacher = async (teacherId: string) => {
-    const { error } = await supabase
-      .from("teacher_profiles")
-      .update({ is_approved: true, is_verified: true })
-      .eq("id", teacherId);
-    if (error) { 
-      console.error("Approve teacher error:", error);
-      toast.error("حدث خطأ: " + error.message); 
-      return; 
-    }
+    const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", teacherId);
+    if (error) { toast.error("حدث خطأ: " + error.message); return; }
     toast.success("تمت الموافقة على المعلم!");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
     setStats(prev => ({ ...prev, pendingTeachers: Math.max(0, prev.pendingTeachers - 1) }));
@@ -352,742 +248,464 @@ const AdminDashboard = () => {
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
   };
 
-  const changeUserRole = async (userId: string, newRole: string) => {
-    const { error } = await supabase.from("user_roles").update({ role: newRole as any }).eq("user_id", userId);
-    if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
-    setUserRolesMap(prev => new Map(prev).set(userId, newRole));
-    if (newRole === "teacher") {
-      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true }, { onConflict: "user_id" });
-    }
-    toast.success("تم تغيير الدور بنجاح");
+  const filterByDate = (items: any[], dateFrom: string, dateTo: string) => {
+    return items.filter(item => {
+      const created = new Date(item.created_at);
+      if (dateFrom && created < new Date(dateFrom)) return false;
+      if (dateTo) { const end = new Date(dateTo); end.setHours(23, 59, 59, 999); if (created > end) return false; }
+      return true;
+    });
   };
 
-  const deleteUser = async (userId: string) => {
-    // Remove from profiles and user_roles (cascading handled by DB)
-    await supabase.from("user_roles").delete().eq("user_id", userId);
-    await supabase.from("teacher_profiles").delete().eq("user_id", userId);
-    await supabase.from("profiles").delete().eq("user_id", userId);
-    setAllUsers(prev => prev.filter(u => u.user_id !== userId));
-    toast.success("تم حذف بيانات المستخدم");
-  };
+  const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
+  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo).filter(b => bookingStatusFilter === "all" || b.status === bookingStatusFilter);
+  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo)
+    .filter((v: any) => violationStatusFilter === "all" || (violationStatusFilter === "unreviewed" && !v.is_reviewed) || (violationStatusFilter === "reviewed" && v.is_reviewed && !v.is_false_positive) || (violationStatusFilter === "false_positive" && v.is_false_positive))
+    .filter((v: any) => !violationSearchQuery || v.user_name?.toLowerCase().includes(violationSearchQuery.toLowerCase()));
 
   const pieData = [
     { name: "طلاب", value: Math.max(0, stats.users - stats.teachers) },
     { name: "معلمين", value: stats.teachers },
   ];
 
-  const filteredUsers = allUsers.filter(u =>
-    u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.phone?.includes(searchQuery)
-  );
-
-  const filterByDate = (items: any[], dateFrom: string, dateTo: string) => {
-    return items.filter(item => {
-      const created = new Date(item.created_at);
-      if (dateFrom && created < new Date(dateFrom)) return false;
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59, 999);
-        if (created > end) return false;
-      }
-      return true;
-    });
-  };
-
-  const filteredTeachers = filterByDate(pendingTeachers, teacherDateFrom, teacherDateTo);
-  const filteredBookings = filterByDate(recentBookings, bookingDateFrom, bookingDateTo)
-    .filter(b => bookingStatusFilter === "all" || b.status === bookingStatusFilter);
-  const filteredViolations = filterByDate(violations, violationDateFrom, violationDateTo)
-    .filter((v: any) => violationStatusFilter === "all" 
-      || (violationStatusFilter === "unreviewed" && !v.is_reviewed)
-      || (violationStatusFilter === "reviewed" && v.is_reviewed && !v.is_false_positive)
-      || (violationStatusFilter === "false_positive" && v.is_false_positive))
-    .filter((v: any) => !violationSearchQuery || v.user_name?.toLowerCase().includes(violationSearchQuery.toLowerCase()));
-
   if (loading || !adminVerified) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">جاري تحميل لوحة التحكم...</p>
         </div>
       </div>
     );
   }
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} />;
+      case "users": return <UserManagementTab />;
+      case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
+      case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
+      case "violations": return <ViolationsContent violations={filteredViolations} violationSearchQuery={violationSearchQuery} setViolationSearchQuery={setViolationSearchQuery} violationStatusFilter={violationStatusFilter} setViolationStatusFilter={setViolationStatusFilter} violationDateFrom={violationDateFrom} violationDateTo={violationDateTo} setViolationDateFrom={setViolationDateFrom} setViolationDateTo={setViolationDateTo} setViolations={setViolations} user={user} />;
+      case "plans": return <PlansManagementTab />;
+      case "coupons": return <CouponsManagementTab />;
+      case "teacher_performance": return <TeacherPerformanceTab />;
+      case "withdrawals": return <WithdrawalRequestsTab />;
+      case "teacher_payments": return <TeacherPaymentsTab />;
+      case "teacher_earnings": return <TeacherEarningsTab />;
+      case "site": return <SiteSettingsTab />;
+      case "support": return <SupportTicketsTab />;
+      case "session_reports": return <SessionReportsTab />;
+      case "ai_audit": return <AIAuditTab />;
+      case "materials_monitor": return <MaterialsMonitorTab />;
+      case "session_pricing": return <SessionPricingTab />;
+      case "admin_notifications": return <AdminNotificationsTab />;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
-      <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-6 pb-24 md:pb-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Shield className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-foreground">لوحة التحكم</h1>
-            <p className="text-sm text-muted-foreground">إدارة المنصة التعليمية</p>
-          </div>
+    <div dir="rtl" className="min-h-screen bg-background">
+      <SidebarProvider defaultOpen={true}>
+        <div className="min-h-screen flex w-full">
+          <AdminSidebar
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            badgeCounts={badgeCounts}
+            pendingTeachersCount={pendingTeachers.length}
+          />
+          <SidebarInset>
+            {/* Top Bar */}
+            <header className="sticky top-0 z-20 flex items-center gap-3 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6 h-14">
+              <SidebarTrigger className="h-8 w-8" />
+              <div className="h-5 w-px bg-border" />
+              <h1 className="text-base font-bold text-foreground">{TAB_TITLES[activeTab] || "لوحة التحكم"}</h1>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in">
+              {renderContent()}
+            </main>
+          </SidebarInset>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "المستخدمين", value: stats.users, icon: Users, color: "text-primary" },
-            { label: "المعلمين", value: stats.teachers, icon: GraduationCap, color: "text-secondary" },
-            { label: "الحجوزات", value: stats.bookings, icon: BookOpen, color: "text-accent-foreground" },
-            { label: "الإيرادات", value: `${stats.revenue} ر.س`, icon: DollarSign, color: "text-green-600" },
-          ].map((s, i) => (
-            <Card key={i} className="border-0 shadow-card">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <s.icon className={`h-5 w-5 ${s.color}`} />
-                  <TrendingUp className="h-3.5 w-3.5 text-green-500" />
-                </div>
-                <p className="text-2xl font-black text-foreground">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Tabs defaultValue="overview" value={activeTab} onValueChange={(val) => {
-          setActiveTab(val);
-          // Mark tab as seen and clear badge
-          if (val === "withdrawals") { markTabSeen("withdrawals"); setBadgeCounts(prev => ({ ...prev, withdrawals: 0 })); }
-          if (val === "support") { markTabSeen("support"); setBadgeCounts(prev => ({ ...prev, support: 0 })); }
-          if (val === "bookings") { markTabSeen("bookings"); setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 })); }
-          if (val === "violations") { markTabSeen("violations"); setBadgeCounts(prev => ({ ...prev, unreviewed: 0 })); }
-        }} className="space-y-4">
-          <TabsList className="bg-muted rounded-xl p-1 w-full md:w-auto flex-wrap h-auto gap-1">
-            <TabsTrigger value="overview" className="rounded-lg gap-1.5">
-              <BarChart3 className="h-4 w-4" />
-              نظرة عامة
-            </TabsTrigger>
-            <TabsTrigger value="teachers" className="rounded-lg gap-1.5">
-              <UserCheck className="h-4 w-4" />
-              طلبات المعلمين
-              {pendingTeachers.length > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{pendingTeachers.length}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="rounded-lg gap-1.5">
-              <Users className="h-4 w-4" />
-              المستخدمين
-            </TabsTrigger>
-            <TabsTrigger value="bookings" className="rounded-lg gap-1.5">
-              <Clock className="h-4 w-4" />
-              الحجوزات
-              {badgeCounts.pendingBookings > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.pendingBookings}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="violations" className="rounded-lg gap-1.5">
-              <ShieldAlert className="h-4 w-4" />
-              المخالفات
-              {badgeCounts.unreviewed > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.unreviewed}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="plans" className="rounded-lg gap-1.5">
-              <DollarSign className="h-4 w-4" />
-              الباقات
-            </TabsTrigger>
-            <TabsTrigger value="coupons" className="rounded-lg gap-1.5">
-              <Tag className="h-4 w-4" />
-              الكوبونات
-            </TabsTrigger>
-            <TabsTrigger value="teacher_performance" className="rounded-lg gap-1.5">
-              <TrendingUp className="h-4 w-4" />
-              أداء المعلمين
-            </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="rounded-lg gap-1.5">
-              <DollarSign className="h-4 w-4" />
-              سحب الأرباح
-              {badgeCounts.withdrawals > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.withdrawals}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="teacher_payments" className="rounded-lg gap-1.5">
-              <DollarSign className="h-4 w-4" />
-              المدفوعات
-            </TabsTrigger>
-            <TabsTrigger value="teacher_earnings" className="rounded-lg gap-1.5">
-              <DollarSign className="h-4 w-4" />
-              الأرباح اليدوية
-            </TabsTrigger>
-            <TabsTrigger value="site" className="rounded-lg gap-1.5">
-              <Settings className="h-4 w-4" />
-              المحتوى
-            </TabsTrigger>
-            <TabsTrigger value="support" className="rounded-lg gap-1.5">
-              <MessageSquare className="h-4 w-4" />
-              الدعم الفني
-              {badgeCounts.support > 0 && (
-                <Badge variant="destructive" className="mr-1 text-[10px] px-1.5 py-0">{badgeCounts.support}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="session_reports" className="rounded-lg gap-1.5">
-              <FileText className="h-4 w-4" />
-              تقارير الحصص
-            </TabsTrigger>
-            <TabsTrigger value="ai_audit" className="rounded-lg gap-1.5">
-              <BarChart3 className="h-4 w-4" />
-              فحص AI
-            </TabsTrigger>
-            <TabsTrigger value="materials_monitor" className="rounded-lg gap-1.5">
-              <BookOpen className="h-4 w-4" />
-              مراقبة المواد
-            </TabsTrigger>
-            <TabsTrigger value="session_pricing" className="rounded-lg gap-1.5">
-              <DollarSign className="h-4 w-4" />
-              أسعار الحصص
-            </TabsTrigger>
-            <TabsTrigger value="admin_notifications" className="rounded-lg gap-1.5">
-              <AlertTriangle className="h-4 w-4" />
-              الإشعارات
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4">
-            {/* Extra stats row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "طلبات معلمين معلقة", value: stats.pendingTeachers, icon: UserCheck, color: "text-orange-500" },
-                { label: "حصص مكتملة", value: stats.completedSessions, icon: CheckCircle, color: "text-green-600" },
-                { label: "حجوزات ملغاة", value: stats.cancelledBookings, icon: XCircle, color: "text-destructive" },
-                { label: "المخالفات", value: stats.violations, icon: ShieldAlert, color: "text-destructive" },
-              ].map((s, i) => (
-                <Card key={i} className="border-0 shadow-card">
-                  <CardContent className="p-4">
-                    <s.icon className={`h-5 w-5 ${s.color} mb-2`} />
-                    <p className="text-2xl font-black text-foreground">{s.value}</p>
-                    <p className="text-xs text-muted-foreground">{s.label}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <Card className="border-0 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold">الحجوزات والإيرادات الشهرية</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {monthlyBookings.length === 0 ? (
-                    <p className="text-center py-12 text-muted-foreground">لا توجد بيانات بعد</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={monthlyBookings}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip />
-                        <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                        <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold">توزيع المستخدمين</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                        {pieData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-
-            {bookingStatusData.length > 0 && (
-              <Card className="border-0 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold">حالة الحجوزات</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                        {bookingStatusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Teachers Tab */}
-          <TabsContent value="teachers" className="space-y-4">
-            <Card className="border-0 shadow-card">
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-secondary" />
-                    طلبات تسجيل المعلمين ({filteredTeachers.length})
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
-                    <ExportCSVButton
-                      data={filteredTeachers.map(t => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
-                      headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "experience", label: "الخبرة" }, { key: "date", label: "التاريخ" }]}
-                      filename="طلبات_المعلمين"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {filteredTeachers.length === 0 ? (
-                  <div className="text-center py-8">
-                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                    <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredTeachers.map((t) => (
-                      <div key={t.id} className="p-4 bg-muted/30 rounded-xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
-                              <GraduationCap className="h-5 w-5 text-secondary" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
-                              <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" className="rounded-lg bg-green-600 hover:bg-green-700 text-white gap-1" onClick={() => approveTeacher(t.id)}>
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              موافقة
-                            </Button>
-                            <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
-                              <XCircle className="h-3.5 w-3.5" />
-                              رفض
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-background/60 rounded-lg p-3">
-                          <div>
-                            <span className="text-muted-foreground">سنوات الخبرة</span>
-                            <p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">الجنسية</span>
-                            <p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">المواد</span>
-                            <p className="font-medium text-foreground mt-0.5">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">أوقات التوفر</span>
-                            <p className="font-medium text-foreground mt-0.5">
-                              {t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}
-                            </p>
-                          </div>
-                          {t.available_days && t.available_days.length > 0 && (
-                            <div className="col-span-2">
-                              <span className="text-muted-foreground">أيام التوفر</span>
-                              <p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p>
-                            </div>
-                          )}
-                          {t.teaching_stages && t.teaching_stages.length > 0 && (
-                            <div className="col-span-2">
-                              <span className="text-muted-foreground">المراحل الدراسية</span>
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                {t.teaching_stages.map((stage: string) => (
-                                  <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {t.bio && (
-                            <div className="col-span-2 md:col-span-4">
-                              <span className="text-muted-foreground">النبذة التعريفية</span>
-                              <p className="font-medium text-foreground mt-0.5">{t.bio}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {t.certificates && t.certificates.length > 0 && (
-                          <div className="text-xs">
-                            <span className="text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {t.certificates.map((c: any) => (
-                                <a key={c.id} href={c.file_url} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                                  <FileText className="h-3 w-3" />
-                                  {c.name}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-4">
-            <UserManagementTab />
-          </TabsContent>
-
-          {/* Bookings Tab */}
-          <TabsContent value="bookings" className="space-y-4">
-            <Card className="border-0 shadow-card">
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="text-base font-bold">آخر الحجوزات ({filteredBookings.length})</CardTitle>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusFilter value={bookingStatusFilter} onChange={setBookingStatusFilter} options={[
-                      { value: "pending", label: "معلقة" }, { value: "confirmed", label: "مؤكدة" },
-                      { value: "completed", label: "مكتملة" }, { value: "cancelled", label: "ملغاة" },
-                    ]} />
-                    <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
-                    <ExportCSVButton
-                      data={filteredBookings.map(b => ({ student: b.student_name, teacher: b.teacher_name, date: new Date(b.scheduled_at).toLocaleDateString("ar-SA"), duration: b.duration_minutes, price: b.price || 0, status: b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة" }))}
-                      headers={[{ key: "student", label: "الطالب" }, { key: "teacher", label: "المعلم" }, { key: "date", label: "التاريخ" }, { key: "duration", label: "المدة" }, { key: "price", label: "السعر" }, { key: "status", label: "الحالة" }]}
-                      filename="الحجوزات"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {filteredBookings.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">لا توجد حجوزات بعد</p>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredBookings.map((b) => (
-                      <div key={b.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
-                        <div>
-                          <p className="font-medium text-sm text-foreground">
-                            {b.student_name} ← {b.teacher_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(b.scheduled_at).toLocaleDateString("ar-SA")} • {b.duration_minutes} دقيقة
-                            {b.price ? ` • ${b.price} ر.س` : ""}
-                          </p>
-                        </div>
-                        <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
-                          {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Violations Tab */}
-          <TabsContent value="violations" className="space-y-4">
-            <Card className="border-0 shadow-card">
-              <CardHeader>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
-                    <ShieldAlert className="h-5 w-5 text-destructive" />
-                    المخالفات المكتشفة ({filteredViolations.length})
-                  </CardTitle>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Input
-                      placeholder="بحث بالاسم..."
-                      value={violationSearchQuery}
-                      onChange={e => setViolationSearchQuery(e.target.value)}
-                      className="w-40 rounded-xl text-sm h-9"
-                    />
-                    <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
-                      { value: "unreviewed", label: "قيد المراجعة" }, { value: "reviewed", label: "مؤكدة" },
-                      { value: "false_positive", label: "ملغاة" },
-                    ]} />
-                    <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
-                    <ExportCSVButton
-                      data={filteredViolations.map(v => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : v.user_role === "admin" ? "مسؤول" : "طالب", type: v.violation_type === "contact_sharing" ? "مشاركة أرقام" : v.violation_type === "platform_mention" ? "ذكر منصة" : v.violation_type === "coded_message" ? "رسالة مشفرة" : "مخالفة", text: v.detected_text, original: v.original_message || "", source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, banned: v.is_banned ? "نعم" : "لا", date: new Date(v.created_at).toLocaleDateString("ar-SA"), status: v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة" }))}
-                      headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص المكتشف" }, { key: "original", label: "الرسالة الأصلية" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "عدد التحذيرات" }, { key: "banned", label: "محظور" }, { key: "date", label: "التاريخ" }, { key: "status", label: "الحالة" }]}
-                      filename="المخالفات"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {filteredViolations.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Shield className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                    <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
-                    <p className="text-sm text-muted-foreground">النظام يراقب المحادثات تلقائياً</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredViolations.map((v: any) => (
-                      <div key={v.id} className={`p-4 rounded-xl border ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <AlertTriangle className={`h-4 w-4 ${v.is_false_positive ? "text-muted-foreground" : "text-destructive"}`} />
-                            <span className="font-bold text-sm text-foreground">{v.user_name}</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {v.user_role === "teacher" ? "👨‍🏫 معلم" : v.user_role === "admin" ? "🛡️ مسؤول" : "🎓 طالب"}
-                            </Badge>
-                            <Badge variant={v.is_false_positive ? "secondary" : v.is_reviewed ? "default" : "destructive"} className="text-[10px]">
-                              {v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
-                            </Badge>
-                            {v.is_banned && (
-                              <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            {new Date(v.created_at).toLocaleDateString("ar-SA")} {new Date(v.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-
-                        {/* Violation details */}
-                        <div className="space-y-2 mb-3">
-                          <div className="bg-muted/50 rounded-lg p-3">
-                            <p className="text-[10px] font-bold text-muted-foreground mb-1">الرسالة الأصلية:</p>
-                            <p className="text-sm text-foreground">{v.original_message || v.detected_text}</p>
-                          </div>
-                          {v.detected_text && v.original_message && v.detected_text !== v.original_message && (
-                            <div className="bg-destructive/5 rounded-lg p-3">
-                              <p className="text-[10px] font-bold text-destructive mb-1">الأنماط المكتشفة:</p>
-                              <p className="text-sm text-foreground font-mono">{v.detected_text}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Reason description */}
-                        <div className="bg-muted/30 rounded-lg p-3 mb-3">
-                          <p className="text-[10px] font-bold text-muted-foreground mb-1">سبب المخالفة:</p>
-                          <p className="text-xs text-foreground">
-                            {v.violation_type === "contact_sharing" && "محاولة مشاركة معلومات اتصال شخصية (أرقام هواتف، بريد إلكتروني) بهدف التواصل خارج المنصة"}
-                            {v.violation_type === "platform_mention" && "ذكر منصات تواصل خارجية (واتساب، تلغرام، سناب) بهدف نقل التواصل خارج المنصة"}
-                            {v.violation_type === "coded_message" && "استخدام رسائل مشفرة أو مموهة لمحاولة تمرير معلومات اتصال بطريقة غير مباشرة"}
-                            {!["contact_sharing", "platform_mention", "coded_message"].includes(v.violation_type) && "مخالفة لسياسات المنصة التعليمية"}
-                          </p>
-                        </div>
-
-                        {/* Warning history */}
-                        {(v.warning_count > 0) && (
-                          <div className={`rounded-lg p-3 mb-3 ${v.warning_count >= 3 ? "bg-destructive/10 border border-destructive/20" : "bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800"}`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              <FileWarning className="h-3.5 w-3.5 text-orange-600" />
-                              <p className="text-[10px] font-bold text-orange-700 dark:text-orange-400">سجل التحذيرات</p>
-                            </div>
-                            <p className="text-xs text-foreground">
-                              عدد التحذيرات: <span className="font-bold">{v.warning_count}</span> / 3
-                              {v.warning_count >= 3 && " — تم الحظر تلقائياً"}
-                              {v.banned_until && ` حتى ${new Date(v.banned_until).toLocaleDateString("ar-SA")}`}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Meta + Actions */}
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                            <span>المصدر: {v.source === "chat" ? "💬 الدردشة" : v.source === "recording" ? "🎥 التسجيل" : v.source}</span>
-                            <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
-                          </div>
-                          <div className="flex gap-2 flex-wrap">
-                            {/* Pending review actions */}
-                            {!v.is_reviewed && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs h-7 rounded-lg"
-                                  onClick={async () => {
-                                    await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
-                                    await supabase.from("notifications").insert({
-                                      user_id: v.user_id,
-                                      title: "✅ تم إلغاء مخالفة",
-                                      body: "تمت مراجعة مخالفة مسجلة على حسابك وتم إلغاؤها. لا يوجد إجراء مطلوب.",
-                                      type: "violation",
-                                    });
-                                    setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
-                                    toast.success("تم إلغاء المخالفة وإشعار المستخدم");
-                                  }}
-                                >
-                                  إلغاء المخالفة
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="text-xs h-7 rounded-lg"
-                                  onClick={async () => {
-                                    await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
-                                    await supabase.from("notifications").insert({
-                                      user_id: v.user_id,
-                                      title: "⚠️ مخالفة مؤكدة",
-                                      body: `تم تأكيد مخالفة على حسابك: ${v.violation_type === "contact_sharing" ? "مشاركة معلومات اتصال" : v.violation_type === "platform_mention" ? "ذكر منصة خارجية" : "مخالفة سياسات"}. يرجى الالتزام بقواعد المنصة.`,
-                                      type: "warning",
-                                    });
-                                    setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
-                                    toast.success("تم تأكيد المخالفة وإشعار المستخدم");
-                                  }}
-                                >
-                                  تأكيد المخالفة
-                                </Button>
-                              </>
-                            )}
-                            {/* Toggle status for reviewed violations */}
-                            {v.is_reviewed && !v.is_false_positive && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7 rounded-lg"
-                                onClick={async () => {
-                                  await (supabase as any).from("violations").update({ is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
-                                  await supabase.from("notifications").insert({
-                                    user_id: v.user_id,
-                                    title: "✅ تم إلغاء مخالفة سابقة",
-                                    body: "تمت مراجعة مخالفة مؤكدة سابقاً على حسابك وتم إلغاؤها.",
-                                    type: "violation",
-                                  });
-                                  if (v.warning_count > 0) {
-                                    const newCount = Math.max(0, v.warning_count - 1);
-                                    await supabase.from("user_warnings").update({
-                                      warning_count: newCount,
-                                      is_banned: false,
-                                      banned_until: null,
-                                    }).eq("user_id", v.user_id);
-                                  }
-                                  setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_false_positive: true, warning_count: Math.max(0, (item.warning_count || 1) - 1), is_banned: false } : item));
-                                  toast.success("تم تغيير الحالة إلى ملغاة وإشعار المستخدم");
-                                }}
-                              >
-                                تغيير إلى ملغاة
-                              </Button>
-                            )}
-                            {v.is_reviewed && v.is_false_positive && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="text-xs h-7 rounded-lg"
-                                onClick={async () => {
-                                  await (supabase as any).from("violations").update({ is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
-                                  await supabase.from("notifications").insert({
-                                    user_id: v.user_id,
-                                    title: "⚠️ تم إعادة تأكيد مخالفة",
-                                    body: "تمت مراجعة مخالفة ملغاة سابقاً وتم تأكيدها مجدداً. يرجى الالتزام بقواعد المنصة.",
-                                    type: "warning",
-                                  });
-                                  setViolations(prev => prev.map(item => item.id === v.id ? { ...item, is_false_positive: false } : item));
-                                  toast.success("تم تغيير الحالة إلى مؤكدة وإشعار المستخدم");
-                                }}
-                              >
-                                تغيير إلى مؤكدة
-                              </Button>
-                            )}
-                            {/* Delete button */}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs h-7 rounded-lg text-destructive hover:bg-destructive/10"
-                              onClick={async () => {
-                                if (!confirm("هل أنت متأكد من حذف هذه المخالفة نهائياً؟")) return;
-                                await (supabase as any).from("violations").delete().eq("id", v.id);
-                                await supabase.from("notifications").insert({
-                                  user_id: v.user_id,
-                                  title: "🗑️ تم حذف مخالفة",
-                                  body: "تم حذف مخالفة مسجلة على حسابك بواسطة الإدارة.",
-                                  type: "violation",
-                                });
-                                if (!v.is_false_positive && v.warning_count > 0) {
-                                  const newCount = Math.max(0, v.warning_count - 1);
-                                  await supabase.from("user_warnings").update({
-                                    warning_count: newCount,
-                                    is_banned: newCount >= 3,
-                                    banned_until: newCount >= 3 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null,
-                                  }).eq("user_id", v.user_id);
-                                }
-                                setViolations(prev => prev.filter(item => item.id !== v.id));
-                                toast.success("تم حذف المخالفة وإشعار المستخدم");
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              حذف
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Plans Tab */}
-          <TabsContent value="plans" className="space-y-4">
-            <PlansManagementTab />
-          </TabsContent>
-
-          {/* Coupons Tab */}
-          <TabsContent value="coupons" className="space-y-4">
-            <CouponsManagementTab />
-          </TabsContent>
-
-          <TabsContent value="teacher_performance" className="space-y-4">
-            <TeacherPerformanceTab />
-          </TabsContent>
-
-          <TabsContent value="withdrawals" className="space-y-4">
-            <WithdrawalRequestsTab />
-          </TabsContent>
-
-          {/* Teacher Payments Tab */}
-          <TabsContent value="teacher_payments" className="space-y-4">
-            <TeacherPaymentsTab />
-          </TabsContent>
-          <TabsContent value="teacher_earnings" className="space-y-4">
-            <TeacherEarningsTab />
-          </TabsContent>
-
-          {/* Site Content Tab */}
-          <TabsContent value="site" className="space-y-4">
-            <SiteSettingsTab />
-          </TabsContent>
-
-          {/* Support Tickets Tab */}
-          <TabsContent value="support" className="space-y-4">
-            <SupportTicketsTab />
-          </TabsContent>
-
-          <TabsContent value="session_reports" className="space-y-4">
-            <SessionReportsTab />
-          </TabsContent>
-          <TabsContent value="ai_audit" className="space-y-4">
-            <AIAuditTab />
-          </TabsContent>
-          <TabsContent value="materials_monitor" className="space-y-4">
-            <MaterialsMonitorTab />
-          </TabsContent>
-          <TabsContent value="session_pricing" className="space-y-4">
-            <SessionPricingTab />
-          </TabsContent>
-          <TabsContent value="admin_notifications" className="space-y-4">
-            <AdminNotificationsTab />
-          </TabsContent>
-        </Tabs>
-      </div>
-      <BottomNav />
+      </SidebarProvider>
     </div>
   );
 };
+
+/* ============================================================
+   Sub-components for each section
+   ============================================================ */
+
+const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string; value: string | number; icon: React.ElementType; color: string; subtitle?: string }) => (
+  <Card className="border-0 shadow-sm hover:shadow-md transition-shadow group overflow-hidden relative">
+    <CardContent className="p-5">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="text-2xl font-black text-foreground">{value}</p>
+          {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
+        </div>
+        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0`}>
+          <Icon className="h-5 w-5 text-primary-foreground" />
+        </div>
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    </CardContent>
+  </Card>
+);
+
+const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }: any) => (
+  <div className="space-y-6">
+    {/* Stats Grid */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="إجمالي المستخدمين" value={stats.users} icon={Users} color="from-primary to-primary/70" />
+      <StatCard label="المعلمين المسجلين" value={stats.teachers} icon={GraduationCap} color="from-secondary to-secondary/70" />
+      <StatCard label="إجمالي الحجوزات" value={stats.bookings} icon={BookOpen} color="from-info to-info/70" />
+      <StatCard label="الإيرادات" value={`${stats.revenue} ر.س`} icon={DollarSign} color="from-success to-success/70" />
+    </div>
+
+    {/* Secondary Stats */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatCard label="طلبات معلقة" value={stats.pendingTeachers} icon={UserCheck} color="from-warning to-warning/70" />
+      <StatCard label="حصص مكتملة" value={stats.completedSessions} icon={CheckCircle} color="from-success to-success/70" />
+      <StatCard label="حجوزات ملغاة" value={stats.cancelledBookings} icon={XCircle} color="from-destructive to-destructive/70" />
+      <StatCard label="المخالفات" value={stats.violations} icon={ShieldAlert} color="from-destructive to-destructive/70" />
+    </div>
+
+    {/* Charts */}
+    <div className="grid lg:grid-cols-2 gap-6">
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            الحجوزات والإيرادات الشهرية
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {monthlyBookings.length === 0 ? (
+            <p className="text-center py-16 text-muted-foreground text-sm">لا توجد بيانات بعد</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={monthlyBookings}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
+                <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Users className="h-4 w-4 text-secondary" />
+            توزيع المستخدمين
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={pieData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} strokeWidth={2}>
+                {pieData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
+
+    {bookingStatusData.length > 0 && (
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Clock className="h-4 w-4 text-accent-foreground" />
+            توزيع حالة الحجوزات
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, value }) => `${name}: ${value}`} strokeWidth={2}>
+                {bookingStatusData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    )}
+  </div>
+);
+
+const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => (
+  <Card className="border-0 shadow-sm">
+    <CardHeader>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <UserCheck className="h-4 w-4 text-secondary" />
+          طلبات تسجيل المعلمين ({teachers.length})
+        </CardTitle>
+        <div className="flex items-center gap-2">
+          <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+          <ExportCSVButton
+            data={teachers.map((t: any) => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
+            headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "experience", label: "الخبرة" }, { key: "date", label: "التاريخ" }]}
+            filename="طلبات_المعلمين"
+          />
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent>
+      {teachers.length === 0 ? (
+        <div className="text-center py-12">
+          <CheckCircle className="h-12 w-12 text-success mx-auto mb-3 opacity-60" />
+          <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {teachers.map((t: any) => (
+            <div key={t.id} className="p-4 bg-muted/30 rounded-xl space-y-3 hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
+                    <GraduationCap className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
+                    <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="rounded-lg bg-success hover:bg-success/90 text-success-foreground gap-1" onClick={() => approveTeacher(t.id)}>
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    موافقة
+                  </Button>
+                  <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
+                    <XCircle className="h-3.5 w-3.5" />
+                    رفض
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-background/60 rounded-lg p-3">
+                <div><span className="text-muted-foreground">سنوات الخبرة</span><p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p></div>
+                <div><span className="text-muted-foreground">الجنسية</span><p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p></div>
+                <div><span className="text-muted-foreground">المواد</span><p className="font-medium text-foreground mt-0.5">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</p></div>
+                <div><span className="text-muted-foreground">أوقات التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}</p></div>
+                {t.available_days && t.available_days.length > 0 && (
+                  <div className="col-span-2"><span className="text-muted-foreground">أيام التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p></div>
+                )}
+                {t.teaching_stages && t.teaching_stages.length > 0 && (
+                  <div className="col-span-2"><span className="text-muted-foreground">المراحل الدراسية</span>
+                    <div className="flex flex-wrap gap-1 mt-0.5">{t.teaching_stages.map((stage: string) => <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>)}</div>
+                  </div>
+                )}
+                {t.bio && <div className="col-span-2 md:col-span-4"><span className="text-muted-foreground">النبذة</span><p className="font-medium text-foreground mt-0.5">{t.bio}</p></div>}
+              </div>
+              {t.certificates && t.certificates.length > 0 && (
+                <div className="text-xs">
+                  <span className="text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {t.certificates.map((c: any) => (
+                      <a key={c.id} href={c.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                        <FileText className="h-3 w-3" />{c.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
+const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter, bookingDateFrom, bookingDateTo, setBookingDateFrom, setBookingDateTo }: any) => (
+  <Card className="border-0 shadow-sm">
+    <CardHeader>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <CardTitle className="text-sm font-bold">آخر الحجوزات ({bookings.length})</CardTitle>
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatusFilter value={bookingStatusFilter} onChange={setBookingStatusFilter} options={[
+            { value: "pending", label: "معلقة" }, { value: "confirmed", label: "مؤكدة" },
+            { value: "completed", label: "مكتملة" }, { value: "cancelled", label: "ملغاة" },
+          ]} />
+          <DateFilter dateFrom={bookingDateFrom} dateTo={bookingDateTo} onDateFromChange={setBookingDateFrom} onDateToChange={setBookingDateTo} />
+          <ExportCSVButton
+            data={bookings.map((b: any) => ({ student: b.student_name, teacher: b.teacher_name, date: new Date(b.scheduled_at).toLocaleDateString("ar-SA"), duration: b.duration_minutes, price: b.price || 0, status: b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة" }))}
+            headers={[{ key: "student", label: "الطالب" }, { key: "teacher", label: "المعلم" }, { key: "date", label: "التاريخ" }, { key: "duration", label: "المدة" }, { key: "price", label: "السعر" }, { key: "status", label: "الحالة" }]}
+            filename="الحجوزات"
+          />
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent>
+      {bookings.length === 0 ? (
+        <p className="text-center py-12 text-muted-foreground">لا توجد حجوزات بعد</p>
+      ) : (
+        <div className="space-y-2">
+          {bookings.map((b: any) => (
+            <div key={b.id} className="flex items-center justify-between p-3.5 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
+              <div>
+                <p className="font-medium text-sm text-foreground">{b.student_name} ← {b.teacher_name}</p>
+                <p className="text-xs text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")} • {b.duration_minutes} دقيقة{b.price ? ` • ${b.price} ر.س` : ""}</p>
+              </div>
+              <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
+                {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
+const ViolationsContent = ({ violations, violationSearchQuery, setViolationSearchQuery, violationStatusFilter, setViolationStatusFilter, violationDateFrom, violationDateTo, setViolationDateFrom, setViolationDateTo, setViolations, user }: any) => (
+  <Card className="border-0 shadow-sm">
+    <CardHeader>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 text-destructive" />
+          المخالفات المكتشفة ({violations.length})
+        </CardTitle>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input placeholder="بحث بالاسم..." value={violationSearchQuery} onChange={(e: any) => setViolationSearchQuery(e.target.value)} className="w-40 rounded-xl text-sm h-9" />
+          <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
+            { value: "unreviewed", label: "قيد المراجعة" }, { value: "reviewed", label: "مؤكدة" }, { value: "false_positive", label: "ملغاة" },
+          ]} />
+          <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
+          <ExportCSVButton
+            data={violations.map((v: any) => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : "طالب", type: v.violation_type, text: v.detected_text, source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, date: new Date(v.created_at).toLocaleDateString("ar-SA"), status: v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة" }))}
+            headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "التحذيرات" }, { key: "date", label: "التاريخ" }, { key: "status", label: "الحالة" }]}
+            filename="المخالفات"
+          />
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent>
+      {violations.length === 0 ? (
+        <div className="text-center py-12">
+          <Shield className="h-12 w-12 text-success mx-auto mb-3 opacity-60" />
+          <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
+          <p className="text-sm text-muted-foreground">النظام يراقب المحادثات تلقائياً</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {violations.map((v: any) => (
+            <div key={v.id} className={`p-4 rounded-xl border transition-colors ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <AlertTriangle className={`h-4 w-4 ${v.is_false_positive ? "text-muted-foreground" : "text-destructive"}`} />
+                  <span className="font-bold text-sm text-foreground">{v.user_name}</span>
+                  <Badge variant="outline" className="text-[10px]">{v.user_role === "teacher" ? "👨‍🏫 معلم" : "🎓 طالب"}</Badge>
+                  <Badge variant={v.is_false_positive ? "secondary" : v.is_reviewed ? "default" : "destructive"} className="text-[10px]">
+                    {v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
+                  </Badge>
+                  {v.is_banned && <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>}
+                </div>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {new Date(v.created_at).toLocaleDateString("ar-SA")} {new Date(v.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+              <div className="space-y-2 mb-3">
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-muted-foreground mb-1">الرسالة الأصلية:</p>
+                  <p className="text-sm text-foreground">{v.original_message || v.detected_text}</p>
+                </div>
+                {v.detected_text && v.original_message && v.detected_text !== v.original_message && (
+                  <div className="bg-destructive/5 rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-destructive mb-1">الأنماط المكتشفة:</p>
+                    <p className="text-sm text-foreground font-mono">{v.detected_text}</p>
+                  </div>
+                )}
+              </div>
+              <div className="bg-muted/30 rounded-lg p-3 mb-3">
+                <p className="text-[10px] font-bold text-muted-foreground mb-1">سبب المخالفة:</p>
+                <p className="text-xs text-foreground">
+                  {v.violation_type === "contact_sharing" && "محاولة مشاركة معلومات اتصال شخصية"}
+                  {v.violation_type === "platform_mention" && "ذكر منصات تواصل خارجية"}
+                  {v.violation_type === "coded_message" && "استخدام رسائل مشفرة"}
+                  {!["contact_sharing", "platform_mention", "coded_message"].includes(v.violation_type) && "مخالفة لسياسات المنصة"}
+                </p>
+              </div>
+              {v.warning_count > 0 && (
+                <div className={`rounded-lg p-3 mb-3 ${v.warning_count >= 3 ? "bg-destructive/10 border border-destructive/20" : "bg-warning/10 border border-warning/20"}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileWarning className="h-3.5 w-3.5 text-warning" />
+                    <p className="text-[10px] font-bold text-warning">سجل التحذيرات</p>
+                  </div>
+                  <p className="text-xs text-foreground">عدد التحذيرات: <span className="font-bold">{v.warning_count}</span> / 3{v.warning_count >= 3 && " — تم الحظر تلقائياً"}{v.banned_until && ` حتى ${new Date(v.banned_until).toLocaleDateString("ar-SA")}`}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                  <span>المصدر: {v.source === "chat" ? "💬 الدردشة" : v.source === "recording" ? "🎥 التسجيل" : v.source}</span>
+                  <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {!v.is_reviewed && (
+                    <>
+                      <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
+                        await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                        await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة", body: "تمت مراجعة مخالفة وتم إلغاؤها.", type: "violation" });
+                        setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
+                        toast.success("تم إلغاء المخالفة");
+                      }}>إلغاء المخالفة</Button>
+                      <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={async () => {
+                        await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                        await supabase.from("notifications").insert({ user_id: v.user_id, title: "⚠️ مخالفة مؤكدة", body: "تم تأكيد مخالفة على حسابك.", type: "warning" });
+                        setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
+                        toast.success("تم تأكيد المخالفة");
+                      }}>تأكيد المخالفة</Button>
+                    </>
+                  )}
+                  {v.is_reviewed && !v.is_false_positive && (
+                    <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
+                      await (supabase as any).from("violations").update({ is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                      await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة سابقة", body: "تمت مراجعة مخالفة مؤكدة وتم إلغاؤها.", type: "violation" });
+                      if (v.warning_count > 0) { await supabase.from("user_warnings").update({ warning_count: Math.max(0, v.warning_count - 1), is_banned: false, banned_until: null }).eq("user_id", v.user_id); }
+                      setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_false_positive: true, warning_count: Math.max(0, (item.warning_count || 1) - 1), is_banned: false } : item));
+                      toast.success("تم تغيير الحالة إلى ملغاة");
+                    }}>تغيير إلى ملغاة</Button>
+                  )}
+                  {v.is_reviewed && v.is_false_positive && (
+                    <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={async () => {
+                      await (supabase as any).from("violations").update({ is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                      await supabase.from("notifications").insert({ user_id: v.user_id, title: "⚠️ تم إعادة تأكيد مخالفة", body: "تم تأكيد مخالفة ملغاة سابقاً.", type: "warning" });
+                      setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_false_positive: false } : item));
+                      toast.success("تم تغيير الحالة إلى مؤكدة");
+                    }}>تغيير إلى مؤكدة</Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="text-xs h-7 rounded-lg text-destructive hover:bg-destructive/10" onClick={async () => {
+                    if (!confirm("هل أنت متأكد من حذف هذه المخالفة نهائياً؟")) return;
+                    await (supabase as any).from("violations").delete().eq("id", v.id);
+                    await supabase.from("notifications").insert({ user_id: v.user_id, title: "🗑️ تم حذف مخالفة", body: "تم حذف مخالفة بواسطة الإدارة.", type: "violation" });
+                    if (!v.is_false_positive && v.warning_count > 0) {
+                      const newCount = Math.max(0, v.warning_count - 1);
+                      await supabase.from("user_warnings").update({ warning_count: newCount, is_banned: newCount >= 3, banned_until: newCount >= 3 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null }).eq("user_id", v.user_id);
+                    }
+                    setViolations((prev: any[]) => prev.filter((item: any) => item.id !== v.id));
+                    toast.success("تم حذف المخالفة");
+                  }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    حذف
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
 
 export default AdminDashboard;
