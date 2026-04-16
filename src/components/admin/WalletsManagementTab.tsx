@@ -195,7 +195,7 @@ export default function WalletsManagementTab() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Wallet className="h-8 w-8 text-emerald-500" />
+            <Wallet className="h-8 w-8 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">إجمالي الأرصدة</p>
               <p className="text-xl font-bold">{totals.totalBalance.toFixed(2)} ر.س</p>
@@ -204,7 +204,7 @@ export default function WalletsManagementTab() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Phone className="h-8 w-8 text-blue-500" />
+            <Phone className="h-8 w-8 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">إجمالي المكالمات</p>
               <p className="text-xl font-bold">{totals.totalCalls}</p>
@@ -213,7 +213,7 @@ export default function WalletsManagementTab() {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Phone className="h-8 w-8 text-amber-500" />
+            <Phone className="h-8 w-8 text-accent-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">تكلفة المكالمات</p>
               <p className="text-xl font-bold">{totals.totalCost.toFixed(2)} ر.س</p>
