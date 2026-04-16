@@ -69,7 +69,10 @@ serve(async (req) => {
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID")!;
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN")!;
     const fromNumber = Deno.env.get("TWILIO_PHONE_NUMBER")!;
-    const twimlUrl = Deno.env.get("TWIML_URL") || "http://demo.twilio.com/docs/voice.xml";
+    const rawTwiml = Deno.env.get("TWIML_URL");
+    const twimlUrl = rawTwiml && /^https?:\/\//i.test(rawTwiml)
+      ? rawTwiml
+      : "http://demo.twilio.com/docs/voice.xml";
 
     const credentials = btoa(`${accountSid}:${authToken}`);
     const statusCallbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/call-status-webhook`;
