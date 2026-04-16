@@ -11,6 +11,32 @@ interface CallRequest {
   bookingId: string;
 }
 
+interface TwilioGatewayError {
+  code?: number;
+  message?: string;
+  more_info?: string;
+  status?: number;
+}
+
+const parseTwilioGatewayError = (message: string): TwilioGatewayError | null => {
+  const prefixMatch = message.match(/^Twilio error \[(\d+)\]:\s*(.+)$/);
+  if (!prefixMatch) return null;
+
+  const [, statusCode, rawPayload] = prefixMatch;
+
+  try {
+    return {
+      status: Number(statusCode),
+      ...(JSON.parse(rawPayload) as TwilioGatewayError),
+    };
+  } catch {
+    return {
+      status: Number(statusCode),
+      message: rawPayload,
+    };
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -133,6 +159,21 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const twilioError = parseTwilioGatewayError(errorMessage);
+
+    if (twilioError?.code === 21219) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: "TWILIO_TRIAL_UNVERIFIED_NUMBER",
+          error: "الرقم المطلوب غير موثّق في حساب Twilio التجريبي. قم بتوثيق الرقم في Twilio أو ترقية الحساب.",
+          twilioCode: twilioError.code,
+          moreInfo: twilioError.more_info,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.error("twilio-call error:", errorMessage);
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
