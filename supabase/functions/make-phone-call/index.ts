@@ -82,15 +82,19 @@ serve(async (req) => {
           Authorization: `Basic ${credentials}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-          From: fromNumber,
-          To: normalizedPhone,
-          Url: twimlUrl,
-          StatusCallback: statusCallbackUrl,
-          StatusCallbackMethod: "POST",
-          "StatusCallbackEvent": "initiated",
-          "StatusCallbackEvent ": "ringing",
-        }),
+        body: (() => {
+          const p = new URLSearchParams({
+            From: fromNumber,
+            To: normalizedPhone,
+            Url: twimlUrl,
+            StatusCallback: statusCallbackUrl,
+            StatusCallbackMethod: "POST",
+          });
+          ["initiated", "ringing", "answered", "completed"].forEach((e) =>
+            p.append("StatusCallbackEvent", e)
+          );
+          return p;
+        })(),
       }
     );
 
