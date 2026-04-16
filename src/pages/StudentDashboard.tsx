@@ -424,6 +424,9 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Schedule Table - تحت الحصص القادمة */}
+            <StudentScheduleTable />
+
             {/* Pending Booking Requests */}
             <PendingBookingRequests />
 
@@ -455,9 +458,6 @@ const StudentDashboard = () => {
                 </CardContent>
               </Card>
             </motion.div>
-
-            {/* Schedule Table */}
-            <StudentScheduleTable />
 
             {/* Smart Match */}
             <SmartMatchWidget />
