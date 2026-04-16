@@ -10,6 +10,7 @@ import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import CallStudentButton from "@/components/teacher/CallStudentButton";
 
 interface BookingRow {
   id: string;
@@ -274,6 +275,17 @@ export default function TeacherScheduleTable() {
                           )}
                         </Link>
                       </Button>
+                    )}
+                    {chatBookingId && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <CallStudentButton
+                          bookingId={chatBookingId}
+                          variant="outline"
+                          size="sm"
+                          iconOnly
+                          className="rounded-lg h-7 w-7 p-0 border-secondary/30 text-secondary hover:bg-secondary/10"
+                        />
+                      </div>
                     )}
                     <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{group.bookings.length} حصة</Badge>
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}

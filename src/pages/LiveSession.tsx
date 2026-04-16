@@ -19,6 +19,7 @@ import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 import LiveAIAssistant from "@/components/LiveAIAssistant";
+import CallStudentButton from "@/components/teacher/CallStudentButton";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -1017,6 +1018,14 @@ const LiveSession = () => {
             <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 gap-1 h-7 text-[11px] rounded-lg" onClick={restartConnection}>
               <RefreshCw className="h-3 w-3" /> إعادة
             </Button>
+          )}
+          {isTeacher && bookingId && (connectionState === "failed" || connectionState === "disconnected") && (
+            <CallStudentButton
+              bookingId={bookingId}
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] rounded-lg bg-card/10 border-card/20 text-card hover:bg-card/20"
+            />
           )}
           {isTeacher && (
             <Button size="icon" variant="ghost" className="text-card/50 hover:text-card hover:bg-card/10 h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
