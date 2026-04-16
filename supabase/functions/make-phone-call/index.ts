@@ -74,7 +74,9 @@ serve(async (req) => {
     const statusCallbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/call-status-webhook`;
 
     // WebSocket URL for media stream (replace https → wss)
-    const streamWsUrl = `${Deno.env.get("SUPABASE_URL")!.replace("https://", "wss://")}/functions/v1/twilio-media-stream`;
+    // Append apikey as query param — Supabase Edge Functions require it for WS auth even with verify_jwt=false
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const streamWsUrl = `${Deno.env.get("SUPABASE_URL")!.replace("https://", "wss://")}/functions/v1/twilio-media-stream?apikey=${anonKey}`;
 
     // ⚠️ Inline TwiML — privacy/legal warning + start media stream for live transcription
     // We need callLogId in stream params, so we insert call_log first (without sid), then issue call.
