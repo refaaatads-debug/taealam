@@ -76,7 +76,7 @@ serve(async (req) => {
     // ⚠️ Inline TwiML — privacy/legal warning before connecting both parties
     const warningTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Zeina" language="arb">تنبيه من منصة تعلم المستقبل. هذه المكالمة تعليمية بحتة. يُمنع منعاً باتاً تبادل أي معلومات شخصية مثل أرقام الهواتف أو الواتساب أو وسائل التواصل الخارجية. أي مخالفة قد تؤدي إلى إيقاف الحساب نهائياً.</Say>
+  <Say voice="Polly.Zeina" language="arb">تنبيه من منصة أجيال المعرفة. هذه المكالمة تعليمية بحتة. يُمنع منعاً باتاً تبادل أي معلومات شخصية مثل أرقام الهواتف أو الواتساب أو وسائل التواصل الخارجية. أي مخالفة قد تؤدي إلى إيقاف الحساب نهائياً.</Say>
   <Pause length="1"/>
   <Say voice="Polly.Zeina" language="arb">سيتم الآن وصلكم بالمعلم.</Say>
 </Response>`;
