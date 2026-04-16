@@ -21,6 +21,32 @@ export default function CallStudentButton({
 }: CallStudentButtonProps) {
   const [calling, setCalling] = useState(false);
 
+  const getErrorDescription = async (err: unknown) => {
+    if (err && typeof err === "object" && "context" in err) {
+      const response = (err as { context?: Response }).context;
+
+      if (response instanceof Response) {
+        try {
+          const payload = await response.clone().json();
+
+          if (payload?.code === "TWILIO_TRIAL_UNVERIFIED_NUMBER") {
+            return "رقم الطالب غير موثّق في حساب Twilio التجريبي. وثّق الرقم داخل Twilio أو قم بترقية الحساب.";
+          }
+
+          if (typeof payload?.error === "string" && payload.error.trim()) {
+            return payload.error;
+          }
+        } catch {
+          // ignore parse errors and fall through to generic handling
+        }
+      }
+    }
+
+    return err instanceof Error && err.message
+      ? err.message
+      : "يرجى التأكد من توفر رقم هاتف الطالب";
+  };
+
   const handleCall = async () => {
     if (calling) return;
     setCalling(true);
@@ -38,11 +64,13 @@ export default function CallStudentButton({
         id: "twilio-call",
         description: "هاتفك سيرن خلال ثوانٍ — أجب لتوصيلك بالطالب",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Call failed:", err);
+      const description = await getErrorDescription(err);
+
       toast.error("تعذّر بدء المكالمة", {
         id: "twilio-call",
-        description: err?.message || "يرجى التأكد من توفر رقم هاتف الطالب",
+        description,
       });
     } finally {
       setCalling(false);
