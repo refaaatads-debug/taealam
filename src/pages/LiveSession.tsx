@@ -664,10 +664,15 @@ const LiveSession = () => {
     await start();
 
     if (isTeacher) {
+      const startedAtIso = new Date().toISOString();
+      setSessionStartedAt(startedAtIso);
       await Promise.all([
-        supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
+        supabase.from("sessions").update({ started_at: startedAtIso }).eq("booking_id", bookingId),
         supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
       ]);
+
+      // Broadcast authoritative start time to student (instant, no DB roundtrip needed)
+      sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
 
       if (bookingData && user) {
         supabase.from("notifications").insert({
@@ -677,6 +682,14 @@ const LiveSession = () => {
           type: "session",
         });
       }
+    } else {
+      // Student: fetch authoritative started_at from sessions table
+      const { data: sess } = await supabase
+        .from("sessions")
+        .select("started_at")
+        .eq("booking_id", bookingId)
+        .maybeSingle();
+      if (sess?.started_at) setSessionStartedAt(sess.started_at);
     }
   };
 
