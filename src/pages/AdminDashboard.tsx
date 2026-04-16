@@ -338,6 +338,7 @@ const AdminDashboard = () => {
       case "support": return <SupportTicketsTab />;
       case "session_reports": return <SessionReportsTab />;
       case "ai_audit": return <AIAuditTab />;
+      case "call_transcripts": return <CallTranscriptsTab />;
       case "materials_monitor": return <MaterialsMonitorTab />;
       case "session_pricing": return <SessionPricingTab />;
       case "admin_notifications": return <AdminNotificationsTab />;
