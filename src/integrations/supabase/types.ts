@@ -286,6 +286,54 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          booking_id: string | null
+          cost: number | null
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          error_message: string | null
+          estimated_minutes: number | null
+          id: string
+          status: string
+          student_id: string | null
+          student_phone: string | null
+          teacher_id: string
+          twilio_call_sid: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          cost?: number | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          status?: string
+          student_id?: string | null
+          student_phone?: string | null
+          teacher_id: string
+          twilio_call_sid?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          cost?: number | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          status?: string
+          student_id?: string | null
+          student_phone?: string | null
+          teacher_id?: string
+          twilio_call_sid?: string | null
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           booking_id: string
@@ -1428,6 +1476,66 @@ export type Database = {
           },
         ]
       }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string | null
+          id: string
+          reference_id: string | null
+          stripe_session_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          stripe_session_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          stripe_session_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       webrtc_signals: {
         Row: {
           booking_id: string
@@ -1593,6 +1701,24 @@ export type Database = {
         Returns: boolean
       }
       cleanup_old_chat_messages: { Args: never; Returns: number }
+      credit_wallet_balance: {
+        Args: {
+          _amount: number
+          _description: string
+          _stripe_session_id: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      deduct_wallet_balance: {
+        Args: {
+          _amount: number
+          _description: string
+          _reference_id: string
+          _user_id: string
+        }
+        Returns: number
+      }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]
