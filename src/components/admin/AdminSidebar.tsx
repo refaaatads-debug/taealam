@@ -84,6 +84,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "withdrawals", title: "سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals },
         { id: "teacher_payments", title: "المدفوعات", icon: DollarSign },
         { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign },
+        { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet },
       ],
     },
     {
