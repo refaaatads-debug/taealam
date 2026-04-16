@@ -575,15 +575,17 @@ const LiveSession = () => {
     }
   }, [bothJoined]);
 
-  // Session timer - only ticks when bothJoined AND peer is connected
+  // Session timer - synced via authoritative started_at (server time of truth)
+  // Both teacher & student compute elapsed from the same timestamp → identical to the second
   useEffect(() => {
-    if (!meetingStarted || !bothJoined || peerDisconnected) {
+    if (!meetingStarted || !bothJoined || peerDisconnected || !sessionStartedAt) {
       clearInterval(timerRef.current);
       return;
     }
-    timerRef.current = window.setInterval(() => {
-      setElapsed((p) => {
-        const next = p + 1;
+    const startMs = new Date(sessionStartedAt).getTime();
+    const tick = () => {
+      setElapsed(() => {
+        const next = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
@@ -604,16 +606,13 @@ const LiveSession = () => {
           return maxSeconds;
         }
 
-        // Sync timer to the other party every 10 seconds
-        if (next % 10 === 0) {
-          sendDataMessage({ type: "timer-sync", elapsed: next });
-        }
-
         return next;
       });
-    }, 1000);
+    };
+    tick();
+    timerRef.current = window.setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes]);
+  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes, sessionStartedAt]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
