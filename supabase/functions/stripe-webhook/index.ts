@@ -113,13 +113,16 @@ serve(async (req) => {
         const endsAt = new Date();
         endsAt.setDate(endsAt.getDate() + 30);
 
-        const totalHours = sessionsCount;
+        const { data: planData } = await adminClient
+          .from("subscription_plans").select("session_duration_minutes").eq("id", planId).single();
+        const sessionDuration = planData?.session_duration_minutes || 45;
+        const totalMinutes = sessionsCount * sessionDuration;
         await adminClient.from("user_subscriptions").insert({
           user_id: userId,
           plan_id: planId,
           sessions_remaining: sessionsCount,
-          total_hours: totalHours,
-          remaining_minutes: totalHours * 60,
+          total_hours: totalMinutes / 60,
+          remaining_minutes: totalMinutes,
           ends_at: endsAt.toISOString(),
           is_active: true,
         });
@@ -158,13 +161,16 @@ serve(async (req) => {
           const endsAt = new Date();
           endsAt.setDate(endsAt.getDate() + 30);
 
-          const totalHours = sessionsCount;
+          const { data: planData2 } = await adminClient
+            .from("subscription_plans").select("session_duration_minutes").eq("id", planId).single();
+          const sessionDuration2 = planData2?.session_duration_minutes || 45;
+          const totalMinutes2 = sessionsCount * sessionDuration2;
           await adminClient.from("user_subscriptions").insert({
             user_id: userId,
             plan_id: planId,
             sessions_remaining: sessionsCount,
-            total_hours: totalHours,
-            remaining_minutes: totalHours * 60,
+            total_hours: totalMinutes2 / 60,
+            remaining_minutes: totalMinutes2,
             ends_at: endsAt.toISOString(),
             is_active: true,
           });
