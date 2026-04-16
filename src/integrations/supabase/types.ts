@@ -334,6 +334,53 @@ export type Database = {
         }
         Relationships: []
       }
+      call_transcripts: {
+        Row: {
+          call_log_id: string | null
+          created_at: string
+          id: string
+          is_violation: boolean
+          segment_end_ms: number | null
+          segment_start_ms: number | null
+          speaker: string
+          text: string
+          twilio_call_sid: string
+          violation_type: string | null
+        }
+        Insert: {
+          call_log_id?: string | null
+          created_at?: string
+          id?: string
+          is_violation?: boolean
+          segment_end_ms?: number | null
+          segment_start_ms?: number | null
+          speaker?: string
+          text: string
+          twilio_call_sid: string
+          violation_type?: string | null
+        }
+        Update: {
+          call_log_id?: string | null
+          created_at?: string
+          id?: string
+          is_violation?: boolean
+          segment_end_ms?: number | null
+          segment_start_ms?: number | null
+          speaker?: string
+          text?: string
+          twilio_call_sid?: string
+          violation_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_transcripts_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           booking_id: string

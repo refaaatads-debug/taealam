@@ -33,6 +33,7 @@ import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
+import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -53,6 +54,7 @@ const TAB_TITLES: Record<string, string> = {
   teacher_payments: "سجل المدفوعات",
   teacher_earnings: "الأرباح اليدوية",
   violations: "المخالفات المكتشفة",
+  call_transcripts: "تفريغ المكالمات الهاتفية",
   ai_audit: "فحص الذكاء الاصطناعي",
   site: "إدارة المحتوى",
   support: "الدعم الفني",
@@ -336,6 +338,7 @@ const AdminDashboard = () => {
       case "support": return <SupportTicketsTab />;
       case "session_reports": return <SessionReportsTab />;
       case "ai_audit": return <AIAuditTab />;
+      case "call_transcripts": return <CallTranscriptsTab />;
       case "materials_monitor": return <MaterialsMonitorTab />;
       case "session_pricing": return <SessionPricingTab />;
       case "admin_notifications": return <AdminNotificationsTab />;
