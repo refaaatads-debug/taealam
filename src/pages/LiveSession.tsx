@@ -149,10 +149,10 @@ const LiveSession = () => {
         toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
         setTimeout(() => endSession(), 1500);
       }
-    } else if (msg.type === "timer-sync") {
-      // Sync elapsed time from the other party
-      if (typeof msg.elapsed === "number") {
-        setElapsed(prev => Math.max(prev, msg.elapsed));
+    } else if (msg.type === "timer-start") {
+      // Authoritative session start time from the teacher (source of truth)
+      if (typeof msg.startedAt === "string") {
+        setSessionStartedAt(msg.startedAt);
       }
     }
   }, [isTeacher, pushDebugEvent]);
