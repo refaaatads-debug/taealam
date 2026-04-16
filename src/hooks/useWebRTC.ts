@@ -2,16 +2,44 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const buildIceServers = (): RTCConfiguration => {
-  const turnUsername = import.meta.env.VITE_EXPRESSTURN_USERNAME || "000000002091120202";
-  const turnPassword = import.meta.env.VITE_EXPRESSTURN_PASSWORD || "yMcCGKBanSb4GJyhvfTXoyVxOwM=";
+  const expressUsername = import.meta.env.VITE_EXPRESSTURN_USERNAME || "000000002091120202";
+  const expressPassword = import.meta.env.VITE_EXPRESSTURN_PASSWORD || "yMcCGKBanSb4GJyhvfTXoyVxOwM=";
+  const meteredUsername = import.meta.env.VITE_METERED_USERNAME || "a2b6ebb5a402c8a088554c59";
+  const meteredCredential = import.meta.env.VITE_METERED_CREDENTIAL || "5OhXqtII0C1GiILt";
 
   const iceServers: RTCIceServer[] = [
+    // STUN servers (direct P2P attempts)
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun.relay.metered.ca:80" },
+
+    // Primary TURN: ExpressTURN
     {
       urls: "turn:free.expressturn.com:3478",
-      username: turnUsername,
-      credential: turnPassword,
+      username: expressUsername,
+      credential: expressPassword,
+    },
+
+    // Fallback TURN: Metered (multiple ports/protocols for max reliability)
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: meteredUsername,
+      credential: meteredCredential,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: meteredUsername,
+      credential: meteredCredential,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: meteredUsername,
+      credential: meteredCredential,
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: meteredUsername,
+      credential: meteredCredential,
     },
   ];
 
