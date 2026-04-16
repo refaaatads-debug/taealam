@@ -5,7 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Phone, Wallet, Loader2, AlertTriangle } from "lucide-react";
+import { Phone, Wallet, Loader2, AlertTriangle, PhoneOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -27,8 +27,11 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
   const [phone, setPhone] = useState(studentPhone || "");
   const [minutes, setMinutes] = useState(5);
   const [calling, setCalling] = useState(false);
-  const [callActive, setCallActive] = useState(false);
+  const [callLogId, setCallLogId] = useState<string | null>(null);
+  const [callStatus, setCallStatus] = useState<string>("idle");
   const [elapsed, setElapsed] = useState(0);
+  const [actualDuration, setActualDuration] = useState<number | null>(null);
+  const [actualCost, setActualCost] = useState<number | null>(null);
 
   useEffect(() => {
     if (open && user) {
@@ -36,25 +39,66 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
         .then(({ data }) => setBalance(Number(data?.balance || 0)));
       setPhone(studentPhone || "");
       setMinutes(5);
-      setCallActive(false);
+      setCallLogId(null);
+      setCallStatus("idle");
       setElapsed(0);
+      setActualDuration(null);
+      setActualCost(null);
     }
   }, [open, user?.id, studentPhone]);
 
-  // Live timer when call active
+  // Live timer ONLY while call is actually answered (in_progress)
   useEffect(() => {
-    if (!callActive) return;
+    if (callStatus !== "in_progress") return;
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
-  }, [callActive]);
+  }, [callStatus]);
+
+  // Realtime updates from call-status-webhook
+  useEffect(() => {
+    if (!callLogId) return;
+    const channel = supabase
+      .channel(`call_log_${callLogId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "call_logs", filter: `id=eq.${callLogId}` },
+        (payload) => {
+          const row = payload.new as { status?: string; duration_minutes?: number; cost?: number };
+          if (row.status) setCallStatus(row.status);
+          if (row.status && ["completed", "failed", "canceled"].includes(row.status)) {
+            if (typeof row.duration_minutes === "number") setActualDuration(row.duration_minutes);
+            if (typeof row.cost === "number") setActualCost(row.cost);
+            if (user) {
+              supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle()
+                .then(({ data }) => setBalance(Number(data?.balance || 0)));
+            }
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [callLogId, user?.id]);
 
   const requiredCost = minutes * PRICE_PER_MINUTE;
   const insufficient = balance < requiredCost;
   const liveCost = (elapsed / 60) * PRICE_PER_MINUTE;
+  const callActive = ["initiated", "ringing", "in_progress"].includes(callStatus);
+  const callEnded = ["completed", "failed", "canceled"].includes(callStatus);
+
+  const statusLabel: Record<string, string> = {
+    initiated: "جارٍ الاتصال...",
+    ringing: "يرنّ لدى الطالب...",
+    in_progress: "المكالمة جارية ✅",
+    completed: "انتهت المكالمة",
+    failed: "تعذّر الاتصال",
+    canceled: "أُلغيت المكالمة",
+  };
 
   const handleCall = async () => {
     if (!phone.trim()) {
-      toast.error("أدخل رقم الهاتف");
+      toast.error("رقم الطالب غير متوفر");
       return;
     }
     if (insufficient) {
@@ -69,10 +113,12 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "فشل");
       toast.success("تم بدء المكالمة 📞", {
-        description: `خُصم ${data.cost} ريال — رصيدك الجديد ${Number(data.newBalance).toFixed(2)} ريال`,
+        description: `حُجز ${data.cost} ريال مؤقتاً — سيُسترد الفرق تلقائياً`,
       });
       setBalance(Number(data.newBalance));
-      setCallActive(true);
+      setCallLogId(data.callLogId);
+      setCallStatus("initiated");
+      setElapsed(0);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "خطأ";
       toast.error("تعذّر بدء المكالمة", { description: msg });
@@ -81,7 +127,9 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
     }
   };
 
-  const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  const formatMinutes = (m: number) => formatTime(Math.round(m * 60));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,10 +143,43 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
 
         {callActive ? (
           <div className="text-center py-6 space-y-3">
-            <div className="text-5xl font-bold text-primary tabular-nums">{formatTime(elapsed)}</div>
-            <p className="text-sm text-muted-foreground">المكالمة جارية</p>
-            <div className="text-lg">التكلفة الحالية: <strong>{liveCost.toFixed(2)} ريال</strong></div>
-            <Button onClick={() => onOpenChange(false)} variant="outline">إغلاق</Button>
+            <div className="text-sm font-medium text-muted-foreground">
+              {statusLabel[callStatus] || "جارٍ..."}
+            </div>
+            {callStatus === "in_progress" ? (
+              <>
+                <div className="text-5xl font-bold text-primary tabular-nums">{formatTime(elapsed)}</div>
+                <div className="text-lg">التكلفة الحالية: <strong>{liveCost.toFixed(2)} ريال</strong></div>
+                <p className="text-xs text-muted-foreground">
+                  ⏱️ العداد يبدأ من لحظة رد الطالب فقط
+                </p>
+              </>
+            ) : (
+              <div className="py-8 flex flex-col items-center gap-3">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  {callStatus === "ringing" ? "في انتظار رد الطالب..." : "جارٍ الاتصال بالشبكة..."}
+                </p>
+              </div>
+            )}
+            <Button onClick={() => onOpenChange(false)} variant="outline" size="sm">
+              إخفاء النافذة (المكالمة مستمرة)
+            </Button>
+          </div>
+        ) : callEnded ? (
+          <div className="text-center py-6 space-y-3">
+            <div className={`flex items-center justify-center gap-2 text-lg font-semibold ${callStatus === "completed" ? "text-primary" : "text-destructive"}`}>
+              <PhoneOff className="h-5 w-5" />
+              {statusLabel[callStatus]}
+            </div>
+            {actualDuration !== null && (
+              <div className="text-3xl font-bold tabular-nums">{formatMinutes(actualDuration)}</div>
+            )}
+            {actualCost !== null && (
+              <div className="text-base">التكلفة الفعلية: <strong>{actualCost.toFixed(2)} ريال</strong></div>
+            )}
+            <p className="text-xs text-muted-foreground">رصيدك الحالي: {balance.toFixed(2)} ريال</p>
+            <Button onClick={() => onOpenChange(false)}>إغلاق</Button>
           </div>
         ) : (
           <>
@@ -123,9 +204,12 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
               </div>
 
               <div className="flex justify-between p-3 rounded-lg border">
-                <span>التكلفة المتوقعة:</span>
+                <span>التكلفة المحجوزة:</span>
                 <strong>{requiredCost.toFixed(2)} ريال</strong>
               </div>
+              <p className="text-xs text-muted-foreground">
+                💡 يُحجز هذا المبلغ مؤقتاً، ويُحاسب على المدة الفعلية فقط بعد انتهاء المكالمة (الفرق يُسترد).
+              </p>
 
               {insufficient && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
