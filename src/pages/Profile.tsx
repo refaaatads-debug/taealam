@@ -18,9 +18,11 @@ import { toast } from "sonner";
 const Profile = () => {
   const { user, profile, roles, signOut } = useAuth();
   const isTeacher = roles.includes("teacher");
+  const isStudent = !isTeacher && (roles.length === 0 || roles.includes("student"));
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [studentStage, setStudentStage] = useState("");
   const [notifyBefore, setNotifyBefore] = useState(true);
   const [notifyAfter, setNotifyAfter] = useState(true);
   const [notifyExpiry, setNotifyExpiry] = useState(true);
