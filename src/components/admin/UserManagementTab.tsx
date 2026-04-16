@@ -805,28 +805,60 @@ export default function UserManagementTab() {
                   </div>
                 )}
 
-                {/* Permissions */}
+                {/* Permissions grouped by section */}
                 <div className="bg-muted/30 rounded-xl p-4">
                   <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                    <KeyRound className="h-4 w-4 text-primary" /> الصلاحيات المخصصة
+                    <KeyRound className="h-4 w-4 text-primary" /> صلاحيات أقسام لوحة الإدارة
                   </h3>
-                  <div className="space-y-3">
-                    {Object.entries(PERMISSION_LABELS).map(([key, info]) => {
-                      const hasPermission = (selectedUser.permissions || []).includes(key);
+                  <p className="text-xs text-muted-foreground mb-3">
+                    اختر الأقسام التي يمكن لهذا المستخدم الوصول إليها. كل صلاحية تتحكم في إظهار/إخفاء قسم في لوحة الأدمن.
+                  </p>
+                  <div className="space-y-4">
+                    {Array.from(new Set(Object.values(PERMISSION_LABELS).map(p => p.group))).map(groupName => {
+                      const groupPerms = Object.entries(PERMISSION_LABELS).filter(([, info]) => info.group === groupName);
+                      const groupKeys = groupPerms.map(([k]) => k);
+                      const userPerms = selectedUser.permissions || [];
+                      const allChecked = groupKeys.every(k => userPerms.includes(k));
                       return (
-                        <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg">{info.icon}</span>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{info.label}</p>
-                              <p className="text-[10px] text-muted-foreground">{info.description}</p>
-                            </div>
+                        <div key={groupName} className="border rounded-lg p-3 bg-background/40">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold text-primary">{groupName}</h4>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px]"
+                              disabled={selectedUser.user_id === currentUser?.id}
+                              onClick={() => {
+                                groupKeys.forEach(k => {
+                                  const has = userPerms.includes(k);
+                                  if (allChecked ? has : !has) togglePermission(selectedUser.user_id, k, has);
+                                });
+                              }}
+                            >
+                              {allChecked ? "إلغاء الكل" : "منح الكل"}
+                            </Button>
                           </div>
-                          <Switch
-                            checked={hasPermission}
-                            onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
-                            disabled={selectedUser.user_id === currentUser?.id}
-                          />
+                          <div className="space-y-2">
+                            {groupPerms.map(([key, info]) => {
+                              const hasPermission = userPerms.includes(key);
+                              return (
+                                <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-2.5">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="text-base">{info.icon}</span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium text-foreground truncate">{info.label}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">{info.description}</p>
+                                    </div>
+                                  </div>
+                                  <Switch
+                                    checked={hasPermission}
+                                    onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
+                                    disabled={selectedUser.user_id === currentUser?.id}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
