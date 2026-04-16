@@ -2,14 +2,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const buildIceServers = (): RTCConfiguration => {
+  const turnUsername = import.meta.env.VITE_EXPRESSTURN_USERNAME || "000000002091120202";
+  const turnPassword = import.meta.env.VITE_EXPRESSTURN_PASSWORD || "yMcCGKBanSb4GJyhvfTXoyVxOwM=";
+
   const iceServers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    // ExpressTURN server for NAT traversal
     {
       urls: "turn:free.expressturn.com:3478",
-      username: "000000002091120202",
-      credential: "yMcCGKBanSb4GJyhvfTXoyVxOwM=",
+      username: turnUsername,
+      credential: turnPassword,
     },
   ];
 
