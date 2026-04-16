@@ -55,6 +55,20 @@ const Pricing = () => {
 
   const handleSubscribe = async (plan: any) => {
     if (!user) { navigate("/login"); return; }
+
+    // Check profile completeness for students
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name, phone, teaching_stage")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const profileComplete = !!(profileData?.full_name && profileData?.phone && (profileData as any)?.teaching_stage);
+    if (!profileComplete) {
+      toast.error("يجب استكمال بياناتك أولاً قبل الاشتراك");
+      navigate(`/complete-profile?redirect=${encodeURIComponent("/pricing")}`);
+      return;
+    }
+
     if (plan.price <= 0 && freeTrialUsed) {
       toast.error("لقد استخدمت الباقة المجانية من قبل. يمكنك الاشتراك في باقة مدفوعة.");
       return;

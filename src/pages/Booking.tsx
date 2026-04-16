@@ -88,6 +88,22 @@ const Booking = () => {
     };
     fetchSubjects();
 
+    // Enforce profile completeness for students before booking
+    if (user) {
+      supabase
+        .from("profiles")
+        .select("full_name, phone, teaching_stage")
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          const complete = !!(data?.full_name && data?.phone && (data as any)?.teaching_stage);
+          if (!complete) {
+            toast.error("يجب استكمال بياناتك أولاً قبل الحجز");
+            navigate(`/complete-profile?redirect=${encodeURIComponent("/booking" + window.location.search)}`);
+          }
+        });
+    }
+
     // Fetch remaining minutes
     if (user) {
       supabase

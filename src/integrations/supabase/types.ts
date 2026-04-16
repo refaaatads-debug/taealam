@@ -585,6 +585,7 @@ export type Database = {
           notify_subscription_expiry: boolean | null
           phone: string | null
           referral_code: string | null
+          teaching_stage: string | null
           updated_at: string
           user_id: string
         }
@@ -600,6 +601,7 @@ export type Database = {
           notify_subscription_expiry?: boolean | null
           phone?: string | null
           referral_code?: string | null
+          teaching_stage?: string | null
           updated_at?: string
           user_id: string
         }
@@ -615,6 +617,7 @@ export type Database = {
           notify_subscription_expiry?: boolean | null
           phone?: string | null
           referral_code?: string | null
+          teaching_stage?: string | null
           updated_at?: string
           user_id?: string
         }
