@@ -48,15 +48,42 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("profiles")
-      .select("full_name, phone, teaching_stage")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const complete = !!(data?.full_name && data?.phone && (data as any)?.teaching_stage);
+    let cancelled = false;
+    const checkProfile = () => {
+      supabase
+        .from("profiles")
+        .select("full_name, phone, teaching_stage")
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (cancelled) return;
+          const complete = !!(data?.full_name && data?.phone && (data as any)?.teaching_stage);
+          setProfileIncomplete(!complete);
+        });
+    };
+    checkProfile();
+    // Re-check when window regains focus (e.g., returning from /complete-profile)
+    const onFocus = () => checkProfile();
+    window.addEventListener("focus", onFocus);
+    // Realtime: react to profile updates
+    const ch = supabase
+      .channel(`profile-completion-${user.id}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        const p: any = payload.new;
+        const complete = !!(p?.full_name && p?.phone && p?.teaching_stage);
         setProfileIncomplete(!complete);
-      });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(ch);
+    };
   }, [user]);
 
   const handleCancelBooking = async (booking: any) => {

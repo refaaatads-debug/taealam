@@ -12,6 +12,7 @@ interface AuthContextType {
   profile: { full_name: string; avatar_url: string | null; phone: string | null } | null;
   roles: AppRole[];
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   roles: [],
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -131,8 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRoles([]);
   };
 
+  const refreshProfile = async () => {
+    if (user?.id) await fetchProfile(user.id);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, profile, roles, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, profile, roles, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

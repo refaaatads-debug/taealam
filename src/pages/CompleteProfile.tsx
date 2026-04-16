@@ -29,7 +29,7 @@ const CompleteProfile = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect") || "/student";
-  const { user, profile, loading: authLoading, roles } = useAuth();
+  const { user, profile, loading: authLoading, roles, refreshProfile } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -78,25 +78,36 @@ const CompleteProfile = () => {
     if (!user) return;
     setSaving(true);
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({
         full_name: parsed.data.full_name,
         phone: parsed.data.phone,
         teaching_stage: parsed.data.teaching_stage,
       } as any)
-      .eq("user_id", user.id);
-
-    setSaving(false);
+      .eq("user_id", user.id)
+      .select("full_name, phone, teaching_stage")
+      .maybeSingle();
 
     if (error) {
+      setSaving(false);
       toast.error("خطأ في الحفظ: " + error.message);
       return;
     }
 
+    // Verify the data was actually persisted
+    if (!updated || !(updated as any).teaching_stage) {
+      setSaving(false);
+      toast.error("لم يتم حفظ البيانات. أعد المحاولة.");
+      return;
+    }
+
+    // Refresh AuthContext profile so dashboards see the new data immediately
+    try { await refreshProfile(); } catch {}
+
+    setSaving(false);
     toast.success("تم استكمال بياناتك بنجاح! 🎉");
-    // Force a small delay for the AuthContext to refetch
-    setTimeout(() => navigate(redirect, { replace: true }), 300);
+    setTimeout(() => navigate(redirect, { replace: true }), 400);
   };
 
   if (authLoading) {

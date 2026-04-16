@@ -193,14 +193,20 @@ const Chat = () => {
 
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase();
       const filePath = `${bookingId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("chat-files")
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(uploadError.message || "فشل رفع الملف إلى التخزين");
+      }
 
       const { data: urlData } = supabase.storage
         .from("chat-files")
@@ -215,10 +221,14 @@ const Chat = () => {
         file_type: file.type,
       });
 
-      if (msgError) throw msgError;
+      if (msgError) {
+        console.error("Insert chat_messages error:", msgError);
+        throw new Error(msgError.message || "فشل إرسال رسالة الملف");
+      }
       toast.success("تم إرسال الملف بنجاح");
     } catch (err: any) {
-      toast.error(err.message || "فشل في رفع الملف");
+      console.error("File upload failure:", err);
+      toast.error(err?.message || "فشل في رفع الملف");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
