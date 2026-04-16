@@ -241,7 +241,7 @@ const Profile = () => {
               </div>
               <div>
                 <Label className="text-xs font-bold text-muted-foreground">رقم الجوال</Label>
-                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="05X XXX XXXX" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
               </div>
             </CardContent>
           </Card>

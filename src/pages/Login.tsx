@@ -231,7 +231,7 @@ const Login = () => {
                 {method === "email" ? (
                   <Input type="email" placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required />
                 ) : (
-                  <Input type="tel" placeholder="05X XXX XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" dir="ltr" required />
+                  <Input type="tel" placeholder="966 5X XXX XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-12 text-right rounded-xl bg-muted/30 border-border/50 focus:border-secondary" dir="ltr" required />
                 )}
 
                 {method === "email" && (
