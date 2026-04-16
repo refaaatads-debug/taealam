@@ -77,13 +77,14 @@ serve(async (req) => {
       const endsAt = new Date();
       endsAt.setDate(endsAt.getDate() + 30);
 
-      const totalHours = plan.sessions_count;
+      const sessionDuration = plan.session_duration_minutes || 45;
+      const totalMinutes = plan.sessions_count * sessionDuration;
       await adminClient.from("user_subscriptions").insert({
         user_id: user.id,
         plan_id: plan.id,
         sessions_remaining: plan.sessions_count,
-        total_hours: totalHours,
-        remaining_minutes: totalHours * 60,
+        total_hours: totalMinutes / 60,
+        remaining_minutes: totalMinutes,
         ends_at: endsAt.toISOString(),
         is_active: true,
       });
