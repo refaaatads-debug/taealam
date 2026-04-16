@@ -72,6 +72,7 @@ serve(async (req) => {
     const twimlUrl = Deno.env.get("TWIML_URL") || "http://demo.twilio.com/docs/voice.xml";
 
     const credentials = btoa(`${accountSid}:${authToken}`);
+    const statusCallbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/call-status-webhook`;
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
@@ -81,11 +82,19 @@ serve(async (req) => {
           Authorization: `Basic ${credentials}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-          From: fromNumber,
-          To: normalizedPhone,
-          Url: twimlUrl,
-        }),
+        body: (() => {
+          const p = new URLSearchParams({
+            From: fromNumber,
+            To: normalizedPhone,
+            Url: twimlUrl,
+            StatusCallback: statusCallbackUrl,
+            StatusCallbackMethod: "POST",
+          });
+          ["initiated", "ringing", "answered", "completed"].forEach((e) =>
+            p.append("StatusCallbackEvent", e)
+          );
+          return p;
+        })(),
       }
     );
 
