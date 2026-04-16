@@ -9,6 +9,7 @@ import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, D
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
+import CallStudentButton from "@/components/teacher/CallStudentButton";
 
 interface ChatMessage {
   id: string;
@@ -303,10 +304,13 @@ const Chat = () => {
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
           <MessageSquare className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-bold text-foreground text-sm">{otherName}</p>
           <p className="text-xs text-muted-foreground">محادثة الحصة</p>
         </div>
+        {!isStudent && bookingId && (
+          <CallStudentButton bookingId={bookingId} variant="outline" size="sm" />
+        )}
       </div>
 
       {/* Messages */}
