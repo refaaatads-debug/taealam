@@ -33,6 +33,7 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
   const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
   const [questionsDetected, setQuestionsDetected] = useState(0);
@@ -149,10 +150,10 @@ const LiveSession = () => {
         toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
         setTimeout(() => endSession(), 1500);
       }
-    } else if (msg.type === "timer-sync") {
-      // Sync elapsed time from the other party
-      if (typeof msg.elapsed === "number") {
-        setElapsed(prev => Math.max(prev, msg.elapsed));
+    } else if (msg.type === "timer-start") {
+      // Authoritative session start time from the teacher (source of truth)
+      if (typeof msg.startedAt === "string") {
+        setSessionStartedAt(msg.startedAt);
       }
     }
   }, [isTeacher, pushDebugEvent]);
@@ -574,15 +575,17 @@ const LiveSession = () => {
     }
   }, [bothJoined]);
 
-  // Session timer - only ticks when bothJoined AND peer is connected
+  // Session timer - synced via authoritative started_at (server time of truth)
+  // Both teacher & student compute elapsed from the same timestamp → identical to the second
   useEffect(() => {
-    if (!meetingStarted || !bothJoined || peerDisconnected) {
+    if (!meetingStarted || !bothJoined || peerDisconnected || !sessionStartedAt) {
       clearInterval(timerRef.current);
       return;
     }
-    timerRef.current = window.setInterval(() => {
-      setElapsed((p) => {
-        const next = p + 1;
+    const startMs = new Date(sessionStartedAt).getTime();
+    const tick = () => {
+      setElapsed(() => {
+        const next = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
@@ -603,16 +606,13 @@ const LiveSession = () => {
           return maxSeconds;
         }
 
-        // Sync timer to the other party every 10 seconds
-        if (next % 10 === 0) {
-          sendDataMessage({ type: "timer-sync", elapsed: next });
-        }
-
         return next;
       });
-    }, 1000);
+    };
+    tick();
+    timerRef.current = window.setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes]);
+  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes, sessionStartedAt]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
@@ -664,10 +664,15 @@ const LiveSession = () => {
     await start();
 
     if (isTeacher) {
+      const startedAtIso = new Date().toISOString();
+      setSessionStartedAt(startedAtIso);
       await Promise.all([
-        supabase.from("sessions").update({ started_at: new Date().toISOString() }).eq("booking_id", bookingId),
+        supabase.from("sessions").update({ started_at: startedAtIso }).eq("booking_id", bookingId),
         supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
       ]);
+
+      // Broadcast authoritative start time to student (instant, no DB roundtrip needed)
+      sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
 
       if (bookingData && user) {
         supabase.from("notifications").insert({
@@ -677,6 +682,14 @@ const LiveSession = () => {
           type: "session",
         });
       }
+    } else {
+      // Student: fetch authoritative started_at from sessions table
+      const { data: sess } = await supabase
+        .from("sessions")
+        .select("started_at")
+        .eq("booking_id", bookingId)
+        .maybeSingle();
+      if (sess?.started_at) setSessionStartedAt(sess.started_at);
     }
   };
 
