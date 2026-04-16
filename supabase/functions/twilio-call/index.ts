@@ -38,16 +38,16 @@ Deno.serve(async (req) => {
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: claims, error: claimsError } = await userClient.auth.getClaims(
+    const { data: userData, error: userError } = await userClient.auth.getUser(
       authHeader.replace("Bearer ", "")
     );
-    if (claimsError || !claims?.claims) {
+    if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const callerId = claims.claims.sub;
+    const callerId = userData.user.id;
 
     const { bookingId }: CallRequest = await req.json();
     if (!bookingId) throw new Error("bookingId is required");
