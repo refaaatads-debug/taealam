@@ -73,11 +73,24 @@ serve(async (req) => {
     const credentials = btoa(`${accountSid}:${authToken}`);
     const statusCallbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/call-status-webhook`;
 
-    // ⚠️ Inline TwiML — privacy/legal warning before connecting both parties
+    // WebSocket URL for media stream (replace https → wss)
+    const streamWsUrl = `${Deno.env.get("SUPABASE_URL")!.replace("https://", "wss://")}/functions/v1/twilio-media-stream`;
+
+    // ⚠️ Inline TwiML — privacy/legal warning + start media stream for live transcription
+    // We need callLogId in stream params, so we insert call_log first (without sid), then issue call.
+    // But Twilio call needs to start to get sid. Workaround: pass teacher/student IDs only here;
+    // use callSid as the join key in the stream handler.
     const warningTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Zeina" language="arb">تنبيه من منصة أجيال المعرفة. هذه المكالمة تعليمية بحتة. يُمنع منعاً باتاً تبادل أي معلومات شخصية مثل أرقام الهواتف أو الواتساب أو وسائل التواصل الخارجية. أي مخالفة قد تؤدي إلى إيقاف الحساب نهائياً.</Say>
+  <Say voice="Polly.Zeina" language="arb">تنبيه قانوني من منصة أجيال المعرفة. يتم تسجيل وتحليل هذه المكالمة لحظياً لأغراض المراقبة والامتثال. يُمنع منعاً باتاً تبادل أي بيانات شخصية كأرقام الهواتف أو البريد أو حسابات التواصل. أي مخالفة قد تؤدي لإنهاء المكالمة وإيقاف الحساب نهائياً.</Say>
   <Pause length="1"/>
+  <Start>
+    <Stream url="${streamWsUrl}">
+      <Parameter name="teacherId" value="${teacherId}"/>
+      <Parameter name="studentId" value="${studentId || ''}"/>
+      <Parameter name="bookingId" value="${bookingId || ''}"/>
+    </Stream>
+  </Start>
   <Say voice="Polly.Zeina" language="arb">سيتم الآن وصلكم بالمعلم.</Say>
 </Response>`;
 
