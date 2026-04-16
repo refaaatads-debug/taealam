@@ -198,9 +198,14 @@ const TeacherDashboard = () => {
               لديك {openRequestsCount} طلب متاح و {schedule.length} حصة قادمة
             </p>
           </motion.div>
-          <Button variant="outline" className="rounded-xl gap-2" asChild>
-            <Link to="/profile"><Settings className="h-4 w-4" /> إعدادات الحساب</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-xl gap-2" asChild>
+              <Link to="/teacher/wallet">💳 المحفظة</Link>
+            </Button>
+            <Button variant="outline" className="rounded-xl gap-2" asChild>
+              <Link to="/profile"><Settings className="h-4 w-4" /> إعدادات الحساب</Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stats - removed pricing/hourly rate */}
