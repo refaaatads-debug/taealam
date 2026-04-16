@@ -15,7 +15,7 @@ const Navbar = () => {
   const { user, profile, roles, signOut } = useAuth();
   const { getSetting, loading } = useSiteSettings("header");
 
-  const siteName = getSetting("site_name", "تعلم المستقبل");
+  const siteName = getSetting("site_name", "منصة أجيال المعرفة");
   const loginText = getSetting("header_login_text", "تسجيل الدخول");
   const ctaText = getSetting("header_cta_text", "ابدأ مجاناً");
   const logoUrl = getSetting("header_logo", "");
