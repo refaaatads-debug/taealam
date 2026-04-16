@@ -459,9 +459,6 @@ const StudentDashboard = () => {
               </Card>
             </motion.div>
 
-            {/* Schedule Table */}
-            <StudentScheduleTable />
-
             {/* Smart Match */}
             <SmartMatchWidget />
           </div>
