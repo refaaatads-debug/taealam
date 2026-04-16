@@ -108,9 +108,13 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
                 <strong className={insufficient ? "text-destructive" : "text-primary"}>{balance.toFixed(2)} ريال</strong>
               </div>
 
-              <div>
-                <Label>رقم الطالب</Label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" dir="ltr" />
+              <div className="p-3 rounded-lg bg-muted/30 border text-sm text-muted-foreground">
+                🔒 رقم هاتف الطالب محميّ ومخفي وفق سياسة الخصوصية. سيتم الاتصال تلقائياً دون عرض الرقم.
+                {!phone && (
+                  <div className="mt-2 text-destructive text-xs">
+                    تعذّر الحصول على رقم الطالب — لا يمكن إجراء المكالمة.
+                  </div>
+                )}
               </div>
 
               <div>
