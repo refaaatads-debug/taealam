@@ -198,11 +198,11 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
                 )}
               </div>
 
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm">
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/30 text-sm">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
                   <div className="space-y-1">
-                    <p className="font-semibold text-amber-700 dark:text-amber-400">
+                    <p className="font-semibold text-destructive">
                       تنبيه قانوني — يُسمع للطرفين قبل الوصل:
                     </p>
                     <p className="text-xs text-muted-foreground">
