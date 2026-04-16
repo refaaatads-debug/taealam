@@ -1,0 +1,14 @@
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'view_overview';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_users';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'view_teacher_performance';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_session_reports';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_session_pricing';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_materials';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_plans';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_withdrawals';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_teacher_payments';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_teacher_earnings';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_wallets';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_violations';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_ai_audit';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_notifications';

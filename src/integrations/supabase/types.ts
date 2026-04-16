@@ -1747,6 +1747,20 @@ export type Database = {
         | "view_reports"
         | "manage_payments"
         | "manage_coupons"
+        | "view_overview"
+        | "manage_users"
+        | "view_teacher_performance"
+        | "manage_session_reports"
+        | "manage_session_pricing"
+        | "manage_materials"
+        | "manage_plans"
+        | "manage_withdrawals"
+        | "manage_teacher_payments"
+        | "manage_teacher_earnings"
+        | "manage_wallets"
+        | "manage_violations"
+        | "manage_ai_audit"
+        | "manage_notifications"
       app_role: "student" | "teacher" | "parent" | "admin"
       booking_status: "pending" | "confirmed" | "completed" | "cancelled"
       subscription_tier: "basic" | "standard" | "premium" | "free"
@@ -1885,6 +1899,20 @@ export const Constants = {
         "view_reports",
         "manage_payments",
         "manage_coupons",
+        "view_overview",
+        "manage_users",
+        "view_teacher_performance",
+        "manage_session_reports",
+        "manage_session_pricing",
+        "manage_materials",
+        "manage_plans",
+        "manage_withdrawals",
+        "manage_teacher_payments",
+        "manage_teacher_earnings",
+        "manage_wallets",
+        "manage_violations",
+        "manage_ai_audit",
+        "manage_notifications",
       ],
       app_role: ["student", "teacher", "parent", "admin"],
       booking_status: ["pending", "confirmed", "completed", "cancelled"],
