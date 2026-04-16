@@ -424,6 +424,9 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* Schedule Table - تحت الحصص القادمة */}
+            <StudentScheduleTable />
+
             {/* Pending Booking Requests */}
             <PendingBookingRequests />
 
