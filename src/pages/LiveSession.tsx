@@ -1704,6 +1704,31 @@ const LiveSession = () => {
           <Phone className="h-5 w-5" />
         </Button>
       </div>
+
+      {/* In-page File Preview Modal — keeps session tab visible (no timer pause) */}
+      {filePreview && (
+        <div className="fixed inset-0 z-[100] bg-foreground/80 backdrop-blur-sm flex flex-col" dir="rtl">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-card border-b">
+            <div className="flex items-center gap-2 min-w-0">
+              {filePreview.type === "pdf" ? <FileText className="h-5 w-5 text-destructive shrink-0" /> : <ImageIcon className="h-5 w-5 text-primary shrink-0" />}
+              <span className="text-sm font-medium truncate">{filePreview.name}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="outline" onClick={() => downloadFile(filePreview.url, filePreview.name)} className="rounded-xl">
+                <Download className="h-4 w-4 ml-1" /> تحميل
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setFilePreview(null)} className="rounded-xl">إغلاق ✕</Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-muted/30 flex items-center justify-center p-2">
+            {filePreview.type === "pdf" ? (
+              <iframe src={filePreview.url} className="w-full h-full bg-card rounded-lg" title={filePreview.name} />
+            ) : (
+              <img src={filePreview.url} alt={filePreview.name} className="max-w-full max-h-full object-contain rounded-lg" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
