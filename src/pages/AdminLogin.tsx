@@ -38,7 +38,7 @@ const AdminLogin = () => {
       }
 
       toast.success("مرحباً بك في لوحة التحكم!");
-      navigate("/admin");
+      window.location.replace("/admin");
     } catch (e: any) {
       toast.error(e.message || "بيانات الدخول غير صحيحة");
     } finally {
