@@ -174,14 +174,16 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Authoritative accumulated seconds from teacher — student mirrors exactly
+      // Authoritative anchor from teacher. Compensate for transport latency
+      // by adding (now - msg.ts) seconds. Only correct if drift > 1s.
       if (!isTeacher && typeof msg.elapsed === "number") {
-        setElapsed(msg.elapsed);
+        const latencySec = typeof msg.ts === "number" ? Math.max(0, (Date.now() - msg.ts) / 1000) : 0;
+        const target = msg.elapsed + latencySec;
+        setElapsed((prev) => (Math.abs(prev - target) >= 1 ? Math.round(target) : prev));
       }
     } else if (msg.type === "timer-request") {
-      // Peer (re)joined and asks for current authoritative elapsed
       if (isTeacher) {
-        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
       }
     }
   }, [isTeacher, pushDebugEvent]);
@@ -651,7 +653,7 @@ const LiveSession = () => {
     if (!dataChannelReady || !meetingStarted) return;
     if (isTeacher) {
       // Teacher pushes authoritative elapsed to (re)joined peer
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
     } else {
       // Student requests authoritative elapsed from teacher
       sendDataMessage({ type: "timer-request" });
@@ -664,24 +666,20 @@ const LiveSession = () => {
     if (shouldCount && !wasCountingRef.current) {
       wasCountingRef.current = true;
       logEvent("counter_resume", { elapsed });
-      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: false });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: false });
     } else if (!shouldCount && wasCountingRef.current) {
       wasCountingRef.current = false;
       logEvent("counter_pause", {
         elapsed,
         reason: !isOnline ? "offline" : !isPageVisible ? "hidden" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other",
       });
-      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: true });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: true });
     }
   }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
-  // Tick — TEACHER ONLY is the source of truth. Student mirrors via timer-sync.
+  // Tick — both sides tick locally for smooth UI; teacher periodically broadcasts an
+  // authoritative anchor (baseElapsed + serverTimestamp) so the student can correct drift.
   useEffect(() => {
-    // Student never ticks locally — purely mirrors teacher's broadcast
-    if (!isTeacher) {
-      clearInterval(timerRef.current);
-      return;
-    }
     if (!shouldCount) {
       clearInterval(timerRef.current);
       lastTickRef.current = 0;
@@ -692,11 +690,11 @@ const LiveSession = () => {
       const now = Date.now();
       const deltaSec = lastTickRef.current ? Math.max(0, Math.round((now - lastTickRef.current) / 1000)) : 1;
       lastTickRef.current = now;
-      // Cap delta at 5s to defeat any background-throttling overshoot
       const inc = Math.min(deltaSec || 1, 5);
 
       setElapsed((prev) => {
         const next = prev + inc;
+        if (!isTeacher) return next; // student doesn't enforce limits
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
@@ -721,14 +719,15 @@ const LiveSession = () => {
     return () => clearInterval(timerRef.current);
   }, [isTeacher, shouldCount, hasSubscription, subscriptionRemainingMinutes, sessionDuration, tenMinWarningShown, timeWarningShown]);
 
-  // Teacher broadcasts authoritative elapsed every 2s for tight sync
+  // Teacher broadcasts authoritative anchor every 1s for tight sync
   useEffect(() => {
     if (!isTeacher || !shouldCount) return;
     const id = window.setInterval(() => {
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: false });
-    }, 2_000);
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: false });
+    }, 1_000);
     return () => clearInterval(id);
   }, [isTeacher, shouldCount, sendDataMessage]);
+
 
   // Persist elapsed to localStorage every 5s (fail-safe for rejoin)
   useEffect(() => {
