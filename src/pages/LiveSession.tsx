@@ -666,14 +666,14 @@ const LiveSession = () => {
     if (shouldCount && !wasCountingRef.current) {
       wasCountingRef.current = true;
       logEvent("counter_resume", { elapsed });
-      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: false });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: false });
     } else if (!shouldCount && wasCountingRef.current) {
       wasCountingRef.current = false;
       logEvent("counter_pause", {
         elapsed,
         reason: !isOnline ? "offline" : !isPageVisible ? "hidden" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other",
       });
-      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: true });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: true });
     }
   }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
