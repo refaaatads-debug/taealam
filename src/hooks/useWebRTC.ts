@@ -88,6 +88,9 @@ export function useWebRTC({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
+  // Always points to the latest active remote stream (audio+video) for recording
+  const latestRemoteStreamRef = useRef<MediaStream | null>(null);
+  const recordingHiddenVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Stable refs for callbacks
   const onRemoteStreamRef = useRef(onRemoteStream);
