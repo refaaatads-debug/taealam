@@ -156,13 +156,18 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Periodic sync from teacher: authoritative accumulated seconds
+      // Authoritative accumulated seconds from teacher — student always adopts
       if (!isTeacher && typeof msg.elapsed === "number") {
         setElapsed((prev) => {
-          // Only correct drift > 2s to avoid jitter
-          if (Math.abs(prev - msg.elapsed) > 2) return msg.elapsed;
+          // Accept any change > 1s (covers rejoin + drift correction)
+          if (Math.abs(prev - msg.elapsed) > 1) return msg.elapsed;
           return prev;
         });
+      }
+    } else if (msg.type === "timer-request") {
+      // Peer (re)joined and asks for current authoritative elapsed
+      if (isTeacher) {
+        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
       }
     }
   }, [isTeacher, pushDebugEvent]);
