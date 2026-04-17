@@ -38,6 +38,11 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
     if (open && user) {
       supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle()
         .then(({ data }) => setBalance(Number(data?.balance || 0)));
+      supabase.from("site_settings").select("value").eq("key", "call_price_per_minute").maybeSingle()
+        .then(({ data }) => {
+          const v = parseFloat(String(data?.value ?? ""));
+          if (!isNaN(v) && v >= 0) setPricePerMinute(v);
+        });
       setPhone(studentPhone || "");
       setMinutes(5);
       setCallLogId(null);
