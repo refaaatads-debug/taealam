@@ -353,7 +353,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
-      case "violations": return <ViolationsContent violations={filteredViolations} violationSearchQuery={violationSearchQuery} setViolationSearchQuery={setViolationSearchQuery} violationStatusFilter={violationStatusFilter} setViolationStatusFilter={setViolationStatusFilter} violationDateFrom={violationDateFrom} violationDateTo={violationDateTo} setViolationDateFrom={setViolationDateFrom} setViolationDateTo={setViolationDateTo} setViolations={setViolations} user={user} />;
+      case "violations": return <ViolationsTab violations={filteredViolations} setViolations={setViolations} user={user} searchQuery={violationSearchQuery} setSearchQuery={setViolationSearchQuery} statusFilter={violationStatusFilter} setStatusFilter={setViolationStatusFilter} dateFrom={violationDateFrom} dateTo={violationDateTo} setDateFrom={setViolationDateFrom} setDateTo={setViolationDateTo} />;
       case "plans": return <PlansManagementTab />;
       case "coupons": return <CouponsManagementTab />;
       case "teacher_performance": return <TeacherPerformanceTab />;
