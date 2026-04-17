@@ -956,6 +956,8 @@ const LiveSession = () => {
     if (sessionEndingRef.current) return;
     sessionEndingRef.current = true;
     clearInterval(timerRef.current);
+    // Clear local timer persistence — session is ending
+    try { localStorage.removeItem(`session_elapsed_${bookingId}`); } catch {}
 
     // 1) Notify peer immediately so their side starts closing in parallel
     try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
