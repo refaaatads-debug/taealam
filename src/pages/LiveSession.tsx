@@ -584,44 +584,110 @@ const LiveSession = () => {
     }
   }, [bothJoined]);
 
-  // Session timer - synced via authoritative started_at (server time of truth)
-  // Both teacher & student compute elapsed from the same timestamp → identical to the second
+  // ───────────────────────────────────────────────────────────
+  //  Precise Session Counter — Fail-safe accumulator
+  // ───────────────────────────────────────────────────────────
+  // Counts a second ONLY when ALL gates are open:
+  //   • meetingStarted  • bothJoined           • !peerDisconnected
+  //   • WebRTC connected • navigator.onLine    • document not hidden
+  // Stops on tab switch, network loss, peer drop, page leave, or RTC failure.
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [isPageVisible, setIsPageVisible] = useState<boolean>(typeof document === "undefined" ? true : !document.hidden);
+  const wasCountingRef = useRef(false);
+  const lastTickRef = useRef<number>(0);
+
   useEffect(() => {
-    if (!meetingStarted || !bothJoined || peerDisconnected || !sessionStartedAt) {
+    const onOnline = () => { setIsOnline(true); logEvent("network_online"); };
+    const onOffline = () => { setIsOnline(false); logEvent("network_offline"); toast.warning("⚠️ انقطع الإنترنت — تم إيقاف العداد", { duration: 4000 }); };
+    const onVis = () => {
+      const visible = !document.hidden;
+      setIsPageVisible(visible);
+      logEvent(visible ? "page_visible" : "page_hidden");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [logEvent]);
+
+  const shouldCount =
+    meetingStarted &&
+    bothJoined &&
+    !peerDisconnected &&
+    isOnline &&
+    isPageVisible &&
+    connectionState === "connected";
+
+  // Log pause/resume transitions + broadcast to peer for UI parity
+  useEffect(() => {
+    if (!meetingStarted) return;
+    if (shouldCount && !wasCountingRef.current) {
+      wasCountingRef.current = true;
+      logEvent("counter_resume", { elapsed });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: false });
+    } else if (!shouldCount && wasCountingRef.current) {
+      wasCountingRef.current = false;
+      logEvent("counter_pause", {
+        elapsed,
+        reason: !isOnline ? "offline" : !isPageVisible ? "hidden" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other",
+      });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, paused: true });
+    }
+  }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
+
+  // Tick — single source of truth, drift-corrected via wall-clock delta
+  useEffect(() => {
+    if (!shouldCount) {
       clearInterval(timerRef.current);
+      lastTickRef.current = 0;
       return;
     }
-    const startMs = new Date(sessionStartedAt).getTime();
+    lastTickRef.current = Date.now();
     const tick = () => {
-      setElapsed(() => {
-        const next = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      const now = Date.now();
+      const deltaSec = lastTickRef.current ? Math.max(0, Math.round((now - lastTickRef.current) / 1000)) : 1;
+      lastTickRef.current = now;
+      // Cap delta at 5s to defeat any background-throttling overshoot
+      const inc = Math.min(deltaSec || 1, 5);
+
+      setElapsed((prev) => {
+        const next = prev + inc;
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
 
-        if (next >= tenMinWarning && next < tenMinWarning + 2 && !tenMinWarningShown) {
+        if (next >= tenMinWarning && prev < tenMinWarning && !tenMinWarningShown) {
           setTenMinWarningShown(true);
           toast.warning("⚠️ تنبيه: متبقي 10 دقائق من رصيد باقتك!", { duration: 8000 });
         }
-
-        if (next >= warningSeconds && next < warningSeconds + 2 && !timeWarningShown) {
+        if (next >= warningSeconds && prev < warningSeconds && !timeWarningShown) {
           setTimeWarningShown(true);
           toast.warning("⚠️ تنبيه: متبقي 5 دقائق على انتهاء الحصة!", { duration: 10000 });
         }
-
         if (next >= maxSeconds) {
           toast.error("انتهى رصيد الباقة! سيتم إغلاق الجلسة تلقائياً.");
           setTimeout(() => endSession(), 2000);
           return maxSeconds;
         }
-
         return next;
       });
     };
-    tick();
     timerRef.current = window.setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [meetingStarted, bothJoined, peerDisconnected, sessionDuration, hasSubscription, subscriptionRemainingMinutes, sessionStartedAt]);
+  }, [shouldCount, hasSubscription, subscriptionRemainingMinutes, sessionDuration, tenMinWarningShown, timeWarningShown]);
+
+  // Teacher periodically broadcasts authoritative elapsed for drift correction (10s)
+  useEffect(() => {
+    if (!isTeacher || !shouldCount) return;
+    const id = window.setInterval(() => {
+      sendDataMessage({ type: "timer-sync", elapsed, paused: false });
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [isTeacher, shouldCount, elapsed, sendDataMessage]);
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
