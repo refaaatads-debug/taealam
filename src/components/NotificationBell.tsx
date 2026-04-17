@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { toast } from "sonner";
 
 interface Notification {
   id: string;
@@ -50,6 +51,12 @@ export default function NotificationBell() {
           setNotifications((prev) => [newNotif, ...prev.slice(0, 9)]);
           // Play sound based on notification type
           playSound(newNotif.type);
+          // Show transient popup at bottom-right for a few seconds
+          toast(newNotif.title, {
+            description: newNotif.body || undefined,
+            duration: 5000,
+            position: "bottom-right",
+          });
         }
       )
       .subscribe();
