@@ -970,12 +970,25 @@ const LiveSession = () => {
     }
   };
 
+  const markRecordingFailed = async (reason: string) => {
+    if (!bookingId) return;
+    try {
+      const { data: sess } = await supabase.from("sessions").select("id, duration_minutes")
+        .eq("booking_id", bookingId).maybeSingle();
+      if (!sess) return;
+      await supabase.from("session_materials")
+        .update({ description: `مدة الحصة: ${sess.duration_minutes ?? 0} دقيقة — تعذّر حفظ تسجيل الفيديو (${reason})` })
+        .eq("session_id", sess.id);
+    } catch (e) { console.warn("markRecordingFailed:", e); }
+  };
+
   const uploadRecording = async () => {
     const blob = getRecordingBlob();
     console.log("[uploadRecording] blob:", blob ? `${blob.size} bytes` : "null", "bookingId:", bookingId);
     if (!blob || blob.size === 0 || !bookingId || !user) {
       console.warn("[uploadRecording] Skipped - no blob/booking/user");
       toast.error("لم يتم العثور على فيديو للرفع");
+      await markRecordingFailed("لم يبدأ التسجيل أو كان فارغاً");
       return;
     }
     setRecordingUploading(true);
@@ -991,7 +1004,6 @@ const LiveSession = () => {
       }
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      // Bucket is private — also create a signed URL valid for 7 days for playback
       const { data: signedData } = await supabase.storage
         .from("session-recordings")
         .createSignedUrl(fileName, 60 * 60 * 24 * 7);
@@ -1012,6 +1024,7 @@ const LiveSession = () => {
     } catch (error) {
       console.error("[uploadRecording] Failed:", error);
       toast.error("تعذر حفظ التسجيل: " + (error instanceof Error ? error.message : "خطأ غير معروف"));
+      await markRecordingFailed(error instanceof Error ? error.message : "خطأ في الرفع");
     } finally {
       setRecordingUploading(false);
     }
