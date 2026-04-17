@@ -1057,10 +1057,12 @@ const LiveSession = () => {
         {/* Center section - Timer & Status */}
         <div className="flex items-center gap-2">
           {meetingStarted ? (
-            <div className="flex items-center gap-2 bg-card/5 rounded-xl px-3 py-1.5 border border-card/10">
+            <div className={`flex items-center gap-2 rounded-xl px-3 py-1.5 border ${meetingStarted && bothJoined && !shouldCount ? "bg-orange-500/10 border-orange-500/30" : "bg-card/5 border-card/10"}`}>
               <div className="flex flex-col items-center">
-                <span className="text-[10px] text-card/40 font-medium">الوقت المنقضي</span>
-                <span className="text-sm font-mono font-bold text-card">
+                <span className="text-[10px] text-card/40 font-medium">
+                  {meetingStarted && bothJoined && !shouldCount ? "⏸ متوقف مؤقتاً" : "الوقت المنقضي"}
+                </span>
+                <span className={`text-sm font-mono font-bold ${meetingStarted && bothJoined && !shouldCount ? "text-orange-400" : "text-card"}`}>
                   {!bothJoined ? "⏳" : formatTime(elapsed)}
                 </span>
               </div>
