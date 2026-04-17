@@ -381,6 +381,7 @@ export default function StudentScheduleTable() {
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
+                                <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -400,8 +401,18 @@ export default function StudentScheduleTable() {
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-2">
                                         {getStatusBadge(b.status, isLive)}
-                                        {/* Join from upcoming sessions section */}
                                       </div>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                        onClick={() => handleDeleteBooking(b.id)}
+                                        title="حذف الحصة"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
                                     </td>
                                   </tr>
                                 );
