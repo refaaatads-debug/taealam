@@ -351,7 +351,7 @@ export default function TeacherPerformanceTab() {
 
           // Pricing rules:
           //  • Sessions shorter than 5 minutes are totally ignored (no earnings)
-          //  • The first 5 minutes are excluded from the billable duration
+          //  • Sessions of 5 minutes or more: charge the FULL duration (seconds-precise)
           let calculatedPrice: number | null = null;
           if (b.status === "completed" && hourlyRate > 0) {
             const durationInMinutes = actualSeconds != null && actualSeconds > 0
@@ -361,10 +361,7 @@ export default function TeacherPerformanceTab() {
                 : b.duration_minutes;
 
             if (durationInMinutes >= 5) {
-              const billableMinutes = durationInMinutes - 5;
-              calculatedPrice = billableMinutes > 0
-                ? Math.round((hourlyRate / 60) * billableMinutes * 10) / 10
-                : 0;
+              calculatedPrice = Math.round((hourlyRate / 60) * durationInMinutes * 10) / 10;
             } else {
               calculatedPrice = 0;
             }
