@@ -635,6 +635,18 @@ const LiveSession = () => {
     connectionState === "connected";
   shouldCountRef.current = shouldCount;
 
+  // On (re)connection: sync timer between peers immediately
+  useEffect(() => {
+    if (!dataChannelReady || !meetingStarted) return;
+    if (isTeacher) {
+      // Teacher pushes authoritative elapsed to (re)joined peer
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+    } else {
+      // Student requests authoritative elapsed from teacher
+      sendDataMessage({ type: "timer-request" });
+    }
+  }, [dataChannelReady, meetingStarted, isTeacher, sendDataMessage]);
+
   // Log pause/resume transitions + broadcast to peer for UI parity
   useEffect(() => {
     if (!meetingStarted) return;
