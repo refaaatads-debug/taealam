@@ -852,18 +852,16 @@ const LiveSession = () => {
     }
   };
 
-  const openFileInNewTab = async (url: string) => {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("fetch failed");
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const win = window.open(blobUrl, "_blank", "noopener,noreferrer");
-      if (!win) window.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
+  // Open file inline (in-page modal) so the session tab remains visible
+  // and the timer/visibility-based pause is NOT triggered.
+  const openFileInNewTab = (url: string, name?: string, type?: string) => {
+    const isPdf = type === "application/pdf" || (!!name && name.toLowerCase().endsWith(".pdf"));
+    const isImg = !!type && type.startsWith("image/");
+    setFilePreview({
+      url,
+      name: name || (isPdf ? "ملف PDF" : isImg ? "صورة" : "ملف"),
+      type: isPdf ? "pdf" : "image",
+    });
   };
 
   const downloadFile = async (url: string, filename: string) => {
