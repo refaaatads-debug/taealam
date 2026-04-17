@@ -441,26 +441,77 @@ export function useWebRTC({
       return;
     }
 
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      alert("مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. يُرجى استخدام متصفح حديث على الكمبيوتر أو iPad Safari 16+.");
-      return;
+    const ua = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
+    const hasDisplayMedia = !!navigator.mediaDevices?.getDisplayMedia;
+
+    let stream: MediaStream | null = null;
+
+    // Try native screen capture first (works on desktop Chrome/Edge/Firefox/Safari, iPadOS 16+ Safari)
+    if (hasDisplayMedia) {
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 15, max: 30 } } as any,
+          audio: false,
+        });
+      } catch (err: any) {
+        if (err?.name === "NotAllowedError") return; // user cancelled
+        console.warn("getDisplayMedia failed, will try fallback:", err);
+      }
     }
 
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-    } catch (err: any) {
-      if (err?.name !== "NotAllowedError") {
-        console.error("Screen share failed:", err);
-        alert("تعذّر بدء مشاركة الشاشة على هذا الجهاز.");
+    // Fallback for Android tablets (Huawei, Samsung, etc.) where getDisplayMedia
+    // is unsupported or returns black frames: use the rear camera as a "document camera".
+    if (!stream && isAndroid) {
+      const useCamera = confirm(
+        "مشاركة الشاشة غير مدعومة على هذا التابلت. هل تريد استخدام الكاميرا الخلفية كبديل لعرض الكتاب أو الورقة للطالب؟"
+      );
+      if (!useCamera) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch (err) {
+        console.error("Camera fallback failed:", err);
+        alert("تعذّر الوصول للكاميرا الخلفية. تأكد من منح الإذن وأعد المحاولة.");
+        return;
       }
+    }
+
+    if (!stream) {
+      alert(
+        isIOS
+          ? "مشاركة الشاشة تتطلب iPadOS 16 أو أحدث مع متصفح Safari."
+          : "مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. جرّب Chrome على الكمبيوتر، أو استخدم الكاميرا الخلفية للجوال."
+      );
       return;
     }
 
     screenStreamRef.current = stream;
     const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      alert("لم يتم الحصول على إشارة فيديو من المصدر المختار.");
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
     await transceiver.sender.replaceTrack(videoTrack);
     transceiver.direction = "sendrecv";
+
+    // Force a renegotiation so the receiving side actually gets the new track decoded
+    try {
+      const params = transceiver.sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{ maxBitrate: 1_500_000 }];
+      } else {
+        params.encodings[0].maxBitrate = 1_500_000;
+      }
+      await transceiver.sender.setParameters(params);
+    } catch (e) {
+      console.warn("setParameters failed (non-fatal):", e);
+    }
 
     videoTrack.addEventListener("ended", async () => {
       await transceiver.sender.replaceTrack(null);
