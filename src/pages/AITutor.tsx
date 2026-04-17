@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical } from "lucide-react";
+import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { checkRateLimit } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -20,10 +23,32 @@ const quickPrompts = [
 ];
 
 const AITutor = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!user) { setHasAccess(false); return; }
+      const { data } = await supabase
+        .from("user_subscriptions")
+        .select("is_active, ends_at, plan:subscription_plans(has_ai_tutor, tier)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("ends_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const plan = (data as any)?.plan;
+      const ok = !!plan && plan.tier !== "free" && plan.has_ai_tutor === true;
+      setHasAccess(ok);
+    };
+    checkAccess();
+  }, [user]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
