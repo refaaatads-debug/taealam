@@ -1080,11 +1080,13 @@ const LiveSession = () => {
     try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
 
     // 4) Upload recording BEFORE navigation so the upload isn't aborted on unmount
-    if (wasRecording && !isShortSession) {
+    if (!isShortSession) {
       try {
         const blob = getRecordingBlob();
         if (blob && blob.size > 0) {
           await uploadRecording();
+        } else {
+          await markRecordingFailed(wasRecording ? "لم يتم التقاط أي بيانات فيديو" : "لم يبدأ التسجيل");
         }
       } catch (e) { console.error("recording upload failed", e); }
     }
