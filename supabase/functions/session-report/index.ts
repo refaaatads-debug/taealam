@@ -456,7 +456,7 @@ ${extractedTopics.length > 0 ? extractedTopics.join("، ") : "لم يتم اكت
         const regenResult = await callAIWithRetry(LOVABLE_API_KEY, {
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: `التقرير السابق ضعيف: "${evaluatorFeedback}". أعد كتابة التقرير بشكل تسلسلي زمني. كل جملة يجب أن تحتوي على [وقت] أو اقتباس. اعتمد حصرياً على Timeline المقدم. المادة: ${subjectName}. درجة الأداء: ${performanceScore}/100` },
+            { role: "system", content: `التقرير السابق ضعيف: "${evaluatorFeedback}". أعد كتابته بصرامة: كل جملة إما اقتباس حرفي بين "..." من Timeline مع [MM:SS]، أو رقم من الإحصائيات. ممنوع أي معلومة عامة عن المادة أو نصائح خارج إطار الجلسة. ممنوع اختراع أي شيء لم يَرِد حرفياً. المادة: ${subjectName}. درجة الأداء: ${performanceScore}/100.` },
             { role: "user", content: inputContext },
           ],
         });
