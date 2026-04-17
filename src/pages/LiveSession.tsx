@@ -174,14 +174,16 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Authoritative accumulated seconds from teacher — student mirrors exactly
+      // Authoritative anchor from teacher. Compensate for transport latency
+      // by adding (now - msg.ts) seconds. Only correct if drift > 1s.
       if (!isTeacher && typeof msg.elapsed === "number") {
-        setElapsed(msg.elapsed);
+        const latencySec = typeof msg.ts === "number" ? Math.max(0, (Date.now() - msg.ts) / 1000) : 0;
+        const target = msg.elapsed + latencySec;
+        setElapsed((prev) => (Math.abs(prev - target) >= 1 ? Math.round(target) : prev));
       }
     } else if (msg.type === "timer-request") {
-      // Peer (re)joined and asks for current authoritative elapsed
       if (isTeacher) {
-        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
       }
     }
   }, [isTeacher, pushDebugEvent]);
