@@ -94,7 +94,7 @@ const Index = () => {
 
   // Redirect authenticated users to their dashboard — never show landing page
   if (!loading && user && roles.length > 0) {
-    if (roles.includes("admin")) return <Navigate to="/admin-dashboard" replace />;
+    if (roles.includes("admin")) return <Navigate to="/admin" replace />;
     if (roles.includes("teacher")) return <Navigate to="/teacher" replace />;
     if (roles.includes("student")) return <Navigate to="/student" replace />;
   }
