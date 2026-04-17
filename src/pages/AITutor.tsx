@@ -160,6 +160,7 @@ const AITutor = () => {
             </Button>
           </Card>
         ) : (
+          <Card className="flex-1 flex flex-col border-0 shadow-card overflow-hidden">
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[400px]">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
