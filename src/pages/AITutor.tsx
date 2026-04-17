@@ -145,7 +145,21 @@ const AITutor = () => {
           </div>
         </div>
 
-        <Card className="flex-1 flex flex-col border-0 shadow-card overflow-hidden">
+        {hasAccess === false ? (
+          <Card className="flex-1 flex flex-col items-center justify-center text-center p-8 border-0 shadow-card">
+            <div className="w-20 h-20 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4">
+              <Lock className="h-10 w-10 text-secondary" />
+            </div>
+            <h2 className="text-xl font-black text-foreground mb-2">المدرس الذكي للمشتركين فقط</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md">
+              ميزة المدرس الذكي متاحة فقط لمشتركي الباقات المدفوعة، ولا تُخصم من رصيد دقائق الباقة.
+              اشترك الآن للاستمتاع بالمساعدة الذكية في جميع المواد.
+            </p>
+            <Button onClick={() => navigate("/pricing")} className="gradient-cta text-secondary-foreground rounded-xl px-8">
+              عرض الباقات
+            </Button>
+          </Card>
+        ) : (
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[400px]">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
