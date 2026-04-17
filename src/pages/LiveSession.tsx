@@ -742,33 +742,51 @@ const LiveSession = () => {
 
     await start();
 
+    // Check if session already has a started_at (rejoin scenario)
+    const { data: existingSess } = await supabase
+      .from("sessions")
+      .select("started_at")
+      .eq("booking_id", bookingId)
+      .maybeSingle();
+
+    const existingStartedAt = existingSess?.started_at;
+
     if (isTeacher) {
-      const startedAtIso = new Date().toISOString();
-      setSessionStartedAt(startedAtIso);
-      await Promise.all([
-        supabase.from("sessions").update({ started_at: startedAtIso }).eq("booking_id", bookingId),
-        supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
-      ]);
+      let startedAtIso = existingStartedAt;
+      if (!startedAtIso) {
+        // First time starting - create new started_at
+        startedAtIso = new Date().toISOString();
+        await Promise.all([
+          supabase.from("sessions").update({ started_at: startedAtIso }).eq("booking_id", bookingId),
+          supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", bookingId),
+        ]);
 
-      // Broadcast authoritative start time to student (instant, no DB roundtrip needed)
-      sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
-
-      if (bookingData && user) {
-        supabase.from("notifications").insert({
-          user_id: bookingData.student_id,
-          title: "الحصة بدأت! 🎓",
-          body: `بدأ المعلم ${profile?.full_name || "معلمك"} الحصة الآن. انضم فوراً!`,
-          type: "session",
-        });
+        if (bookingData && user) {
+          supabase.from("notifications").insert({
+            user_id: bookingData.student_id,
+            title: "الحصة بدأت! 🎓",
+            body: `بدأ المعلم ${profile?.full_name || "معلمك"} الحصة الآن. انضم فوراً!`,
+            type: "session",
+          });
+        }
+      } else {
+        // Rejoin - seed elapsed from existing started_at
+        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
+        setElapsed(elapsedSec);
+        logEvent("rejoin_session", { role: "teacher", elapsed: elapsedSec });
       }
+      setSessionStartedAt(startedAtIso);
+
+      // Broadcast authoritative start time to student
+      sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
     } else {
-      // Student: fetch authoritative started_at from sessions table
-      const { data: sess } = await supabase
-        .from("sessions")
-        .select("started_at")
-        .eq("booking_id", bookingId)
-        .maybeSingle();
-      if (sess?.started_at) setSessionStartedAt(sess.started_at);
+      // Student: use authoritative started_at (rejoin or first join)
+      if (existingStartedAt) {
+        setSessionStartedAt(existingStartedAt);
+        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(existingStartedAt).getTime()) / 1000));
+        setElapsed(elapsedSec);
+        logEvent("rejoin_session", { role: "student", elapsed: elapsedSec });
+      }
     }
   };
 
