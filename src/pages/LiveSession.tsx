@@ -598,13 +598,17 @@ const LiveSession = () => {
     }
   }, [meetingStarted, remoteConnected, bothJoined]);
 
-  // Auto-start recording when both parties join
+  // Auto-start recording when both parties join (retry when remoteStream arrives)
+  const recordingToastShownRef = useRef(false);
   useEffect(() => {
-    if (bothJoined && !isRecording) {
+    if (bothJoined && !isRecording && remoteStream) {
       startAutoRecording();
-      toast.info("🔴 يتم تسجيل الحصة تلقائياً");
+      if (!recordingToastShownRef.current) {
+        toast.info("🔴 يتم تسجيل الحصة تلقائياً");
+        recordingToastShownRef.current = true;
+      }
     }
-  }, [bothJoined]);
+  }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
   // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
