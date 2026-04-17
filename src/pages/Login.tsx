@@ -34,26 +34,28 @@ const Login = () => {
 
   // Role application after OAuth is handled in AuthContext
 
+  const goToDashboard = (userRole?: string) => {
+    let path = "/student";
+    if (userRole === "admin") path = "/admin";
+    else if (userRole === "teacher") path = "/teacher";
+    else if (userRole === "parent") path = "/parent";
+    // Full reload to ensure no other page renders in background
+    window.location.replace(path);
+  };
+
   // Auto-redirect if already logged in
   useEffect(() => {
     if (!authLoading && user && userRoles.length > 0) {
-      // Don't redirect if there's a pending role being applied
       if (localStorage.getItem("pending_role")) return;
-      if (userRoles.includes("admin")) navigate("/admin");
-      else if (userRoles.includes("teacher")) navigate("/teacher");
-      else if (userRoles.includes("parent")) navigate("/parent");
-      else navigate("/student");
+      const r = userRoles.includes("admin") ? "admin"
+        : userRoles.includes("teacher") ? "teacher"
+        : userRoles.includes("parent") ? "parent"
+        : "student";
+      goToDashboard(r);
     }
-  }, [user, userRoles, authLoading, navigate]);
+  }, [user, userRoles, authLoading]);
 
-  const redirectByRole = (userRole?: string) => {
-    switch (userRole) {
-      case "admin": navigate("/admin"); break;
-      case "teacher": navigate("/teacher"); break;
-      case "parent": navigate("/parent"); break;
-      default: navigate("/student");
-    }
-  };
+  const redirectByRole = (userRole?: string) => goToDashboard(userRole);
 
   const handleEmailAuth = async () => {
     setLoading(true);
