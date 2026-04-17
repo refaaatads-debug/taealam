@@ -92,8 +92,18 @@ const Index = () => {
   const { user, profile, roles, loading } = useAuth();
   const { hours, minutes, seconds } = useCountdown(24 * 60 * 60); // 24 hours
 
+  // While auth is resolving, or while a logged-in user's roles are still loading,
+  // show a blank loading screen — never flash the landing page to authenticated users.
+  if (loading || (user && roles.length === 0)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   // Redirect authenticated users to their dashboard — never show landing page
-  if (!loading && user && roles.length > 0) {
+  if (user && roles.length > 0) {
     if (roles.includes("admin")) return <Navigate to="/admin" replace />;
     if (roles.includes("teacher")) return <Navigate to="/teacher" replace />;
     if (roles.includes("student")) return <Navigate to="/student" replace />;
