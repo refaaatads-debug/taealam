@@ -29,6 +29,7 @@ const LiveSession = () => {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -851,18 +852,16 @@ const LiveSession = () => {
     }
   };
 
-  const openFileInNewTab = async (url: string) => {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("fetch failed");
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const win = window.open(blobUrl, "_blank", "noopener,noreferrer");
-      if (!win) window.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
+  // Open file inline (in-page modal) so the session tab remains visible
+  // and the timer/visibility-based pause is NOT triggered.
+  const openFileInNewTab = (url: string, name?: string, type?: string) => {
+    const isPdf = type === "application/pdf" || (!!name && name.toLowerCase().endsWith(".pdf"));
+    const isImg = !!type && type.startsWith("image/");
+    setFilePreview({
+      url,
+      name: name || (isPdf ? "ملف PDF" : isImg ? "صورة" : "ملف"),
+      type: isPdf ? "pdf" : "image",
+    });
   };
 
   const downloadFile = async (url: string, filename: string) => {
@@ -1566,7 +1565,7 @@ const LiveSession = () => {
                       <p>{m.text}</p>
                       {m.fileUrl && m.fileType?.startsWith("image/") && (
                         <div className="mt-2">
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!)} className="block">
+                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="block">
                             <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
                           </button>
                           <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "image")} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
@@ -1578,7 +1577,7 @@ const LiveSession = () => {
                         <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
                           <FileText className="h-4 w-4 shrink-0 text-destructive" />
                           <span className="text-xs truncate flex-1">{m.fileName || "PDF"}</span>
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!)} className="text-[11px] underline text-primary shrink-0">فتح</button>
+                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="text-[11px] underline text-primary shrink-0">فتح</button>
                           <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "file.pdf")} className="shrink-0 text-primary">
                             <Download className="h-3.5 w-3.5" />
                           </button>
@@ -1705,6 +1704,31 @@ const LiveSession = () => {
           <Phone className="h-5 w-5" />
         </Button>
       </div>
+
+      {/* In-page File Preview Modal — keeps session tab visible (no timer pause) */}
+      {filePreview && (
+        <div className="fixed inset-0 z-[100] bg-foreground/80 backdrop-blur-sm flex flex-col" dir="rtl">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-card border-b">
+            <div className="flex items-center gap-2 min-w-0">
+              {filePreview.type === "pdf" ? <FileText className="h-5 w-5 text-destructive shrink-0" /> : <ImageIcon className="h-5 w-5 text-primary shrink-0" />}
+              <span className="text-sm font-medium truncate">{filePreview.name}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="outline" onClick={() => downloadFile(filePreview.url, filePreview.name)} className="rounded-xl">
+                <Download className="h-4 w-4 ml-1" /> تحميل
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setFilePreview(null)} className="rounded-xl">إغلاق ✕</Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-muted/30 flex items-center justify-center p-2">
+            {filePreview.type === "pdf" ? (
+              <iframe src={filePreview.url} className="w-full h-full bg-card rounded-lg" title={filePreview.name} />
+            ) : (
+              <img src={filePreview.url} alt={filePreview.name} className="max-w-full max-h-full object-contain rounded-lg" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
