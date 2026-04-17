@@ -633,6 +633,7 @@ const LiveSession = () => {
     isOnline &&
     isPageVisible &&
     connectionState === "connected";
+  shouldCountRef.current = shouldCount;
 
   // Log pause/resume transitions + broadcast to peer for UI parity
   useEffect(() => {
