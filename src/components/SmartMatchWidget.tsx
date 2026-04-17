@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface MatchedTeacher {
   id: string;
+  user_id?: string;
   name: string;
   subject: string;
   rating: number;
