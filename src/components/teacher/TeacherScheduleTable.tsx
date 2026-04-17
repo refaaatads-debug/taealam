@@ -163,6 +163,17 @@ export default function TeacherScheduleTable() {
     fetchBookings();
   };
 
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
+    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+      return;
+    }
+    toast.success("تم حذف الحصة");
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
