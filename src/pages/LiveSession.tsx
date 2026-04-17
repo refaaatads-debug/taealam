@@ -174,13 +174,9 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Authoritative accumulated seconds from teacher — student always adopts
+      // Authoritative accumulated seconds from teacher — student mirrors exactly
       if (!isTeacher && typeof msg.elapsed === "number") {
-        setElapsed((prev) => {
-          // Accept any change > 1s (covers rejoin + drift correction)
-          if (Math.abs(prev - msg.elapsed) > 1) return msg.elapsed;
-          return prev;
-        });
+        setElapsed(msg.elapsed);
       }
     } else if (msg.type === "timer-request") {
       // Peer (re)joined and asks for current authoritative elapsed
@@ -679,8 +675,13 @@ const LiveSession = () => {
     }
   }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
-  // Tick — single source of truth, drift-corrected via wall-clock delta
+  // Tick — TEACHER ONLY is the source of truth. Student mirrors via timer-sync.
   useEffect(() => {
+    // Student never ticks locally — purely mirrors teacher's broadcast
+    if (!isTeacher) {
+      clearInterval(timerRef.current);
+      return;
+    }
     if (!shouldCount) {
       clearInterval(timerRef.current);
       lastTickRef.current = 0;
@@ -718,16 +719,16 @@ const LiveSession = () => {
     };
     timerRef.current = window.setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [shouldCount, hasSubscription, subscriptionRemainingMinutes, sessionDuration, tenMinWarningShown, timeWarningShown]);
+  }, [isTeacher, shouldCount, hasSubscription, subscriptionRemainingMinutes, sessionDuration, tenMinWarningShown, timeWarningShown]);
 
-  // Teacher periodically broadcasts authoritative elapsed for drift correction (10s)
+  // Teacher broadcasts authoritative elapsed every 2s for tight sync
   useEffect(() => {
     if (!isTeacher || !shouldCount) return;
     const id = window.setInterval(() => {
-      sendDataMessage({ type: "timer-sync", elapsed, paused: false });
-    }, 10_000);
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: false });
+    }, 2_000);
     return () => clearInterval(id);
-  }, [isTeacher, shouldCount, elapsed, sendDataMessage]);
+  }, [isTeacher, shouldCount, sendDataMessage]);
 
   // Persist elapsed to localStorage every 5s (fail-safe for rejoin)
   useEffect(() => {
