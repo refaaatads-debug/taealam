@@ -714,6 +714,20 @@ const LiveSession = () => {
     return () => clearInterval(id);
   }, [isTeacher, shouldCount, elapsed, sendDataMessage]);
 
+  // Persist elapsed to localStorage every 5s (fail-safe for rejoin)
+  useEffect(() => {
+    if (!bookingId || !meetingStarted) return;
+    const id = window.setInterval(() => {
+      try {
+        localStorage.setItem(
+          `session_elapsed_${bookingId}`,
+          JSON.stringify({ elapsed: elapsedRef.current, ts: Date.now() })
+        );
+      } catch {}
+    }, 5_000);
+    return () => clearInterval(id);
+  }, [bookingId, meetingStarted]);
+
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
     const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
