@@ -211,6 +211,36 @@ export default function WalletsManagementTab() {
 
   return (
     <div className="space-y-6" dir="rtl">
+      {/* Call price control */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Phone className="h-4 w-4 text-primary" /> سعر الدقيقة للمكالمات الهاتفية
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="call-price" className="text-xs text-muted-foreground">السعر الحالي (ر.س / دقيقة)</Label>
+              <Input
+                id="call-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={callPrice}
+                onChange={(e) => setCallPrice(e.target.value)}
+                className="w-40 rounded-xl"
+              />
+            </div>
+            <Button onClick={saveCallPrice} disabled={savingPrice} className="rounded-xl">
+              {savingPrice ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : null}
+              حفظ السعر
+            </Button>
+            <p className="text-xs text-muted-foreground">يُطبَّق تلقائياً على جميع المكالمات الجديدة.</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
