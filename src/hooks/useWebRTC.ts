@@ -372,7 +372,7 @@ export function useWebRTC({
     } catch (err) {
       console.error("Signal handling error:", err);
     }
-  }, [userId, sendSignal]);
+  }, [userId, sendSignal, createPeerConnection]);
 
   const start = useCallback(async () => {
     await initLocalMedia();
