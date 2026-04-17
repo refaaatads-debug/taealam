@@ -54,6 +54,35 @@ export default function WalletsManagementTab() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [callPrice, setCallPrice] = useState<string>("0.30");
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "call_price_per_minute").maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setCallPrice(String(data.value));
+      });
+  }, []);
+
+  const saveCallPrice = async () => {
+    const v = parseFloat(callPrice);
+    if (isNaN(v) || v < 0) {
+      toast.error("أدخل سعراً صحيحاً");
+      return;
+    }
+    setSavingPrice(true);
+    const { error } = await supabase.from("site_settings").upsert({
+      key: "call_price_per_minute",
+      value: String(v),
+      label_ar: "سعر الدقيقة للمكالمة الهاتفية (ر.س)",
+      category: "pricing",
+      type: "number",
+    }, { onConflict: "key" });
+    setSavingPrice(false);
+    if (error) toast.error("تعذر الحفظ: " + error.message);
+    else toast.success(`تم تحديث سعر الدقيقة إلى ${v} ر.س`);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -182,6 +211,36 @@ export default function WalletsManagementTab() {
 
   return (
     <div className="space-y-6" dir="rtl">
+      {/* Call price control */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Phone className="h-4 w-4 text-primary" /> سعر الدقيقة للمكالمات الهاتفية
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="call-price" className="text-xs text-muted-foreground">السعر الحالي (ر.س / دقيقة)</Label>
+              <Input
+                id="call-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={callPrice}
+                onChange={(e) => setCallPrice(e.target.value)}
+                className="w-40 rounded-xl"
+              />
+            </div>
+            <Button onClick={saveCallPrice} disabled={savingPrice} className="rounded-xl">
+              {savingPrice ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : null}
+              حفظ السعر
+            </Button>
+            <p className="text-xs text-muted-foreground">يُطبَّق تلقائياً على جميع المكالمات الجديدة.</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>

@@ -6,7 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const PRICE_PER_MINUTE = 0.30;
+const DEFAULT_PRICE_PER_MINUTE = 0.30;
+
+async function getCallPricePerMinute(supabase: any): Promise<number> {
+  try {
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "call_price_per_minute")
+      .maybeSingle();
+    const v = parseFloat(data?.value);
+    return isNaN(v) || v < 0 ? DEFAULT_PRICE_PER_MINUTE : v;
+  } catch {
+    return DEFAULT_PRICE_PER_MINUTE;
+  }
+}
 
 // Twilio sends application/x-www-form-urlencoded
 serve(async (req) => {
@@ -18,6 +32,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false } }
     );
+
+    const PRICE_PER_MINUTE = await getCallPricePerMinute(supabase);
 
     // Parse Twilio form payload
     const formData = await req.formData();

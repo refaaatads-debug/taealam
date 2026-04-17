@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
-const PRICE_PER_MINUTE = 0.30;
+const DEFAULT_PRICE_PER_MINUTE = 0.30;
 
 interface Props {
   open: boolean;
@@ -32,11 +32,17 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
   const [elapsed, setElapsed] = useState(0);
   const [actualDuration, setActualDuration] = useState<number | null>(null);
   const [actualCost, setActualCost] = useState<number | null>(null);
+  const [pricePerMinute, setPricePerMinute] = useState<number>(DEFAULT_PRICE_PER_MINUTE);
 
   useEffect(() => {
     if (open && user) {
       supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle()
         .then(({ data }) => setBalance(Number(data?.balance || 0)));
+      supabase.from("site_settings").select("value").eq("key", "call_price_per_minute").maybeSingle()
+        .then(({ data }) => {
+          const v = parseFloat(String(data?.value ?? ""));
+          if (!isNaN(v) && v >= 0) setPricePerMinute(v);
+        });
       setPhone(studentPhone || "");
       setMinutes(5);
       setCallLogId(null);
@@ -81,9 +87,9 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
     };
   }, [callLogId, user?.id]);
 
-  const requiredCost = minutes * PRICE_PER_MINUTE;
+  const requiredCost = minutes * pricePerMinute;
   const insufficient = balance < requiredCost;
-  const liveCost = (elapsed / 60) * PRICE_PER_MINUTE;
+  const liveCost = (elapsed / 60) * pricePerMinute;
   const callActive = ["initiated", "ringing", "in_progress"].includes(callStatus);
   const callEnded = ["completed", "failed", "canceled"].includes(callStatus);
 
@@ -138,7 +144,7 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
           <DialogTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" /> مكالمة هاتفية مدفوعة
           </DialogTitle>
-          <DialogDescription>سعر الدقيقة: <strong>{PRICE_PER_MINUTE} ريال</strong></DialogDescription>
+          <DialogDescription>سعر الدقيقة: <strong>{pricePerMinute} ريال</strong></DialogDescription>
         </DialogHeader>
 
         {callActive ? (
