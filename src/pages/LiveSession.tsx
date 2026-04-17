@@ -814,56 +814,74 @@ const LiveSession = () => {
     sessionEndingRef.current = true;
     clearInterval(timerRef.current);
 
-    // Notify the other party to end session too
-    sendDataMessage({ type: "session-end", elapsed });
+    // 1) Notify peer immediately so their side starts closing in parallel
+    try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
 
-    if (isRecording) {
-      await stopRecording();
+    // 2) Show success toast right away — UX feels instant
+    toast.success("تم إنهاء الحصة ✅");
+
+    const durationSeconds = elapsed;
+    const durationMinutes = Math.ceil(durationSeconds / 60);
+    const isShortSession = durationMinutes < 5;
+    const currentBookingId = bookingId;
+    const currentBookingData = bookingData;
+    const currentRemaining = subscriptionRemainingMinutes;
+    const wasRecording = isRecording;
+    const teacherSpeak = isTeacher ? teacherSpeakingSec : studentSpeakingSec;
+    const studentSpeak = isTeacher ? studentSpeakingSec : teacherSpeakingSec;
+    const msgCount = messages.length;
+    const violations = violationCount;
+    const questions = questionsDetected;
+
+    // 3) Critical, fast updates in parallel
+    const fastTasks: Promise<any>[] = [stop(), cleanupSession()];
+    if (currentBookingId) {
+      fastTasks.push(
+        supabase.from("bookings")
+          .update({ status: "completed", session_status: "completed" })
+          .eq("id", currentBookingId) as any
+      );
+      fastTasks.push(
+        supabase.from("sessions")
+          .update({ ended_at: new Date().toISOString() } as any)
+          .eq("booking_id", currentBookingId) as any
+      );
     }
-    await stop();
-    await cleanupSession();
-    logEvent("end_session", { elapsed_seconds: elapsed });
+    await Promise.allSettled(fastTasks);
 
-    if (bookingId) {
+    try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
+
+    // 4) Navigate immediately — heavy work runs in background
+    if (isTeacher) navigate("/teacher");
+    else navigate(`/rating${currentBookingId ? `?booking=${currentBookingId}` : ""}`);
+
+    // 5) Background: recording upload, earnings, notifications, AI report
+    void (async () => {
       try {
-        const durationSeconds = elapsed;
-        const durationMinutes = Math.ceil(durationSeconds / 60);
-        const isShortSession = durationMinutes < 5;
+        if (wasRecording) {
+          try { await stopRecording(); } catch {}
+          try {
+            const blob = getRecordingBlob();
+            if (blob) await uploadRecording();
+          } catch (e) { console.error("recording upload failed", e); }
+        }
 
-        await supabase.from("bookings").update({ status: "completed", session_status: "completed" }).eq("id", bookingId);
-        
-        await supabase.from("sessions").update({ 
-          ended_at: new Date().toISOString(),
-        } as any).eq("booking_id", bookingId);
-
-        const recordingBlob = getRecordingBlob();
-        if (recordingBlob) await uploadRecording();
-
-        if (bookingData && !isShortSession) {
-          const teacherId = bookingData.teacher_id;
+        if (currentBookingId && currentBookingData && !isShortSession) {
           const teacherEarning = durationMinutes * 0.3;
-          
-          await supabase.from("bookings").update({ price: teacherEarning }).eq("id", bookingId);
-          
-          await supabase.from("notifications").insert({
-            user_id: teacherId,
-            title: "تم إضافة أرباح حصة ✅",
-            body: `تمت إضافة ${teacherEarning.toFixed(1)} ر.س لرصيدك عن حصة مكتملة (${durationMinutes} دقيقة).`,
-            type: "payment",
-          });
-        }
+          await Promise.allSettled([
+            supabase.from("bookings").update({ price: teacherEarning }).eq("id", currentBookingId),
+            supabase.from("notifications").insert({
+              user_id: currentBookingData.teacher_id,
+              title: "تم إضافة أرباح حصة ✅",
+              body: `تمت إضافة ${teacherEarning.toFixed(1)} ر.س لرصيدك عن حصة مكتملة (${durationMinutes} دقيقة).`,
+              type: "payment",
+            }),
+          ]);
 
-        if (bookingData && isShortSession) {
-          toast.info("الجلسة أقل من 5 دقائق - لم يتم خصم أي رصيد من الباقة.");
-        }
-
-        if (bookingData && !isShortSession) {
-          const studentId = bookingData.student_id;
-          const newRemaining = Math.max(0, subscriptionRemainingMinutes - durationMinutes);
-          
+          const newRemaining = Math.max(0, currentRemaining - durationMinutes);
           if (newRemaining <= 30) {
             await supabase.from("notifications").insert({
-              user_id: studentId,
+              user_id: currentBookingData.student_id,
               title: newRemaining <= 0 ? "انتهى رصيد باقتك 📋" : "⚠️ رصيد الباقة منخفض!",
               body: newRemaining <= 0 ? "نفد رصيد باقتك. جدد باقتك للاستمرار." : `متبقي ${newRemaining} دقيقة فقط. جدد باقتك.`,
               type: newRemaining <= 0 ? "subscription_expired" : "subscription_warning",
@@ -871,34 +889,26 @@ const LiveSession = () => {
           }
         }
 
-        try {
-          await supabase.functions.invoke("session-report", { body: { 
-            booking_id: bookingId,
-            session_stats: {
-              teacher_speaking_seconds: isTeacher ? teacherSpeakingSec : studentSpeakingSec,
-              student_speaking_seconds: isTeacher ? studentSpeakingSec : teacherSpeakingSec,
-              messages_count: messages.length,
-              violation_count: violationCount,
-              duration_minutes: durationMinutes,
-              is_short_session: isShortSession,
-              questions_detected: questionsDetected,
-            }
-          } });
-        } catch {
-          console.log("AI report will be generated later");
+        if (currentBookingId) {
+          try {
+            await supabase.functions.invoke("session-report", { body: {
+              booking_id: currentBookingId,
+              session_stats: {
+                teacher_speaking_seconds: teacherSpeak,
+                student_speaking_seconds: studentSpeak,
+                messages_count: msgCount,
+                violation_count: violations,
+                duration_minutes: durationMinutes,
+                is_short_session: isShortSession,
+                questions_detected: questions,
+              }
+            }});
+          } catch { /* report can be regenerated later */ }
         }
-
-        toast.success("تم إنهاء الحصة بنجاح ✅");
       } catch (e) {
-        console.error("Error ending session:", e);
+        console.error("Background end-session tasks failed:", e);
       }
-    }
-
-    if (isTeacher) {
-      navigate("/teacher");
-    } else {
-      navigate(`/rating${bookingId ? `?booking=${bookingId}` : ""}`);
-    }
+    })();
   };
 
   const getConnectionBadge = () => {
