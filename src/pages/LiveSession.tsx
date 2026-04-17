@@ -675,13 +675,9 @@ const LiveSession = () => {
     }
   }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
-  // Tick — TEACHER ONLY is the source of truth. Student mirrors via timer-sync.
+  // Tick — both sides tick locally for smooth UI; teacher periodically broadcasts an
+  // authoritative anchor (baseElapsed + serverTimestamp) so the student can correct drift.
   useEffect(() => {
-    // Student never ticks locally — purely mirrors teacher's broadcast
-    if (!isTeacher) {
-      clearInterval(timerRef.current);
-      return;
-    }
     if (!shouldCount) {
       clearInterval(timerRef.current);
       lastTickRef.current = 0;
@@ -692,11 +688,11 @@ const LiveSession = () => {
       const now = Date.now();
       const deltaSec = lastTickRef.current ? Math.max(0, Math.round((now - lastTickRef.current) / 1000)) : 1;
       lastTickRef.current = now;
-      // Cap delta at 5s to defeat any background-throttling overshoot
       const inc = Math.min(deltaSec || 1, 5);
 
       setElapsed((prev) => {
         const next = prev + inc;
+        if (!isTeacher) return next; // student doesn't enforce limits
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
         const tenMinWarning = maxSeconds - 10 * 60;
@@ -721,14 +717,15 @@ const LiveSession = () => {
     return () => clearInterval(timerRef.current);
   }, [isTeacher, shouldCount, hasSubscription, subscriptionRemainingMinutes, sessionDuration, tenMinWarningShown, timeWarningShown]);
 
-  // Teacher broadcasts authoritative elapsed every 2s for tight sync
+  // Teacher broadcasts authoritative anchor every 1s for tight sync
   useEffect(() => {
     if (!isTeacher || !shouldCount) return;
     const id = window.setInterval(() => {
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: false });
-    }, 2_000);
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: false });
+    }, 1_000);
     return () => clearInterval(id);
   }, [isTeacher, shouldCount, sendDataMessage]);
+
 
   // Persist elapsed to localStorage every 5s (fail-safe for rejoin)
   useEffect(() => {
