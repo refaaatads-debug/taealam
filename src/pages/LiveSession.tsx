@@ -1565,7 +1565,7 @@ const LiveSession = () => {
                       <p>{m.text}</p>
                       {m.fileUrl && m.fileType?.startsWith("image/") && (
                         <div className="mt-2">
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!)} className="block">
+                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="block">
                             <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
                           </button>
                           <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "image")} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
@@ -1577,7 +1577,7 @@ const LiveSession = () => {
                         <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
                           <FileText className="h-4 w-4 shrink-0 text-destructive" />
                           <span className="text-xs truncate flex-1">{m.fileName || "PDF"}</span>
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!)} className="text-[11px] underline text-primary shrink-0">فتح</button>
+                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="text-[11px] underline text-primary shrink-0">فتح</button>
                           <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "file.pdf")} className="shrink-0 text-primary">
                             <Download className="h-3.5 w-3.5" />
                           </button>
