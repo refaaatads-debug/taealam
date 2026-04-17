@@ -532,9 +532,17 @@ export function useWebRTC({
 
   const startAutoRecording = useCallback(() => {
     try {
+      // Avoid double-start
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        console.log("[recording] already running, skip");
+        return;
+      }
       const localAudioStream = localStreamRef.current;
-      const remoteMediaStream = remoteStream;
-      if (!localAudioStream && !remoteMediaStream) return;
+      const remoteMediaStream = latestRemoteStreamRef.current ?? remoteStream;
+      if (!localAudioStream && !remoteMediaStream) {
+        console.warn("[recording] no streams yet, will retry");
+        return;
+      }
 
       // Create offscreen canvas for video capture
       const canvas = document.createElement("canvas");
@@ -637,8 +645,13 @@ export function useWebRTC({
     return new Promise<void>((resolve) => {
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive") {
-        recorder.addEventListener("stop", () => resolve(), { once: true });
-        recorder.stop();
+        recorder.addEventListener("stop", () => {
+          console.log("[recording] stopped, chunks:", recordedChunksRef.current.length,
+            "total bytes:", recordedChunksRef.current.reduce((s, b) => s + b.size, 0));
+          resolve();
+        }, { once: true });
+        try { recorder.requestData(); } catch {}
+        try { recorder.stop(); } catch { resolve(); }
       } else {
         resolve();
       }

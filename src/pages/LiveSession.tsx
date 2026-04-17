@@ -598,13 +598,17 @@ const LiveSession = () => {
     }
   }, [meetingStarted, remoteConnected, bothJoined]);
 
-  // Auto-start recording when both parties join
+  // Auto-start recording when both parties join (retry when remoteStream arrives)
+  const recordingToastShownRef = useRef(false);
   useEffect(() => {
-    if (bothJoined && !isRecording) {
+    if (bothJoined && !isRecording && remoteStream) {
       startAutoRecording();
-      toast.info("🔴 يتم تسجيل الحصة تلقائياً");
+      if (!recordingToastShownRef.current) {
+        toast.info("🔴 يتم تسجيل الحصة تلقائياً");
+        recordingToastShownRef.current = true;
+      }
     }
-  }, [bothJoined]);
+  }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
   // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
@@ -966,12 +970,25 @@ const LiveSession = () => {
     }
   };
 
+  const markRecordingFailed = async (reason: string) => {
+    if (!bookingId) return;
+    try {
+      const { data: sess } = await supabase.from("sessions").select("id, duration_minutes")
+        .eq("booking_id", bookingId).maybeSingle();
+      if (!sess) return;
+      await supabase.from("session_materials")
+        .update({ description: `مدة الحصة: ${sess.duration_minutes ?? 0} دقيقة — تعذّر حفظ تسجيل الفيديو (${reason})` })
+        .eq("session_id", sess.id);
+    } catch (e) { console.warn("markRecordingFailed:", e); }
+  };
+
   const uploadRecording = async () => {
     const blob = getRecordingBlob();
     console.log("[uploadRecording] blob:", blob ? `${blob.size} bytes` : "null", "bookingId:", bookingId);
     if (!blob || blob.size === 0 || !bookingId || !user) {
       console.warn("[uploadRecording] Skipped - no blob/booking/user");
       toast.error("لم يتم العثور على فيديو للرفع");
+      await markRecordingFailed("لم يبدأ التسجيل أو كان فارغاً");
       return;
     }
     setRecordingUploading(true);
@@ -987,7 +1004,6 @@ const LiveSession = () => {
       }
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      // Bucket is private — also create a signed URL valid for 7 days for playback
       const { data: signedData } = await supabase.storage
         .from("session-recordings")
         .createSignedUrl(fileName, 60 * 60 * 24 * 7);
@@ -1008,6 +1024,7 @@ const LiveSession = () => {
     } catch (error) {
       console.error("[uploadRecording] Failed:", error);
       toast.error("تعذر حفظ التسجيل: " + (error instanceof Error ? error.message : "خطأ غير معروف"));
+      await markRecordingFailed(error instanceof Error ? error.message : "خطأ في الرفع");
     } finally {
       setRecordingUploading(false);
     }
@@ -1063,11 +1080,13 @@ const LiveSession = () => {
     try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
 
     // 4) Upload recording BEFORE navigation so the upload isn't aborted on unmount
-    if (wasRecording && !isShortSession) {
+    if (!isShortSession) {
       try {
         const blob = getRecordingBlob();
         if (blob && blob.size > 0) {
           await uploadRecording();
+        } else {
+          await markRecordingFailed(wasRecording ? "لم يتم التقاط أي بيانات فيديو" : "لم يبدأ التسجيل");
         }
       } catch (e) { console.error("recording upload failed", e); }
     }
