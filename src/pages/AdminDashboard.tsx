@@ -34,6 +34,7 @@ import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
+import ViolationsTab from "@/components/admin/ViolationsTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -217,25 +218,50 @@ const AdminDashboard = () => {
         setRecentBookings(bookings.map(b => ({ ...b, student_name: nameMap.get(b.student_id) || "—", teacher_name: nameMap.get(b.teacher_id) || "—" })));
       } else { setRecentBookings([]); }
 
-      // Violations
-      const { data: viol } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(50);
-      if (viol) {
+      // Violations — enrich with booking, other party, and session recording
+      const { data: viol } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(200);
+      if (viol && viol.length > 0) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
-        if (vUserIds.length > 0) {
-          const [profilesRes2, rolesRes, warningsRes] = await Promise.all([
-            supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
-            supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
-            supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
-          ]);
-          const nameMap = new Map((profilesRes2.data ?? []).map(p => [p.user_id, p.full_name]));
-          const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
-          const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
-          setViolations(viol.map((v: any) => {
-            const warning = warningMap.get(v.user_id);
-            return { ...v, user_name: nameMap.get(v.user_id) || "غير معروف", user_role: roleMap.get(v.user_id) || "student", warning_count: warning?.warning_count || 0, is_banned: warning?.is_banned || false, banned_until: warning?.banned_until || null };
-          }));
-        } else { setViolations([]); }
-      }
+        const bookingIds = [...new Set((viol as any[]).map((v: any) => v.booking_id).filter(Boolean))] as string[];
+
+        const [profilesRes2, rolesRes, warningsRes, bookingsForViol, sessionsForViol] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
+          supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
+          supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
+          bookingIds.length ? supabase.from("bookings").select("id, student_id, teacher_id, scheduled_at").in("id", bookingIds) : Promise.resolve({ data: [] as any[] }),
+          bookingIds.length ? supabase.from("sessions").select("booking_id, recording_url").in("booking_id", bookingIds) : Promise.resolve({ data: [] as any[] }),
+        ]);
+
+        // Collect ALL involved user IDs (for "other party" name lookup)
+        const otherIds = new Set<string>();
+        (bookingsForViol.data ?? []).forEach((b: any) => { otherIds.add(b.student_id); otherIds.add(b.teacher_id); });
+        const allIds = [...new Set([...vUserIds, ...otherIds])];
+        const { data: allProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", allIds);
+        const fullNameMap = new Map((allProfiles ?? []).map(p => [p.user_id, p.full_name]));
+
+        const nameMap = new Map((profilesRes2.data ?? []).map(p => [p.user_id, p.full_name]));
+        const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
+        const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
+        const bookingMap = new Map((bookingsForViol.data ?? []).map((b: any) => [b.id, b]));
+        const sessionMap = new Map((sessionsForViol.data ?? []).map((s: any) => [s.booking_id, s]));
+
+        setViolations(viol.map((v: any) => {
+          const warning = warningMap.get(v.user_id);
+          const booking = v.booking_id ? bookingMap.get(v.booking_id) : null;
+          const session = v.booking_id ? sessionMap.get(v.booking_id) : null;
+          const otherUserId = booking ? (booking.student_id === v.user_id ? booking.teacher_id : booking.student_id) : null;
+          return {
+            ...v,
+            user_name: nameMap.get(v.user_id) || fullNameMap.get(v.user_id) || "غير معروف",
+            user_role: roleMap.get(v.user_id) || "student",
+            warning_count: warning?.warning_count || 0,
+            is_banned: warning?.is_banned || false,
+            banned_until: warning?.banned_until || null,
+            other_party_name: otherUserId ? (fullNameMap.get(otherUserId) || null) : null,
+            recording_url: session?.recording_url || null,
+          };
+        }));
+      } else { setViolations([]); }
       await fetchBadgeCounts();
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
@@ -327,7 +353,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
-      case "violations": return <ViolationsContent violations={filteredViolations} violationSearchQuery={violationSearchQuery} setViolationSearchQuery={setViolationSearchQuery} violationStatusFilter={violationStatusFilter} setViolationStatusFilter={setViolationStatusFilter} violationDateFrom={violationDateFrom} violationDateTo={violationDateTo} setViolationDateFrom={setViolationDateFrom} setViolationDateTo={setViolationDateTo} setViolations={setViolations} user={user} />;
+      case "violations": return <ViolationsTab violations={filteredViolations} setViolations={setViolations} user={user} searchQuery={violationSearchQuery} setSearchQuery={setViolationSearchQuery} statusFilter={violationStatusFilter} setStatusFilter={setViolationStatusFilter} dateFrom={violationDateFrom} dateTo={violationDateTo} setDateFrom={setViolationDateFrom} setDateTo={setViolationDateTo} />;
       case "plans": return <PlansManagementTab />;
       case "coupons": return <CouponsManagementTab />;
       case "teacher_performance": return <TeacherPerformanceTab />;
@@ -614,144 +640,5 @@ const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter
   </Card>
 );
 
-const ViolationsContent = ({ violations, violationSearchQuery, setViolationSearchQuery, violationStatusFilter, setViolationStatusFilter, violationDateFrom, violationDateTo, setViolationDateFrom, setViolationDateTo, setViolations, user }: any) => (
-  <Card className="border-0 shadow-sm">
-    <CardHeader>
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-destructive" />
-          المخالفات المكتشفة ({violations.length})
-        </CardTitle>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Input placeholder="بحث بالاسم..." value={violationSearchQuery} onChange={(e: any) => setViolationSearchQuery(e.target.value)} className="w-40 rounded-xl text-sm h-9" />
-          <StatusFilter value={violationStatusFilter} onChange={setViolationStatusFilter} options={[
-            { value: "unreviewed", label: "قيد المراجعة" }, { value: "reviewed", label: "مؤكدة" }, { value: "false_positive", label: "ملغاة" },
-          ]} />
-          <DateFilter dateFrom={violationDateFrom} dateTo={violationDateTo} onDateFromChange={setViolationDateFrom} onDateToChange={setViolationDateTo} />
-          <ExportCSVButton
-            data={violations.map((v: any) => ({ user: v.user_name, role: v.user_role === "teacher" ? "معلم" : "طالب", type: v.violation_type, text: v.detected_text, source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%", warnings: v.warning_count || 0, date: new Date(v.created_at).toLocaleDateString("ar-SA"), status: v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة" }))}
-            headers={[{ key: "user", label: "المستخدم" }, { key: "role", label: "الدور" }, { key: "type", label: "النوع" }, { key: "text", label: "النص" }, { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" }, { key: "warnings", label: "التحذيرات" }, { key: "date", label: "التاريخ" }, { key: "status", label: "الحالة" }]}
-            filename="المخالفات"
-          />
-        </div>
-      </div>
-    </CardHeader>
-    <CardContent>
-      {violations.length === 0 ? (
-        <div className="text-center py-12">
-          <Shield className="h-12 w-12 text-success mx-auto mb-3 opacity-60" />
-          <p className="font-bold text-foreground mb-1">لا توجد مخالفات</p>
-          <p className="text-sm text-muted-foreground">النظام يراقب المحادثات تلقائياً</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {violations.map((v: any) => (
-            <div key={v.id} className={`p-4 rounded-xl border transition-colors ${v.is_false_positive ? "bg-muted/20 border-border" : v.is_reviewed ? "bg-muted/30 border-border" : "bg-destructive/5 border-destructive/20"}`}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <AlertTriangle className={`h-4 w-4 ${v.is_false_positive ? "text-muted-foreground" : "text-destructive"}`} />
-                  <span className="font-bold text-sm text-foreground">{v.user_name}</span>
-                  <Badge variant="outline" className="text-[10px]">{v.user_role === "teacher" ? "👨‍🏫 معلم" : "🎓 طالب"}</Badge>
-                  <Badge variant={v.is_false_positive ? "secondary" : v.is_reviewed ? "default" : "destructive"} className="text-[10px]">
-                    {v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
-                  </Badge>
-                  {v.is_banned && <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>}
-                </div>
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                  {new Date(v.created_at).toLocaleDateString("ar-SA")} {new Date(v.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </div>
-              <div className="space-y-2 mb-3">
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-muted-foreground mb-1">الرسالة الأصلية:</p>
-                  <p className="text-sm text-foreground">{v.original_message || v.detected_text}</p>
-                </div>
-                {v.detected_text && v.original_message && v.detected_text !== v.original_message && (
-                  <div className="bg-destructive/5 rounded-lg p-3">
-                    <p className="text-[10px] font-bold text-destructive mb-1">الأنماط المكتشفة:</p>
-                    <p className="text-sm text-foreground font-mono">{v.detected_text}</p>
-                  </div>
-                )}
-              </div>
-              <div className="bg-muted/30 rounded-lg p-3 mb-3">
-                <p className="text-[10px] font-bold text-muted-foreground mb-1">سبب المخالفة:</p>
-                <p className="text-xs text-foreground">
-                  {v.violation_type === "contact_sharing" && "محاولة مشاركة معلومات اتصال شخصية"}
-                  {v.violation_type === "platform_mention" && "ذكر منصات تواصل خارجية"}
-                  {v.violation_type === "coded_message" && "استخدام رسائل مشفرة"}
-                  {!["contact_sharing", "platform_mention", "coded_message"].includes(v.violation_type) && "مخالفة لسياسات المنصة"}
-                </p>
-              </div>
-              {v.warning_count > 0 && (
-                <div className={`rounded-lg p-3 mb-3 ${v.warning_count >= 3 ? "bg-destructive/10 border border-destructive/20" : "bg-warning/10 border border-warning/20"}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileWarning className="h-3.5 w-3.5 text-warning" />
-                    <p className="text-[10px] font-bold text-warning">سجل التحذيرات</p>
-                  </div>
-                  <p className="text-xs text-foreground">عدد التحذيرات: <span className="font-bold">{v.warning_count}</span> / 3{v.warning_count >= 3 && " — تم الحظر تلقائياً"}{v.banned_until && ` حتى ${new Date(v.banned_until).toLocaleDateString("ar-SA")}`}</p>
-                </div>
-              )}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                  <span>المصدر: {v.source === "chat" ? "💬 الدردشة" : v.source === "recording" ? "🎥 التسجيل" : v.source}</span>
-                  <span>الثقة: {Math.round((v.confidence_score || 0) * 100)}%</span>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {!v.is_reviewed && (
-                    <>
-                      <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
-                        await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
-                        await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة", body: "تمت مراجعة مخالفة وتم إلغاؤها.", type: "violation" });
-                        setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
-                        toast.success("تم إلغاء المخالفة");
-                      }}>إلغاء المخالفة</Button>
-                      <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={async () => {
-                        await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
-                        await supabase.from("notifications").insert({ user_id: v.user_id, title: "⚠️ مخالفة مؤكدة", body: "تم تأكيد مخالفة على حسابك.", type: "warning" });
-                        setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
-                        toast.success("تم تأكيد المخالفة");
-                      }}>تأكيد المخالفة</Button>
-                    </>
-                  )}
-                  {v.is_reviewed && !v.is_false_positive && (
-                    <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
-                      await (supabase as any).from("violations").update({ is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
-                      await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة سابقة", body: "تمت مراجعة مخالفة مؤكدة وتم إلغاؤها.", type: "violation" });
-                      if (v.warning_count > 0) { await supabase.from("user_warnings").update({ warning_count: Math.max(0, v.warning_count - 1), is_banned: false, banned_until: null }).eq("user_id", v.user_id); }
-                      setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_false_positive: true, warning_count: Math.max(0, (item.warning_count || 1) - 1), is_banned: false } : item));
-                      toast.success("تم تغيير الحالة إلى ملغاة");
-                    }}>تغيير إلى ملغاة</Button>
-                  )}
-                  {v.is_reviewed && v.is_false_positive && (
-                    <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={async () => {
-                      await (supabase as any).from("violations").update({ is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
-                      await supabase.from("notifications").insert({ user_id: v.user_id, title: "⚠️ تم إعادة تأكيد مخالفة", body: "تم تأكيد مخالفة ملغاة سابقاً.", type: "warning" });
-                      setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_false_positive: false } : item));
-                      toast.success("تم تغيير الحالة إلى مؤكدة");
-                    }}>تغيير إلى مؤكدة</Button>
-                  )}
-                  <Button size="sm" variant="ghost" className="text-xs h-7 rounded-lg text-destructive hover:bg-destructive/10" onClick={async () => {
-                    if (!confirm("هل أنت متأكد من حذف هذه المخالفة نهائياً؟")) return;
-                    await (supabase as any).from("violations").delete().eq("id", v.id);
-                    await supabase.from("notifications").insert({ user_id: v.user_id, title: "🗑️ تم حذف مخالفة", body: "تم حذف مخالفة بواسطة الإدارة.", type: "violation" });
-                    if (!v.is_false_positive && v.warning_count > 0) {
-                      const newCount = Math.max(0, v.warning_count - 1);
-                      await supabase.from("user_warnings").update({ warning_count: newCount, is_banned: newCount >= 3, banned_until: newCount >= 3 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null }).eq("user_id", v.user_id);
-                    }
-                    setViolations((prev: any[]) => prev.filter((item: any) => item.id !== v.id));
-                    toast.success("تم حذف المخالفة");
-                  }}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                    حذف
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </CardContent>
-  </Card>
-);
 
 export default AdminDashboard;
