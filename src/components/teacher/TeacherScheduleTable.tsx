@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall, Video } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall, Video, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -163,6 +163,17 @@ export default function TeacherScheduleTable() {
     fetchBookings();
   };
 
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
+    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+      return;
+    }
+    toast.success("تم حذف الحصة");
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
@@ -310,6 +321,7 @@ export default function TeacherScheduleTable() {
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                               <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -325,6 +337,17 @@ export default function TeacherScheduleTable() {
                                     : <span className="text-muted-foreground/50">-</span>}
                                 </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
+                                <td className="py-2.5 px-3">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleDeleteBooking(b.id)}
+                                    title="حذف الحصة"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>

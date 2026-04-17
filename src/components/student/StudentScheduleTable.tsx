@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -171,6 +171,17 @@ export default function StudentScheduleTable() {
 
     toast.success(`تم إرسال طلب جلسة فورية إلى ${teacherName}`);
     fetchBookings();
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
+    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
+    if (error) {
+      toast.error("تعذر حذف الحصة");
+      return;
+    }
+    toast.success("تم حذف الحصة");
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
   };
 
   const getStatusBadge = (status: string, isLive: boolean) => {
@@ -370,6 +381,7 @@ export default function StudentScheduleTable() {
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
                                 <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
+                                <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -389,8 +401,18 @@ export default function StudentScheduleTable() {
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-2">
                                         {getStatusBadge(b.status, isLive)}
-                                        {/* Join from upcoming sessions section */}
                                       </div>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                        onClick={() => handleDeleteBooking(b.id)}
+                                        title="حذف الحصة"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
                                     </td>
                                   </tr>
                                 );
