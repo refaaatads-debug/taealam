@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play } from "lucide-react";
+import { BookOpen, FileText, ChevronDown, ChevronUp, Play, VideoOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -94,7 +94,7 @@ export default function SessionMaterials() {
           المواد التعليمية
           <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">{materials.length} حصة</Badge>
         </CardTitle>
-        <p className="text-xs text-muted-foreground">تقارير وتحليلات الحصص المكتملة (متاحة لمدة 7 أيام)</p>
+        <p className="text-xs text-muted-foreground">تسجيلات الحصص المكتملة (متاحة لمدة 7 أيام)</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {Object.entries(grouped).map(([subjectName, items]) => (
@@ -137,65 +137,20 @@ export default function SessionMaterials() {
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t"
                       >
-                        <div className="p-4 space-y-3">
-                          {m.recording_url && (
+                        <div className="p-4">
+                          {m.recording_url ? (
                             <div>
                               <div className="flex items-center gap-2 mb-2">
                                 <Play className="h-4 w-4 text-primary" />
                                 <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                               </div>
-                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-64" preload="metadata" />
-                            </div>
-                          )}
-                          {m.ai_report ? (
-                            <div className="bg-accent/30 rounded-xl p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="h-4 w-4 text-yellow-500" />
-                                <span className="text-sm font-bold text-foreground">تحليل AI للحصة</span>
-                              </div>
-                              {(() => {
-                                try {
-                                  const parsed = JSON.parse(m.ai_report!);
-                                  const summary = parsed.summary || m.ai_report;
-                                  const score = parsed.performance_score;
-                                  const topics = parsed.extracted_topics as string[] | undefined;
-                                  const gaps = parsed.gap_warnings as { description: string }[] | undefined;
-                                  return (
-                                    <div className="space-y-3">
-                                      {score !== undefined && (
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <span className="text-sm font-bold">🎯 تقييم الأداء:</span>
-                                          <Badge className={`${score >= 80 ? "bg-green-500/10 text-green-600" : score >= 60 ? "bg-yellow-500/10 text-yellow-600" : "bg-destructive/10 text-destructive"} border-0`}>
-                                            {score}/100
-                                          </Badge>
-                                        </div>
-                                      )}
-                                      <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{summary}</p>
-                                      {topics && topics.length > 0 && (
-                                        <div>
-                                          <p className="text-xs font-bold text-foreground mb-1">🔍 المواضيع المشروحة:</p>
-                                          <div className="flex flex-wrap gap-1">
-                                            {topics.map((t, idx) => <Badge key={idx} variant="outline" className="text-[10px]">{t}</Badge>)}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {gaps && gaps.length > 0 && (
-                                        <div>
-                                          <p className="text-xs font-bold text-destructive mb-1">⚠️ فجوات تعليمية:</p>
-                                          <ul className="text-xs text-muted-foreground space-y-1">
-                                            {gaps.map((g, idx) => <li key={idx}>• {g.description}</li>)}
-                                          </ul>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                } catch {
-                                  return <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{m.ai_report}</p>;
-                                }
-                              })()}
+                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-96" preload="metadata" />
                             </div>
                           ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">لم يتم إنشاء تقرير لهذه الحصة بعد</p>
+                            <div className="text-center py-6 bg-muted/30 rounded-xl">
+                              <VideoOff className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+                              <p className="text-sm text-muted-foreground">جاري معالجة فيديو الجلسة... قد يستغرق رفعه بضع دقائق</p>
+                            </div>
                           )}
                         </div>
                       </motion.div>
