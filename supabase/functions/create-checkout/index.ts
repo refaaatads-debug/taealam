@@ -104,13 +104,6 @@ serve(async (req) => {
       });
     }
 
-    const priceId = TIER_PRICE_MAP[plan.tier];
-    if (!priceId) {
-      return new Response(JSON.stringify({ error: "لا يوجد سعر مرتبط بهذه الباقة" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     // Check for existing Stripe customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId: string | undefined;
@@ -118,11 +111,24 @@ serve(async (req) => {
       customerId = customers.data[0].id;
     }
 
-    // Build checkout session options
+    // Build checkout session options - use DYNAMIC pricing from database
+    // (price_data ensures the price always matches what admin sets in DB)
+    const unitAmount = Math.round(Number(plan.price) * 100);
     const sessionOptions: any = {
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{
+        price_data: {
+          currency: "sar",
+          product_data: {
+            name: plan.name_ar || `باقة ${plan.tier}`,
+            metadata: { plan_id: plan.id, tier: plan.tier },
+          },
+          unit_amount: unitAmount,
+          recurring: { interval: "month" },
+        },
+        quantity: 1,
+      }],
       mode: "subscription",
       success_url: success_url || `${req.headers.get("origin")}/payment-success`,
       cancel_url: cancel_url || `${req.headers.get("origin")}/pricing?payment=cancelled`,
