@@ -1328,11 +1328,23 @@ const LiveSession = () => {
                 <>
                   {!remoteConnected ? (
                     <div className="text-center">
-                      <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
-                        <Users className="h-12 w-12 text-card/40" />
-                      </div>
-                      <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
-                      <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
+                      {meetingStarted ? (
+                        <>
+                          <div className="w-24 h-24 rounded-full bg-secondary/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border-2 border-secondary/30">
+                            <Loader2 className="h-12 w-12 text-secondary animate-spin" />
+                          </div>
+                          <p className="text-card/90 font-bold text-lg mb-1">جاري إعادة الاتصال بالجلسة...</p>
+                          <p className="text-card/50 text-sm">يتم استعادة الاتصال مع {otherName}</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-24 h-24 rounded-3xl bg-card/10 backdrop-blur-sm mx-auto mb-4 flex items-center justify-center border border-card/10 animate-pulse">
+                            <Users className="h-12 w-12 text-card/40" />
+                          </div>
+                          <p className="text-card/80 font-bold text-lg mb-1">في انتظار {otherName}</p>
+                          <p className="text-card/50 text-sm">سيتم الاتصال تلقائياً عند انضمامه...</p>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center">
