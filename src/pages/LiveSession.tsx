@@ -604,13 +604,17 @@ const LiveSession = () => {
       setIsPageVisible(visible);
       logEvent(visible ? "page_visible" : "page_hidden");
     };
+    // pagehide fires on back/forward nav and tab close — guarantees pause
+    const onPageHide = () => { setIsPageVisible(false); logEvent("page_hide"); };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [logEvent]);
 
