@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
-const PRICE_PER_MINUTE = 0.30;
+const DEFAULT_PRICE_PER_MINUTE = 0.30;
 
 interface Props {
   open: boolean;
