@@ -29,6 +29,7 @@ const LiveSession = () => {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
