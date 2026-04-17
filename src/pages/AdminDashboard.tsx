@@ -218,25 +218,50 @@ const AdminDashboard = () => {
         setRecentBookings(bookings.map(b => ({ ...b, student_name: nameMap.get(b.student_id) || "—", teacher_name: nameMap.get(b.teacher_id) || "—" })));
       } else { setRecentBookings([]); }
 
-      // Violations
-      const { data: viol } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(50);
-      if (viol) {
+      // Violations — enrich with booking, other party, and session recording
+      const { data: viol } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(200);
+      if (viol && viol.length > 0) {
         const vUserIds = [...new Set((viol as any[]).map((v: any) => v.user_id))] as string[];
-        if (vUserIds.length > 0) {
-          const [profilesRes2, rolesRes, warningsRes] = await Promise.all([
-            supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
-            supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
-            supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
-          ]);
-          const nameMap = new Map((profilesRes2.data ?? []).map(p => [p.user_id, p.full_name]));
-          const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
-          const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
-          setViolations(viol.map((v: any) => {
-            const warning = warningMap.get(v.user_id);
-            return { ...v, user_name: nameMap.get(v.user_id) || "غير معروف", user_role: roleMap.get(v.user_id) || "student", warning_count: warning?.warning_count || 0, is_banned: warning?.is_banned || false, banned_until: warning?.banned_until || null };
-          }));
-        } else { setViolations([]); }
-      }
+        const bookingIds = [...new Set((viol as any[]).map((v: any) => v.booking_id).filter(Boolean))] as string[];
+
+        const [profilesRes2, rolesRes, warningsRes, bookingsForViol, sessionsForViol] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name").in("user_id", vUserIds),
+          supabase.from("user_roles").select("user_id, role").in("user_id", vUserIds),
+          supabase.from("user_warnings").select("user_id, warning_count, is_banned, banned_until").in("user_id", vUserIds),
+          bookingIds.length ? supabase.from("bookings").select("id, student_id, teacher_id, scheduled_at").in("id", bookingIds) : Promise.resolve({ data: [] as any[] }),
+          bookingIds.length ? supabase.from("sessions").select("booking_id, recording_url").in("booking_id", bookingIds) : Promise.resolve({ data: [] as any[] }),
+        ]);
+
+        // Collect ALL involved user IDs (for "other party" name lookup)
+        const otherIds = new Set<string>();
+        (bookingsForViol.data ?? []).forEach((b: any) => { otherIds.add(b.student_id); otherIds.add(b.teacher_id); });
+        const allIds = [...new Set([...vUserIds, ...otherIds])];
+        const { data: allProfiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", allIds);
+        const fullNameMap = new Map((allProfiles ?? []).map(p => [p.user_id, p.full_name]));
+
+        const nameMap = new Map((profilesRes2.data ?? []).map(p => [p.user_id, p.full_name]));
+        const roleMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
+        const warningMap = new Map((warningsRes.data ?? []).map(w => [w.user_id, w]));
+        const bookingMap = new Map((bookingsForViol.data ?? []).map((b: any) => [b.id, b]));
+        const sessionMap = new Map((sessionsForViol.data ?? []).map((s: any) => [s.booking_id, s]));
+
+        setViolations(viol.map((v: any) => {
+          const warning = warningMap.get(v.user_id);
+          const booking = v.booking_id ? bookingMap.get(v.booking_id) : null;
+          const session = v.booking_id ? sessionMap.get(v.booking_id) : null;
+          const otherUserId = booking ? (booking.student_id === v.user_id ? booking.teacher_id : booking.student_id) : null;
+          return {
+            ...v,
+            user_name: nameMap.get(v.user_id) || fullNameMap.get(v.user_id) || "غير معروف",
+            user_role: roleMap.get(v.user_id) || "student",
+            warning_count: warning?.warning_count || 0,
+            is_banned: warning?.is_banned || false,
+            banned_until: warning?.banned_until || null,
+            other_party_name: otherUserId ? (fullNameMap.get(otherUserId) || null) : null,
+            recording_url: session?.recording_url || null,
+          };
+        }));
+      } else { setViolations([]); }
       await fetchBadgeCounts();
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
