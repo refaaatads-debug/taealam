@@ -1058,7 +1058,19 @@ const LiveSession = () => {
         }
 
         if (currentBookingId && currentBookingData && !isShortSession) {
-          const teacherEarning = durationMinutes * 0.3;
+          // Use the teacher's current hourly_rate; charge the FULL duration (seconds-precise)
+          let hourlyRate = 0;
+          try {
+            const { data: tp } = await supabase
+              .from("teacher_profiles")
+              .select("hourly_rate")
+              .eq("user_id", currentBookingData.teacher_id)
+              .maybeSingle();
+            hourlyRate = Number(tp?.hourly_rate) || 0;
+          } catch {}
+          const teacherEarning = hourlyRate > 0
+            ? Math.round((hourlyRate / 60) * (durationSeconds / 60) * 10) / 10
+            : 0;
           await Promise.allSettled([
             supabase.from("bookings").update({ price: teacherEarning }).eq("id", currentBookingId),
             supabase.from("notifications").insert({
