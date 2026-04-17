@@ -968,31 +968,46 @@ const LiveSession = () => {
 
   const uploadRecording = async () => {
     const blob = getRecordingBlob();
-    if (!blob || !bookingId || !user) return;
+    console.log("[uploadRecording] blob:", blob ? `${blob.size} bytes` : "null", "bookingId:", bookingId);
+    if (!blob || blob.size === 0 || !bookingId || !user) {
+      console.warn("[uploadRecording] Skipped - no blob/booking/user");
+      toast.error("لم يتم العثور على فيديو للرفع");
+      return;
+    }
     setRecordingUploading(true);
     try {
       const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+      console.log("[uploadRecording] Uploading", blob.size, "bytes to:", fileName);
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
         .upload(fileName, blob, { contentType: "video/webm", upsert: true });
-      if (uploadErr) throw uploadErr;
+      if (uploadErr) {
+        console.error("[uploadRecording] Storage upload error:", uploadErr);
+        throw uploadErr;
+      }
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      const recordingUrl = urlData.publicUrl;
+      // Bucket is private — also create a signed URL valid for 7 days for playback
+      const { data: signedData } = await supabase.storage
+        .from("session-recordings")
+        .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+      const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
+      console.log("[uploadRecording] Recording URL:", recordingUrl);
 
-      const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
-        body: {
-          booking_id: bookingId,
-          recording_url: recordingUrl,
-        },
+      const { data: saveData, error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
+        body: { booking_id: bookingId, recording_url: recordingUrl },
       });
 
-      if (saveRecordingError) throw saveRecordingError;
+      if (saveRecordingError) {
+        console.error("[uploadRecording] save-session-recording error:", saveRecordingError);
+        throw saveRecordingError;
+      }
+      console.log("[uploadRecording] Saved successfully:", saveData);
 
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
-      console.error("Recording upload failed:", error);
-      toast.error("تعذر حفظ التسجيل في المواد التعليمية");
+      console.error("[uploadRecording] Failed:", error);
+      toast.error("تعذر حفظ التسجيل: " + (error instanceof Error ? error.message : "خطأ غير معروف"));
     } finally {
       setRecordingUploading(false);
     }
