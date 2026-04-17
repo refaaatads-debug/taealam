@@ -786,6 +786,16 @@ const LiveSession = () => {
 
     const existingStartedAt = existingSess?.started_at;
 
+    // Read locally persisted elapsed (respects pauses) — used on rejoin
+    let persistedElapsed: number | null = null;
+    try {
+      const raw = localStorage.getItem(`session_elapsed_${bookingId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.elapsed === "number") persistedElapsed = parsed.elapsed;
+      }
+    } catch {}
+
     if (isTeacher) {
       let startedAtIso = existingStartedAt;
       if (!startedAtIso) {
@@ -804,23 +814,24 @@ const LiveSession = () => {
             type: "session",
           });
         }
-      } else {
-        // Rejoin - seed elapsed from existing started_at
-        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
-        setElapsed(elapsedSec);
-        logEvent("rejoin_session", { role: "teacher", elapsed: elapsedSec });
+      } else if (persistedElapsed !== null) {
+        // Rejoin - restore exact elapsed from local persistence
+        setElapsed(persistedElapsed);
+        logEvent("rejoin_session", { role: "teacher", elapsed: persistedElapsed, source: "localStorage" });
       }
       setSessionStartedAt(startedAtIso);
 
       // Broadcast authoritative start time to student
       sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
     } else {
-      // Student: use authoritative started_at (rejoin or first join)
+      // Student: use authoritative started_at + persisted elapsed if available
       if (existingStartedAt) {
         setSessionStartedAt(existingStartedAt);
-        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(existingStartedAt).getTime()) / 1000));
-        setElapsed(elapsedSec);
-        logEvent("rejoin_session", { role: "student", elapsed: elapsedSec });
+        if (persistedElapsed !== null) {
+          setElapsed(persistedElapsed);
+          logEvent("rejoin_session", { role: "student", elapsed: persistedElapsed, source: "localStorage" });
+        }
+        // Otherwise wait for teacher's `timer-sync` (sent on DataChannel ready)
       }
     }
   };
