@@ -32,6 +32,7 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
   const [elapsed, setElapsed] = useState(0);
   const [actualDuration, setActualDuration] = useState<number | null>(null);
   const [actualCost, setActualCost] = useState<number | null>(null);
+  const [pricePerMinute, setPricePerMinute] = useState<number>(DEFAULT_PRICE_PER_MINUTE);
 
   useEffect(() => {
     if (open && user) {
