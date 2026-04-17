@@ -355,21 +355,24 @@ export function useWebRTC({
         }
       } else if (signalType === "join") {
         onRemoteJoinRef.current?.();
-        if (pc.signalingState === "have-local-offer" && pc.localDescription) {
-          await sendSignal("offer", { sdp: pc.localDescription.toJSON() });
-          return;
+        // Remote peer (re)joined — rebuild our peer connection from scratch
+        // to ensure a clean ICE/DTLS handshake even if the previous one is stale.
+        const freshPc = createPeerConnection();
+        pendingCandidatesRef.current = [];
+        try {
+          const offer = await freshPc.createOffer();
+          await freshPc.setLocalDescription(offer);
+          await sendSignal("offer", { sdp: freshPc.localDescription?.toJSON() });
+        } catch (err) {
+          console.error("Failed to send offer after remote join:", err);
         }
-        if (pc.signalingState !== "stable") return;
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
       } else if (signalType === "leave") {
         onRemoteLeaveRef.current?.();
       }
     } catch (err) {
       console.error("Signal handling error:", err);
     }
-  }, [userId, sendSignal]);
+  }, [userId, sendSignal, createPeerConnection]);
 
   const start = useCallback(async () => {
     await initLocalMedia();
