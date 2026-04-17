@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical } from "lucide-react";
+import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { checkRateLimit } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -20,10 +23,32 @@ const quickPrompts = [
 ];
 
 const AITutor = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!user) { setHasAccess(false); return; }
+      const { data } = await supabase
+        .from("user_subscriptions")
+        .select("is_active, ends_at, plan:subscription_plans(has_ai_tutor, tier)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("ends_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const plan = (data as any)?.plan;
+      const ok = !!plan && plan.tier !== "free" && plan.has_ai_tutor === true;
+      setHasAccess(ok);
+    };
+    checkAccess();
+  }, [user]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -31,6 +56,10 @@ const AITutor = () => {
 
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
+    if (!hasAccess) {
+      toast.error("المدرس الذكي متاح فقط لمشتركي الباقات المدفوعة");
+      return;
+    }
     if (!checkRateLimit("ai-tutor", 15, 60000)) {
       toast.error("تم تجاوز حد الطلبات، انتظر قليلاً");
       return;
@@ -116,7 +145,22 @@ const AITutor = () => {
           </div>
         </div>
 
-        <Card className="flex-1 flex flex-col border-0 shadow-card overflow-hidden">
+        {hasAccess === false ? (
+          <Card className="flex-1 flex flex-col items-center justify-center text-center p-8 border-0 shadow-card">
+            <div className="w-20 h-20 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4">
+              <Lock className="h-10 w-10 text-secondary" />
+            </div>
+            <h2 className="text-xl font-black text-foreground mb-2">المدرس الذكي للمشتركين فقط</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md">
+              ميزة المدرس الذكي متاحة فقط لمشتركي الباقات المدفوعة، ولا تُخصم من رصيد دقائق الباقة.
+              اشترك الآن للاستمتاع بالمساعدة الذكية في جميع المواد.
+            </p>
+            <Button onClick={() => navigate("/pricing")} className="gradient-cta text-secondary-foreground rounded-xl px-8">
+              عرض الباقات
+            </Button>
+          </Card>
+        ) : (
+          <Card className="flex-1 flex flex-col border-0 shadow-card overflow-hidden">
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[400px]">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -173,7 +217,8 @@ const AITutor = () => {
               <Send className="h-4 w-4" />
             </Button>
           </div>
-        </Card>
+          </Card>
+        )}
       </div>
       <BottomNav />
     </div>
