@@ -442,50 +442,28 @@ export function useWebRTC({
     }
 
     const ua = navigator.userAgent || "";
-    const isAndroid = /Android/i.test(ua);
     const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
     const hasDisplayMedia = !!navigator.mediaDevices?.getDisplayMedia;
 
-    let stream: MediaStream | null = null;
-
-    // Try native screen capture first (works on desktop Chrome/Edge/Firefox/Safari, iPadOS 16+ Safari)
-    if (hasDisplayMedia) {
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: 15, max: 30 } } as any,
-          audio: false,
-        });
-      } catch (err: any) {
-        if (err?.name === "NotAllowedError") return; // user cancelled
-        console.warn("getDisplayMedia failed, will try fallback:", err);
-      }
-    }
-
-    // Fallback for Android tablets (Huawei, Samsung, etc.) where getDisplayMedia
-    // is unsupported or returns black frames: use the rear camera as a "document camera".
-    if (!stream && isAndroid) {
-      const useCamera = confirm(
-        "مشاركة الشاشة غير مدعومة على هذا التابلت. هل تريد استخدام الكاميرا الخلفية كبديل لعرض الكتاب أو الورقة للطالب؟"
-      );
-      if (!useCamera) return;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
-      } catch (err) {
-        console.error("Camera fallback failed:", err);
-        alert("تعذّر الوصول للكاميرا الخلفية. تأكد من منح الإذن وأعد المحاولة.");
-        return;
-      }
-    }
-
-    if (!stream) {
+    if (!hasDisplayMedia) {
       alert(
         isIOS
           ? "مشاركة الشاشة تتطلب iPadOS 16 أو أحدث مع متصفح Safari."
-          : "مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. جرّب Chrome على الكمبيوتر، أو استخدم الكاميرا الخلفية للجوال."
+          : "مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. يُرجى استخدام Chrome/Edge على الكمبيوتر."
       );
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 15, max: 30 } } as any,
+        audio: false,
+      });
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") return;
+      console.error("Screen share failed:", err);
+      alert("تعذّر بدء مشاركة الشاشة على هذا الجهاز. جرّب من متصفح حديث على الكمبيوتر.");
       return;
     }
 
@@ -500,7 +478,6 @@ export function useWebRTC({
     await transceiver.sender.replaceTrack(videoTrack);
     transceiver.direction = "sendrecv";
 
-    // Force a renegotiation so the receiving side actually gets the new track decoded
     try {
       const params = transceiver.sender.getParameters();
       if (!params.encodings || params.encodings.length === 0) {
