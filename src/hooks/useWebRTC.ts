@@ -88,6 +88,9 @@ export function useWebRTC({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
+  // Always points to the latest active remote stream (audio+video) for recording
+  const latestRemoteStreamRef = useRef<MediaStream | null>(null);
+  const recordingHiddenVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Stable refs for callbacks
   const onRemoteStreamRef = useRef(onRemoteStream);
@@ -198,10 +201,17 @@ export function useWebRTC({
     const remote = new MediaStream();
     const syncRemoteStream = () => {
       const updated = new MediaStream(remote.getTracks());
+      latestRemoteStreamRef.current = updated;
+      // Update hidden recording <video> srcObject so canvas keeps capturing live frames
+      if (recordingHiddenVideoRef.current) {
+        recordingHiddenVideoRef.current.srcObject = updated;
+        recordingHiddenVideoRef.current.play().catch(() => {});
+      }
       setRemoteStream(updated);
       onRemoteStreamRef.current?.(updated);
     };
 
+    latestRemoteStreamRef.current = remote;
     setRemoteStream(remote);
 
     pc.ontrack = (event) => {
@@ -502,20 +512,27 @@ export function useWebRTC({
       const ctx = canvas.getContext("2d")!;
       canvasRef.current = canvas;
 
-      // Draw remote video frames onto canvas
-      // We need a hidden video element to pull frames from remoteStream
+      // Hidden video element bound to LIVE remote stream
       const hiddenVideo = document.createElement("video");
-      hiddenVideo.srcObject = remoteMediaStream;
+      hiddenVideo.srcObject = latestRemoteStreamRef.current ?? remoteMediaStream;
       hiddenVideo.muted = true;
       hiddenVideo.playsInline = true;
       hiddenVideo.play().catch(() => {});
+      recordingHiddenVideoRef.current = hiddenVideo;
 
       // Draw loop - captures at ~15fps for reasonable file size
       canvasIntervalRef.current = window.setInterval(() => {
         ctx.fillStyle = "#1a1a2e";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        if (hiddenVideo.readyState >= 2) {
+        // If the bound stream changed (reconnect/screenshare), refresh srcObject
+        const live = latestRemoteStreamRef.current;
+        if (live && hiddenVideo.srcObject !== live) {
+          hiddenVideo.srcObject = live;
+          hiddenVideo.play().catch(() => {});
+        }
+
+        if (hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0) {
           // Calculate aspect-ratio-preserving dimensions
           const vw = hiddenVideo.videoWidth || canvas.width;
           const vh = hiddenVideo.videoHeight || canvas.height;
