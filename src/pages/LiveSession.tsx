@@ -33,6 +33,9 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef(0);
+  elapsedRef.current = elapsed;
+  const shouldCountRef = useRef(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
   const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
