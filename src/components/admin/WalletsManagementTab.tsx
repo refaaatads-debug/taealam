@@ -54,6 +54,35 @@ export default function WalletsManagementTab() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [callPrice, setCallPrice] = useState<string>("0.30");
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  useEffect(() => {
+    supabase.from("site_settings").select("value").eq("key", "call_price_per_minute").maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setCallPrice(String(data.value));
+      });
+  }, []);
+
+  const saveCallPrice = async () => {
+    const v = parseFloat(callPrice);
+    if (isNaN(v) || v < 0) {
+      toast.error("أدخل سعراً صحيحاً");
+      return;
+    }
+    setSavingPrice(true);
+    const { error } = await supabase.from("site_settings").upsert({
+      key: "call_price_per_minute",
+      value: String(v),
+      label_ar: "سعر الدقيقة للمكالمة الهاتفية (ر.س)",
+      category: "pricing",
+      type: "number",
+    }, { onConflict: "key" });
+    setSavingPrice(false);
+    if (error) toast.error("تعذر الحفظ: " + error.message);
+    else toast.success(`تم تحديث سعر الدقيقة إلى ${v} ر.س`);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
