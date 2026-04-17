@@ -87,9 +87,9 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
     };
   }, [callLogId, user?.id]);
 
-  const requiredCost = minutes * PRICE_PER_MINUTE;
+  const requiredCost = minutes * pricePerMinute;
   const insufficient = balance < requiredCost;
-  const liveCost = (elapsed / 60) * PRICE_PER_MINUTE;
+  const liveCost = (elapsed / 60) * pricePerMinute;
   const callActive = ["initiated", "ringing", "in_progress"].includes(callStatus);
   const callEnded = ["completed", "failed", "canceled"].includes(callStatus);
 
@@ -144,7 +144,7 @@ export default function PhoneCallDialog({ open, onOpenChange, studentId, student
           <DialogTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" /> مكالمة هاتفية مدفوعة
           </DialogTitle>
-          <DialogDescription>سعر الدقيقة: <strong>{PRICE_PER_MINUTE} ريال</strong></DialogDescription>
+          <DialogDescription>سعر الدقيقة: <strong>{pricePerMinute} ريال</strong></DialogDescription>
         </DialogHeader>
 
         {callActive ? (
