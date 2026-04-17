@@ -653,7 +653,7 @@ const LiveSession = () => {
     if (!dataChannelReady || !meetingStarted) return;
     if (isTeacher) {
       // Teacher pushes authoritative elapsed to (re)joined peer
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
     } else {
       // Student requests authoritative elapsed from teacher
       sendDataMessage({ type: "timer-request" });
