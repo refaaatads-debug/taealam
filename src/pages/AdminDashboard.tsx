@@ -34,6 +34,7 @@ import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
+import ViolationsTab from "@/components/admin/ViolationsTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
