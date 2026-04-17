@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface MatchedTeacher {
   id: string;
+  user_id?: string;
   name: string;
   subject: string;
   rating: number;
@@ -101,7 +102,7 @@ export default function SmartMatchWidget() {
                     <Sparkles className="h-3 w-3 inline ml-1" />{t.match_reason}
                   </p>
                   <Button size="sm" variant="outline" className="w-full text-xs rounded-xl mt-1" asChild>
-                    <Link to="/booking">احجز حصة <ChevronLeft className="h-3 w-3 mr-1" /></Link>
+                    <Link to={`/booking?teacher=${(t as any).user_id || t.id}`}>احجز حصة <ChevronLeft className="h-3 w-3 mr-1" /></Link>
                   </Button>
                 </motion.div>
               ))}
