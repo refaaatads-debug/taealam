@@ -155,6 +155,15 @@ const LiveSession = () => {
       if (typeof msg.startedAt === "string") {
         setSessionStartedAt(msg.startedAt);
       }
+    } else if (msg.type === "timer-sync") {
+      // Periodic sync from teacher: authoritative accumulated seconds
+      if (!isTeacher && typeof msg.elapsed === "number") {
+        setElapsed((prev) => {
+          // Only correct drift > 2s to avoid jitter
+          if (Math.abs(prev - msg.elapsed) > 2) return msg.elapsed;
+          return prev;
+        });
+      }
     }
   }, [isTeacher, pushDebugEvent]);
 
