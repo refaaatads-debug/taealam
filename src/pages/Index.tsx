@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +89,15 @@ function SmartCTA({ user, className = "" }: { user: any; className?: string }) {
 }
 
 const Index = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, roles, loading } = useAuth();
+
+  // Redirect authenticated users to their dashboard — never show landing page
+  if (!loading && user && roles.length > 0) {
+    if (roles.includes("admin")) return <Navigate to="/admin-dashboard" replace />;
+    if (roles.includes("teacher")) return <Navigate to="/teacher" replace />;
+    if (roles.includes("student")) return <Navigate to="/student" replace />;
+  }
+
   const { hours, minutes, seconds } = useCountdown(24 * 60 * 60); // 24 hours
 
   return (
