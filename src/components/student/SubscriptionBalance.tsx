@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Wallet, Clock, Zap, AlertTriangle } from "lucide-react";
+import { Wallet, Clock, Zap, AlertTriangle, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -33,11 +33,15 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
       <Card className="border-0 shadow-card overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 font-bold">
+          <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Wallet className="h-4 w-4 text-primary" />
             </div>
             رصيد الباقة
+            <Link to="/subscription-details" className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              تقرير تفصيلي
+            </Link>
             {hasSubscription && !isExpired && (
               <Link to="/subscription-details">
                 <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20">{tierName} ←</Badge>
