@@ -987,8 +987,12 @@ const LiveSession = () => {
       }
 
       const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      const recordingUrl = urlData.publicUrl;
-      console.log("[uploadRecording] Public URL:", recordingUrl);
+      // Bucket is private — also create a signed URL valid for 7 days for playback
+      const { data: signedData } = await supabase.storage
+        .from("session-recordings")
+        .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+      const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
+      console.log("[uploadRecording] Recording URL:", recordingUrl);
 
       const { data: saveData, error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
         body: { booking_id: bookingId, recording_url: recordingUrl },
