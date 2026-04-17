@@ -1024,7 +1024,12 @@ const LiveSession = () => {
     const violations = violationCount;
     const questions = questionsDetected;
 
-    // 3) Critical, fast updates in parallel
+    // 3) CRITICAL: stop recording FIRST and grab blob before peer cleanup destroys streams
+    if (wasRecording) {
+      try { await stopRecording(); } catch (e) { console.error("stopRecording failed", e); }
+    }
+
+    // 3b) Critical, fast updates in parallel (after recording is finalized)
     const fastTasks: Promise<any>[] = [stop(), cleanupSession()];
     if (currentBookingId) {
       fastTasks.push(
@@ -1042,21 +1047,23 @@ const LiveSession = () => {
 
     try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
 
-    // 4) Navigate immediately — heavy work runs in background
+    // 4) Upload recording BEFORE navigation so the upload isn't aborted on unmount
+    if (wasRecording && !isShortSession) {
+      try {
+        const blob = getRecordingBlob();
+        if (blob && blob.size > 0) {
+          await uploadRecording();
+        }
+      } catch (e) { console.error("recording upload failed", e); }
+    }
+
+    // 5) Navigate after upload finishes
     if (isTeacher) navigate("/teacher");
     else navigate(`/rating${currentBookingId ? `?booking=${currentBookingId}` : ""}`);
 
-    // 5) Background: recording upload, earnings, notifications, AI report
+    // 6) Background: earnings, notifications, AI report (non-critical for video display)
     void (async () => {
       try {
-        if (wasRecording) {
-          try { await stopRecording(); } catch {}
-          try {
-            const blob = getRecordingBlob();
-            if (blob) await uploadRecording();
-          } catch (e) { console.error("recording upload failed", e); }
-        }
-
         if (currentBookingId && currentBookingData && !isShortSession) {
           // Use the teacher's current hourly_rate; charge the FULL duration (seconds-precise)
           let hourlyRate = 0;
