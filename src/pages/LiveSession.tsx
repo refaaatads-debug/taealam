@@ -1455,7 +1455,7 @@ const LiveSession = () => {
               </div>
               <p className="font-black text-xl mb-1">{otherName}</p>
               <p className="text-sm opacity-60 mb-2">جاهز لبدء الحصة</p>
-              <p className="text-xs opacity-50 mb-6">مدة الحصة: {sessionDuration} دقيقة</p>
+              
               {!bookingId ? (
                 <p className="text-sm text-destructive bg-destructive/10 rounded-xl px-4 py-2">لا يوجد حجز محدد - تأكد من الدخول عبر لوحة التحكم</p>
               ) : isTeacher ? (
