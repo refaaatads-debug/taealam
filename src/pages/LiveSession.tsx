@@ -91,6 +91,21 @@ const LiveSession = () => {
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
+  // End session for BOTH parties when user presses browser back arrow
+  useEffect(() => {
+    if (!meetingStarted) return;
+    // Push a sentinel state so the first back press triggers popstate instead of leaving
+    window.history.pushState({ liveSession: true }, "");
+    const onPopState = () => {
+      if (sessionEndingRef.current) return;
+      toast.info("تم الرجوع — جارٍ إنهاء الحصة للطرفين...");
+      endSession();
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingStarted]);
+
   // Listen for toast click to open chat panel inside session
   useEffect(() => {
     const handleOpenChat = () => {
