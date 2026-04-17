@@ -56,6 +56,10 @@ const AITutor = () => {
 
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
+    if (!hasAccess) {
+      toast.error("المدرس الذكي متاح فقط لمشتركي الباقات المدفوعة");
+      return;
+    }
     if (!checkRateLimit("ai-tutor", 15, 60000)) {
       toast.error("تم تجاوز حد الطلبات، انتظر قليلاً");
       return;
