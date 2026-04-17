@@ -174,13 +174,9 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Authoritative accumulated seconds from teacher — student always adopts
+      // Authoritative accumulated seconds from teacher — student mirrors exactly
       if (!isTeacher && typeof msg.elapsed === "number") {
-        setElapsed((prev) => {
-          // Accept any change > 1s (covers rejoin + drift correction)
-          if (Math.abs(prev - msg.elapsed) > 1) return msg.elapsed;
-          return prev;
-        });
+        setElapsed(msg.elapsed);
       }
     } else if (msg.type === "timer-request") {
       // Peer (re)joined and asks for current authoritative elapsed
