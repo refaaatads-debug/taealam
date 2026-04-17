@@ -11,6 +11,10 @@ import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 
+const isImageType = (t?: string | null) => !!t && t.startsWith("image/");
+const isPdfType = (t?: string | null, n?: string | null) =>
+  t === "application/pdf" || (!!n && n.toLowerCase().endsWith(".pdf"));
+
 interface ChatMessage {
   id: string;
   booking_id: string;
@@ -24,7 +28,8 @@ interface ChatMessage {
 }
 
 const Chat = () => {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const dashboardPath = roles?.includes("teacher") ? "/teacher" : "/student";
   const { play: playNotificationSound } = useNotificationSound();
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
@@ -212,10 +217,18 @@ const Chat = () => {
         .from("chat-files")
         .getPublicUrl(filePath);
 
+      // Use a generic safe label as content (filenames may contain digits/dots that
+      // trigger the chat content filter, which then tries to insert a warning).
+      const safeContent = isImageType(file.type)
+        ? "📷 صورة مرفقة"
+        : isPdfType(file.type, file.name)
+          ? "📄 ملف PDF مرفق"
+          : "📎 ملف مرفق";
+
       const { error: msgError } = await supabase.from("chat_messages").insert({
         booking_id: bookingId,
         sender_id: user.id,
-        content: `📎 ${file.name}`,
+        content: safeContent,
         file_url: urlData.publicUrl,
         file_name: file.name,
         file_type: file.type,
@@ -295,7 +308,7 @@ const Chat = () => {
           <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-xl font-bold text-foreground mb-2">لا توجد محادثة</h2>
           <p className="text-muted-foreground mb-4">يتم إنشاء المحادثة تلقائياً عند قبول الحجز</p>
-          <Button asChild><Link to="/student">العودة للوحة التحكم</Link></Button>
+          <Button asChild><Link to={dashboardPath}>العودة للوحة التحكم</Link></Button>
         </div>
         <BottomNav />
       </div>
@@ -309,7 +322,7 @@ const Chat = () => {
       {/* Chat Header */}
       <div className="border-b bg-card px-4 py-3 flex items-center gap-3 sticky top-16 z-40">
         <Button variant="ghost" size="icon" className="rounded-xl shrink-0" asChild>
-          <Link to="/student"><ArrowRight className="h-5 w-5" /></Link>
+          <Link to={dashboardPath}><ArrowRight className="h-5 w-5" /></Link>
         </Button>
         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
           <MessageSquare className="h-5 w-5 text-primary" />
