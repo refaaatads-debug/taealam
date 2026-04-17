@@ -33,6 +33,9 @@ const LiveSession = () => {
   const [handRaised, setHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef(0);
+  elapsedRef.current = elapsed;
+  const shouldCountRef = useRef(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
   const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
@@ -156,13 +159,18 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Periodic sync from teacher: authoritative accumulated seconds
+      // Authoritative accumulated seconds from teacher — student always adopts
       if (!isTeacher && typeof msg.elapsed === "number") {
         setElapsed((prev) => {
-          // Only correct drift > 2s to avoid jitter
-          if (Math.abs(prev - msg.elapsed) > 2) return msg.elapsed;
+          // Accept any change > 1s (covers rejoin + drift correction)
+          if (Math.abs(prev - msg.elapsed) > 1) return msg.elapsed;
           return prev;
         });
+      }
+    } else if (msg.type === "timer-request") {
+      // Peer (re)joined and asks for current authoritative elapsed
+      if (isTeacher) {
+        sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
       }
     }
   }, [isTeacher, pushDebugEvent]);
@@ -625,6 +633,19 @@ const LiveSession = () => {
     isOnline &&
     isPageVisible &&
     connectionState === "connected";
+  shouldCountRef.current = shouldCount;
+
+  // On (re)connection: sync timer between peers immediately
+  useEffect(() => {
+    if (!dataChannelReady || !meetingStarted) return;
+    if (isTeacher) {
+      // Teacher pushes authoritative elapsed to (re)joined peer
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, paused: !shouldCountRef.current });
+    } else {
+      // Student requests authoritative elapsed from teacher
+      sendDataMessage({ type: "timer-request" });
+    }
+  }, [dataChannelReady, meetingStarted, isTeacher, sendDataMessage]);
 
   // Log pause/resume transitions + broadcast to peer for UI parity
   useEffect(() => {
@@ -693,6 +714,20 @@ const LiveSession = () => {
     return () => clearInterval(id);
   }, [isTeacher, shouldCount, elapsed, sendDataMessage]);
 
+  // Persist elapsed to localStorage every 5s (fail-safe for rejoin)
+  useEffect(() => {
+    if (!bookingId || !meetingStarted) return;
+    const id = window.setInterval(() => {
+      try {
+        localStorage.setItem(
+          `session_elapsed_${bookingId}`,
+          JSON.stringify({ elapsed: elapsedRef.current, ts: Date.now() })
+        );
+      } catch {}
+    }, 5_000);
+    return () => clearInterval(id);
+  }, [bookingId, meetingStarted]);
+
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
     const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
@@ -751,6 +786,16 @@ const LiveSession = () => {
 
     const existingStartedAt = existingSess?.started_at;
 
+    // Read locally persisted elapsed (respects pauses) — used on rejoin
+    let persistedElapsed: number | null = null;
+    try {
+      const raw = localStorage.getItem(`session_elapsed_${bookingId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.elapsed === "number") persistedElapsed = parsed.elapsed;
+      }
+    } catch {}
+
     if (isTeacher) {
       let startedAtIso = existingStartedAt;
       if (!startedAtIso) {
@@ -769,23 +814,24 @@ const LiveSession = () => {
             type: "session",
           });
         }
-      } else {
-        // Rejoin - seed elapsed from existing started_at
-        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
-        setElapsed(elapsedSec);
-        logEvent("rejoin_session", { role: "teacher", elapsed: elapsedSec });
+      } else if (persistedElapsed !== null) {
+        // Rejoin - restore exact elapsed from local persistence
+        setElapsed(persistedElapsed);
+        logEvent("rejoin_session", { role: "teacher", elapsed: persistedElapsed, source: "localStorage" });
       }
       setSessionStartedAt(startedAtIso);
 
       // Broadcast authoritative start time to student
       sendDataMessage({ type: "timer-start", startedAt: startedAtIso });
     } else {
-      // Student: use authoritative started_at (rejoin or first join)
+      // Student: use authoritative started_at + persisted elapsed if available
       if (existingStartedAt) {
         setSessionStartedAt(existingStartedAt);
-        const elapsedSec = Math.max(0, Math.floor((Date.now() - new Date(existingStartedAt).getTime()) / 1000));
-        setElapsed(elapsedSec);
-        logEvent("rejoin_session", { role: "student", elapsed: elapsedSec });
+        if (persistedElapsed !== null) {
+          setElapsed(persistedElapsed);
+          logEvent("rejoin_session", { role: "student", elapsed: persistedElapsed, source: "localStorage" });
+        }
+        // Otherwise wait for teacher's `timer-sync` (sent on DataChannel ready)
       }
     }
   };
@@ -910,6 +956,8 @@ const LiveSession = () => {
     if (sessionEndingRef.current) return;
     sessionEndingRef.current = true;
     clearInterval(timerRef.current);
+    // Clear local timer persistence — session is ending
+    try { localStorage.removeItem(`session_elapsed_${bookingId}`); } catch {}
 
     // 1) Notify peer immediately so their side starts closing in parallel
     try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
