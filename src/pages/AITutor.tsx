@@ -217,7 +217,8 @@ const AITutor = () => {
               <Send className="h-4 w-4" />
             </Button>
           </div>
-        </Card>
+          </Card>
+        )}
       </div>
       <BottomNav />
     </div>
