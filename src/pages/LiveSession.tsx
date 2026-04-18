@@ -642,31 +642,41 @@ const LiveSession = () => {
     };
   }, [logEvent]);
 
-  // Counter runs continuously after both parties join; only the explicit
-  // session-end (sessionEndingRef) halts it. Tab visibility, screen share,
-  // network blips and WebRTC reconnects do NOT pause the timer.
-  const shouldCount = meetingStarted && bothJoined;
+  // Counter runs after both parties join. Pauses ONLY when:
+  //   • A party leaves/ends the session (peerDisconnected)
+  //   • Local network is offline OR WebRTC connection is not "connected"
+  // On reconnect: resumes from the exact same point. Teacher broadcasts the
+  // authoritative elapsed every second so the student stays in sync.
+  // Tab switching and screen sharing do NOT pause the timer.
+  const connectionHealthy = isOnline && connectionState === "connected" && !peerDisconnected;
+  const shouldCount = meetingStarted && bothJoined && connectionHealthy;
   shouldCountRef.current = shouldCount;
 
   // On (re)connection: sync timer between peers immediately (teacher = source of truth)
   useEffect(() => {
     if (!dataChannelReady || !meetingStarted) return;
     if (isTeacher) {
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: false });
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
     } else {
       sendDataMessage({ type: "timer-request" });
     }
   }, [dataChannelReady, meetingStarted, isTeacher, sendDataMessage]);
 
-  // Log start transitions
+  // Log start/pause/resume transitions and notify peer
   useEffect(() => {
     if (!meetingStarted) return;
     if (shouldCount && !wasCountingRef.current) {
       wasCountingRef.current = true;
-      logEvent("counter_start", { elapsed });
+      logEvent("counter_resume", { elapsed });
       if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: false });
+    } else if (!shouldCount && wasCountingRef.current) {
+      wasCountingRef.current = false;
+      const reason = !isOnline ? "offline" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other";
+      logEvent("counter_pause", { elapsed, reason });
+      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: true });
+      if (reason === "offline") toast.warning("⚠️ انقطع الإنترنت — سيستأنف العداد عند العودة", { duration: 4000 });
     }
-  }, [shouldCount, meetingStarted, elapsed, isTeacher, sendDataMessage, logEvent]);
+  }, [shouldCount, meetingStarted, elapsed, isOnline, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
   // Tick — both sides tick locally for smooth UI; teacher periodically broadcasts an
   // authoritative anchor (baseElapsed + serverTimestamp) so the student can correct drift.
