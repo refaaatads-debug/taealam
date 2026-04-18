@@ -681,10 +681,11 @@ const LiveSession = () => {
     }
   }, [shouldCount, meetingStarted, elapsed, isOnline, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
 
-  // Tick — both sides tick locally for smooth UI; teacher periodically broadcasts an
-  // authoritative anchor (baseElapsed + serverTimestamp) so the student can correct drift.
+  // Tick — ONLY the teacher ticks locally (source of truth). The student is a pure mirror
+  // and updates its `elapsed` exclusively from the teacher's `timer-sync` messages. This
+  // guarantees both sides display the same value during disconnects and reconnects.
   useEffect(() => {
-    if (!shouldCount) {
+    if (!isTeacher || !shouldCount) {
       clearInterval(timerRef.current);
       lastTickRef.current = 0;
       return;
