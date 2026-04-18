@@ -563,7 +563,7 @@ export function useWebRTC({
       // Audio level visualizer for audio-only sessions
       let audioLevel = 0;
       let analyserNode: AnalyserNode | null = null;
-      let analyserData: Uint8Array | null = null;
+      let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
       // Draw an initial frame BEFORE captureStream so the first frame is non-empty.
       // Empty canvas frames produce black-screen WebM that some players refuse to render.
