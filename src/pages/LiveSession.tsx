@@ -1087,7 +1087,10 @@ const LiveSession = () => {
     }
     setRecordingUploading(true);
     try {
-      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+      // Reuse the chunked-upload filename when available so the final
+      // upload overwrites the same object instead of creating a duplicate.
+      const fileName = chunkUploadFileNameRef.current
+        || `${user.id}/${bookingId}_${Date.now()}.webm`;
       console.log("[uploadRecording] Uploading", blob.size, "bytes to:", fileName);
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
