@@ -1166,9 +1166,16 @@ const LiveSession = () => {
           .update({ status: "completed", session_status: "completed" })
           .eq("id", currentBookingId) as any
       );
+      // Only the teacher (authoritative timer reference) sends duration_minutes
+      // so the DB trigger deducts the ACTUAL elapsed time (respects pauses on disconnect),
+      // not the raw wall-clock difference between started_at and ended_at.
+      const sessionUpdate: any = { ended_at: new Date().toISOString() };
+      if (isTeacher) {
+        sessionUpdate.duration_minutes = durationMinutes;
+      }
       fastTasks.push(
         supabase.from("sessions")
-          .update({ ended_at: new Date().toISOString() } as any)
+          .update(sessionUpdate)
           .eq("booking_id", currentBookingId) as any
       );
     }
