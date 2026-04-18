@@ -39,16 +39,27 @@ const SubscriptionDetails = () => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch active subscription
-    const { data: sub } = await supabase
+    // Fetch ALL active subscriptions and aggregate
+    const { data: subs } = await supabase
       .from("user_subscriptions")
       .select("*, subscription_plans(name_ar, tier, sessions_count)")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setSubscription(sub);
+      .order("created_at", { ascending: false });
+    if (subs && subs.length > 0) {
+      const totalRemaining = subs.reduce((s, x: any) => s + (x.remaining_minutes || 0), 0);
+      const totalHours = subs.reduce((s, x: any) => s + (x.total_hours || 0), 0);
+      const totalSessions = subs.reduce((s, x: any) => s + (x.sessions_remaining || 0), 0);
+      setSubscription({
+        ...subs[0],
+        remaining_minutes: totalRemaining,
+        total_hours: totalHours,
+        sessions_remaining: totalSessions,
+        _aggregated_count: subs.length,
+      });
+    } else {
+      setSubscription(null);
+    }
 
     // Fetch completed sessions with deduction info
     const { data: bookings } = await supabase

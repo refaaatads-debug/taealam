@@ -205,15 +205,27 @@ const StudentDashboard = () => {
         points: pointsData?.total_points || 0,
       });
 
-      // Fetch subscription (get most recent active one)
+      // Fetch ALL active subscriptions and aggregate (student may have multiple)
       const { data: subs } = await supabase
         .from("user_subscriptions")
         .select("*, subscription_plans(name_ar, tier)")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      setSubscription(subs && subs.length > 0 ? subs[0] : null);
+        .order("created_at", { ascending: false });
+      if (subs && subs.length > 0) {
+        const totalRemaining = subs.reduce((sum, s: any) => sum + (s.remaining_minutes || 0), 0);
+        const totalHours = subs.reduce((sum, s: any) => sum + (s.total_hours || 0), 0);
+        const totalSessions = subs.reduce((sum, s: any) => sum + (s.sessions_remaining || 0), 0);
+        setSubscription({
+          ...subs[0],
+          remaining_minutes: totalRemaining,
+          total_hours: totalHours,
+          sessions_remaining: totalSessions,
+          _aggregated_count: subs.length,
+        });
+      } else {
+        setSubscription(null);
+      }
 
       // Check Stripe subscription status
       try {
@@ -253,14 +265,9 @@ const StudentDashboard = () => {
         schema: "public",
         table: "user_subscriptions",
         filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
-        const updated = payload.new as any;
-        if (updated) {
-          setSubscription((prev: any) => ({ ...prev, ...updated }));
-          if (updated.remaining_minutes !== undefined && updated.remaining_minutes <= 0) {
-            toast.error("⚠️ انتهت باقتك! اشترك من جديد لمواصلة التعلم", { duration: 8000 });
-          }
-        }
+      }, () => {
+        // Re-fetch aggregated subscription totals on any change
+        fetchData();
       })
       .subscribe();
 
