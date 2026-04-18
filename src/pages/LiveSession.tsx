@@ -614,6 +614,100 @@ const LiveSession = () => {
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
   // ───────────────────────────────────────────────────────────
+  //  Chunked recording uploader — every 60s, teacher uploads
+  //  the cumulative recording so far (overwriting same file).
+  //  Guarantees the latest portion is preserved even if the
+  //  session crashes / connection dies before normal endSession.
+  // ───────────────────────────────────────────────────────────
+  const chunkUploadFileNameRef = useRef<string | null>(null);
+  const chunkUploadInFlightRef = useRef(false);
+  const chunkUploadIntervalRef = useRef<number | null>(null);
+  const lastUploadedSizeRef = useRef(0);
+
+  // Stable filename for the whole session (set once recording starts).
+  useEffect(() => {
+    if (isRecording && bookingId && user && !chunkUploadFileNameRef.current) {
+      chunkUploadFileNameRef.current = `${user.id}/${bookingId}_${Date.now()}.webm`;
+      console.log("[chunked-upload] filename set:", chunkUploadFileNameRef.current);
+    }
+    if (!isRecording) {
+      // Clear on session end so a fresh name is generated next time
+      chunkUploadFileNameRef.current = null;
+      lastUploadedSizeRef.current = 0;
+    }
+  }, [isRecording, bookingId, user]);
+
+  const uploadCumulativeChunk = useCallback(async () => {
+    if (!isTeacher) return; // only teacher uploads to avoid duplicate writes
+    if (chunkUploadInFlightRef.current) return;
+    const fileName = chunkUploadFileNameRef.current;
+    if (!fileName || !bookingId || !user) return;
+
+    const blob = getRecordingBlob();
+    if (!blob || blob.size === 0) return;
+    if (blob.size === lastUploadedSizeRef.current) return; // nothing new
+
+    chunkUploadInFlightRef.current = true;
+    try {
+      const { error } = await supabase.storage
+        .from("session-recordings")
+        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+      if (error) {
+        console.warn("[chunked-upload] failed:", error.message);
+        return;
+      }
+      lastUploadedSizeRef.current = blob.size;
+      console.log("[chunked-upload] uploaded", blob.size, "bytes");
+
+      // Persist URL on first successful chunk so the material card
+      // shows the partial recording even before endSession runs.
+      if (lastUploadedSizeRef.current === blob.size) {
+        const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
+        const { data: signedData } = await supabase.storage
+          .from("session-recordings")
+          .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+        const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
+        try {
+          await supabase.functions.invoke("save-session-recording", {
+            body: { booking_id: bookingId, recording_url: recordingUrl },
+          });
+        } catch (e) {
+          console.warn("[chunked-upload] save-session-recording skipped:", e);
+        }
+      }
+    } catch (e) {
+      console.warn("[chunked-upload] exception:", e);
+    } finally {
+      chunkUploadInFlightRef.current = false;
+    }
+  }, [isTeacher, bookingId, user, getRecordingBlob]);
+
+  // Run periodic uploads while recording.
+  useEffect(() => {
+    if (!isRecording || !isTeacher) return;
+    chunkUploadIntervalRef.current = window.setInterval(() => {
+      uploadCumulativeChunk();
+    }, 60_000);
+    return () => {
+      if (chunkUploadIntervalRef.current) {
+        clearInterval(chunkUploadIntervalRef.current);
+        chunkUploadIntervalRef.current = null;
+      }
+    };
+  }, [isRecording, isTeacher, uploadCumulativeChunk]);
+
+  // Best-effort upload on tab close / refresh.
+  useEffect(() => {
+    const handler = () => { uploadCumulativeChunk(); };
+    window.addEventListener("pagehide", handler);
+    window.addEventListener("beforeunload", handler);
+    return () => {
+      window.removeEventListener("pagehide", handler);
+      window.removeEventListener("beforeunload", handler);
+    };
+  }, [uploadCumulativeChunk]);
+
+  // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
   // ───────────────────────────────────────────────────────────
   // Counter policy (per product spec):
@@ -993,7 +1087,10 @@ const LiveSession = () => {
     }
     setRecordingUploading(true);
     try {
-      const fileName = `${user.id}/${bookingId}_${Date.now()}.webm`;
+      // Reuse the chunked-upload filename when available so the final
+      // upload overwrites the same object instead of creating a duplicate.
+      const fileName = chunkUploadFileNameRef.current
+        || `${user.id}/${bookingId}_${Date.now()}.webm`;
       console.log("[uploadRecording] Uploading", blob.size, "bytes to:", fileName);
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
