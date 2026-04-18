@@ -626,10 +626,12 @@ export function useWebRTC({
 
       // IMPORTANT: do NOT wipe chunks here — preserve across restarts (reconnect/renegotiation)
       // Chunks are only cleared when a NEW session starts via resetRecordingBuffer()
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-        ? "video/webm;codecs=vp9,opus"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-          ? "video/webm;codecs=vp8,opus"
+      // Use VP8 for maximum browser compatibility (Safari, iOS, older Chrome).
+      // VP9 produces smaller files but fails to decode in many <video> players, causing black screens.
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+          ? "video/webm;codecs=vp8"
           : MediaRecorder.isTypeSupported("video/webm")
             ? "video/webm"
             : "";
