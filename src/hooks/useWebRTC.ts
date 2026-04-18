@@ -548,7 +548,7 @@ export function useWebRTC({
       const canvas = document.createElement("canvas");
       canvas.width = 1280;
       canvas.height = 720;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d", { alpha: false })!;
       canvasRef.current = canvas;
 
       // Hidden video element bound to LIVE remote stream (fallback to local if no remote)
@@ -560,16 +560,28 @@ export function useWebRTC({
       hiddenVideo.play().catch(() => {});
       recordingHiddenVideoRef.current = hiddenVideo;
 
-      // Draw loop
-      canvasIntervalRef.current = window.setInterval(() => {
-        ctx.fillStyle = "#1a1a2e";
+      // Audio level visualizer for audio-only sessions
+      let audioLevel = 0;
+      let analyserNode: AnalyserNode | null = null;
+      let analyserData: Uint8Array | null = null;
+
+      // Draw an initial frame BEFORE captureStream so the first frame is non-empty.
+      // Empty canvas frames produce black-screen WebM that some players refuse to render.
+      const drawFrame = () => {
+        // Solid background (gradient feel)
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, "#1e293b");
+        grad.addColorStop(1, "#0f172a");
+        ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
         const live = latestRemoteStreamRef.current ?? localAudioStream;
         if (live && hiddenVideo.srcObject !== live) {
           hiddenVideo.srcObject = live;
           hiddenVideo.play().catch(() => {});
         }
-        if (hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0) {
+        const hasVideo = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
+        if (hasVideo) {
           const vw = hiddenVideo.videoWidth || canvas.width;
           const vh = hiddenVideo.videoHeight || canvas.height;
           const scale = Math.min(canvas.width / vw, canvas.height / vh);
@@ -579,11 +591,44 @@ export function useWebRTC({
           const dy = (canvas.height - dh) / 2;
           ctx.drawImage(hiddenVideo, dx, dy, dw, dh);
         } else {
+          // Audio-only session: animated audio visualizer
+          if (analyserNode && analyserData) {
+            analyserNode.getByteFrequencyData(analyserData);
+            let sum = 0;
+            for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+            audioLevel = Math.min(1, sum / analyserData.length / 128);
+          } else {
+            audioLevel = 0.3 + Math.sin(Date.now() / 400) * 0.15;
+          }
+          // Pulsing center circle
+          const cx = canvas.width / 2;
+          const cy = canvas.height / 2 - 40;
+          const baseR = 80;
+          const r = baseR + audioLevel * 60;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(56, 189, 248, ${0.15 + audioLevel * 0.25})`;
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+          ctx.fillStyle = "#38bdf8";
+          ctx.fill();
+          // Mic icon (simple)
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(cx - 14, cy - 28, 28, 40);
+          ctx.beginPath();
+          ctx.arc(cx, cy + 12, 14, 0, Math.PI, false);
+          ctx.fill();
+          // Title
           ctx.fillStyle = "#ffffff";
-          ctx.font = "24px sans-serif";
+          ctx.font = "bold 32px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("جلسة مباشرة - تسجيل جارٍ...", canvas.width / 2, canvas.height / 2);
+          ctx.fillText("جلسة صوتية مباشرة", canvas.width / 2, canvas.height / 2 + 80);
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "20px sans-serif";
+          ctx.fillText("تسجيل جارٍ...", canvas.width / 2, canvas.height / 2 + 115);
         }
+        // Timestamp badge
         const now = new Date();
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(canvas.width - 200, canvas.height - 40, 200, 40);
@@ -591,7 +636,31 @@ export function useWebRTC({
         ctx.font = "14px monospace";
         ctx.textAlign = "right";
         ctx.fillText(now.toLocaleTimeString("ar-SA"), canvas.width - 10, canvas.height - 12);
-      }, 66);
+      };
+
+      // Initial frame to seed the stream
+      drawFrame();
+
+      // Setup audio analyser for visualizer (best-effort)
+      try {
+        const tmpCtx = new AudioContext();
+        const allAudio = [
+          ...(localAudioStream?.getAudioTracks() || []),
+          ...(remoteMediaStream?.getAudioTracks() || []),
+        ];
+        if (allAudio.length > 0) {
+          const src = tmpCtx.createMediaStreamSource(new MediaStream(allAudio));
+          analyserNode = tmpCtx.createAnalyser();
+          analyserNode.fftSize = 256;
+          analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+          src.connect(analyserNode);
+        }
+      } catch (e) {
+        console.warn("[recording] analyser init failed:", e);
+      }
+
+      // Draw loop
+      canvasIntervalRef.current = window.setInterval(drawFrame, 66);
 
       const canvasStream = canvas.captureStream(15);
 
