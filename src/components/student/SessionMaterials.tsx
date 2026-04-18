@@ -140,11 +140,29 @@ export default function SessionMaterials() {
                         <div className="p-4">
                           {m.recording_url ? (
                             <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <Play className="h-4 w-4 text-primary" />
-                                <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Play className="h-4 w-4 text-primary" />
+                                  <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
+                                </div>
+                                <a
+                                  href={m.recording_url}
+                                  download
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  تحميل الفيديو
+                                </a>
                               </div>
-                              <video src={m.recording_url} controls className="w-full rounded-xl max-h-96" preload="metadata" />
+                              <video
+                                src={m.recording_url}
+                                controls
+                                playsInline
+                                className="w-full rounded-xl max-h-96 bg-black"
+                                preload="metadata"
+                              />
+                              <p className="text-[11px] text-muted-foreground mt-2">
+                                إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
+                              </p>
                             </div>
                           ) : (
                             <div className="text-center py-6 bg-muted/30 rounded-xl">
