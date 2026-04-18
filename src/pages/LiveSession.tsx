@@ -613,10 +613,12 @@ const LiveSession = () => {
   // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
   // ───────────────────────────────────────────────────────────
-  // Counts a second ONLY when ALL gates are open:
-  //   • meetingStarted  • bothJoined           • !peerDisconnected
-  //   • WebRTC connected • navigator.onLine    • document not hidden
-  // Stops on tab switch, network loss, peer drop, page leave, or RTC failure.
+  // Counter policy (per product spec):
+  //   • Starts when BOTH parties are in the session (bothJoined).
+  //   • NEVER pauses for tab switch, screen share, network drop, or RTC state.
+  //   • Stops ONLY when one party explicitly ends the session.
+  //   • On reconnect, the teacher broadcasts authoritative elapsed so the
+  //     student resyncs from the exact same point (monotonic forward only).
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === "undefined" ? true : navigator.onLine);
   const [isPageVisible, setIsPageVisible] = useState<boolean>(typeof document === "undefined" ? true : !document.hidden);
   const wasCountingRef = useRef(false);
@@ -624,66 +626,47 @@ const LiveSession = () => {
 
   useEffect(() => {
     const onOnline = () => { setIsOnline(true); logEvent("network_online"); };
-    const onOffline = () => { setIsOnline(false); logEvent("network_offline"); toast.warning("⚠️ انقطع الإنترنت — تم إيقاف العداد", { duration: 4000 }); };
+    const onOffline = () => { setIsOnline(false); logEvent("network_offline"); };
     const onVis = () => {
       const visible = !document.hidden;
       setIsPageVisible(visible);
       logEvent(visible ? "page_visible" : "page_hidden");
     };
-    // pagehide fires on back/forward nav and tab close — guarantees pause
-    const onPageHide = () => { setIsPageVisible(false); logEvent("page_hide"); };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", onPageHide);
     };
   }, [logEvent]);
 
-  // While screen sharing, the user is actively presenting external content,
-  // so a "hidden" tab/window must NOT pause the counter.
-  const effectiveVisible = isPageVisible || screenSharing;
-  const shouldCount =
-    meetingStarted &&
-    bothJoined &&
-    !peerDisconnected &&
-    isOnline &&
-    effectiveVisible &&
-    connectionState === "connected";
+  // Counter runs continuously after both parties join; only the explicit
+  // session-end (sessionEndingRef) halts it. Tab visibility, screen share,
+  // network blips and WebRTC reconnects do NOT pause the timer.
+  const shouldCount = meetingStarted && bothJoined;
   shouldCountRef.current = shouldCount;
 
-  // On (re)connection: sync timer between peers immediately
+  // On (re)connection: sync timer between peers immediately (teacher = source of truth)
   useEffect(() => {
     if (!dataChannelReady || !meetingStarted) return;
     if (isTeacher) {
-      // Teacher pushes authoritative elapsed to (re)joined peer
-      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
+      sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: false });
     } else {
-      // Student requests authoritative elapsed from teacher
       sendDataMessage({ type: "timer-request" });
     }
   }, [dataChannelReady, meetingStarted, isTeacher, sendDataMessage]);
 
-  // Log pause/resume transitions + broadcast to peer for UI parity
+  // Log start transitions
   useEffect(() => {
     if (!meetingStarted) return;
     if (shouldCount && !wasCountingRef.current) {
       wasCountingRef.current = true;
-      logEvent("counter_resume", { elapsed });
+      logEvent("counter_start", { elapsed });
       if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: false });
-    } else if (!shouldCount && wasCountingRef.current) {
-      wasCountingRef.current = false;
-      logEvent("counter_pause", {
-        elapsed,
-        reason: !isOnline ? "offline" : !isPageVisible ? "hidden" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other",
-      });
-      if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: true });
     }
-  }, [shouldCount, meetingStarted, elapsed, isOnline, isPageVisible, peerDisconnected, connectionState, isTeacher, sendDataMessage, logEvent]);
+  }, [shouldCount, meetingStarted, elapsed, isTeacher, sendDataMessage, logEvent]);
 
   // Tick — both sides tick locally for smooth UI; teacher periodically broadcasts an
   // authoritative anchor (baseElapsed + serverTimestamp) so the student can correct drift.
