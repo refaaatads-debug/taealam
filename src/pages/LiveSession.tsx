@@ -175,12 +175,12 @@ const LiveSession = () => {
         setSessionStartedAt(msg.startedAt);
       }
     } else if (msg.type === "timer-sync") {
-      // Authoritative anchor from teacher. Compensate for transport latency
-      // by adding (now - msg.ts) seconds. Only correct if drift > 1s.
+      // Authoritative anchor from teacher. Monotonic — never decrease.
+      // Only adopt if target is greater than current local value (forward correction only).
       if (!isTeacher && typeof msg.elapsed === "number") {
         const latencySec = typeof msg.ts === "number" ? Math.max(0, (Date.now() - msg.ts) / 1000) : 0;
-        const target = msg.elapsed + latencySec;
-        setElapsed((prev) => (Math.abs(prev - target) >= 1 ? Math.round(target) : prev));
+        const target = Math.round(msg.elapsed + latencySec);
+        setElapsed((prev) => (target > prev ? target : prev));
       }
     } else if (msg.type === "timer-request") {
       if (isTeacher) {
