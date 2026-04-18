@@ -551,28 +551,25 @@ export function useWebRTC({
       const ctx = canvas.getContext("2d")!;
       canvasRef.current = canvas;
 
-      // Hidden video element bound to LIVE remote stream
+      // Hidden video element bound to LIVE remote stream (fallback to local if no remote)
+      const sourceStream = remoteMediaStream ?? localAudioStream;
       const hiddenVideo = document.createElement("video");
-      hiddenVideo.srcObject = latestRemoteStreamRef.current ?? remoteMediaStream;
+      hiddenVideo.srcObject = sourceStream;
       hiddenVideo.muted = true;
       hiddenVideo.playsInline = true;
       hiddenVideo.play().catch(() => {});
       recordingHiddenVideoRef.current = hiddenVideo;
 
-      // Draw loop - captures at ~15fps for reasonable file size
+      // Draw loop
       canvasIntervalRef.current = window.setInterval(() => {
         ctx.fillStyle = "#1a1a2e";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // If the bound stream changed (reconnect/screenshare), refresh srcObject
-        const live = latestRemoteStreamRef.current;
+        const live = latestRemoteStreamRef.current ?? localAudioStream;
         if (live && hiddenVideo.srcObject !== live) {
           hiddenVideo.srcObject = live;
           hiddenVideo.play().catch(() => {});
         }
-
         if (hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0) {
-          // Calculate aspect-ratio-preserving dimensions
           const vw = hiddenVideo.videoWidth || canvas.width;
           const vh = hiddenVideo.videoHeight || canvas.height;
           const scale = Math.min(canvas.width / vw, canvas.height / vh);
@@ -582,14 +579,11 @@ export function useWebRTC({
           const dy = (canvas.height - dh) / 2;
           ctx.drawImage(hiddenVideo, dx, dy, dw, dh);
         } else {
-          // No video yet - show placeholder
           ctx.fillStyle = "#ffffff";
           ctx.font = "24px sans-serif";
           ctx.textAlign = "center";
           ctx.fillText("جلسة مباشرة - تسجيل جارٍ...", canvas.width / 2, canvas.height / 2);
         }
-
-        // Add timestamp overlay
         const now = new Date();
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(canvas.width - 200, canvas.height - 40, 200, 40);
@@ -597,29 +591,37 @@ export function useWebRTC({
         ctx.font = "14px monospace";
         ctx.textAlign = "right";
         ctx.fillText(now.toLocaleTimeString("ar-SA"), canvas.width - 10, canvas.height - 12);
-      }, 66); // ~15fps
+      }, 66);
 
-      // Combine canvas video stream + mixed audio
       const canvasStream = canvas.captureStream(15);
 
-      // Mix local + remote audio
-      const audioCtx = new AudioContext();
-      audioCtxRef.current = audioCtx;
-      const dest = audioCtx.createMediaStreamDestination();
-
-      if (localAudioStream) {
-        const localSource = audioCtx.createMediaStreamSource(localAudioStream);
-        localSource.connect(dest);
+      // Mix audio with try/catch — AudioContext can fail without user gesture
+      const audioTracks: MediaStreamTrack[] = [];
+      try {
+        const audioCtx = new AudioContext();
+        audioCtxRef.current = audioCtx;
+        // Resume if suspended (some browsers require explicit resume)
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume().catch(() => {});
+        }
+        const dest = audioCtx.createMediaStreamDestination();
+        if (localAudioStream && localAudioStream.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(localAudioStream).connect(dest); } catch (e) { console.warn("[recording] local audio mix failed:", e); }
+        }
+        if (remoteMediaStream && remoteMediaStream.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(remoteMediaStream).connect(dest); } catch (e) { console.warn("[recording] remote audio mix failed:", e); }
+        }
+        audioTracks.push(...dest.stream.getAudioTracks());
+      } catch (e) {
+        console.warn("[recording] AudioContext failed, recording video only:", e);
+        // Fallback: use raw audio tracks
+        if (localAudioStream) audioTracks.push(...localAudioStream.getAudioTracks());
+        if (remoteMediaStream) audioTracks.push(...remoteMediaStream.getAudioTracks());
       }
-      if (remoteMediaStream) {
-        const remoteSource = audioCtx.createMediaStreamSource(remoteMediaStream);
-        remoteSource.connect(dest);
-      }
 
-      // Combine video + audio tracks into one stream
       const combinedStream = new MediaStream([
         ...canvasStream.getVideoTracks(),
-        ...dest.stream.getAudioTracks(),
+        ...audioTracks,
       ]);
 
       recordedChunksRef.current = [];
@@ -627,17 +629,28 @@ export function useWebRTC({
         ? "video/webm;codecs=vp9,opus"
         : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
           ? "video/webm;codecs=vp8,opus"
-          : "video/webm";
-      const recorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 1_000_000 });
+          : MediaRecorder.isTypeSupported("video/webm")
+            ? "video/webm"
+            : "";
+      console.log("[recording] starting with mimeType:", mimeType, "videoTracks:", canvasStream.getVideoTracks().length, "audioTracks:", audioTracks.length);
+      const recorder = mimeType
+        ? new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 1_000_000 })
+        : new MediaRecorder(combinedStream, { videoBitsPerSecond: 1_000_000 });
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+          if (recordedChunksRef.current.length === 1) {
+            console.log("[recording] first chunk received:", e.data.size, "bytes");
+          }
+        }
       };
+      recorder.onerror = (e) => console.error("[recording] MediaRecorder error:", e);
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
-      console.log("Auto video recording started (canvas + mixed audio)");
+      console.log("[recording] started successfully");
     } catch (err) {
-      console.error("Auto video recording failed:", err);
+      console.error("[recording] Auto video recording failed:", err);
     }
   }, [remoteStream]);
 
