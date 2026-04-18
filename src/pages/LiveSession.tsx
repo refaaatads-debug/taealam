@@ -644,12 +644,15 @@ const LiveSession = () => {
     };
   }, [logEvent]);
 
+  // While screen sharing, the user is actively presenting external content,
+  // so a "hidden" tab/window must NOT pause the counter.
+  const effectiveVisible = isPageVisible || screenSharing;
   const shouldCount =
     meetingStarted &&
     bothJoined &&
     !peerDisconnected &&
     isOnline &&
-    isPageVisible &&
+    effectiveVisible &&
     connectionState === "connected";
   shouldCountRef.current = shouldCount;
 
