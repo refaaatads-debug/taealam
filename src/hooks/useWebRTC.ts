@@ -119,18 +119,31 @@ export function useWebRTC({
   }, []);
 
   const initLocalMedia = useCallback(async () => {
+    // Try video+audio first; if camera denied/unavailable, fall back to audio only.
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: false,
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } },
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
-      setVideoEnabled(false);
+      setVideoEnabled(stream.getVideoTracks().some((t) => t.enabled));
       return stream;
     } catch (err) {
-      console.error("Failed to get user media:", err);
-      return null;
+      console.warn("Video unavailable, falling back to audio-only:", err);
+      try {
+        const audioOnly = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        localStreamRef.current = audioOnly;
+        setLocalStream(audioOnly);
+        setVideoEnabled(false);
+        return audioOnly;
+      } catch (err2) {
+        console.error("Failed to get user media:", err2);
+        return null;
+      }
     }
   }, []);
 
@@ -623,10 +636,10 @@ export function useWebRTC({
           ctx.fillStyle = "#ffffff";
           ctx.font = "bold 32px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("جلسة صوتية مباشرة", canvas.width / 2, canvas.height / 2 + 80);
+          ctx.fillText("حصة مباشرة", canvas.width / 2, canvas.height / 2 + 80);
           ctx.fillStyle = "#94a3b8";
           ctx.font = "20px sans-serif";
-          ctx.fillText("تسجيل جارٍ...", canvas.width / 2, canvas.height / 2 + 115);
+          ctx.fillText("تسجيل صوتي • لا يوجد بث فيديو", canvas.width / 2, canvas.height / 2 + 115);
         }
         // Timestamp badge
         const now = new Date();
