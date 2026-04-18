@@ -652,7 +652,7 @@ export function useWebRTC({
           const src = tmpCtx.createMediaStreamSource(new MediaStream(allAudio));
           analyserNode = tmpCtx.createAnalyser();
           analyserNode.fftSize = 256;
-          analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+          analyserData = new Uint8Array(new ArrayBuffer(analyserNode.frequencyBinCount));
           src.connect(analyserNode);
         }
       } catch (e) {
