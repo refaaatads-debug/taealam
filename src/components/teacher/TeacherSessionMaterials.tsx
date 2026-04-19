@@ -5,6 +5,7 @@ import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play, User } from
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import VideoPlayer from "@/components/VideoPlayer";
 
 interface SessionMaterial {
   id: string;
@@ -180,7 +181,7 @@ export default function TeacherSessionMaterials() {
                                       <Play className="h-4 w-4 text-primary" />
                                       <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                                     </div>
-                                    <video src={m.recording_url} controls className="w-full rounded-xl max-h-96" preload="metadata" />
+                                    <VideoPlayer src={m.recording_url} />
                                   </div>
                                 ) : (
                                   <div className="text-center py-6 bg-muted/30 rounded-xl">

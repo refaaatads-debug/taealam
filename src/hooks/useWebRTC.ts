@@ -435,23 +435,51 @@ export function useWebRTC({
     try {
       if (directScreenRecorderRef.current && directScreenRecorderRef.current.state !== "inactive") return;
 
-      // Mix local mic + remote audio into the recording
+      // Mix local mic + remote audio + screen audio into the recording
       const audioTracks: MediaStreamTrack[] = [];
+      let mixedOk = false;
       try {
-        const audioCtx = new AudioContext();
+        const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext);
+        const audioCtx = new AudioCtx();
+        // Resume in case the context starts suspended (Brave/Safari/iOS)
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume().catch(() => {});
+        }
         const dest = audioCtx.createMediaStreamDestination();
-        const localAudio = localStreamRef.current;
-        const remoteAudio = latestRemoteStreamRef.current;
-        if (localAudio && localAudio.getAudioTracks().length > 0) {
-          try { audioCtx.createMediaStreamSource(localAudio).connect(dest); } catch {}
+        let sourcesAdded = 0;
+
+        const addStreamAudio = (s: MediaStream | null) => {
+          if (!s) return;
+          const tracks = s.getAudioTracks().filter(t => t.readyState === "live");
+          if (tracks.length === 0) return;
+          try {
+            const src = audioCtx.createMediaStreamSource(new MediaStream(tracks));
+            src.connect(dest);
+            sourcesAdded++;
+          } catch (err) {
+            console.warn("[direct-recorder] could not add audio source:", err);
+          }
+        };
+
+        addStreamAudio(localStreamRef.current);
+        addStreamAudio(latestRemoteStreamRef.current);
+        addStreamAudio(screenStream); // include system/tab audio if shared
+
+        if (sourcesAdded > 0) {
+          audioTracks.push(...dest.stream.getAudioTracks());
+          mixedOk = true;
         }
-        if (remoteAudio && remoteAudio.getAudioTracks().length > 0) {
-          try { audioCtx.createMediaStreamSource(remoteAudio).connect(dest); } catch {}
-        }
-        audioTracks.push(...dest.stream.getAudioTracks());
+        console.log("[direct-recorder] audio sources mixed:", sourcesAdded);
       } catch (e) {
-        console.warn("[direct-recorder] audio mix failed, using raw tracks:", e);
-        if (localStreamRef.current) audioTracks.push(...localStreamRef.current.getAudioTracks());
+        console.warn("[direct-recorder] audio mix failed:", e);
+      }
+
+      // Fallback: attach raw tracks directly so audio is never lost
+      if (!mixedOk) {
+        if (localStreamRef.current) audioTracks.push(...localStreamRef.current.getAudioTracks().map(t => t.clone()));
+        if (latestRemoteStreamRef.current) audioTracks.push(...latestRemoteStreamRef.current.getAudioTracks().map(t => t.clone()));
+        if (screenStream.getAudioTracks().length > 0) audioTracks.push(...screenStream.getAudioTracks().map(t => t.clone()));
+        console.log("[direct-recorder] fallback raw audio tracks:", audioTracks.length);
       }
 
       const combined = new MediaStream([
