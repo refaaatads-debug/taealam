@@ -158,8 +158,6 @@ export default function SessionMaterials() {
                               <p className="text-[11px] text-muted-foreground mt-2">
                                 إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
                               </p>
-                                إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
-                              </p>
                             </div>
                           ) : (
                             <div className="text-center py-6 bg-muted/30 rounded-xl">
