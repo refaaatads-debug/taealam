@@ -631,11 +631,17 @@ export function useWebRTC({
         const liveRemote = getRemoteVideoStream();
         if (liveRemote && hiddenVideo.srcObject !== liveRemote) {
           hiddenVideo.srcObject = liveRemote;
+          hiddenVideo.addEventListener("loadedmetadata", () => {
+            hiddenVideo.play().catch(() => {});
+          }, { once: true });
           hiddenVideo.play().catch(() => {});
         }
         const liveLocal = getLocalVideoStream();
         if (liveLocal && hiddenLocalVideo.srcObject !== liveLocal) {
           hiddenLocalVideo.srcObject = liveLocal;
+          hiddenLocalVideo.addEventListener("loadedmetadata", () => {
+            hiddenLocalVideo.play().catch((e) => console.warn("[recording] local video play after metadata failed:", e));
+          }, { once: true });
           hiddenLocalVideo.play().catch(() => {});
         } else if (!liveLocal && hiddenLocalVideo.srcObject) {
           hiddenLocalVideo.srcObject = null;
