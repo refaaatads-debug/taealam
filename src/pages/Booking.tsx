@@ -34,7 +34,11 @@ const Booking = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [sessionsRemaining, setSessionsRemaining] = useState(0);
+  const [remainingMinutes, setRemainingMinutes] = useState(0);
+  const SESSION_MINUTES = 60;
+  const MIN_SESSION_MINUTES = 5;
+  const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
+  const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
 
@@ -116,7 +120,7 @@ const Booking = () => {
         .maybeSingle()
         .then(({ data }) => {
           const remainMin = (data as any)?.remaining_minutes ?? (data?.sessions_remaining || 0) * 45;
-          setSessionsRemaining(remainMin > 0 ? Math.ceil(remainMin / 45) : 0);
+          setRemainingMinutes(Math.max(0, remainMin));
         });
     }
 
@@ -166,12 +170,20 @@ const Booking = () => {
     return hour;
   };
 
+  const formatMinutes = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h} س ${m} د`;
+    if (h > 0) return `${h} س`;
+    return `${m} د`;
+  };
+
   const toggleSlot = (dayIndex: number, time: string) => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
-        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+      if (maxBookableSlots > 0 && prev.length >= maxBookableSlots) {
+        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - لا يكفي لحصة إضافية (60 د).`);
         return prev;
       }
       return [...prev, { dayIndex, time }];
@@ -186,16 +198,18 @@ const Booking = () => {
     if (!user || !selectedSubject || selectedSlots.length === 0) return;
 
     // If no subscription, redirect to pricing
-    if (sessionsRemaining <= 0) {
-      toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
+    // If insufficient remaining time, redirect to pricing
+    if (!canBook) {
+      toast.error("رصيد باقتك أقل من 5 دقائق. اشترك أو جدّد الباقة لحجز الحصص.");
       navigate("/pricing");
       return;
     }
 
     setLoading(true);
     try {
-      if (sessionsRemaining < selectedSlots.length) {
-        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+      const requiredMinutes = selectedSlots.length * SESSION_MINUTES;
+      if (requiredMinutes > remainingMinutes) {
+        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - غير كافٍ لـ ${selectedSlots.length} حصة (${requiredMinutes} د).`);
         setLoading(false);
         return;
       }
@@ -359,9 +373,11 @@ const Booking = () => {
                       <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 font-medium">
                         <Clock className="h-4 w-4" /> اختر الساعات
                         {directTeacherId && <span className="text-xs text-primary">(ساعات المعلم المتاحة)</span>}
-                        <Badge className={`mr-auto border-0 text-xs ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-                          <Package className="h-3 w-3 ml-1" />
-                          {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
+                        <Badge className={`mr-auto border-0 text-xs ${canBook ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                          <Clock className="h-3 w-3 ml-1" />
+                          {canBook
+                            ? `المتبقي: ${formatMinutes(remainingMinutes)} (${selectedSlots.length}/${maxBookableSlots} حصة)`
+                            : "لا يوجد رصيد كافٍ"}
                         </Badge>
                       </p>
                       {timeSlots.length === 0 ? (
@@ -392,7 +408,7 @@ const Booking = () => {
                       )}
 
                       {/* No subscription warning */}
-                      {sessionsRemaining <= 0 && (
+                      {!canBook && (
                         <div className="rounded-xl p-3 mb-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
                           <CreditCard className="h-4 w-4 shrink-0" />
                           <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
@@ -413,7 +429,7 @@ const Booking = () => {
                         </div>
                       )}
 
-                      {sessionsRemaining <= 0 ? (
+                      {!canBook ? (
                         <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" onClick={() => navigate("/pricing")}>
                           <CreditCard className="h-4 w-4" />
                           اشترك في باقة للحجز
