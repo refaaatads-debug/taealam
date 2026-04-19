@@ -154,14 +154,10 @@ export default function SessionMaterials() {
                                   تحميل الفيديو
                                 </a>
                               </div>
-                              <video
-                                src={m.recording_url}
-                                controls
-                                playsInline
-                                className="w-full rounded-xl max-h-96 bg-black"
-                                preload="metadata"
-                              />
+                              <VideoPlayer src={m.recording_url} />
                               <p className="text-[11px] text-muted-foreground mt-2">
+                                إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
+                              </p>
                                 إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
                               </p>
                             </div>
