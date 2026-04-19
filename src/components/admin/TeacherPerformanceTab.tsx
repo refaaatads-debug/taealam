@@ -519,7 +519,9 @@ export default function TeacherPerformanceTab() {
               <ExportCSVButton
                 data={filteredTeachers.map(t => ({
                   name: t.full_name,
+                  duration: formatDuration(t.totalSeconds),
                   hours: t.totalHours,
+                  earnings: Math.round(t.totalPrice * 10) / 10,
                   sessions: t.completedCount,
                   cancelled: t.cancelledCount,
                   students: t.studentsCount,
@@ -528,7 +530,9 @@ export default function TeacherPerformanceTab() {
                 }))}
                 headers={[
                   { key: "name", label: "المعلم" },
-                  { key: "hours", label: "الساعات الفعلية" },
+                  { key: "duration", label: "المدة الفعلية (س:د:ث)" },
+                  { key: "hours", label: "الساعات" },
+                  { key: "earnings", label: "إجمالي الأرباح (ر.س)" },
                   { key: "sessions", label: "الحصص المكتملة" },
                   { key: "cancelled", label: "الحصص الملغاة" },
                   { key: "students", label: "عدد الطلاب" },
@@ -588,6 +592,10 @@ export default function TeacherPerformanceTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Badge className="bg-green-500/10 text-green-600 border-0 text-xs font-bold flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" />
+                        {Math.round(teacher.totalPrice * 10) / 10} ر.س
+                      </Badge>
                       <Badge className="bg-primary/10 text-primary border-0 text-xs font-mono">
                         {formatDuration(teacher.totalSeconds)}
                       </Badge>
