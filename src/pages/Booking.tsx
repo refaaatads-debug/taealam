@@ -120,7 +120,7 @@ const Booking = () => {
         .maybeSingle()
         .then(({ data }) => {
           const remainMin = (data as any)?.remaining_minutes ?? (data?.sessions_remaining || 0) * 45;
-          setSessionsRemaining(remainMin > 0 ? Math.ceil(remainMin / 45) : 0);
+          setRemainingMinutes(Math.max(0, remainMin));
         });
     }
 
