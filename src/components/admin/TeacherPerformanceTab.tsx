@@ -592,6 +592,10 @@ export default function TeacherPerformanceTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Badge className="bg-green-500/10 text-green-600 border-0 text-xs font-bold flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" />
+                        {Math.round(teacher.totalPrice * 10) / 10} ر.س
+                      </Badge>
                       <Badge className="bg-primary/10 text-primary border-0 text-xs font-mono">
                         {formatDuration(teacher.totalSeconds)}
                       </Badge>
