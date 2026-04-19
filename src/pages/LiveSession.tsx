@@ -175,11 +175,11 @@ const LiveSession = () => {
       if (!isTeacher) {
         setBoardOpen(true);
       }
+    } else if (msg.type === "whiteboard-toggle") {
+      // Sync board open/close state from teacher to student instantly
+      if (!isTeacher) setBoardOpen(!!msg.open);
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
-      if (msg.active && !isTeacher) {
-        toast.info("المعلم يشارك الشاشة الآن 🖥️");
-      }
     } else if (msg.type === "laser-move") {
       setRemoteLaserPos(msg.pos);
     } else if (msg.type === "laser-hide") {
@@ -1477,16 +1477,16 @@ const LiveSession = () => {
         )}
       </AnimatePresence>
 
-      {/* Indicators for student */}
+      {/* Compact indicator for student - small badge that doesn't obscure content */}
       <AnimatePresence>
         {!isTeacher && remoteScreenSharing && !boardOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="absolute top-16 right-4 z-30 bg-primary/80 text-primary-foreground px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold"
+            className="absolute top-14 right-3 z-30 bg-primary/70 backdrop-blur-sm text-primary-foreground px-2 py-0.5 rounded-full shadow flex items-center gap-1 text-[10px] font-medium"
           >
-            <Monitor className="h-4 w-4" />
+            <Monitor className="h-3 w-3" />
             المعلم يشارك الشاشة الآن
           </motion.div>
         )}
@@ -1826,7 +1826,7 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleScreenShare} disabled={!meetingStarted} title="مشاركة الشاشة">
               <Monitor className="h-5 w-5" />
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }} disabled={!meetingStarted} title="السبورة">
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !boardOpen; setBoardOpen(next); setShowReport(false); sendDataMessage({ type: "whiteboard-toggle", open: next }); }} disabled={!meetingStarted} title="السبورة">
               <PenTool className="h-5 w-5" />
             </Button>
           </>
