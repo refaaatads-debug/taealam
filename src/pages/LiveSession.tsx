@@ -177,9 +177,6 @@ const LiveSession = () => {
       }
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
-      if (msg.active && !isTeacher) {
-        toast.info("المعلم يشارك الشاشة الآن 🖥️");
-      }
     } else if (msg.type === "laser-move") {
       setRemoteLaserPos(msg.pos);
     } else if (msg.type === "laser-hide") {
@@ -1477,16 +1474,16 @@ const LiveSession = () => {
         )}
       </AnimatePresence>
 
-      {/* Indicators for student */}
+      {/* Compact indicator for student - small badge that doesn't obscure content */}
       <AnimatePresence>
         {!isTeacher && remoteScreenSharing && !boardOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="absolute top-16 right-4 z-30 bg-primary/80 text-primary-foreground px-4 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm font-bold"
+            className="absolute top-14 right-3 z-30 bg-primary/70 backdrop-blur-sm text-primary-foreground px-2 py-0.5 rounded-full shadow flex items-center gap-1 text-[10px] font-medium"
           >
-            <Monitor className="h-4 w-4" />
+            <Monitor className="h-3 w-3" />
             المعلم يشارك الشاشة الآن
           </motion.div>
         )}
