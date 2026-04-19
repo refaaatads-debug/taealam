@@ -457,7 +457,11 @@ export function useWebRTC({
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 15, max: 30 } } as any,
+        video: {
+          frameRate: { ideal: 30, max: 60 },
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+        } as any,
         audio: false,
       });
     } catch (err: any) {
@@ -475,16 +479,24 @@ export function useWebRTC({
       return;
     }
 
+    // Hint encoder to prioritize sharpness/motion balance for screen content
+    try { (videoTrack as any).contentHint = "detail"; } catch {}
+
     await transceiver.sender.replaceTrack(videoTrack);
     transceiver.direction = "sendrecv";
 
     try {
       const params = transceiver.sender.getParameters();
       if (!params.encodings || params.encodings.length === 0) {
-        params.encodings = [{ maxBitrate: 1_500_000 }];
+        params.encodings = [{ maxBitrate: 4_000_000, maxFramerate: 30 } as any];
       } else {
-        params.encodings[0].maxBitrate = 1_500_000;
+        params.encodings[0].maxBitrate = 4_000_000;
+        (params.encodings[0] as any).maxFramerate = 30;
+        (params.encodings[0] as any).networkPriority = "high";
+        (params.encodings[0] as any).priority = "high";
       }
+      // Prefer low-latency mode when supported
+      (params as any).degradationPreference = "maintain-framerate";
       await transceiver.sender.setParameters(params);
     } catch (e) {
       console.warn("setParameters failed (non-fatal):", e);
