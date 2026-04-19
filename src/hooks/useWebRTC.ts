@@ -922,6 +922,14 @@ export function useWebRTC({
   }, []);
 
   const getRecordingBlob = useCallback(() => {
+    // Prefer the direct screen recording when it has data — guaranteed real screen video
+    // (works on Brave, Safari, iOS without canvas pipeline issues).
+    if (directScreenChunksRef.current.length > 0) {
+      const directSize = directScreenChunksRef.current.reduce((s, b) => s + b.size, 0);
+      if (directSize > 0) {
+        return new Blob(directScreenChunksRef.current, { type: "video/webm" });
+      }
+    }
     if (recordedChunksRef.current.length === 0) return null;
     return new Blob(recordedChunksRef.current, { type: "video/webm" });
   }, []);
