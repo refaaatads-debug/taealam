@@ -77,6 +77,8 @@ const LiveSession = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [uiVisible, setUiVisible] = useState(true);
+  const uiHideTimerRef = useRef<number>();
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -91,6 +93,27 @@ const LiveSession = () => {
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  // Auto-hide UI (top bar + controls) when student is in fullscreen.
+  // Reveal on mouse move/click/touch and re-hide after 3s of inactivity.
+  useEffect(() => {
+    if (!isFullscreen) { setUiVisible(true); clearTimeout(uiHideTimerRef.current); return; }
+    const reveal = () => {
+      setUiVisible(true);
+      clearTimeout(uiHideTimerRef.current);
+      uiHideTimerRef.current = window.setTimeout(() => setUiVisible(false), 3000);
+    };
+    reveal();
+    window.addEventListener("mousemove", reveal);
+    window.addEventListener("click", reveal);
+    window.addEventListener("touchstart", reveal);
+    return () => {
+      window.removeEventListener("mousemove", reveal);
+      window.removeEventListener("click", reveal);
+      window.removeEventListener("touchstart", reveal);
+      clearTimeout(uiHideTimerRef.current);
+    };
+  }, [isFullscreen]);
 
   // End session for BOTH parties when user presses browser back arrow
   useEffect(() => {
@@ -614,35 +637,9 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
-  // Teacher prompt: once both joined, KEEP asking to start screen sharing
-  // until done so the session recording always contains real screen video
-  // (not just the audio-only placeholder). Browsers require a user gesture,
-  // so the toast action button provides that gesture.
-  useEffect(() => {
-    if (!isTeacher) return;
-    if (!bothJoined) return;
-    if (screenSharing) return;
-
-    const showPrompt = () => {
-      toast("ابدأ مشاركة شاشتك الآن — التسجيل لن يُظهر الفيديو بدونها", {
-        id: "screen-share-prompt",
-        duration: 25000,
-        action: {
-          label: "بدء المشاركة",
-          onClick: () => { toggleScreenShare(); },
-        },
-      });
-    };
-    showPrompt();
-    // Re-prompt every 30s until teacher shares the screen
-    const interval = window.setInterval(() => {
-      if (!screenSharing) showPrompt();
-    }, 30000);
-    return () => {
-      window.clearInterval(interval);
-      toast.dismiss("screen-share-prompt");
-    };
-  }, [isTeacher, bothJoined, screenSharing, toggleScreenShare]);
+  // NOTE: Recording is NOT tied to screen sharing. The auto-recorder (canvas pipeline)
+  // captures audio + whiteboard + remote video as soon as both parties join.
+  // No nagging toast is needed — teachers may share the screen optionally.
 
   // ───────────────────────────────────────────────────────────
   //  Chunked recording uploader — every 60s, teacher uploads
@@ -1328,7 +1325,7 @@ const LiveSession = () => {
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-l from-foreground via-foreground/95 to-foreground border-b border-card/10 backdrop-blur-xl">
+      <div className={`flex items-center justify-between px-3 py-2 bg-gradient-to-l from-foreground via-foreground/95 to-foreground border-b border-card/10 backdrop-blur-xl transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none absolute top-0 inset-x-0 z-40") : ""}`}>
         {/* Right section - Session info */}
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -1819,24 +1816,24 @@ const LiveSession = () => {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-2 md:gap-3 p-4 glass-strong border-t border-border/10">
+      <div className={`flex items-center justify-center gap-2 md:gap-2.5 px-4 py-3 glass-strong border-t border-border/10 transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-full pointer-events-none absolute bottom-0 inset-x-0 z-40") : ""}`}>
         {/* Teacher controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}>
               {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleScreenShare} disabled={!meetingStarted}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleScreenShare} disabled={!meetingStarted} title="مشاركة الشاشة">
               <Monitor className="h-5 w-5" />
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }} disabled={!meetingStarted} title="السبورة">
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setBoardOpen(!boardOpen); setShowReport(false); }} disabled={!meetingStarted} title="السبورة">
               <PenTool className="h-5 w-5" />
             </Button>
           </>
         )}
 
         {/* Chat - for both */}
-        <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnreadCount(0); }}>
+        <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnreadCount(0); }} title="الدردشة">
           <MessageSquare className="h-5 w-5" />
           {unreadCount > 0 && !chatOpen && (
             <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse-soft">
@@ -1848,13 +1845,13 @@ const LiveSession = () => {
         {/* Student controls */}
         {!isTeacher && (
           <>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${micEnabled ? "bg-card/20 hover:bg-card/30 text-card border-0" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"}`} onClick={toggleMic}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم" : "تشغيل"}>
               {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => setHandRaised(!handRaised)}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => setHandRaised(!handRaised)} title="رفع اليد">
               <Hand className="h-5 w-5" />
             </Button>
           </>
@@ -1863,12 +1860,12 @@ const LiveSession = () => {
         {/* Teacher extra controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-xl h-12 w-12 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }}>
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }} title="التقرير">
               <FileText className="h-5 w-5" />
             </Button>
             <Button
               size="icon"
-              className={`rounded-xl h-12 w-12 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+              className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
               onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
               disabled={!meetingStarted}
               title="المساعد الذكي"
@@ -1877,7 +1874,7 @@ const LiveSession = () => {
             </Button>
             <Button
               size="icon"
-              className={`rounded-xl h-12 w-12 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 animate-pulse-soft" : "bg-card/20 hover:bg-card/30 text-card border-0"}`}
+              className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40 animate-pulse-soft" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
               onClick={isRecording ? stopRecording : startRecording}
               disabled={!meetingStarted}
               title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
@@ -1887,9 +1884,12 @@ const LiveSession = () => {
           </>
         )}
 
+        {/* Visual divider before end-call */}
+        <div className="w-px h-8 bg-card/15 mx-1" />
+
         {/* End call */}
-        <Button size="icon" className="rounded-xl h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0" onClick={endSession}>
-          <Phone className="h-5 w-5" />
+        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={endSession} title="إنهاء الحصة">
+          <Phone className="h-5 w-5 rotate-[135deg]" />
         </Button>
       </div>
 
