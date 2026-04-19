@@ -373,9 +373,11 @@ const Booking = () => {
                       <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2 font-medium">
                         <Clock className="h-4 w-4" /> اختر الساعات
                         {directTeacherId && <span className="text-xs text-primary">(ساعات المعلم المتاحة)</span>}
-                        <Badge className={`mr-auto border-0 text-xs ${sessionsRemaining > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
-                          <Package className="h-3 w-3 ml-1" />
-                          {sessionsRemaining > 0 ? `${selectedSlots.length}/${sessionsRemaining} حصة` : "لا يوجد رصيد"}
+                        <Badge className={`mr-auto border-0 text-xs ${canBook ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                          <Clock className="h-3 w-3 ml-1" />
+                          {canBook
+                            ? `المتبقي: ${formatMinutes(remainingMinutes)} (${selectedSlots.length}/${maxBookableSlots} حصة)`
+                            : "لا يوجد رصيد كافٍ"}
                         </Badge>
                       </p>
                       {timeSlots.length === 0 ? (
