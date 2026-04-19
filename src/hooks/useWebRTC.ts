@@ -87,6 +87,9 @@ export function useWebRTC({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  // Direct screen-stream recorder (preferred when teacher is screen-sharing — works on Brave/Safari/iOS)
+  const directScreenRecorderRef = useRef<MediaRecorder | null>(null);
+  const directScreenChunksRef = useRef<Blob[]>([]);
   const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
   // Always points to the latest active remote stream (audio+video) for recording
   const latestRemoteStreamRef = useRef<MediaStream | null>(null);
