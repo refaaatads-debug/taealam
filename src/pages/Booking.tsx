@@ -34,7 +34,11 @@ const Booking = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [sessionsRemaining, setSessionsRemaining] = useState(0);
+  const [remainingMinutes, setRemainingMinutes] = useState(0);
+  const SESSION_MINUTES = 60;
+  const MIN_SESSION_MINUTES = 5;
+  const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
+  const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
 
