@@ -572,6 +572,7 @@ export function useWebRTC({
       hiddenVideo.autoplay = true;
       // Mount offscreen so the browser actually decodes frames (Safari/iOS requirement)
       hiddenVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenVideo.setAttribute("data-recording-hidden", "true");
       document.body.appendChild(hiddenVideo);
       hiddenVideo.play().catch((e) => console.warn("[recording] remote hidden video play failed:", e));
       recordingHiddenVideoRef.current = hiddenVideo;
@@ -582,6 +583,7 @@ export function useWebRTC({
       hiddenLocalVideo.playsInline = true;
       hiddenLocalVideo.autoplay = true;
       hiddenLocalVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenLocalVideo.setAttribute("data-recording-hidden", "true");
       document.body.appendChild(hiddenLocalVideo);
 
       // If teacher is already screen-sharing when recording starts, bind it immediately
