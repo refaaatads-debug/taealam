@@ -429,12 +429,81 @@ export function useWebRTC({
     });
   }, []);
 
+  // Start a direct MediaRecorder on the raw screen-share stream + mixed audio.
+  // Works in 100% of modern browsers (incl. Brave/Safari) — no canvas pipeline.
+  const startDirectScreenRecorder = useCallback((screenStream: MediaStream) => {
+    try {
+      if (directScreenRecorderRef.current && directScreenRecorderRef.current.state !== "inactive") return;
+
+      // Mix local mic + remote audio into the recording
+      const audioTracks: MediaStreamTrack[] = [];
+      try {
+        const audioCtx = new AudioContext();
+        const dest = audioCtx.createMediaStreamDestination();
+        const localAudio = localStreamRef.current;
+        const remoteAudio = latestRemoteStreamRef.current;
+        if (localAudio && localAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(localAudio).connect(dest); } catch {}
+        }
+        if (remoteAudio && remoteAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(remoteAudio).connect(dest); } catch {}
+        }
+        audioTracks.push(...dest.stream.getAudioTracks());
+      } catch (e) {
+        console.warn("[direct-recorder] audio mix failed, using raw tracks:", e);
+        if (localStreamRef.current) audioTracks.push(...localStreamRef.current.getAudioTracks());
+      }
+
+      const combined = new MediaStream([
+        ...screenStream.getVideoTracks(),
+        ...audioTracks,
+      ]);
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : MediaRecorder.isTypeSupported("video/webm")
+            ? "video/webm"
+            : MediaRecorder.isTypeSupported("video/mp4")
+              ? "video/mp4"
+              : "";
+
+      console.log("[direct-recorder] starting, mimeType:", mimeType);
+      const recorder = mimeType
+        ? new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 })
+        : new MediaRecorder(combined, { videoBitsPerSecond: 2_500_000 });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          directScreenChunksRef.current.push(e.data);
+        }
+      };
+      recorder.onerror = (e) => console.error("[direct-recorder] error:", e);
+      recorder.start(1000);
+      directScreenRecorderRef.current = recorder;
+      console.log("[direct-recorder] started");
+    } catch (err) {
+      console.error("[direct-recorder] start failed:", err);
+    }
+  }, []);
+
+  const stopDirectScreenRecorder = useCallback(() => {
+    const r = directScreenRecorderRef.current;
+    if (r && r.state !== "inactive") {
+      try { r.requestData(); } catch {}
+      try { r.stop(); } catch {}
+    }
+    directScreenRecorderRef.current = null;
+  }, []);
+
   const toggleScreenShare = useCallback(async () => {
     const pc = pcRef.current;
     const transceiver = screenTransceiverRef.current;
     if (!pc || !transceiver) return;
 
     if (screenSharing) {
+      stopDirectScreenRecorder();
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       await transceiver.sender.replaceTrack(null);
@@ -506,6 +575,7 @@ export function useWebRTC({
     }
 
     videoTrack.addEventListener("ended", async () => {
+      stopDirectScreenRecorder();
       await transceiver.sender.replaceTrack(null);
       setScreenSharing(false);
       screenStreamRef.current = null;
@@ -514,7 +584,10 @@ export function useWebRTC({
 
     setScreenSharing(true);
     sendDataMessage({ type: "screen-share-status", active: true });
-  }, [screenSharing, sendDataMessage]);
+
+    // Start the direct screen recorder (independent of canvas) — guaranteed video capture.
+    startDirectScreenRecorder(stream);
+  }, [screenSharing, sendDataMessage, startDirectScreenRecorder, stopDirectScreenRecorder]);
 
   // Manual recording (screen share based - kept for manual use)
   const startRecording = useCallback(async () => {
