@@ -614,33 +614,32 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
-  // Teacher prompt: keep nagging until the teacher actually starts screen
-  // sharing so the recording captures the real screen (not just the audio
-  // visualizer fallback). Browsers require a user gesture, so we surface a
-  // persistent toast with an action button every 30 seconds.
+  // Teacher prompt: once both joined, KEEP asking to start screen sharing
+  // until done so the session recording always contains real screen video
+  // (not just the audio-only placeholder). Browsers require a user gesture,
+  // so the toast action button provides that gesture.
   useEffect(() => {
     if (!isTeacher) return;
     if (!bothJoined) return;
     if (screenSharing) return;
 
     const showPrompt = () => {
-      toast.warning("⚠️ ابدأ مشاركة شاشتك الآن — بدون ذلك لن يتم تسجيل فيديو الحصة!", {
-        duration: 25000,
+      toast("ابدأ مشاركة شاشتك الآن — التسجيل لن يُظهر الفيديو بدونها", {
         id: "screen-share-prompt",
+        duration: 25000,
         action: {
           label: "بدء المشاركة",
           onClick: () => { toggleScreenShare(); },
         },
       });
     };
-
     showPrompt();
+    // Re-prompt every 30s until teacher shares the screen
     const interval = window.setInterval(() => {
       if (!screenSharing) showPrompt();
     }, 30000);
-
     return () => {
-      clearInterval(interval);
+      window.clearInterval(interval);
       toast.dismiss("screen-share-prompt");
     };
   }, [isTeacher, bothJoined, screenSharing, toggleScreenShare]);
