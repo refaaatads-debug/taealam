@@ -569,13 +569,28 @@ export function useWebRTC({
       hiddenVideo.srcObject = sourceStream;
       hiddenVideo.muted = true;
       hiddenVideo.playsInline = true;
-      hiddenVideo.play().catch(() => {});
+      hiddenVideo.autoplay = true;
+      // Mount offscreen so the browser actually decodes frames (Safari/iOS requirement)
+      hiddenVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenVideo.setAttribute("data-recording-hidden", "true");
+      document.body.appendChild(hiddenVideo);
+      hiddenVideo.play().catch((e) => console.warn("[recording] remote hidden video play failed:", e));
       recordingHiddenVideoRef.current = hiddenVideo;
 
-      // Hidden video for LOCAL screen share / camera (so we capture teacher's shared screen)
+      // Hidden video for LOCAL screen share (so we capture teacher's shared screen)
       const hiddenLocalVideo = document.createElement("video");
       hiddenLocalVideo.muted = true;
       hiddenLocalVideo.playsInline = true;
+      hiddenLocalVideo.autoplay = true;
+      hiddenLocalVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenLocalVideo.setAttribute("data-recording-hidden", "true");
+      document.body.appendChild(hiddenLocalVideo);
+
+      // If teacher is already screen-sharing when recording starts, bind it immediately
+      if (screenStreamRef.current && screenStreamRef.current.getVideoTracks().length > 0) {
+        hiddenLocalVideo.srcObject = screenStreamRef.current;
+        hiddenLocalVideo.play().catch((e) => console.warn("[recording] local hidden video play failed:", e));
+      }
 
       let audioLevel = 0;
       let analyserNode: AnalyserNode | null = null;
@@ -811,6 +826,14 @@ export function useWebRTC({
         audioCtxRef.current.close().catch(() => {});
         audioCtxRef.current = null;
       }
+      // Remove hidden video elements appended to DOM during recording
+      if (recordingHiddenVideoRef.current) {
+        try { recordingHiddenVideoRef.current.remove(); } catch {}
+        recordingHiddenVideoRef.current = null;
+      }
+      try {
+        document.querySelectorAll('video[data-recording-hidden="true"]').forEach((el) => el.remove());
+      } catch {}
       canvasRef.current = null;
       setIsRecording(false);
     });
