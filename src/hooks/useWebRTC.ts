@@ -577,7 +577,7 @@ export function useWebRTC({
     }
 
     videoTrack.addEventListener("ended", async () => {
-      stopDirectScreenRecorder();
+      // Keep the direct recorder running — we want one continuous recording for the whole session.
       await transceiver.sender.replaceTrack(null);
       setScreenSharing(false);
       screenStreamRef.current = null;
