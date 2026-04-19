@@ -435,33 +435,24 @@ export function useWebRTC({
 
   // Start a direct MediaRecorder on the raw screen-share stream + mixed audio.
   // Works in 100% of modern browsers (incl. Brave/Safari) — no canvas pipeline.
-  const startDirectScreenRecorder = useCallback(async (screenStream: MediaStream) => {
+  const startDirectScreenRecorder = useCallback((screenStream: MediaStream) => {
     try {
       if (directScreenRecorderRef.current && directScreenRecorderRef.current.state !== "inactive") return;
 
-      // Mix local mic + remote audio into the recording (persistent mixer)
+      // Mix local mic + remote audio into the recording
       const audioTracks: MediaStreamTrack[] = [];
       try {
-        const audioCtx = recorderAudioCtxRef.current ?? new AudioContext();
+        const audioCtx = new AudioContext();
         recorderAudioCtxRef.current = audioCtx;
-        if (audioCtx.state === "suspended") {
-          try { await audioCtx.resume(); } catch {}
-        }
-        const dest = recorderAudioDestRef.current ?? audioCtx.createMediaStreamDestination();
+        const dest = audioCtx.createMediaStreamDestination();
         recorderAudioDestRef.current = dest;
         const localAudio = localStreamRef.current;
         const remoteAudio = latestRemoteStreamRef.current;
-        if (localAudio && localAudio.getAudioTracks().length > 0 && !recorderAttachedStreamsRef.current.has(localAudio)) {
-          try {
-            audioCtx.createMediaStreamSource(localAudio).connect(dest);
-            recorderAttachedStreamsRef.current.add(localAudio);
-          } catch {}
+        if (localAudio && localAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(localAudio).connect(dest); } catch {}
         }
-        if (remoteAudio && remoteAudio.getAudioTracks().length > 0 && !recorderAttachedStreamsRef.current.has(remoteAudio)) {
-          try {
-            audioCtx.createMediaStreamSource(remoteAudio).connect(dest);
-            recorderAttachedStreamsRef.current.add(remoteAudio);
-          } catch {}
+        if (remoteAudio && remoteAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(remoteAudio).connect(dest); } catch {}
         }
         audioTracks.push(...dest.stream.getAudioTracks());
         console.log("[direct-recorder] audio tracks attached:", audioTracks.length, "local:", !!localAudio, "remote:", !!remoteAudio);
