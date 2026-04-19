@@ -551,7 +551,7 @@ export function useWebRTC({
       const ctx = canvas.getContext("2d", { alpha: false })!;
       canvasRef.current = canvas;
 
-      // Hidden video element bound to LIVE remote stream (fallback to local if no remote)
+      // Hidden video element bound to LIVE remote stream
       const sourceStream = remoteMediaStream ?? localAudioStream;
       const hiddenVideo = document.createElement("video");
       hiddenVideo.srcObject = sourceStream;
@@ -560,38 +560,83 @@ export function useWebRTC({
       hiddenVideo.play().catch(() => {});
       recordingHiddenVideoRef.current = hiddenVideo;
 
-      // Audio level visualizer for audio-only sessions
+      // Hidden video for LOCAL screen share / camera (so we capture teacher's shared screen)
+      const hiddenLocalVideo = document.createElement("video");
+      hiddenLocalVideo.muted = true;
+      hiddenLocalVideo.playsInline = true;
+
       let audioLevel = 0;
       let analyserNode: AnalyserNode | null = null;
       let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
-      // Draw an initial frame BEFORE captureStream so the first frame is non-empty.
-      // Empty canvas frames produce black-screen WebM that some players refuse to render.
+      const getLocalVideoStream = (): MediaStream | null => {
+        if (screenStreamRef.current && screenStreamRef.current.getVideoTracks().length > 0) {
+          return screenStreamRef.current;
+        }
+        const camTracks = localStreamRef.current?.getVideoTracks() || [];
+        if (camTracks.some(t => t.enabled && t.readyState === "live")) {
+          return localStreamRef.current;
+        }
+        return null;
+      };
+
+      const getRemoteVideoStream = (): MediaStream | null => {
+        const live = latestRemoteStreamRef.current;
+        if (live && live.getVideoTracks().some(t => t.readyState === "live")) return live;
+        return null;
+      };
+
+      const drawVideoFit = (vid: HTMLVideoElement, dx: number, dy: number, dw: number, dh: number) => {
+        const vw = vid.videoWidth || dw;
+        const vh = vid.videoHeight || dh;
+        const scale = Math.min(dw / vw, dh / vh);
+        const w = vw * scale;
+        const h = vh * scale;
+        const x = dx + (dw - w) / 2;
+        const y = dy + (dh - h) / 2;
+        ctx.drawImage(vid, x, y, w, h);
+      };
+
       const drawFrame = () => {
-        // Solid background (gradient feel)
         const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
         grad.addColorStop(0, "#1e293b");
         grad.addColorStop(1, "#0f172a");
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const live = latestRemoteStreamRef.current ?? localAudioStream;
-        if (live && hiddenVideo.srcObject !== live) {
-          hiddenVideo.srcObject = live;
+        const liveRemote = getRemoteVideoStream();
+        if (liveRemote && hiddenVideo.srcObject !== liveRemote) {
+          hiddenVideo.srcObject = liveRemote;
           hiddenVideo.play().catch(() => {});
         }
-        const hasVideo = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
-        if (hasVideo) {
-          const vw = hiddenVideo.videoWidth || canvas.width;
-          const vh = hiddenVideo.videoHeight || canvas.height;
-          const scale = Math.min(canvas.width / vw, canvas.height / vh);
-          const dw = vw * scale;
-          const dh = vh * scale;
-          const dx = (canvas.width - dw) / 2;
-          const dy = (canvas.height - dh) / 2;
-          ctx.drawImage(hiddenVideo, dx, dy, dw, dh);
+        const liveLocal = getLocalVideoStream();
+        if (liveLocal && hiddenLocalVideo.srcObject !== liveLocal) {
+          hiddenLocalVideo.srcObject = liveLocal;
+          hiddenLocalVideo.play().catch(() => {});
+        } else if (!liveLocal && hiddenLocalVideo.srcObject) {
+          hiddenLocalVideo.srcObject = null;
+        }
+
+        const hasRemote = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
+        const hasLocal = hiddenLocalVideo.readyState >= 2 && (hiddenLocalVideo.videoWidth || 0) > 0;
+
+        if (hasLocal && hasRemote) {
+          // PiP: local fills, remote thumbnail bottom-right
+          drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
+          const pipW = 280, pipH = 200;
+          const pipX = canvas.width - pipW - 20;
+          const pipY = canvas.height - pipH - 20;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(pipX, pipY, pipW, pipH);
+          drawVideoFit(hiddenVideo, pipX, pipY, pipW, pipH);
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(pipX, pipY, pipW, pipH);
+        } else if (hasLocal) {
+          drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
+        } else if (hasRemote) {
+          drawVideoFit(hiddenVideo, 0, 0, canvas.width, canvas.height);
         } else {
-          // Audio-only session: animated audio visualizer
           if (analyserNode && analyserData) {
             analyserNode.getByteFrequencyData(analyserData);
             let sum = 0;
@@ -600,7 +645,6 @@ export function useWebRTC({
           } else {
             audioLevel = 0.3 + Math.sin(Date.now() / 400) * 0.15;
           }
-          // Pulsing center circle
           const cx = canvas.width / 2;
           const cy = canvas.height / 2 - 40;
           const baseR = 80;
@@ -613,13 +657,11 @@ export function useWebRTC({
           ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
           ctx.fillStyle = "#38bdf8";
           ctx.fill();
-          // Mic icon (simple)
           ctx.fillStyle = "#0f172a";
           ctx.fillRect(cx - 14, cy - 28, 28, 40);
           ctx.beginPath();
           ctx.arc(cx, cy + 12, 14, 0, Math.PI, false);
           ctx.fill();
-          // Title
           ctx.fillStyle = "#ffffff";
           ctx.font = "bold 32px sans-serif";
           ctx.textAlign = "center";
@@ -628,7 +670,22 @@ export function useWebRTC({
           ctx.font = "20px sans-serif";
           ctx.fillText("تسجيل جارٍ...", canvas.width / 2, canvas.height / 2 + 115);
         }
-        // Timestamp badge
+
+        // Overlay whiteboard canvas if visible in DOM
+        try {
+          const wb = document.querySelector('canvas[data-whiteboard="true"]') as HTMLCanvasElement | null;
+          if (wb && wb.width > 0 && wb.height > 0) {
+            const wbW = 360;
+            const wbH = (wb.height / wb.width) * wbW;
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(20, 20, wbW, wbH);
+            ctx.drawImage(wb, 20, 20, wbW, wbH);
+            ctx.strokeStyle = "#38bdf8";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(20, 20, wbW, wbH);
+          }
+        } catch {}
+
         const now = new Date();
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(canvas.width - 200, canvas.height - 40, 200, 40);

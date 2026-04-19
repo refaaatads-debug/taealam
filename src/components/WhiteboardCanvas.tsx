@@ -619,6 +619,7 @@ export default function WhiteboardCanvas({
       >
         <canvas
           ref={canvasRef}
+          data-whiteboard="true"
           className="absolute inset-0"
           onMouseDown={handlePointerDown}
           onMouseMove={handlePointerMove}
