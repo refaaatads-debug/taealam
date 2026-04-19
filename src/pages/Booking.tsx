@@ -170,12 +170,20 @@ const Booking = () => {
     return hour;
   };
 
+  const formatMinutes = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h} س ${m} د`;
+    if (h > 0) return `${h} س`;
+    return `${m} د`;
+  };
+
   const toggleSlot = (dayIndex: number, time: string) => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
-        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+      if (maxBookableSlots > 0 && prev.length >= maxBookableSlots) {
+        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - لا يكفي لحصة إضافية (60 د).`);
         return prev;
       }
       return [...prev, { dayIndex, time }];
