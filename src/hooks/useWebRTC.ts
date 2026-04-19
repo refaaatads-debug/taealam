@@ -214,18 +214,6 @@ export function useWebRTC({
         recordingHiddenVideoRef.current.srcObject = updated;
         recordingHiddenVideoRef.current.play().catch(() => {});
       }
-      // Re-attach remote audio to the persistent recorder mixer (handles late-arriving audio)
-      try {
-        const ctx = recorderAudioCtxRef.current;
-        const dest = recorderAudioDestRef.current;
-        if (ctx && dest && updated.getAudioTracks().length > 0 && !recorderAttachedStreamsRef.current.has(updated)) {
-          ctx.createMediaStreamSource(updated).connect(dest);
-          recorderAttachedStreamsRef.current.add(updated);
-          console.log("[direct-recorder] attached late remote audio");
-        }
-      } catch (e) {
-        console.warn("[direct-recorder] late remote audio attach failed:", e);
-      }
       setRemoteStream(updated);
       onRemoteStreamRef.current?.(updated);
     };
