@@ -668,15 +668,15 @@ export function useWebRTC({
           ctx.fillText("تسجيل جارٍ...", canvas.width / 2, canvas.height / 2 + 115);
         }
 
-        // Overlay whiteboard canvas if visible in DOM
+        // Overlay whiteboard as a thumbnail only when teacher is sharing screen/camera
+        // (so we see both the screen AND the whiteboard if both are active).
         try {
-          const wb = document.querySelector('canvas[data-whiteboard="true"]') as HTMLCanvasElement | null;
-          if (wb && wb.width > 0 && wb.height > 0) {
+          if (hasLocal && hasWhiteboard) {
             const wbW = 360;
-            const wbH = (wb.height / wb.width) * wbW;
+            const wbH = (wbEl!.height / wbEl!.width) * wbW;
             ctx.fillStyle = "#fff";
             ctx.fillRect(20, 20, wbW, wbH);
-            ctx.drawImage(wb, 20, 20, wbW, wbH);
+            ctx.drawImage(wbEl!, 20, 20, wbW, wbH);
             ctx.strokeStyle = "#38bdf8";
             ctx.lineWidth = 2;
             ctx.strokeRect(20, 20, wbW, wbH);
