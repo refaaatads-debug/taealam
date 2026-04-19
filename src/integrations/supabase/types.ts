@@ -1336,6 +1336,30 @@ export type Database = {
           },
         ]
       }
+      user_active_session: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          last_seen: string
+          session_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          last_seen?: string
+          session_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          last_seen?: string
+          session_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_permissions: {
         Row: {
           granted_at: string
