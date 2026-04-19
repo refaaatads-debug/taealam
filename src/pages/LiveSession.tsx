@@ -1325,7 +1325,7 @@ const LiveSession = () => {
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-l from-foreground via-foreground/95 to-foreground border-b border-card/10 backdrop-blur-xl">
+      <div className={`flex items-center justify-between px-3 py-2 bg-gradient-to-l from-foreground via-foreground/95 to-foreground border-b border-card/10 backdrop-blur-xl transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none absolute top-0 inset-x-0 z-40") : ""}`}>
         {/* Right section - Session info */}
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -1816,7 +1816,7 @@ const LiveSession = () => {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-2 md:gap-3 p-4 glass-strong border-t border-border/10">
+      <div className={`flex items-center justify-center gap-2 md:gap-2.5 px-4 py-3 glass-strong border-t border-border/10 transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-full pointer-events-none absolute bottom-0 inset-x-0 z-40") : ""}`}>
         {/* Teacher controls */}
         {isTeacher && (
           <>
