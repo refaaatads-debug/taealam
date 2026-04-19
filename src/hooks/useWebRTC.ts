@@ -617,25 +617,22 @@ export function useWebRTC({
           hiddenLocalVideo.srcObject = null;
         }
 
-        const hasRemote = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
+        // RECORD ONLY TEACHER'S SCREEN: prefer local screen share / camera.
+        // Whiteboard overlay (drawn below) covers the case where teacher uses the whiteboard.
         const hasLocal = hiddenLocalVideo.readyState >= 2 && (hiddenLocalVideo.videoWidth || 0) > 0;
+        const wbEl = document.querySelector('canvas[data-whiteboard="true"]') as HTMLCanvasElement | null;
+        const hasWhiteboard = !!(wbEl && wbEl.width > 0 && wbEl.height > 0);
 
-        if (hasLocal && hasRemote) {
-          // PiP: local fills, remote thumbnail bottom-right
+        if (hasLocal) {
           drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
-          const pipW = 280, pipH = 200;
-          const pipX = canvas.width - pipW - 20;
-          const pipY = canvas.height - pipH - 20;
-          ctx.fillStyle = "#000";
-          ctx.fillRect(pipX, pipY, pipW, pipH);
-          drawVideoFit(hiddenVideo, pipX, pipY, pipW, pipH);
-          ctx.strokeStyle = "#38bdf8";
-          ctx.lineWidth = 3;
-          ctx.strokeRect(pipX, pipY, pipW, pipH);
-        } else if (hasLocal) {
-          drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
-        } else if (hasRemote) {
-          drawVideoFit(hiddenVideo, 0, 0, canvas.width, canvas.height);
+        } else if (hasWhiteboard) {
+          // Fullscreen whiteboard
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const scale = Math.min(canvas.width / wbEl!.width, canvas.height / wbEl!.height);
+          const w = wbEl!.width * scale;
+          const h = wbEl!.height * scale;
+          ctx.drawImage(wbEl!, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
         } else {
           if (analyserNode && analyserData) {
             analyserNode.getByteFrequencyData(analyserData);
