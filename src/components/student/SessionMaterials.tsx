@@ -63,16 +63,37 @@ export default function SessionMaterials() {
     const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    setMaterials(mats.map(m => {
+    const enriched = await Promise.all(mats.map(async (m) => {
       const session = sessionMap.get(m.session_id);
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
+
+      // Convert public URL to signed URL (bucket is now private)
+      let signedUrl: string | null = m.recording_url;
+      if (m.recording_url) {
+        try {
+          const marker = "/session-recordings/";
+          const idx = m.recording_url.indexOf(marker);
+          if (idx !== -1) {
+            const path = decodeURIComponent(m.recording_url.substring(idx + marker.length).split("?")[0]);
+            const { data: signed } = await supabase.storage
+              .from("session-recordings")
+              .createSignedUrl(path, 60 * 60); // 1 hour
+            if (signed?.signedUrl) signedUrl = signed.signedUrl;
+          }
+        } catch (e) {
+          console.error("Failed to sign recording URL", e);
+        }
+      }
+
       return {
         ...m,
+        recording_url: signedUrl,
         ai_report: session?.ai_report || null,
         subject_name: subjectName,
         days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
     }));
+    setMaterials(enriched);
     setLoading(false);
   };
 
