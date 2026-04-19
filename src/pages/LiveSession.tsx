@@ -603,6 +603,7 @@ const LiveSession = () => {
 
   // Auto-start recording when both parties join (retry when remoteStream arrives)
   const recordingToastShownRef = useRef(false);
+  const screenSharePromptShownRef = useRef(false);
   useEffect(() => {
     if (bothJoined && !isRecording && remoteStream) {
       startAutoRecording();
@@ -612,6 +613,24 @@ const LiveSession = () => {
       }
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
+
+  // Teacher prompt: once both joined, ask to start screen sharing so the
+  // session recording captures the actual screen (browsers require a user
+  // gesture — the toast action provides that gesture).
+  useEffect(() => {
+    if (!isTeacher) return;
+    if (!bothJoined) return;
+    if (screenSharing) return;
+    if (screenSharePromptShownRef.current) return;
+    screenSharePromptShownRef.current = true;
+    toast("ابدأ مشاركة شاشتك ليتم تسجيل الحصة بالكامل", {
+      duration: 20000,
+      action: {
+        label: "بدء المشاركة",
+        onClick: () => { toggleScreenShare(); },
+      },
+    });
+  }, [isTeacher, bothJoined, screenSharing, toggleScreenShare]);
 
   // ───────────────────────────────────────────────────────────
   //  Chunked recording uploader — every 60s, teacher uploads
