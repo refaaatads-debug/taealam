@@ -429,7 +429,7 @@ const Booking = () => {
                         </div>
                       )}
 
-                      {sessionsRemaining <= 0 ? (
+                      {!canBook ? (
                         <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" onClick={() => navigate("/pricing")}>
                           <CreditCard className="h-4 w-4" />
                           اشترك في باقة للحجز
