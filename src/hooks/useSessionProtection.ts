@@ -192,6 +192,15 @@ export function useSessionProtection({
 
   // ─── Voice Monitoring (Speech-to-Text) ───
   const startVoiceMonitoring = useCallback(() => {
+    // Disable on mobile/tablet devices: continuous SpeechRecognition triggers
+    // the system mic-in-use indicator with repeated notification beeps every
+    // few seconds (especially on Samsung/Android), which is intrusive during class.
+    const ua = navigator.userAgent || "";
+    const isMobileOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua);
+    if (isMobileOrTablet) {
+      return;
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.warn("SpeechRecognition API not available");
