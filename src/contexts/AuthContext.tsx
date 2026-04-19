@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { triggerSessionConflict } from "@/components/SessionConflictDialog";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -99,11 +100,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .eq("user_id", userId)
       .maybeSingle();
     if (data && data.session_token !== token) {
-      // Another device took over
-      await supabase.auth.signOut();
-      sessionStorage.removeItem("session_token");
-      alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
-      window.location.href = "/login";
+      // Another device took over — show choice dialog instead of forcing logout
+      triggerSessionConflict({ userId, myToken: token });
       return false;
     }
     return true;
@@ -129,11 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const newToken = payload.new?.session_token;
             const myToken = getSessionToken();
             if (newToken && newToken !== myToken) {
-              supabase.auth.signOut().then(() => {
-                sessionStorage.removeItem("session_token");
-                alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
-                window.location.href = "/login";
-              });
+              triggerSessionConflict({ userId, myToken });
             }
           }
         )
