@@ -317,7 +317,7 @@ export default function WhiteboardCanvas({
 
     if (tool === "laser") {
       const now = Date.now();
-      if (now - throttleRef.current < 16) return;
+      if (now - throttleRef.current < 8) return;
       throttleRef.current = now;
       setLaserPos(pt);
       onSendData?.({ type: "laser-move", pos: pt });
@@ -325,7 +325,7 @@ export default function WhiteboardCanvas({
     }
 
     const now = Date.now();
-    if (now - throttleRef.current < 16) return;
+    if (now - throttleRef.current < 8) return;
     throttleRef.current = now;
 
     if (tool === "pen" || tool === "highlighter" || tool === "eraser") {
