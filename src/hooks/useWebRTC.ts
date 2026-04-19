@@ -824,6 +824,14 @@ export function useWebRTC({
         audioCtxRef.current.close().catch(() => {});
         audioCtxRef.current = null;
       }
+      // Remove hidden video elements appended to DOM during recording
+      if (recordingHiddenVideoRef.current) {
+        try { recordingHiddenVideoRef.current.remove(); } catch {}
+        recordingHiddenVideoRef.current = null;
+      }
+      try {
+        document.querySelectorAll('video[data-recording-hidden="true"]').forEach((el) => el.remove());
+      } catch {}
       canvasRef.current = null;
       setIsRecording(false);
     });
