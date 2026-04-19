@@ -94,6 +94,10 @@ export function useWebRTC({
   // Always points to the latest active remote stream (audio+video) for recording
   const latestRemoteStreamRef = useRef<MediaStream | null>(null);
   const recordingHiddenVideoRef = useRef<HTMLVideoElement | null>(null);
+  // Persistent audio mixer for the direct screen recorder (re-attaches remote audio when it arrives later)
+  const recorderAudioCtxRef = useRef<AudioContext | null>(null);
+  const recorderAudioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const recorderAttachedStreamsRef = useRef<WeakSet<MediaStream>>(new WeakSet());
 
   // Stable refs for callbacks
   const onRemoteStreamRef = useRef(onRemoteStream);
