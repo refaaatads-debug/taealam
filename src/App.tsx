@@ -97,6 +97,7 @@ const App = () => (
             </Routes>
           </Suspense>
           <ChatNotificationToast />
+          <SessionConflictDialog />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
