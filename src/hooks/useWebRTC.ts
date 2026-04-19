@@ -570,12 +570,9 @@ export function useWebRTC({
       let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
       const getLocalVideoStream = (): MediaStream | null => {
+        // Only screen share — camera is not used in this system
         if (screenStreamRef.current && screenStreamRef.current.getVideoTracks().length > 0) {
           return screenStreamRef.current;
-        }
-        const camTracks = localStreamRef.current?.getVideoTracks() || [];
-        if (camTracks.some(t => t.enabled && t.readyState === "live")) {
-          return localStreamRef.current;
         }
         return null;
       };
