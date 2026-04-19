@@ -100,11 +100,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .eq("user_id", userId)
       .maybeSingle();
     if (data && data.session_token !== token) {
-      // Another device took over
-      await supabase.auth.signOut();
-      sessionStorage.removeItem("session_token");
-      alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
-      window.location.href = "/login";
+      // Another device took over — show choice dialog instead of forcing logout
+      triggerSessionConflict({ userId, myToken: token });
       return false;
     }
     return true;
