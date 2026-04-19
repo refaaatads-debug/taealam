@@ -614,35 +614,9 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
-  // Teacher prompt: once both joined, KEEP asking to start screen sharing
-  // until done so the session recording always contains real screen video
-  // (not just the audio-only placeholder). Browsers require a user gesture,
-  // so the toast action button provides that gesture.
-  useEffect(() => {
-    if (!isTeacher) return;
-    if (!bothJoined) return;
-    if (screenSharing) return;
-
-    const showPrompt = () => {
-      toast("ابدأ مشاركة شاشتك الآن — التسجيل لن يُظهر الفيديو بدونها", {
-        id: "screen-share-prompt",
-        duration: 25000,
-        action: {
-          label: "بدء المشاركة",
-          onClick: () => { toggleScreenShare(); },
-        },
-      });
-    };
-    showPrompt();
-    // Re-prompt every 30s until teacher shares the screen
-    const interval = window.setInterval(() => {
-      if (!screenSharing) showPrompt();
-    }, 30000);
-    return () => {
-      window.clearInterval(interval);
-      toast.dismiss("screen-share-prompt");
-    };
-  }, [isTeacher, bothJoined, screenSharing, toggleScreenShare]);
+  // NOTE: Recording is NOT tied to screen sharing. The auto-recorder (canvas pipeline)
+  // captures audio + whiteboard + remote video as soon as both parties join.
+  // No nagging toast is needed — teachers may share the screen optionally.
 
   // ───────────────────────────────────────────────────────────
   //  Chunked recording uploader — every 60s, teacher uploads
