@@ -66,17 +66,36 @@ export default function TeacherSessionMaterials() {
     const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    const result = mats.map(m => {
+    const result = await Promise.all(mats.map(async (m) => {
       const session = sessionMap.get(m.session_id);
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
+
+      let signedUrl: string | null = m.recording_url;
+      if (m.recording_url) {
+        try {
+          const marker = "/session-recordings/";
+          const idx = m.recording_url.indexOf(marker);
+          if (idx !== -1) {
+            const path = decodeURIComponent(m.recording_url.substring(idx + marker.length).split("?")[0]);
+            const { data: signed } = await supabase.storage
+              .from("session-recordings")
+              .createSignedUrl(path, 60 * 60);
+            if (signed?.signedUrl) signedUrl = signed.signedUrl;
+          }
+        } catch (e) {
+          console.error("Failed to sign recording URL", e);
+        }
+      }
+
       return {
         ...m,
+        recording_url: signedUrl,
         ai_report: session?.ai_report || null,
         subject_name: subjectName,
         student_name: nameMap.get(m.student_id) || "طالب",
         days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
-    });
+    }));
     setMaterials(result);
     // Auto-expand first student
     const firstStudent = result[0]?.student_name;
