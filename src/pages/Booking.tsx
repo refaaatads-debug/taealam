@@ -198,16 +198,18 @@ const Booking = () => {
     if (!user || !selectedSubject || selectedSlots.length === 0) return;
 
     // If no subscription, redirect to pricing
-    if (sessionsRemaining <= 0) {
-      toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
+    // If insufficient remaining time, redirect to pricing
+    if (!canBook) {
+      toast.error("رصيد باقتك أقل من 5 دقائق. اشترك أو جدّد الباقة لحجز الحصص.");
       navigate("/pricing");
       return;
     }
 
     setLoading(true);
     try {
-      if (sessionsRemaining < selectedSlots.length) {
-        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. قللّ عدد الحصص أو جدّد باقتك.`);
+      const requiredMinutes = selectedSlots.length * SESSION_MINUTES;
+      if (requiredMinutes > remainingMinutes) {
+        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - غير كافٍ لـ ${selectedSlots.length} حصة (${requiredMinutes} د).`);
         setLoading(false);
         return;
       }
