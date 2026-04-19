@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ChatNotificationToast from "@/components/ChatNotificationToast";
+import SessionConflictDialog from "@/components/SessionConflictDialog";
 
 // Lazy-loaded pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
