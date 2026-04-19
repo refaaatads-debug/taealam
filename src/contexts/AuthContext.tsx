@@ -127,11 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const newToken = payload.new?.session_token;
             const myToken = getSessionToken();
             if (newToken && newToken !== myToken) {
-              supabase.auth.signOut().then(() => {
-                sessionStorage.removeItem("session_token");
-                alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
-                window.location.href = "/login";
-              });
+              triggerSessionConflict({ userId, myToken });
             }
           }
         )
