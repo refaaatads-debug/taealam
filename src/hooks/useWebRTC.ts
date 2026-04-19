@@ -447,7 +447,7 @@ export function useWebRTC({
 
   // Start a direct MediaRecorder on the raw screen-share stream + mixed audio.
   // Works in 100% of modern browsers (incl. Brave/Safari) — no canvas pipeline.
-  const startDirectScreenRecorder = useCallback((screenStream: MediaStream) => {
+  const startDirectScreenRecorder = useCallback(async (screenStream: MediaStream) => {
     try {
       if (directScreenRecorderRef.current && directScreenRecorderRef.current.state !== "inactive") return;
 
