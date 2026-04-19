@@ -77,6 +77,8 @@ const LiveSession = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [uiVisible, setUiVisible] = useState(true);
+  const uiHideTimerRef = useRef<number>();
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -91,6 +93,27 @@ const LiveSession = () => {
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  // Auto-hide UI (top bar + controls) when student is in fullscreen.
+  // Reveal on mouse move/click/touch and re-hide after 3s of inactivity.
+  useEffect(() => {
+    if (!isFullscreen) { setUiVisible(true); clearTimeout(uiHideTimerRef.current); return; }
+    const reveal = () => {
+      setUiVisible(true);
+      clearTimeout(uiHideTimerRef.current);
+      uiHideTimerRef.current = window.setTimeout(() => setUiVisible(false), 3000);
+    };
+    reveal();
+    window.addEventListener("mousemove", reveal);
+    window.addEventListener("click", reveal);
+    window.addEventListener("touchstart", reveal);
+    return () => {
+      window.removeEventListener("mousemove", reveal);
+      window.removeEventListener("click", reveal);
+      window.removeEventListener("touchstart", reveal);
+      clearTimeout(uiHideTimerRef.current);
+    };
+  }, [isFullscreen]);
 
   // End session for BOTH parties when user presses browser back arrow
   useEffect(() => {
