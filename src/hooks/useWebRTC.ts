@@ -949,8 +949,9 @@ export function useWebRTC({
     localStreamRef.current = null;
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current = null;
+    stopDirectScreenRecorder();
     if (isRecording) stopRecording();
-  }, [userId, isRecording, stopRecording, sendSignal]);
+  }, [userId, isRecording, stopRecording, stopDirectScreenRecorder, sendSignal]);
 
   useEffect(() => {
     return () => {
