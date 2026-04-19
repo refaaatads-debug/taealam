@@ -73,11 +73,88 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Single-session enforcement: generate a unique token per browser tab
+  const getSessionToken = () => {
+    let token = sessionStorage.getItem("session_token");
+    if (!token) {
+      token = crypto.randomUUID();
+      sessionStorage.setItem("session_token", token);
+    }
+    return token;
+  };
+
+  const claimActiveSession = async (userId: string) => {
+    const token = getSessionToken();
+    const deviceInfo = `${navigator.platform} - ${navigator.userAgent.substring(0, 100)}`;
+    await supabase
+      .from("user_active_session")
+      .upsert({ user_id: userId, session_token: token, device_info: deviceInfo, last_seen: new Date().toISOString() });
+  };
+
+  const checkSessionStillActive = async (userId: string) => {
+    const token = getSessionToken();
+    const { data } = await supabase
+      .from("user_active_session")
+      .select("session_token")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (data && data.session_token !== token) {
+      // Another device took over
+      await supabase.auth.signOut();
+      sessionStorage.removeItem("session_token");
+      alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
+      window.location.href = "/login";
+      return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     // Safety timeout to prevent infinite loading
     const timeout = setTimeout(() => {
       setLoading(false);
     }, 5000);
+
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+    const setupSingleSession = (userId: string) => {
+      // Subscribe to changes on this user's active session
+      realtimeChannel = supabase
+        .channel(`active-session-${userId}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_active_session", filter: `user_id=eq.${userId}` },
+          (payload: any) => {
+            const newToken = payload.new?.session_token;
+            const myToken = getSessionToken();
+            if (newToken && newToken !== myToken) {
+              supabase.auth.signOut().then(() => {
+                sessionStorage.removeItem("session_token");
+                alert("تم تسجيل الدخول من جهاز آخر. سيتم تسجيل خروجك من هذا الجهاز.");
+                window.location.href = "/login";
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      // Heartbeat every 30s to refresh last_seen and verify ownership
+      heartbeatInterval = setInterval(() => {
+        checkSessionStillActive(userId);
+      }, 30000);
+    };
+
+    const cleanupSingleSession = () => {
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+    };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -87,9 +164,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Small delay to ensure DB triggers have completed
           setTimeout(async () => {
             try {
+              await claimActiveSession(session.user.id);
               await fetchProfile(session.user.id);
               await fetchRoles(session.user.id);
               await applyPendingRole(session.user.id);
+              cleanupSingleSession();
+              setupSingleSession(session.user.id);
             } catch (e) {
               console.error("Error loading user data:", e);
             } finally {
@@ -97,6 +177,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }, 500);
         } else {
+          cleanupSingleSession();
           setProfile(null);
           setRoles([]);
           setLoading(false);
@@ -109,9 +190,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         try {
-          await fetchProfile(session.user.id);
-          await fetchRoles(session.user.id);
-          await applyPendingRole(session.user.id);
+          // On reload, verify we still own the session
+          const stillActive = await checkSessionStillActive(session.user.id);
+          if (stillActive) {
+            await fetchProfile(session.user.id);
+            await fetchRoles(session.user.id);
+            await applyPendingRole(session.user.id);
+            setupSingleSession(session.user.id);
+          }
         } catch (e) {
           console.error("Error loading user data:", e);
         }
@@ -123,6 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       clearTimeout(timeout);
+      cleanupSingleSession();
       subscription.unsubscribe();
     };
   }, []);
