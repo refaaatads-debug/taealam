@@ -503,7 +503,9 @@ export function useWebRTC({
     if (!pc || !transceiver) return;
 
     if (screenSharing) {
-      stopDirectScreenRecorder();
+      // NOTE: do NOT stop the direct screen recorder here — we want a single
+      // continuous recording for the whole session. The recorder will be
+      // stopped only when the session ends (in `stop()`).
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       await transceiver.sender.replaceTrack(null);
