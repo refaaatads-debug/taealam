@@ -1225,7 +1225,7 @@ const LiveSession = () => {
 
     // 5) Navigate after upload finishes
     if (isTeacher) navigate("/teacher");
-    else navigate(`/rating${currentBookingId ? `?booking=${currentBookingId}` : ""}`);
+    else navigate("/student");
 
     // 6) Background: earnings, notifications, AI report (non-critical for video display)
     void (async () => {
