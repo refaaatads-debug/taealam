@@ -202,7 +202,8 @@ export default function WithdrawalSection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {months.map(([month, data]) => {
+                    {months.map(([month, raw]) => {
+                      const data = raw as { amount: number; hours: number; statuses: Set<string> };
                       const isPaid = data.statuses.has("paid") && data.statuses.size === 1;
                       const isConfirmed = data.statuses.has("confirmed");
                       const label = isPaid ? "مدفوعة" : isConfirmed ? "مؤكدة" : "قيد المراجعة";
