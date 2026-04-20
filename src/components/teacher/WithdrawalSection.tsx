@@ -177,27 +177,52 @@ export default function WithdrawalSection() {
           </Button>
         </div>
 
-        {/* Manual Earnings from Admin */}
-        {manualEarnings.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-bold text-foreground">أرباح مضافة من الإدارة</p>
-            {manualEarnings.map((e: any, i: number) => {
-              const statusLabel = e.status === "confirmed" ? "مؤكدة" : e.status === "in_progress" ? "جارية" : e.status === "paid" ? "مدفوعة" : "غير مؤكدة";
-              const statusVariant = e.status === "confirmed" ? "default" as const : e.status === "in_progress" ? "secondary" as const : e.status === "paid" ? "outline" as const : "destructive" as const;
-              return (
-                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/5 border border-secondary/20">
-                  <div>
-                    <p className="font-bold text-sm text-foreground">{Number(e.amount).toLocaleString()} ر.س</p>
-                    <p className="text-xs text-muted-foreground">
-                      شهر {e.month} {e.hours ? `• ${Number(e.hours).toFixed(1)} ساعة عمل` : ""}
-                    </p>
-                  </div>
-                  <Badge variant={statusVariant} className="text-xs">{statusLabel}</Badge>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {/* Monthly Earnings Table */}
+        {manualEarnings.length > 0 && (() => {
+          const byMonth = manualEarnings.reduce((acc: Record<string, { amount: number; hours: number; statuses: Set<string> }>, e: any) => {
+            const m = e.month || "—";
+            if (!acc[m]) acc[m] = { amount: 0, hours: 0, statuses: new Set() };
+            acc[m].amount += Number(e.amount) || 0;
+            acc[m].hours += Number(e.hours) || 0;
+            acc[m].statuses.add(e.status);
+            return acc;
+          }, {});
+          const months = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+          return (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-foreground">الأرباح الشهرية</p>
+              <div className="rounded-xl border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs">
+                    <tr>
+                      <th className="p-2 text-right font-bold">الشهر</th>
+                      <th className="p-2 text-right font-bold">الساعات</th>
+                      <th className="p-2 text-right font-bold">المبلغ</th>
+                      <th className="p-2 text-right font-bold">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {months.map(([month, raw]) => {
+                      const data = raw as { amount: number; hours: number; statuses: Set<string> };
+                      const isPaid = data.statuses.has("paid") && data.statuses.size === 1;
+                      const isConfirmed = data.statuses.has("confirmed");
+                      const label = isPaid ? "مدفوعة" : isConfirmed ? "مؤكدة" : "قيد المراجعة";
+                      const variant = isPaid ? "outline" as const : isConfirmed ? "default" as const : "secondary" as const;
+                      return (
+                        <tr key={month} className="border-t">
+                          <td className="p-2 font-medium">{month}</td>
+                          <td className="p-2 text-muted-foreground">{data.hours.toFixed(1)} س</td>
+                          <td className="p-2 font-bold text-foreground">{data.amount.toLocaleString()} ر.س</td>
+                          <td className="p-2"><Badge variant={variant} className="text-xs">{label}</Badge></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Withdrawal History */}
         {withdrawals.length > 0 && (

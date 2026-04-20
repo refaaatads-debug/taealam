@@ -330,33 +330,7 @@ const TeacherDashboard = () => {
           {/* Warnings & Violations */}
           <WarningsSection />
 
-          {/* Performance */}
-          <Card className="border-0 shadow-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-secondary" />
-                </div>
-                ملخص الأداء
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-accent/50 rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-black text-foreground">{stats.sessions}</p>
-                  <p className="text-xs text-muted-foreground">حصة مكتملة</p>
-                </div>
-                <div className="bg-secondary/5 rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-black text-foreground">{stats.rating.toFixed(1)}</p>
-                  <p className="text-xs text-muted-foreground">متوسط التقييم</p>
-                </div>
-                <div className="bg-accent/30 rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-black text-foreground">{stats.earnings.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">إجمالي الأرباح (ر.س)</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Performance summary removed per request */}
         </div>
       </div>
       <TeacherCustomerServiceButton />
