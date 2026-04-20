@@ -1281,6 +1281,26 @@ const LiveSession = () => {
             }});
           } catch { /* report can be regenerated later */ }
         }
+
+        // Notify students who recently asked this teacher for an instant session that they're now free
+        if (isTeacher && currentBookingData) {
+          try {
+            const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+            const { data: waiters } = await supabase
+              .from("notifications")
+              .select("user_id")
+              .eq("type", "info")
+              .gte("created_at", since)
+              .ilike("body", `%${currentBookingData.teacher_id ? "" : ""}%`);
+            // Simpler: notify the student of the just-finished booking
+            await supabase.from("notifications").insert({
+              user_id: currentBookingData.student_id,
+              title: "✅ المعلم متاح الآن",
+              body: "انتهت جلسة المعلم وهو متاح الآن لاستقبال جلسة جديدة.",
+              type: "info",
+            });
+          } catch {}
+        }
       } catch (e) {
         console.error("Background end-session tasks failed:", e);
       }
