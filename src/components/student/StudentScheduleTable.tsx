@@ -134,6 +134,32 @@ export default function StudentScheduleTable() {
   const handleInstantSession = async (teacherId: string, teacherName: string) => {
     if (!user) return;
 
+    // Check if teacher is currently in a live session
+    const { data: liveBooking } = await supabase
+      .from("bookings")
+      .select("id, session_status")
+      .eq("teacher_id", teacherId)
+      .in("session_status", ["in_progress", "waiting_acceptance"])
+      .limit(1)
+      .maybeSingle();
+
+    if (liveBooking) {
+      toast.error("المعلم في جلسة الآن", {
+        description: "سيتم إعلامك حال انتهاء جلسته. يمكنك حجز جلسة مع معلم آخر.",
+        action: { label: "ابحث عن معلم آخر", onClick: () => (window.location.href = "/search") },
+      });
+      // Subscribe student to be notified when teacher is free
+      try {
+        await supabase.from("notifications").insert({
+          user_id: user.id,
+          title: "⏳ بانتظار المعلم",
+          body: `سيتم إعلامك فور توفر ${teacherName} لاستقبال جلستك.`,
+          type: "info",
+        });
+      } catch {}
+      return;
+    }
+
     // Check student balance
     const { data: subs } = await supabase
       .from("user_subscriptions")
