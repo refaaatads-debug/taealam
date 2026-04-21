@@ -85,8 +85,10 @@ export default function SessionVideoPlayer({ src, title }: SessionVideoPlayerPro
   const handleSeek = (val: number[]) => {
     const v = videoRef.current;
     if (!v) return;
-    v.currentTime = val[0];
-    setCurrent(val[0]);
+    const target = val[0];
+    if (!isFinite(target)) return;
+    v.currentTime = target;
+    setCurrent(target);
   };
 
   const skip = (sec: number) => {
