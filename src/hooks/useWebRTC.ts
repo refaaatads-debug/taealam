@@ -841,24 +841,33 @@ export function useWebRTC({
 
       // Mix audio with try/catch — AudioContext can fail without user gesture
       const audioTracks: MediaStreamTrack[] = [];
+      const attachedAudioStreams = new WeakSet<MediaStream>();
       try {
         const audioCtx = new AudioContext();
         audioCtxRef.current = audioCtx;
-        // Resume if suspended (some browsers require explicit resume)
         if (audioCtx.state === "suspended") {
           audioCtx.resume().catch(() => {});
         }
         const dest = audioCtx.createMediaStreamDestination();
-        if (localAudioStream && localAudioStream.getAudioTracks().length > 0) {
-          try { audioCtx.createMediaStreamSource(localAudioStream).connect(dest); } catch (e) { console.warn("[recording] local audio mix failed:", e); }
-        }
-        if (remoteMediaStream && remoteMediaStream.getAudioTracks().length > 0) {
-          try { audioCtx.createMediaStreamSource(remoteMediaStream).connect(dest); } catch (e) { console.warn("[recording] remote audio mix failed:", e); }
-        }
+        const tryAttach = (s: MediaStream | null) => {
+          if (!s || attachedAudioStreams.has(s) || s.getAudioTracks().length === 0) return;
+          try {
+            audioCtx.createMediaStreamSource(s).connect(dest);
+            attachedAudioStreams.add(s);
+            console.log("[recording] audio attached, tracks:", s.getAudioTracks().length);
+          } catch (e) { console.warn("[recording] audio attach failed:", e); }
+        };
+        tryAttach(localAudioStream);
+        tryAttach(remoteMediaStream);
         audioTracks.push(...dest.stream.getAudioTracks());
+        // Re-attach audio if remote stream arrives/changes later
+        const audioReattach = window.setInterval(() => {
+          tryAttach(localStreamRef.current);
+          tryAttach(latestRemoteStreamRef.current);
+        }, 1500);
+        (canvasRef as any)._audioInterval = audioReattach;
       } catch (e) {
         console.warn("[recording] AudioContext failed, recording video only:", e);
-        // Fallback: use raw audio tracks
         if (localAudioStream) audioTracks.push(...localAudioStream.getAudioTracks());
         if (remoteMediaStream) audioTracks.push(...remoteMediaStream.getAudioTracks());
       }
