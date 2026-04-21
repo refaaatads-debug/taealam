@@ -928,6 +928,11 @@ export function useWebRTC({
         clearInterval(canvasIntervalRef.current);
         canvasIntervalRef.current = null;
       }
+      const audioInt = (canvasRef as any)._audioInterval;
+      if (audioInt) {
+        clearInterval(audioInt);
+        (canvasRef as any)._audioInterval = null;
+      }
       if (audioCtxRef.current) {
         audioCtxRef.current.close().catch(() => {});
         audioCtxRef.current = null;
