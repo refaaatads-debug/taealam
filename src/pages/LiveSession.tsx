@@ -1186,46 +1186,44 @@ const LiveSession = () => {
       try { await stopRecording(); } catch (e) { console.error("stopRecording failed", e); }
     }
 
-    // 3b) Critical, fast updates in parallel (after recording is finalized)
-    const fastTasks: Promise<any>[] = [stop(), cleanupSession()];
-    if (currentBookingId) {
-      fastTasks.push(
-        supabase.from("bookings")
-          .update({ status: "completed", session_status: "completed" })
-          .eq("id", currentBookingId) as any
-      );
-      // Only the teacher (authoritative timer reference) sends duration_minutes
-      // so the DB trigger deducts the ACTUAL elapsed time (respects pauses on disconnect),
-      // not the raw wall-clock difference between started_at and ended_at.
-      const sessionUpdate: any = { ended_at: new Date().toISOString() };
-      if (isTeacher) {
-        sessionUpdate.duration_minutes = durationMinutes;
+    // 4) Navigate IMMEDIATELY for instant UX — student goes to rating, teacher to dashboard
+    if (isTeacher) {
+      navigate("/teacher");
+    } else {
+      navigate(currentBookingId ? `/rating/${currentBookingId}` : "/student");
+    }
+
+    // 5) Background: cleanup, DB updates, upload (non-blocking — page already navigated)
+    void (async () => {
+      const fastTasks: Promise<any>[] = [stop(), cleanupSession()];
+      if (currentBookingId) {
+        fastTasks.push(
+          supabase.from("bookings")
+            .update({ status: "completed", session_status: "completed" })
+            .eq("id", currentBookingId) as any
+        );
+        const sessionUpdate: any = { ended_at: new Date().toISOString() };
+        if (isTeacher) sessionUpdate.duration_minutes = durationMinutes;
+        fastTasks.push(
+          supabase.from("sessions")
+            .update(sessionUpdate)
+            .eq("booking_id", currentBookingId) as any
+        );
       }
-      fastTasks.push(
-        supabase.from("sessions")
-          .update(sessionUpdate)
-          .eq("booking_id", currentBookingId) as any
-      );
-    }
-    await Promise.allSettled(fastTasks);
+      await Promise.allSettled(fastTasks);
+      try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
 
-    try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
-
-    // 4) Upload recording BEFORE navigation so the upload isn't aborted on unmount
-    if (!isShortSession) {
-      try {
-        const blob = getRecordingBlob();
-        if (blob && blob.size > 0) {
-          await uploadRecording();
-        } else {
-          await markRecordingFailed(wasRecording ? "لم يتم التقاط أي بيانات فيديو" : "لم يبدأ التسجيل");
-        }
-      } catch (e) { console.error("recording upload failed", e); }
-    }
-
-    // 5) Navigate after upload finishes
-    if (isTeacher) navigate("/teacher");
-    else navigate("/student");
+      if (!isShortSession) {
+        try {
+          const blob = getRecordingBlob();
+          if (blob && blob.size > 0) {
+            await uploadRecording();
+          } else {
+            await markRecordingFailed(wasRecording ? "لم يتم التقاط أي بيانات فيديو" : "لم يبدأ التسجيل");
+          }
+        } catch (e) { console.error("recording upload failed", e); }
+      }
+    })();
 
     // 6) Background: earnings, notifications, AI report (non-critical for video display)
     void (async () => {
