@@ -5,6 +5,7 @@ import { BookOpen, FileText, ChevronDown, ChevronUp, Play, VideoOff } from "luci
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import SessionVideoPlayer from "./SessionVideoPlayer";
 
 interface SessionMaterial {
   id: string;
