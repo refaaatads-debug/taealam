@@ -167,24 +167,8 @@ export default function SessionMaterials() {
                                   <Play className="h-4 w-4 text-primary" />
                                   <span className="text-sm font-bold text-foreground">تسجيل الحصة</span>
                                 </div>
-                                <a
-                                  href={m.recording_url}
-                                  download
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  تحميل الفيديو
-                                </a>
                               </div>
-                              <video
-                                src={m.recording_url}
-                                controls
-                                playsInline
-                                className="w-full rounded-xl max-h-96 bg-black"
-                                preload="metadata"
-                              />
-                              <p className="text-[11px] text-muted-foreground mt-2">
-                                إذا ظهرت شاشة سوداء، اضغط "تحميل الفيديو" وشاهده عبر مشغل خارجي (VLC).
-                              </p>
+                              <SessionVideoPlayer src={m.recording_url} title={m.title} />
                             </div>
                           ) : (
                             <div className="text-center py-6 bg-muted/30 rounded-xl">
