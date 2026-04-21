@@ -136,9 +136,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           (payload: any) => {
             const newToken = payload.new?.session_token;
             const myToken = getSessionToken();
-            if (newToken && newToken !== myToken) {
-              triggerSessionConflict({ userId, myToken });
-            }
+            // Ignore self-updates and matching tokens
+            if (!newToken || newToken === myToken) return;
+            // Double-check via DB to avoid false positives
+            checkSessionStillActive(userId);
           }
         )
         .subscribe();
