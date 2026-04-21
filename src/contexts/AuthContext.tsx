@@ -96,15 +96,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const token = getSessionToken();
     const { data } = await supabase
       .from("user_active_session")
-      .select("session_token")
+      .select("session_token, last_seen")
       .eq("user_id", userId)
       .maybeSingle();
-    if (data && data.session_token !== token) {
-      // Another device took over — show choice dialog instead of forcing logout
-      triggerSessionConflict({ userId, myToken: token });
-      return false;
+    // If no row exists or token matches → we own the session
+    if (!data || data.session_token === token) {
+      // Refresh our claim to keep last_seen fresh
+      await claimActiveSession(userId);
+      return true;
     }
-    return true;
+    // Different token — only treat as conflict if the other session is recent (<2 min)
+    const lastSeen = data.last_seen ? new Date(data.last_seen).getTime() : 0;
+    const ageMs = Date.now() - lastSeen;
+    if (ageMs > 120000) {
+      // Stale — silently take over
+      await claimActiveSession(userId);
+      return true;
+    }
+    triggerSessionConflict({ userId, myToken: token });
+    return false;
   };
 
   useEffect(() => {
@@ -126,9 +136,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           (payload: any) => {
             const newToken = payload.new?.session_token;
             const myToken = getSessionToken();
-            if (newToken && newToken !== myToken) {
-              triggerSessionConflict({ userId, myToken });
-            }
+            // Ignore self-updates and matching tokens
+            if (!newToken || newToken === myToken) return;
+            // Double-check via DB to avoid false positives
+            checkSessionStillActive(userId);
           }
         )
         .subscribe();
