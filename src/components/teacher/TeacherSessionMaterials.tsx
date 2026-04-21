@@ -5,6 +5,7 @@ import { BookOpen, FileText, ChevronDown, ChevronUp, Sparkles, Play, User } from
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import SessionVideoPlayer from "@/components/student/SessionVideoPlayer";
 
 interface SessionMaterial {
   id: string;
