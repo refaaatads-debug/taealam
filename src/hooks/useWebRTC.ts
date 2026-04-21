@@ -732,14 +732,20 @@ export function useWebRTC({
           hiddenLocalVideo.srcObject = null;
         }
 
-        // RECORD ONLY TEACHER'S SCREEN: prefer local screen share / camera.
-        // Whiteboard overlay (drawn below) covers the case where teacher uses the whiteboard.
+        // Recording priority:
+        // 1) Local screen share (teacher sharing on this device)
+        // 2) Remote video stream (other participant's screen/camera)
+        // 3) Whiteboard (if active)
+        // 4) Audio-only placeholder
         const hasLocal = hiddenLocalVideo.readyState >= 2 && (hiddenLocalVideo.videoWidth || 0) > 0;
+        const hasRemote = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
         const wbEl = document.querySelector('canvas[data-whiteboard="true"]') as HTMLCanvasElement | null;
         const hasWhiteboard = !!(wbEl && wbEl.width > 0 && wbEl.height > 0);
 
         if (hasLocal) {
           drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
+        } else if (hasRemote) {
+          drawVideoFit(hiddenVideo, 0, 0, canvas.width, canvas.height);
         } else if (hasWhiteboard) {
           // Fullscreen whiteboard
           ctx.fillStyle = "#ffffff";
