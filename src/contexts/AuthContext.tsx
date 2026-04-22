@@ -161,25 +161,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    const initializeAuthenticatedSession = async (userId: string) => {
+      try {
+        await claimActiveSession(userId);
+        await fetchProfile(userId);
+        await fetchRoles(userId);
+        await applyPendingRole(userId);
+        cleanupSingleSession();
+        setupSingleSession(userId);
+      } catch (e) {
+        console.error("Error loading user data:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
           // Small delay to ensure DB triggers have completed
-          setTimeout(async () => {
-            try {
-              await claimActiveSession(session.user.id);
-              await fetchProfile(session.user.id);
-              await fetchRoles(session.user.id);
-              await applyPendingRole(session.user.id);
-              cleanupSingleSession();
-              setupSingleSession(session.user.id);
-            } catch (e) {
-              console.error("Error loading user data:", e);
-            } finally {
-              setLoading(false);
-            }
+          setTimeout(() => {
+            void initializeAuthenticatedSession(session.user.id);
           }, 500);
         } else {
           cleanupSingleSession();
@@ -194,20 +198,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        try {
-          // On reload, verify we still own the session
-          const stillActive = await checkSessionStillActive(session.user.id);
-          if (stillActive) {
-            await fetchProfile(session.user.id);
-            await fetchRoles(session.user.id);
-            await applyPendingRole(session.user.id);
-            setupSingleSession(session.user.id);
-          }
-        } catch (e) {
-          console.error("Error loading user data:", e);
-        }
+        await initializeAuthenticatedSession(session.user.id);
+      } else {
+        cleanupSingleSession();
+        setProfile(null);
+        setRoles([]);
+        setLoading(false);
       }
-      setLoading(false);
     }).catch(() => {
       setLoading(false);
     });
@@ -221,6 +218,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    sessionStorage.removeItem("session_token");
     setProfile(null);
     setRoles([]);
   };
