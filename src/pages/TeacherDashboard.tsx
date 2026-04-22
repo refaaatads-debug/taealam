@@ -11,6 +11,7 @@ import WithdrawalSection from "@/components/teacher/WithdrawalSection";
 import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
 import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
 import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterials";
+import UpcomingSessionsTable from "@/components/UpcomingSessionsTable";
 
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -320,6 +321,8 @@ const TeacherDashboard = () => {
           {/* Teacher Schedule Table */}
           <TeacherScheduleTable />
 
+          {/* Interactive scheduled sessions table with countdown + 1h reminder */}
+          <UpcomingSessionsTable role="teacher" />
 
           {/* Withdrawal Section */}
           <WithdrawalSection />

@@ -134,12 +134,20 @@ export default function StudentScheduleTable() {
   const handleInstantSession = async (teacherId: string, teacherName: string) => {
     if (!user) return;
 
-    // Check if teacher is currently in a live session
+    // Auto-cancel any old pending requests this student has with this teacher (avoid stuck waiting_acceptance)
+    await supabase
+      .from("bookings")
+      .update({ session_status: "expired", status: "cancelled" as any })
+      .eq("teacher_id", teacherId)
+      .eq("student_id", user.id)
+      .eq("session_status", "waiting_acceptance");
+
+    // Check if teacher is currently in a LIVE session (only in_progress counts as busy)
     const { data: liveBooking } = await supabase
       .from("bookings")
-      .select("id, session_status")
+      .select("id")
       .eq("teacher_id", teacherId)
-      .in("session_status", ["in_progress", "waiting_acceptance"])
+      .eq("session_status", "in_progress")
       .limit(1)
       .maybeSingle();
 
@@ -173,6 +181,14 @@ export default function StudentScheduleTable() {
       return;
     }
 
+    // Detect if this is the FIRST booking ever between this student and teacher
+    const { count: priorCount } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("teacher_id", teacherId)
+      .eq("student_id", user.id);
+    const isFirstBooking = !priorCount || priorCount === 0;
+
     // Create booking and send request to teacher
     const { data: newBooking, error } = await supabase.from("bookings").insert({
       teacher_id: teacherId,
@@ -194,6 +210,16 @@ export default function StudentScheduleTable() {
       body: `طالب يريد بدء جلسة فورية معك. انضم الآن!`,
       type: "session_request",
     });
+
+    // First-impression reminder for the teacher (first time this student books with them)
+    if (isFirstBooking) {
+      await supabase.from("notifications").insert({
+        user_id: teacherId,
+        title: "✨ تذكير مهم: الانطباع الأول",
+        body: "الجلسة الأولى تترك أثرًا دائمًا — كن إيجابيًا، مهنيًا، ولطيفًا. كل طالب هو عميل مهم، تصرّف باحتراف والتزام. كن جاهزًا قبل الجلسة، وحدّد المادة أو الموضوع المطلوب، وراجع أي ملاحظات أو أهداف خاصة (مثل: امتحان قريب أو مهارة يحتاج دعم فيها). ابدأ على الموعد تمامًا.",
+        type: "first_impression",
+      });
+    }
 
     toast.success(`تم إرسال طلب جلسة فورية إلى ${teacherName}`);
     fetchBookings();
