@@ -135,7 +135,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
     };
   }, [user, role]);
 
-  // Trigger 1-hour-before reminder per session (once per browser session)
+  // Trigger 1-hour-before reminder per session — persisted per user across reloads/tabs.
   useEffect(() => {
     if (!user) return;
     rows.forEach(async (r) => {
@@ -143,7 +143,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
       if (diff > 0 && diff <= 60 * 60_000 && !notifiedIds.has(r.id)) {
         notifiedIds.add(r.id);
         try {
-          sessionStorage.setItem("upcoming_hour_notified", JSON.stringify([...notifiedIds]));
+          localStorage.setItem(notifiedKey, JSON.stringify([...notifiedIds]));
         } catch {}
         play();
         toast.message("⏰ تذكير: حصة قريبة", {
@@ -160,7 +160,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
         } catch {}
       }
     });
-  }, [rows, now, user, notifiedIds, play]);
+  }, [rows, now, user, notifiedIds, play, notifiedKey]);
 
   const enriched = useMemo(
     () =>
@@ -174,6 +174,30 @@ export default function UpcomingSessionsTable({ role }: Props) {
       }),
     [rows, now]
   );
+
+  // Distinct subjects for the filter dropdown
+  const subjectOptions = useMemo(
+    () => Array.from(new Set(enriched.map((r) => r.subject_name).filter(Boolean))),
+    [enriched]
+  );
+
+  // Apply user filters and sort by scheduled time
+  const visible = useMemo(() => {
+    let list = enriched;
+    if (subjectFilter !== "all") list = list.filter((r) => r.subject_name === subjectFilter);
+    if (statusFilter !== "all") {
+      list = list.filter((r) => {
+        if (statusFilter === "live") return r.live;
+        if (statusFilter === "joinable") return r.joinable && !r.live;
+        if (statusFilter === "soon") return r.soon && !r.joinable;
+        if (statusFilter === "scheduled") return !r.live && !r.joinable && !r.soon;
+        return true;
+      });
+    }
+    return [...list].sort((a, b) =>
+      sortOrder === "asc" ? a.diff - b.diff : b.diff - a.diff
+    );
+  }, [enriched, subjectFilter, statusFilter, sortOrder]);
 
   if (loading) {
     return (
