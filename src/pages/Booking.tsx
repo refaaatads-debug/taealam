@@ -248,6 +248,32 @@ const Booking = () => {
           body: `طالب يرغب بحجز ${selectedSlots.length} حصة ${subjectName}: ${slotsText}. سارع بالقبول!`,
           type: "booking_request",
         });
+
+        // First-impression reminder if this is the first booking ever between this student and teacher
+        try {
+          const [{ count: bookingsCount }, { count: requestsCount }] = await Promise.all([
+            supabase
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("teacher_id", directTeacherId)
+              .eq("student_id", user.id),
+            supabase
+              .from("booking_requests")
+              .select("id", { count: "exact", head: true })
+              .eq("accepted_by", directTeacherId)
+              .eq("student_id", user.id),
+          ]);
+          const isFirstBooking = (bookingsCount || 0) === 0 && (requestsCount || 0) <= scheduledDates.length;
+          if (isFirstBooking) {
+            await supabase.from("notifications").insert({
+              user_id: directTeacherId,
+              title: "✨ تذكير مهم: الانطباع الأول",
+              body: "الجلسة الأولى تترك أثرًا دائمًا — كن إيجابيًا، مهنيًا، ولطيفًا. كل طالب هو عميل مهم، تصرّف باحتراف والتزام. كن جاهزًا قبل الجلسة، وحدّد المادة أو الموضوع المطلوب، وراجع أي ملاحظات أو أهداف خاصة (مثل: امتحان قريب أو مهارة يحتاج دعم فيها). ابدأ على الموعد تمامًا.",
+              type: "first_impression",
+            });
+          }
+        } catch {}
+
         toast.success(`تم إرسال ${selectedSlots.length} طلب للمعلم ${directTeacherName}! ⏳`);
       } else {
         const { data: teacherSubjectsData } = await supabase
