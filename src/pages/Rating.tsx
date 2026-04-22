@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, CheckCircle } from "lucide-react";
@@ -11,12 +11,33 @@ import { toast } from "sonner";
 const Rating = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const bookingId = searchParams.get("booking");
+  const bookingId = searchParams.get("booking") || searchParams.get("bookingId");
   const [rating, setRating] = useState(0);
+  const [invalidBooking, setInvalidBooking] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Validate booking belongs to current student; otherwise fall back gracefully (no 404)
+  useEffect(() => {
+    if (!user || !bookingId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, student_id")
+        .eq("id", bookingId)
+        .maybeSingle();
+      if (!data || data.student_id !== user.id) {
+        setInvalidBooking(true);
+      }
+    })();
+  }, [user, bookingId]);
+
+  // No booking param OR booking doesn't belong to user → send to dashboard (instead of 404 / errors)
+  if (!bookingId || invalidBooking) {
+    return <Navigate to="/student" replace />;
+  }
 
   const handleSubmit = async () => {
     if (!rating || !bookingId || !user) return;
