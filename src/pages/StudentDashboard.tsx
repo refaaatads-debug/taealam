@@ -7,6 +7,7 @@ import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
 import StudentScheduleTable from "@/components/student/StudentScheduleTable";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
+import UpcomingSessionsTable from "@/components/UpcomingSessionsTable";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -460,6 +461,9 @@ const StudentDashboard = () => {
 
             {/* Schedule Table - تحت الحصص القادمة */}
             <StudentScheduleTable />
+
+            {/* Interactive scheduled sessions table with countdown + 1h reminder */}
+            <UpcomingSessionsTable role="student" />
 
             {/* Pending Booking Requests */}
             <PendingBookingRequests />
