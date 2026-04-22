@@ -321,6 +321,8 @@ const TeacherDashboard = () => {
           {/* Teacher Schedule Table */}
           <TeacherScheduleTable />
 
+          {/* Interactive scheduled sessions table with countdown + 1h reminder */}
+          <UpcomingSessionsTable role="teacher" />
 
           {/* Withdrawal Section */}
           <WithdrawalSection />
