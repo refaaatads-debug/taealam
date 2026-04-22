@@ -212,23 +212,64 @@ export default function UpcomingSessionsTable({ role }: Props) {
   return (
     <Card className="border-0 shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 font-bold">
+        <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <CalendarClock className="h-4 w-4 text-primary" />
           </div>
           جدول الحصص المجدولة
           {enriched.length > 0 && (
-            <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">
-              {enriched.length}
+            <Badge className="bg-primary/10 text-primary border-0 text-xs">
+              {visible.length}/{enriched.length}
             </Badge>
+          )}
+
+          {/* Filters */}
+          {enriched.length > 0 && (
+            <div className="mr-auto flex items-center gap-2 flex-wrap">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="المادة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل المواد</SelectItem>
+                  {subjectOptions.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue placeholder="الحالة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل الحالات</SelectItem>
+                  <SelectItem value="live">🔴 جارية الآن</SelectItem>
+                  <SelectItem value="joinable">قابلة للانضمام</SelectItem>
+                  <SelectItem value="soon">خلال ساعة</SelectItem>
+                  <SelectItem value="scheduled">مجدولة لاحقًا</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "asc" | "desc")}>
+                <SelectTrigger className="h-8 w-[120px] text-xs">
+                  <SelectValue placeholder="الترتيب" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">الأقرب أولًا</SelectItem>
+                  <SelectItem value="desc">الأبعد أولًا</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {enriched.length === 0 ? (
+        {visible.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
             <CalendarClock className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">لا توجد حصص قادمة حاليًا</p>
+            <p className="text-sm">
+              {enriched.length === 0 ? "لا توجد حصص قادمة حاليًا" : "لا توجد نتائج مطابقة للفلاتر"}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto -mx-2">
@@ -245,7 +286,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
               </thead>
               <tbody>
                 <AnimatePresence initial={false}>
-                  {enriched.map((r) => (
+                  {visible.map((r) => (
                     <motion.tr
                       key={r.id}
                       initial={{ opacity: 0, y: -6 }}
