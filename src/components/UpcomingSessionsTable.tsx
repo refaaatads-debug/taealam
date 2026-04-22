@@ -56,9 +56,15 @@ export default function UpcomingSessionsTable({ role }: Props) {
   const [rows, setRows] = useState<UpcomingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // Persist notified-once IDs in localStorage per user — survives reloads / new tabs.
+  const notifiedKey = user ? `upcoming_hour_notified_${user.id}` : "upcoming_hour_notified";
   const [notifiedIds] = useState<Set<string>>(() => {
     try {
-      return new Set<string>(JSON.parse(sessionStorage.getItem("upcoming_hour_notified") || "[]"));
+      return new Set<string>(JSON.parse(localStorage.getItem(notifiedKey) || "[]"));
     } catch {
       return new Set<string>();
     }
