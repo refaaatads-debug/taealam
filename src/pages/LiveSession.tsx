@@ -1190,7 +1190,7 @@ const LiveSession = () => {
     if (isTeacher) {
       navigate("/teacher");
     } else {
-      navigate(currentBookingId ? `/rating/${currentBookingId}` : "/student");
+      navigate(currentBookingId ? `/rating?booking=${currentBookingId}` : "/student");
     }
 
     // 5) Background: cleanup, DB updates, upload (non-blocking — page already navigated)
