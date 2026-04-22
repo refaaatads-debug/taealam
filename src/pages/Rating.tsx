@@ -14,6 +14,10 @@ const Rating = () => {
   const bookingId = searchParams.get("booking") || searchParams.get("bookingId");
   const [rating, setRating] = useState(0);
   const [invalidBooking, setInvalidBooking] = useState(false);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Validate booking belongs to current student; otherwise fall back gracefully (no 404)
   useEffect(() => {
@@ -34,10 +38,6 @@ const Rating = () => {
   if (!bookingId || invalidBooking) {
     return <Navigate to="/student" replace />;
   }
-  const [hoveredStar, setHoveredStar] = useState(0);
-  const [comment, setComment] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!rating || !bookingId || !user) return;
