@@ -182,12 +182,22 @@ export default function StudentScheduleTable() {
     }
 
     // Detect if this is the FIRST booking ever between this student and teacher
-    const { count: priorCount } = await supabase
-      .from("bookings")
-      .select("id", { count: "exact", head: true })
-      .eq("teacher_id", teacherId)
-      .eq("student_id", user.id);
-    const isFirstBooking = !priorCount || priorCount === 0;
+    // and that we have not already sent a first_impression notification for this pair.
+    const studentTag = `[ref:${user.id.slice(0, 8)}]`;
+    const [{ count: priorCount }, { count: impressionCount }] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("teacher_id", teacherId)
+        .eq("student_id", user.id),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", teacherId)
+        .eq("type", "first_impression")
+        .ilike("body", `%${studentTag}%`),
+    ]);
+    const isFirstBooking = (!priorCount || priorCount === 0) && (!impressionCount || impressionCount === 0);
 
     // Create booking and send request to teacher
     const { data: newBooking, error } = await supabase.from("bookings").insert({
@@ -216,7 +226,7 @@ export default function StudentScheduleTable() {
       await supabase.from("notifications").insert({
         user_id: teacherId,
         title: "✨ تذكير مهم: الانطباع الأول",
-        body: "الجلسة الأولى تترك أثرًا دائمًا — كن إيجابيًا، مهنيًا، ولطيفًا. كل طالب هو عميل مهم، تصرّف باحتراف والتزام. كن جاهزًا قبل الجلسة، وحدّد المادة أو الموضوع المطلوب، وراجع أي ملاحظات أو أهداف خاصة (مثل: امتحان قريب أو مهارة يحتاج دعم فيها). ابدأ على الموعد تمامًا.",
+        body: `الجلسة الأولى تترك أثرًا دائمًا — كن إيجابيًا، مهنيًا، ولطيفًا. كل طالب هو عميل مهم، تصرّف باحتراف والتزام. كن جاهزًا قبل الجلسة، وحدّد المادة أو الموضوع المطلوب، وراجع أي ملاحظات أو أهداف خاصة (مثل: امتحان قريب أو مهارة يحتاج دعم فيها). ابدأ على الموعد تمامًا. ${studentTag}`,
         type: "first_impression",
       });
     }
