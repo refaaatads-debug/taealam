@@ -210,6 +210,19 @@ export default function BookingRequests() {
       }
 
       toast.success("تم قبول الطلب وإنشاء الحجز بنجاح! 🎉");
+
+      // Check if this is a NEW student (first ever confirmed booking with this teacher)
+      const { count: priorCount } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("teacher_id", user.id)
+        .eq("student_id", request.student_id)
+        .neq("id", booking.id);
+
+      if (!priorCount || priorCount === 0) {
+        setImpressionFor(request.student_name || "الطالب");
+      }
+
       fetchRequests();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -243,7 +256,14 @@ export default function BookingRequests() {
                   <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-foreground">{r.student_name}</p>
+                  <p className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
+                    {r.student_name}
+                    {r.group_size && r.group_size > 1 && (
+                      <Badge className="bg-primary/15 text-primary border-0 text-[10px] h-5">
+                        📚 {r.group_size} حصص في طلب واحد
+                      </Badge>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {r.subject_name} • {new Date(r.scheduled_at).toLocaleDateString("ar-SA")} • {new Date(r.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -268,6 +288,12 @@ export default function BookingRequests() {
           ))
         )}
       </CardContent>
+
+      <FirstImpressionDialog
+        open={!!impressionFor}
+        onOpenChange={(v) => !v && setImpressionFor(null)}
+        studentName={impressionFor || undefined}
+      />
     </Card>
   );
 }
