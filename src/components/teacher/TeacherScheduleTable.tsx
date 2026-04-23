@@ -11,6 +11,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 interface BookingRow {
   id: string;
@@ -31,6 +32,7 @@ export default function TeacherScheduleTable() {
   const [loading, setLoading] = useState(true);
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
@@ -163,15 +165,8 @@ export default function TeacherScheduleTable() {
     fetchBookings();
   };
 
-  const handleDeleteBooking = async (bookingId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
-    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
-    if (error) {
-      toast.error("تعذر حذف الحصة");
-      return;
-    }
-    toast.success("تم حذف الحصة");
-    setBookings(prev => prev.filter(b => b.id !== bookingId));
+  const openCancelDialog = (bookingId: string, studentId?: string) => {
+    setCancelTarget({ id: bookingId, studentId });
   };
 
   const getStatusBadge = (status: string) => {
@@ -342,8 +337,9 @@ export default function TeacherScheduleTable() {
                                     size="sm"
                                     variant="ghost"
                                     className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleDeleteBooking(b.id)}
-                                    title="حذف الحصة"
+                                    onClick={() => openCancelDialog(b.id, b.student_id)}
+                                    title="إلغاء الحصة"
+                                    disabled={b.status === "completed" || b.status === "cancelled"}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
@@ -361,6 +357,14 @@ export default function TeacherScheduleTable() {
           })
         )}
       </CardContent>
+
+      <CancelSessionDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => !v && setCancelTarget(null)}
+        bookingId={cancelTarget?.id ?? null}
+        studentId={cancelTarget?.studentId ?? null}
+        onCancelled={() => fetchBookings()}
+      />
     </Card>
   );
 }
