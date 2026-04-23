@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import CountdownTimer from "@/components/CountdownTimer";
+import FirstImpressionDialog from "@/components/teacher/FirstImpressionDialog";
 
 interface BookingRequest {
   id: string;
@@ -18,6 +19,8 @@ interface BookingRequest {
   duration_minutes: number;
   status: string;
   expires_at: string;
+  group_id?: string | null;
+  group_size?: number;
   student_name?: string;
   subject_name?: string;
 }
@@ -27,6 +30,7 @@ export default function BookingRequests() {
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set());
+  const [impressionFor, setImpressionFor] = useState<string | null>(null);
   const { play: playSound } = useNotificationSound();
   const prevCountRef = useRef(0);
 
@@ -75,6 +79,12 @@ export default function BookingRequests() {
 
     if (validData.length === 0) { setRequests([]); return; }
 
+    // Count group sizes
+    const groupCounts: Record<string, number> = {};
+    validData.forEach((r: any) => {
+      if (r.group_id) groupCounts[r.group_id] = (groupCounts[r.group_id] || 0) + 1;
+    });
+
     const studentIds = [...new Set(validData.map((r: any) => r.student_id))];
     const subjectIds = [...new Set(validData.map((r: any) => r.subject_id).filter(Boolean))];
 
@@ -88,6 +98,7 @@ export default function BookingRequests() {
 
     setRequests(validData.map((r: any) => ({
       ...r,
+      group_size: r.group_id ? groupCounts[r.group_id] || 1 : 1,
       student_name: profileMap.get(r.student_id) || "طالب",
       subject_name: subjectMap.get(r.subject_id) || "مادة",
     })));
@@ -199,6 +210,19 @@ export default function BookingRequests() {
       }
 
       toast.success("تم قبول الطلب وإنشاء الحجز بنجاح! 🎉");
+
+      // Check if this is a NEW student (first ever confirmed booking with this teacher)
+      const { count: priorCount } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("teacher_id", user.id)
+        .eq("student_id", request.student_id)
+        .neq("id", booking.id);
+
+      if (!priorCount || priorCount === 0) {
+        setImpressionFor(request.student_name || "الطالب");
+      }
+
       fetchRequests();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -232,7 +256,14 @@ export default function BookingRequests() {
                   <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-foreground">{r.student_name}</p>
+                  <p className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
+                    {r.student_name}
+                    {r.group_size && r.group_size > 1 && (
+                      <Badge className="bg-primary/15 text-primary border-0 text-[10px] h-5">
+                        📚 {r.group_size} حصص في طلب واحد
+                      </Badge>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {r.subject_name} • {new Date(r.scheduled_at).toLocaleDateString("ar-SA")} • {new Date(r.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -257,6 +288,12 @@ export default function BookingRequests() {
           ))
         )}
       </CardContent>
+
+      <FirstImpressionDialog
+        open={!!impressionFor}
+        onOpenChange={(v) => !v && setImpressionFor(null)}
+        studentName={impressionFor || undefined}
+      />
     </Card>
   );
 }
