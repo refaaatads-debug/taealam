@@ -947,11 +947,18 @@ export type Database = {
           has_priority_booking: boolean | null
           has_recording: boolean | null
           id: string
+          is_active: boolean | null
           name_ar: string
           price: number
           session_duration_minutes: number
           sessions_count: number
+          stripe_error: string | null
+          stripe_last_synced_at: string | null
+          stripe_price_id: string | null
+          stripe_product_id: string | null
+          stripe_sync_status: string | null
           tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at: string | null
         }
         Insert: {
           assigned_user_id?: string | null
@@ -961,11 +968,18 @@ export type Database = {
           has_priority_booking?: boolean | null
           has_recording?: boolean | null
           id?: string
+          is_active?: boolean | null
           name_ar: string
           price: number
           session_duration_minutes?: number
           sessions_count: number
+          stripe_error?: string | null
+          stripe_last_synced_at?: string | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          stripe_sync_status?: string | null
           tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string | null
         }
         Update: {
           assigned_user_id?: string | null
@@ -975,11 +989,63 @@ export type Database = {
           has_priority_booking?: boolean | null
           has_recording?: boolean | null
           id?: string
+          is_active?: boolean | null
           name_ar?: string
           price?: number
           session_duration_minutes?: number
           sessions_count?: number
+          stripe_error?: string | null
+          stripe_last_synced_at?: string | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          stripe_sync_status?: string | null
           tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      subscription_plans_backup_20260423: {
+        Row: {
+          assigned_user_id: string | null
+          created_at: string | null
+          features: Json | null
+          has_ai_tutor: boolean | null
+          has_priority_booking: boolean | null
+          has_recording: boolean | null
+          id: string | null
+          name_ar: string | null
+          price: number | null
+          session_duration_minutes: number | null
+          sessions_count: number | null
+          tier: Database["public"]["Enums"]["subscription_tier"] | null
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          created_at?: string | null
+          features?: Json | null
+          has_ai_tutor?: boolean | null
+          has_priority_booking?: boolean | null
+          has_recording?: boolean | null
+          id?: string | null
+          name_ar?: string | null
+          price?: number | null
+          session_duration_minutes?: number | null
+          sessions_count?: number | null
+          tier?: Database["public"]["Enums"]["subscription_tier"] | null
+        }
+        Update: {
+          assigned_user_id?: string | null
+          created_at?: string | null
+          features?: Json | null
+          has_ai_tutor?: boolean | null
+          has_priority_booking?: boolean | null
+          has_recording?: boolean | null
+          id?: string | null
+          name_ar?: string | null
+          price?: number | null
+          session_duration_minutes?: number | null
+          sessions_count?: number | null
+          tier?: Database["public"]["Enums"]["subscription_tier"] | null
         }
         Relationships: []
       }
