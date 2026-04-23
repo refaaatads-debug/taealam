@@ -225,7 +225,11 @@ const Booking = () => {
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = (directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name || "مادة";
 
-      // Insert all booking requests
+      // Group all requests from one form-submission into a single group_id
+      const groupId = (typeof crypto !== "undefined" && (crypto as any).randomUUID)
+        ? (crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
       const requests = scheduledDates.map(sd => ({
         student_id: user.id,
         subject_id: selectedSubject,
@@ -233,10 +237,11 @@ const Booking = () => {
         duration_minutes: 60,
         status: "open",
         expires_at: expiresAt,
+        group_id: groupId,
         ...(directTeacherId ? { accepted_by: null } : {}),
       }));
 
-      const { error } = await supabase.from("booking_requests").insert(requests);
+      const { error } = await supabase.from("booking_requests").insert(requests as any);
       if (error) throw error;
 
       const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
