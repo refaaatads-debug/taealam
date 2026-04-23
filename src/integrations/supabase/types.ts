@@ -168,6 +168,7 @@ export type Database = {
           created_at: string
           duration_minutes: number
           expires_at: string | null
+          group_id: string | null
           id: string
           price: number | null
           scheduled_at: string
@@ -183,6 +184,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           expires_at?: string | null
+          group_id?: string | null
           id?: string
           price?: number | null
           scheduled_at: string
@@ -198,6 +200,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           expires_at?: string | null
+          group_id?: string | null
           id?: string
           price?: number | null
           scheduled_at?: string
@@ -219,6 +222,9 @@ export type Database = {
       }
       bookings: {
         Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           duration_minutes: number
           id: string
@@ -236,6 +242,9 @@ export type Database = {
           used_subscription: boolean | null
         }
         Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           duration_minutes?: number
           id?: string
@@ -253,6 +262,9 @@ export type Database = {
           used_subscription?: boolean | null
         }
         Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           duration_minutes?: number
           id?: string
@@ -1876,6 +1888,10 @@ export type Database = {
       set_new_user_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: undefined
+      }
+      teacher_monthly_cancellations: {
+        Args: { _teacher_id: string }
+        Returns: number
       }
     }
     Enums: {
