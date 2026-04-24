@@ -270,8 +270,12 @@ const SearchTeacher = () => {
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = subjects.find(s => s.id === selectedSubject)?.name || "مادة";
 
-      // Insert all booking requests
+      // Insert all booking requests — group all slots of the same subject under one group_id
+      // so the teacher receives a single grouped request showing all sessions
       const stageValue = selectedStage && selectedStage !== "all_stages" ? selectedStage : null;
+      const groupId = (typeof crypto !== "undefined" && (crypto as any).randomUUID)
+        ? (crypto as any).randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const requests = scheduledDates.map(sd => ({
         student_id: user.id,
         subject_id: selectedSubject,
@@ -280,6 +284,7 @@ const SearchTeacher = () => {
         status: "open",
         expires_at: expiresAt,
         teaching_stage: stageValue,
+        group_id: groupId,
       }));
 
       const { error } = await supabase.from("booking_requests" as any).insert(requests as any);
