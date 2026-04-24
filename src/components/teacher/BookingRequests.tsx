@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, CheckCircle, Users, Loader2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { CalendarCheck, CheckCircle, Users, Loader2, ChevronDown, ChevronUp, Calendar as CalendarIcon } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -20,16 +20,26 @@ interface BookingRequest {
   status: string;
   expires_at: string;
   group_id?: string | null;
-  group_size?: number;
   student_name?: string;
   subject_name?: string;
+}
+
+interface RequestGroup {
+  key: string;          // group_id or single id
+  group_id: string | null;
+  student_id: string;
+  student_name: string;
+  subject_name: string;
+  items: BookingRequest[];
+  earliest_expires_at: string;
 }
 
 export default function BookingRequests() {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
-  const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set());
+  const [expiredKeys, setExpiredKeys] = useState<Set<string>>(new Set());
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [impressionFor, setImpressionFor] = useState<string | null>(null);
   const { play: playSound } = useNotificationSound();
   const prevCountRef = useRef(0);
@@ -40,19 +50,11 @@ export default function BookingRequests() {
 
     const channel = supabase
       .channel("teacher-booking-requests")
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "booking_requests",
-      }, () => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "booking_requests" }, () => {
         playSound("booking");
         fetchRequests();
       })
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "booking_requests",
-      }, () => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "booking_requests" }, () => {
         fetchRequests();
       })
       .subscribe();
@@ -62,12 +64,11 @@ export default function BookingRequests() {
 
   const fetchRequests = async () => {
     if (!user) return;
-    
     const { data } = await supabase
       .from("booking_requests" as any)
       .select("*")
       .eq("status", "open")
-      .order("created_at", { ascending: false });
+      .order("scheduled_at", { ascending: true });
 
     if (!data || data.length === 0) { setRequests([]); return; }
 
@@ -78,12 +79,6 @@ export default function BookingRequests() {
     });
 
     if (validData.length === 0) { setRequests([]); return; }
-
-    // Count group sizes
-    const groupCounts: Record<string, number> = {};
-    validData.forEach((r: any) => {
-      if (r.group_id) groupCounts[r.group_id] = (groupCounts[r.group_id] || 0) + 1;
-    });
 
     const studentIds = [...new Set(validData.map((r: any) => r.student_id))];
     const subjectIds = [...new Set(validData.map((r: any) => r.subject_id).filter(Boolean))];
@@ -98,130 +93,188 @@ export default function BookingRequests() {
 
     setRequests(validData.map((r: any) => ({
       ...r,
-      group_size: r.group_id ? groupCounts[r.group_id] || 1 : 1,
       student_name: profileMap.get(r.student_id) || "طالب",
       subject_name: subjectMap.get(r.subject_id) || "مادة",
     })));
   };
 
-  const handleExpire = useCallback((id: string) => {
-    setExpiredIds(prev => new Set(prev).add(id));
+  // Build groups: rows sharing a non-null group_id are grouped; else singletons
+  const buildGroups = (): RequestGroup[] => {
+    const groups = new Map<string, RequestGroup>();
+    for (const r of requests) {
+      const key = r.group_id || r.id;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(r);
+        if (new Date(r.expires_at).getTime() < new Date(existing.earliest_expires_at).getTime()) {
+          existing.earliest_expires_at = r.expires_at;
+        }
+      } else {
+        groups.set(key, {
+          key,
+          group_id: r.group_id || null,
+          student_id: r.student_id,
+          student_name: r.student_name || "طالب",
+          subject_name: r.subject_name || "مادة",
+          items: [r],
+          earliest_expires_at: r.expires_at,
+        });
+      }
+    }
+    // Sort items inside each group by date
+    for (const g of groups.values()) {
+      g.items.sort((a, b) => +new Date(a.scheduled_at) - +new Date(b.scheduled_at));
+    }
+    return Array.from(groups.values());
+  };
+
+  const handleExpire = useCallback((key: string) => {
+    setExpiredKeys(prev => new Set(prev).add(key));
   }, []);
 
-  const handleAccept = async (request: BookingRequest) => {
+  // Check if booking conflicts with existing teacher schedule
+  const hasConflict = async (scheduled_at: string, duration_minutes: number): Promise<boolean> => {
+    if (!user) return false;
+    const start = new Date(scheduled_at).getTime();
+    const end = start + (duration_minutes || 45) * 60_000;
+    const { data: existingBookings } = await supabase
+      .from("bookings")
+      .select("id, scheduled_at, duration_minutes, status")
+      .eq("teacher_id", user.id)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", new Date(start - 24 * 60 * 60_000).toISOString())
+      .lte("scheduled_at", new Date(end + 24 * 60 * 60_000).toISOString());
+    if (!existingBookings) return false;
+    return existingBookings.some(b => {
+      const bStart = new Date(b.scheduled_at).getTime();
+      const bEnd = bStart + (b.duration_minutes || 45) * 60_000;
+      return start < bEnd && end > bStart;
+    });
+  };
+
+  // Show first-impression once per (teacher, student) — persisted in DB
+  const maybeShowFirstImpression = async (studentId: string, studentName: string) => {
     if (!user) return;
-    if (request.expires_at && new Date(request.expires_at).getTime() <= Date.now()) {
+    const { data: existing } = await supabase
+      .from("teacher_first_impressions" as any)
+      .select("id")
+      .eq("teacher_id", user.id)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (existing) return;
+    const { error } = await supabase
+      .from("teacher_first_impressions" as any)
+      .insert({ teacher_id: user.id, student_id: studentId } as any);
+    // Insert may fail on race — only show if we successfully claimed the row
+    if (!error) setImpressionFor(studentName);
+  };
+
+  const handleAcceptGroup = async (group: RequestGroup) => {
+    if (!user) return;
+    if (new Date(group.earliest_expires_at).getTime() <= Date.now()) {
       toast.info("انتهت صلاحية هذا الطلب");
       fetchRequests();
       return;
     }
 
-    // Check for time overlap with existing confirmed bookings (not just any active booking)
-    const requestStart = new Date(request.scheduled_at).getTime();
-    const requestEnd = requestStart + (request.duration_minutes || 45) * 60 * 1000;
-
-    const { data: existingBookings } = await supabase
-      .from("bookings")
-      .select("id, scheduled_at, duration_minutes")
-      .eq("teacher_id", user.id)
-      .in("status", ["pending", "confirmed"])
-      .gte("scheduled_at", new Date(requestStart - 24 * 60 * 60 * 1000).toISOString())
-      .lte("scheduled_at", new Date(requestEnd + 24 * 60 * 60 * 1000).toISOString());
-
-    if (existingBookings && existingBookings.length > 0) {
-      const hasOverlap = existingBookings.some(b => {
-        const bStart = new Date(b.scheduled_at).getTime();
-        const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
-        return requestStart < bEnd && requestEnd > bStart;
-      });
-
-      if (hasOverlap) {
-        toast.error("لديك حصة محجوزة في نفس الوقت. اختر وقتاً مختلفاً.");
-        // إرسال إشعار للطالب بأن المعلم غير متاح
-        await supabase.from("notifications").insert({
-          user_id: request.student_id,
-          title: "المعلم غير متاح ⏰",
-          body: `المعلم ${profile?.full_name || "المعلم"} لديه حصة أخرى في نفس الوقت (${new Date(request.scheduled_at).toLocaleDateString("ar-SA")} - ${new Date(request.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}). سيتم عرض طلبك لمعلمين آخرين.`,
-          type: "booking",
-        });
+    // Conflict check for ALL slots in the group
+    for (const r of group.items) {
+      if (await hasConflict(r.scheduled_at, r.duration_minutes)) {
+        toast.error(`لديك حصة محجوزة بنفس وقت ${new Date(r.scheduled_at).toLocaleString("ar-SA")}. لا يمكن قبول هذا الطلب.`);
         return;
       }
     }
 
-    setAccepting(request.id);
+    setAccepting(group.key);
     try {
-      // Atomic acceptance - prevents double-acceptance by multiple teachers
-      const { data: accepted, error: rpcError } = await supabase.rpc(
-        "accept_booking_request" as any,
-        { _request_id: request.id, _teacher_id: user.id }
-      );
+      let acceptedRequests: BookingRequest[] = [];
 
-      if (rpcError) throw rpcError;
-      if (!accepted) {
-        toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
-        fetchRequests();
-        setAccepting(null);
-        return;
+      if (group.group_id) {
+        // Atomic group accept
+        const { data, error } = await supabase.rpc("accept_booking_group" as any, {
+          _group_id: group.group_id,
+          _teacher_id: user.id,
+        });
+        if (error) throw error;
+        acceptedRequests = (data as any[]) || [];
+        if (acceptedRequests.length === 0) {
+          toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
+          fetchRequests();
+          setAccepting(null);
+          return;
+        }
+      } else {
+        // Single request accept (legacy)
+        const r = group.items[0];
+        const { data: ok, error } = await supabase.rpc("accept_booking_request" as any, {
+          _request_id: r.id,
+          _teacher_id: user.id,
+        });
+        if (error) throw error;
+        if (!ok) {
+          toast.info("تم قبول هذا الطلب من معلم آخر بالفعل");
+          fetchRequests();
+          setAccepting(null);
+          return;
+        }
+        acceptedRequests = [r];
       }
 
-      // Link booking to student's active subscription (deduction happens after session completion)
+      // Get active subscription
       const { data: activeSub } = await supabase
         .from("user_subscriptions")
-        .select("id, sessions_remaining")
-        .eq("user_id", request.student_id)
+        .select("id")
+        .eq("user_id", group.student_id)
         .eq("is_active", true)
         .gt("sessions_remaining", 0)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
-        student_id: request.student_id,
+      // Bulk insert bookings
+      const bookingsPayload = acceptedRequests.map(r => ({
+        student_id: r.student_id,
         teacher_id: user.id,
-        subject_id: request.subject_id,
-        scheduled_at: request.scheduled_at,
-        duration_minutes: request.duration_minutes,
-        status: "confirmed",
+        subject_id: r.subject_id,
+        scheduled_at: r.scheduled_at,
+        duration_minutes: r.duration_minutes,
+        status: "confirmed" as const,
         used_subscription: !!activeSub,
         subscription_id: activeSub?.id || null,
-      }).select("id").single();
+      }));
+
+      const { data: createdBookings, error: bookingError } = await supabase
+        .from("bookings")
+        .insert(bookingsPayload)
+        .select("id");
 
       if (bookingError) throw bookingError;
 
+      // Notify student once for the whole group
+      const count = acceptedRequests.length;
       await supabase.from("notifications").insert({
-        user_id: request.student_id,
-        title: "تم قبول طلبك! ✅",
-        body: `قبل المعلم ${profile?.full_name || "معلم"} طلب حصتك في ${request.subject_name}. جهّز نفسك!`,
+        user_id: group.student_id,
+        title: count > 1 ? `تم قبول ${count} حصص! ✅` : "تم قبول طلبك! ✅",
+        body:
+          count > 1
+            ? `قبل المعلم ${profile?.full_name || "معلم"} جميع حصصك في ${group.subject_name}. تحقق من الجدول.`
+            : `قبل المعلم ${profile?.full_name || "معلم"} طلب حصتك في ${group.subject_name}. جهّز نفسك!`,
         type: "booking",
       });
 
-      await supabase.from("chat_messages").insert({
-        booking_id: booking.id,
-        sender_id: user.id,
-        content: `مرحباً! أنا ${profile?.full_name || "معلمك"} وقبلت طلب حصتك 🎉 لا تتردد في أي استفسار قبل الحصة!`,
-      });
-
-      try {
-        await supabase.functions.invoke("create-zoom-meeting", {
-          body: { booking_id: booking.id },
+      // Welcome chat on first booking only
+      if (createdBookings && createdBookings[0]) {
+        await supabase.from("chat_messages").insert({
+          booking_id: createdBookings[0].id,
+          sender_id: user.id,
+          content: `مرحباً! أنا ${profile?.full_name || "معلمك"} وقبلت ${count > 1 ? `${count} حصص` : "طلب حصتك"} 🎉`,
         });
-      } catch {
-        console.log("Zoom meeting will be created when session starts");
       }
 
-      toast.success("تم قبول الطلب وإنشاء الحجز بنجاح! 🎉");
+      toast.success(count > 1 ? `تم قبول ${count} حصص بنجاح! 🎉` : "تم قبول الطلب بنجاح! 🎉");
 
-      // Check if this is a NEW student (first ever confirmed booking with this teacher)
-      const { count: priorCount } = await supabase
-        .from("bookings")
-        .select("id", { count: "exact", head: true })
-        .eq("teacher_id", user.id)
-        .eq("student_id", request.student_id)
-        .neq("id", booking.id);
-
-      if (!priorCount || priorCount === 0) {
-        setImpressionFor(request.student_name || "الطالب");
-      }
+      // First-impression dialog (DB-deduped)
+      await maybeShowFirstImpression(group.student_id, group.student_name);
 
       fetchRequests();
     } catch (e: any) {
@@ -232,7 +285,7 @@ export default function BookingRequests() {
     }
   };
 
-  const activeRequests = requests.filter(r => !expiredIds.has(r.id));
+  const groups = buildGroups().filter(g => !expiredKeys.has(g.key));
 
   return (
     <Card className="border-0 shadow-card">
@@ -242,50 +295,120 @@ export default function BookingRequests() {
             <CalendarCheck className="h-4 w-4 text-primary" />
           </div>
           طلبات الحصص المتاحة
-          {activeRequests.length > 0 && <Badge className="mr-auto bg-destructive/10 text-destructive border-0 text-xs">{activeRequests.length} جديد</Badge>}
+          {groups.length > 0 && (
+            <Badge className="mr-auto bg-destructive/10 text-destructive border-0 text-xs">
+              {groups.length} طلب
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {activeRequests.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">لا توجد طلبات حصص جديدة</p>
         ) : (
-          activeRequests.map((r) => (
-            <motion.div key={r.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center border">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
-                    {r.student_name}
-                    {r.group_size && r.group_size > 1 && (
-                      <Badge className="bg-primary/15 text-primary border-0 text-[10px] h-5">
-                        📚 {r.group_size} حصص في طلب واحد
-                      </Badge>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.subject_name} • {new Date(r.scheduled_at).toLocaleDateString("ar-SA")} • {new Date(r.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{r.duration_minutes} دقيقة</p>
-                  {r.expires_at && (
-                    <div className="mt-1.5">
-                      <CountdownTimer expiresAt={r.expires_at} onExpire={() => handleExpire(r.id)} showLabel />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <Button 
-                size="sm" 
-                className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5" 
-                onClick={() => handleAccept(r)}
-                disabled={accepting === r.id || expiredIds.has(r.id)}
+          groups.map((g) => {
+            const isMulti = g.items.length > 1;
+            const isExpanded = expandedKey === g.key;
+            const firstSlot = g.items[0];
+            return (
+              <motion.div
+                key={g.key}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="rounded-xl bg-muted/50 hover:bg-muted transition-colors overflow-hidden"
               >
-                {accepting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                اقبل الطلب
-              </Button>
-            </motion.div>
-          ))
+                <div className="flex items-start justify-between p-4 gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center border shrink-0">
+                      <Users className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm text-foreground flex items-center gap-1.5 flex-wrap">
+                        {g.student_name}
+                        {isMulti && (
+                          <button
+                            onClick={() => setExpandedKey(isExpanded ? null : g.key)}
+                            className="inline-flex items-center"
+                          >
+                            <Badge className="bg-primary/15 text-primary border-0 text-[10px] h-5 gap-1 cursor-pointer hover:bg-primary/25">
+                              📚 {g.items.length} حصص في طلب واحد
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            </Badge>
+                          </button>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {g.subject_name} •{" "}
+                        {new Date(firstSlot.scheduled_at).toLocaleDateString("ar-SA")} •{" "}
+                        {new Date(firstSlot.scheduled_at).toLocaleTimeString("ar-SA", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {isMulti && ` (+${g.items.length - 1} موعد آخر)`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{firstSlot.duration_minutes} دقيقة لكل حصة</p>
+                      {g.earliest_expires_at && (
+                        <div className="mt-1.5">
+                          <CountdownTimer
+                            expiresAt={g.earliest_expires_at}
+                            onExpire={() => handleExpire(g.key)}
+                            showLabel
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5 shrink-0"
+                    onClick={() => handleAcceptGroup(g)}
+                    disabled={accepting === g.key || expiredKeys.has(g.key)}
+                  >
+                    {accepting === g.key ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    {isMulti ? `اقبل ${g.items.length} حصص` : "اقبل الطلب"}
+                  </Button>
+                </div>
+
+                <AnimatePresence>
+                  {isMulti && isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-border/40 bg-background/40 overflow-hidden"
+                    >
+                      <ul className="divide-y divide-border/40">
+                        {g.items.map((it, idx) => (
+                          <li key={it.id} className="flex items-center gap-2 px-4 py-2 text-xs">
+                            <CalendarIcon className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+                            <span className="font-bold text-foreground">#{idx + 1}</span>
+                            <span className="text-foreground">
+                              {new Date(it.scheduled_at).toLocaleDateString("ar-SA", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                              })}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {new Date(it.scheduled_at).toLocaleTimeString("ar-SA", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <span className="mr-auto text-muted-foreground">{it.duration_minutes} د</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })
         )}
       </CardContent>
 
