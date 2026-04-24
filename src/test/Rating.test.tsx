@@ -9,7 +9,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 const maybeSingle = vi.fn();
-const fromMock = vi.fn(() => ({
+const fromMock: any = vi.fn(() => ({
   select: () => ({ eq: () => ({ maybeSingle }) }),
 }));
 
