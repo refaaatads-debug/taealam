@@ -751,6 +751,30 @@ export type Database = {
         }
         Relationships: []
       }
+      session_reminders_sent: {
+        Row: {
+          booking_id: string
+          id: string
+          reminder_type: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           ai_report: string | null
@@ -1261,6 +1285,27 @@ export type Database = {
           status?: string
           teacher_id?: string
           total_sessions_snapshot?: number | null
+        }
+        Relationships: []
+      }
+      teacher_first_impressions: {
+        Row: {
+          id: string
+          shown_at: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          id?: string
+          shown_at?: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          id?: string
+          shown_at?: string
+          student_id?: string
+          teacher_id?: string
         }
         Relationships: []
       }
@@ -1848,6 +1893,31 @@ export type Database = {
       }
     }
     Functions: {
+      accept_booking_group: {
+        Args: { _group_id: string; _teacher_id: string }
+        Returns: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          duration_minutes: number
+          expires_at: string | null
+          group_id: string | null
+          id: string
+          price: number | null
+          scheduled_at: string
+          status: string
+          student_id: string
+          subject_id: string | null
+          teaching_stage: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "booking_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       accept_booking_request: {
         Args: { _request_id: string; _teacher_id: string }
         Returns: boolean
