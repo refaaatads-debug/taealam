@@ -289,8 +289,9 @@ export default function BookingRequests() {
 
       toast.success(count > 1 ? `تم قبول ${count} حصص بنجاح! 🎉` : "تم قبول الطلب بنجاح! 🎉");
 
-      // First-impression dialog (DB-deduped)
-      await maybeShowFirstImpression(group.student_id, group.student_name);
+      // First-impression dialog (DB-deduped, only for brand-new platform users)
+      const newBookingIds = (createdBookings || []).map((b: any) => b.id);
+      await maybeShowFirstImpression(group.student_id, group.student_name, newBookingIds);
 
       fetchRequests();
     } catch (e: any) {
