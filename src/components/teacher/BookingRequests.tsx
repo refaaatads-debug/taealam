@@ -152,20 +152,36 @@ export default function BookingRequests() {
     });
   };
 
-  // Show first-impression once per (teacher, student) — persisted in DB
-  const maybeShowFirstImpression = async (studentId: string, studentName: string) => {
+  // Show first-impression once per student on the WHOLE platform.
+  // Only triggers when the student has never had any prior booking with any teacher.
+  // Persisted in DB so refreshes / re-accepts never re-show it.
+  const maybeShowFirstImpression = async (studentId: string, studentName: string, justCreatedBookingIds: string[] = []) => {
     if (!user) return;
+
+    // 1) Check if any teacher has already shown the first-impression for this student before
     const { data: existing } = await supabase
       .from("teacher_first_impressions" as any)
       .select("id")
-      .eq("teacher_id", user.id)
       .eq("student_id", studentId)
+      .limit(1)
       .maybeSingle();
     if (existing) return;
+
+    // 2) Check whether the student has any PRIOR booking on the platform (excluding the ones we just created)
+    let priorQuery = supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", studentId);
+    if (justCreatedBookingIds.length > 0) {
+      priorQuery = priorQuery.not("id", "in", `(${justCreatedBookingIds.join(",")})`);
+    }
+    const { count: priorBookings } = await priorQuery;
+    if ((priorBookings || 0) > 0) return; // not their first time on the platform
+
+    // 3) Atomically claim the first-impression slot
     const { error } = await supabase
       .from("teacher_first_impressions" as any)
       .insert({ teacher_id: user.id, student_id: studentId } as any);
-    // Insert may fail on race — only show if we successfully claimed the row
     if (!error) setImpressionFor(studentName);
   };
 
@@ -273,8 +289,9 @@ export default function BookingRequests() {
 
       toast.success(count > 1 ? `تم قبول ${count} حصص بنجاح! 🎉` : "تم قبول الطلب بنجاح! 🎉");
 
-      // First-impression dialog (DB-deduped)
-      await maybeShowFirstImpression(group.student_id, group.student_name);
+      // First-impression dialog (DB-deduped, only for brand-new platform users)
+      const newBookingIds = (createdBookings || []).map((b: any) => b.id);
+      await maybeShowFirstImpression(group.student_id, group.student_name, newBookingIds);
 
       fetchRequests();
     } catch (e: any) {
