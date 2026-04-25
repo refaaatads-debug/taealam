@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +81,14 @@ const AdminDashboard = () => {
   const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
   });
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+
+  // Sync tab when ?tab= changes (e.g. from a notification link)
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t) setActiveTab(t);
+  }, [searchParams]);
   const [teacherDateFrom, setTeacherDateFrom] = useState("");
   const [teacherDateTo, setTeacherDateTo] = useState("");
   const [bookingDateFrom, setBookingDateFrom] = useState("");
