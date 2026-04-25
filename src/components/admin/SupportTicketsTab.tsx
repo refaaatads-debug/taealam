@@ -34,6 +34,13 @@ const SupportTicketsTab = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { play: playSupportSound } = useNotificationSound();
+  const [initiateOpen, setInitiateOpen] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [userResults, setUserResults] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [initiateSubject, setInitiateSubject] = useState("");
+  const [initiateMessage, setInitiateMessage] = useState("");
+  const [initiateUser, setInitiateUser] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => { fetchTickets(); }, []);
 
