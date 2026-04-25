@@ -256,9 +256,12 @@ const Chat = () => {
 
   const renderFileMessage = (msg: ChatMessage) => {
     if (!msg.file_url) return null;
+    const isAudio = msg.file_type?.startsWith("audio/");
     const isImg = msg.file_type?.startsWith("image/");
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");
     const isMe = msg.sender_id === user?.id;
+
+    if (isAudio) return <VoicePlayer url={msg.file_url} />;
 
     if (isImg) {
       return (
