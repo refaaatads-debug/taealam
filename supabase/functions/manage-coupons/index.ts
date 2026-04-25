@@ -26,15 +26,20 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !userData.user) throw new Error("Authentication failed");
+    // Verify JWT locally via getClaims (avoids slow /user network call)
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error("Auth getClaims failed:", claimsError);
+      throw new Error("Authentication failed");
+    }
+    const userId = claimsData.claims.sub;
 
     const { data: roleData } = await supabaseClient
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id)
+      .eq("user_id", userId)
       .eq("role", "admin")
-      .single();
+      .maybeSingle();
 
     if (!roleData) throw new Error("Unauthorized: Admin access required");
 
