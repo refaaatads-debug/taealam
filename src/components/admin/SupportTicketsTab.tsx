@@ -109,6 +109,26 @@ const SupportTicketsTab = () => {
     setSending(false);
   };
 
+  const sendVoiceMessage = async (file: File) => {
+    if (!selectedTicket || !user) return;
+    setSending(true);
+    const fileData = await uploadFile(file);
+    if (!fileData) { setSending(false); return; }
+    const { error } = await supabase.from("support_messages").insert({
+      ticket_id: selectedTicket, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: true,
+      file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
+    });
+    if (error) toast.error("فشل في إرسال الرسالة الصوتية");
+    else {
+      await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
+      const ticket = tickets.find(t => t.id === selectedTicket);
+      if (ticket) await supabase.from("notifications").insert({
+        user_id: ticket.user_id, title: "رد من خدمة العملاء 💬", body: "🎤 رسالة صوتية", type: "support_reply",
+      });
+    }
+    setSending(false);
+  };
+
   const updateTicketStatus = async (ticketId: string, status: string) => {
     await supabase.from("support_tickets").update({ status }).eq("id", ticketId);
     setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status } : t));
