@@ -35,6 +35,7 @@ import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
+import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -46,6 +47,7 @@ const TAB_TITLES: Record<string, string> = {
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",
   bookings: "إدارة الحجوزات",
+  sessions_status: "حالات الجلسات",
   session_reports: "تقارير الحصص",
   session_pricing: "أسعار الحصص",
   materials_monitor: "مراقبة المواد",
