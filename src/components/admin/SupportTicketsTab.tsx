@@ -256,6 +256,7 @@ const SupportTicketsTab = () => {
               <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-4 w-4" />
               </Button>
+              <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
               <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="اكتب ردك..." className="rounded-xl flex-1" dir="rtl" />
               <Button type="submit" size="icon" className="rounded-xl" disabled={(!newMessage.trim() && !selectedFile) || sending}>
                 <Send className="h-4 w-4" />
