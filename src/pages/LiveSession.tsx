@@ -65,6 +65,9 @@ const LiveSession = () => {
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
   const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // Floating screen-share annotation toolbar (teacher) + remote drawings (student sees teacher's annotations)
+  const [screenToolbarOpen, setScreenToolbarOpen] = useState(false);
+  const [screenAnnotations, setScreenAnnotations] = useState<any[]>([]);
   const [pageFrozen, setPageFrozen] = useState(false);
   const [remoteVideoStatus, setRemoteVideoStatus] = useState("idle");
   const [lastDataMessageType, setLastDataMessageType] = useState("-");
