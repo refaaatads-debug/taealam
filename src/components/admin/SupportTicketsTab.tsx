@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon, X, Download } from "lucide-react";
+import { MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon, X, Download, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
+import VoiceRecorder from "@/components/VoiceRecorder";
+import VoicePlayer from "@/components/VoicePlayer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface Ticket {
   id: string; user_id: string; subject: string; status: string; category: string; created_at: string; user_name?: string;
