@@ -412,6 +412,7 @@ const Chat = () => {
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
             </Button>
+            <VoiceRecorder onRecorded={uploadAndSendFile} disabled={uploading || (isStudent && !hasActiveSubscription)} />
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
