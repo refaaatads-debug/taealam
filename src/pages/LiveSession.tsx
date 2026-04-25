@@ -184,6 +184,10 @@ const LiveSession = () => {
       if (!isTeacher) setBoardOpen(!!msg.open);
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
+    } else if (msg.type === "screen-annotation") {
+      setScreenAnnotations((prev) => [...prev, msg.action]);
+    } else if (msg.type === "screen-annotation-clear") {
+      setScreenAnnotations([]);
     } else if (msg.type === "laser-move") {
       setRemoteLaserPos(msg.pos);
     } else if (msg.type === "laser-hide") {
