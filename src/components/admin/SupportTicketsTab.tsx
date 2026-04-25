@@ -146,6 +146,7 @@ const SupportTicketsTab = () => {
 
   const renderFileAttachment = (msg: Message) => {
     if (!msg.file_url) return null;
+    if (msg.file_type?.startsWith("audio/")) return <VoicePlayer url={msg.file_url} />;
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");
     if (isImage(msg.file_type)) {
       return (
