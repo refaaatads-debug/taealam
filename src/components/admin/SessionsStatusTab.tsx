@@ -118,20 +118,18 @@ export default function SessionsStatusTab() {
     const bookingIds = bookings.map(b => b.id);
 
     // For "upcoming" we don't need sessions data → skip that query
-    const promises: Promise<any>[] = [
-      supabase.from("profiles").select("user_id, full_name").in("user_id", userIds),
-    ];
-    if (tab !== "upcoming") {
-      promises.push(
-        supabase.from("sessions").select("booking_id, started_at, ended_at, duration_minutes").in("booking_id", bookingIds)
-      );
-    }
+    const profilesPromise = Promise.resolve(
+      supabase.from("profiles").select("user_id, full_name").in("user_id", userIds)
+    );
+    const sessionsPromise = tab !== "upcoming"
+      ? Promise.resolve(supabase.from("sessions").select("booking_id, started_at, ended_at, duration_minutes").in("booking_id", bookingIds))
+      : Promise.resolve({ data: [] as any[] });
 
-    const results = await Promise.all(promises);
-    const profiles = results[0]?.data ?? [];
-    const sessions = (results[1]?.data ?? []) as any[];
+    const [profilesRes, sessionsRes] = await Promise.all([profilesPromise, sessionsPromise]);
+    const profiles = (profilesRes as any)?.data ?? [];
+    const sessions = ((sessionsRes as any)?.data ?? []) as any[];
 
-    const nameMap = new Map(profiles.map((p: any) => [p.user_id, p.full_name]));
+    const nameMap = new Map<string, string>(profiles.map((p: any) => [p.user_id, p.full_name as string]));
     const sessionMap = new Map(sessions.map((s: any) => [s.booking_id, s]));
 
     const rows: Row[] = bookings.map((b: any) => {
