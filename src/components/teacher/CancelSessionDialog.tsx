@@ -108,8 +108,8 @@ export default function CancelSessionDialog({
           await supabase.from("notifications").insert(
             admins.map((a: any) => ({
               user_id: a.user_id,
-              title: "🚨 تجاوز حد الإلغاءات",
-              body: `المعلم ${profile?.full_name || user.id} ألغى ${newCount} حصص هذا الشهر (الحد ${MONTHLY_LIMIT}). آخر سبب: ${reason.trim()}`,
+              title: "🚨 تجاوز حد الإلغاءات الشهرية",
+              body: `المعلم ${profile?.full_name || user.id} ألغى ${newCount} حصص هذا الشهر (الحد ${MONTHLY_LIMIT}). آخر سبب: ${reason.trim()} | افتح: /admin?tab=violations`,
               type: "warning",
             }))
           );
