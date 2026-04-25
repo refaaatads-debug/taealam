@@ -176,18 +176,17 @@ const Chat = () => {
     setSending(false);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !bookingId || !user) return;
+  const uploadAndSendFile = async (file: File) => {
+    if (!bookingId || !user) return;
     if (isStudent && !hasActiveSubscription) {
       toast.error("يجب تفعيل باقة للتمكن من إرسال الملفات");
       return;
     }
 
-    // Validate file type (PDF and JPG only)
+    const isAudio = file.type.startsWith("audio/");
     const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("يُسمح فقط بملفات PDF و JPG و PNG");
+    if (!isAudio && !allowedTypes.includes(file.type)) {
+      toast.error("يُسمح فقط بملفات PDF و JPG و PNG والرسائل الصوتية");
       return;
     }
 
@@ -217,13 +216,13 @@ const Chat = () => {
         .from("chat-files")
         .getPublicUrl(filePath);
 
-      // Use a generic safe label as content (filenames may contain digits/dots that
-      // trigger the chat content filter, which then tries to insert a warning).
-      const safeContent = isImageType(file.type)
-        ? "📷 صورة مرفقة"
-        : isPdfType(file.type, file.name)
-          ? "📄 ملف PDF مرفق"
-          : "📎 ملف مرفق";
+      const safeContent = isAudio
+        ? "🎤 رسالة صوتية"
+        : isImageType(file.type)
+          ? "📷 صورة مرفقة"
+          : isPdfType(file.type, file.name)
+            ? "📄 ملف PDF مرفق"
+            : "📎 ملف مرفق";
 
       const { error: msgError } = await supabase.from("chat_messages").insert({
         booking_id: bookingId,
@@ -238,14 +237,19 @@ const Chat = () => {
         console.error("Insert chat_messages error:", msgError);
         throw new Error(msgError.message || "فشل إرسال رسالة الملف");
       }
-      toast.success("تم إرسال الملف بنجاح");
+      toast.success(isAudio ? "تم إرسال الرسالة الصوتية" : "تم إرسال الملف بنجاح");
     } catch (err: any) {
       console.error("File upload failure:", err);
       toast.error(err?.message || "فشل في رفع الملف");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadAndSendFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const renderFileMessage = (msg: ChatMessage) => {
