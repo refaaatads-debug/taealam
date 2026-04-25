@@ -156,19 +156,21 @@ export default function ScreenShareToolbar({ enabled, onClose, onSendAction, rem
     redraw();
   };
 
-  // Toolbar drag
+  // Toolbar drag — handlers stop propagation so they never reach the canvas overlay
   const onDragStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onDragMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
+    e.stopPropagation();
     setPos({
       x: Math.max(0, Math.min(window.innerWidth - 60, dragRef.current.origX + (e.clientX - dragRef.current.startX))),
       y: Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.origY + (e.clientY - dragRef.current.startY))),
     });
   };
-  const onDragEnd = () => { dragRef.current = null; };
+  const onDragEnd = (e: React.PointerEvent) => { e.stopPropagation(); dragRef.current = null; };
 
   if (!enabled) return null;
 
