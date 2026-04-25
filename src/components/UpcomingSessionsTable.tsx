@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarClock, Loader2, Video, Bell, BookOpen, Filter } from "lucide-react";
+import { CalendarClock, Loader2, Video, Bell, BookOpen, Filter, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 interface UpcomingRow {
   id: string;
@@ -40,10 +41,12 @@ const formatCountdown = (ms: number) => {
 
 const formatDateAr = (iso: string) => {
   const d = new Date(iso);
+  // اليوم + التاريخ الكامل + الوقت
   return d.toLocaleString("ar-SA", {
-    weekday: "short",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
     day: "numeric",
-    month: "short",
     hour: "numeric",
     minute: "2-digit",
   });
