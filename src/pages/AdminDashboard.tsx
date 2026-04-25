@@ -321,6 +321,7 @@ const AdminDashboard = () => {
     teachers: "manage_teachers",
     teacher_performance: "view_teacher_performance",
     bookings: "manage_bookings",
+    sessions_status: "manage_bookings",
     session_reports: "manage_session_reports",
     session_pricing: "manage_session_pricing",
     materials_monitor: "manage_materials",
@@ -355,6 +356,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
+      case "sessions_status": return <SessionsStatusTab />;
       case "violations": return <ViolationsTab violations={filteredViolations} setViolations={setViolations} user={user} searchQuery={violationSearchQuery} setSearchQuery={setViolationSearchQuery} statusFilter={violationStatusFilter} setStatusFilter={setViolationStatusFilter} dateFrom={violationDateFrom} dateTo={violationDateTo} setDateFrom={setViolationDateFrom} setDateTo={setViolationDateTo} />;
       case "plans": return <PlansManagementTab />;
       case "coupons": return <CouponsManagementTab />;
