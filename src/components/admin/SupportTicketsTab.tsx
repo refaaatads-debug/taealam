@@ -288,7 +288,81 @@ const SupportTicketsTab = () => {
           </SelectContent>
         </Select>
         <Badge variant="secondary">{filteredTickets.length} تذكرة</Badge>
+        <Button size="sm" className="rounded-xl gap-1 mr-auto" onClick={() => setInitiateOpen(true)}>
+          <Plus className="h-4 w-4" /> إرسال رسالة لمستخدم
+        </Button>
       </div>
+
+      <Dialog open={initiateOpen} onOpenChange={(o) => { setInitiateOpen(o); if (!o) { setInitiateUser(null); setInitiateSubject(""); setInitiateMessage(""); setUserSearch(""); setUserResults([]); } }}>
+        <DialogContent dir="rtl">
+          <DialogHeader><DialogTitle>إرسال رسالة لطالب أو معلم</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            {!initiateUser ? (
+              <>
+                <div className="relative">
+                  <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input className="pr-8" placeholder="ابحث بالاسم..." value={userSearch}
+                    onChange={async (e) => {
+                      const q = e.target.value;
+                      setUserSearch(q);
+                      if (q.trim().length < 2) { setUserResults([]); return; }
+                      const { data } = await supabase.from("profiles").select("user_id, full_name").ilike("full_name", `%${q}%`).limit(10);
+                      setUserResults((data ?? []) as any);
+                    }} />
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  {userResults.map(u => (
+                    <button key={u.user_id} onClick={() => setInitiateUser(u)}
+                      className="w-full text-right px-3 py-2 rounded-lg hover:bg-muted transition-colors">
+                      {u.full_name || "بدون اسم"}
+                    </button>
+                  ))}
+                  {userSearch.length >= 2 && userResults.length === 0 && (
+                    <p className="text-center text-xs text-muted-foreground py-3">لا توجد نتائج</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="flex-1 font-semibold text-sm">{initiateUser.full_name}</span>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setInitiateUser(null)}><X className="h-3 w-3" /></Button>
+                </div>
+                <Input placeholder="عنوان المحادثة" value={initiateSubject} onChange={e => setInitiateSubject(e.target.value)} />
+                <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px]"
+                  placeholder="الرسالة الأولى..." value={initiateMessage} onChange={e => setInitiateMessage(e.target.value)} />
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInitiateOpen(false)}>إلغاء</Button>
+            <Button disabled={!initiateUser || !initiateSubject.trim() || !initiateMessage.trim() || creating}
+              onClick={async () => {
+                if (!initiateUser || !user) return;
+                setCreating(true);
+                const { data: ticket, error } = await supabase.from("support_tickets")
+                  .insert({ user_id: initiateUser.user_id, subject: initiateSubject.trim(), status: "in_progress" })
+                  .select().single();
+                if (error || !ticket) { toast.error("فشل إنشاء المحادثة"); setCreating(false); return; }
+                await supabase.from("support_messages").insert({
+                  ticket_id: ticket.id, sender_id: user.id, content: initiateMessage.trim(), is_admin: true,
+                });
+                await supabase.from("notifications").insert({
+                  user_id: initiateUser.user_id, title: "رسالة جديدة من خدمة العملاء 💬",
+                  body: initiateMessage.slice(0, 80), type: "support_reply",
+                });
+                toast.success("تم إرسال الرسالة");
+                setInitiateOpen(false); setInitiateUser(null); setInitiateSubject(""); setInitiateMessage("");
+                setCreating(false);
+                fetchTickets();
+                setSelectedTicket(ticket.id);
+              }}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {filteredTickets.length === 0 ? (
         <div className="text-center py-12">
