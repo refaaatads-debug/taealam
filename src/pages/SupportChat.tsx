@@ -123,6 +123,19 @@ const SupportChat = () => {
     return { url: urlData.publicUrl, name: file.name, type: file.type };
   };
 
+  const sendVoiceMessage = async (file: File) => {
+    if (!ticketId || !user) return;
+    setSending(true);
+    const fileData = await uploadFile(file);
+    if (!fileData) { setSending(false); return; }
+    const { error } = await supabase.from("support_messages").insert({
+      ticket_id: ticketId, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: false,
+      file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
+    });
+    if (error) toast.error("فشل في إرسال الرسالة الصوتية");
+    setSending(false);
+  };
+
   const handleSend = async () => {
     if ((!newMessage.trim() && !selectedFile) || !ticketId || !user || sending) return;
     setSending(true);
