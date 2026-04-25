@@ -362,6 +362,7 @@ const SupportChat = () => {
             onClick={() => fileInputRef.current?.click()}>
             <Paperclip className="h-4 w-4" />
           </Button>
+          <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
           <Input value={newMessage} onChange={e => setNewMessage(e.target.value)}
             placeholder="اكتب رسالتك..." className="rounded-xl flex-1" dir="rtl" />
           <Button type="submit" size="icon" className="rounded-xl shrink-0"
