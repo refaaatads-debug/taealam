@@ -92,9 +92,10 @@ export default function ScreenShareToolbar({ enabled, onClose, onSendAction, rem
     }
   }, [remoteActions, redraw]);
 
-  // Pointer handlers
+  // Pointer handlers — only active when a tool is selected
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === "none") return;
+    e.stopPropagation();
     const c = canvasRef.current!;
     c.setPointerCapture(e.pointerId);
     const rect = c.getBoundingClientRect();
@@ -104,13 +105,18 @@ export default function ScreenShareToolbar({ enabled, onClose, onSendAction, rem
   };
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current?.active) return;
+    e.stopPropagation();
     const c = canvasRef.current!;
     const rect = c.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Downsample: skip points within 2px of the previous point to reduce payload size
+    const prev = drawingRef.current.pts[drawingRef.current.pts.length - 1];
+    if (Math.abs(x - prev.x) < 2 && Math.abs(y - prev.y) < 2) return;
     drawingRef.current.pts.push({ x, y });
 
-    // live preview
+    // live preview (always smooth — local)
     const ctx = c.getContext("2d");
     if (ctx && drawingRef.current.pts.length >= 2) {
       const a = drawingRef.current.pts[drawingRef.current.pts.length - 2];
@@ -150,19 +156,21 @@ export default function ScreenShareToolbar({ enabled, onClose, onSendAction, rem
     redraw();
   };
 
-  // Toolbar drag
+  // Toolbar drag — handlers stop propagation so they never reach the canvas overlay
   const onDragStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onDragMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return;
+    e.stopPropagation();
     setPos({
       x: Math.max(0, Math.min(window.innerWidth - 60, dragRef.current.origX + (e.clientX - dragRef.current.startX))),
       y: Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.origY + (e.clientY - dragRef.current.startY))),
     });
   };
-  const onDragEnd = () => { dragRef.current = null; };
+  const onDragEnd = (e: React.PointerEvent) => { e.stopPropagation(); dragRef.current = null; };
 
   if (!enabled) return null;
 

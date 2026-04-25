@@ -11,6 +11,8 @@ import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import VoiceRecorder from "@/components/VoiceRecorder";
+import VoicePlayer from "@/components/VoicePlayer";
 
 interface Ticket {
   id: string;
@@ -121,6 +123,19 @@ const SupportChat = () => {
     return { url: urlData.publicUrl, name: file.name, type: file.type };
   };
 
+  const sendVoiceMessage = async (file: File) => {
+    if (!ticketId || !user) return;
+    setSending(true);
+    const fileData = await uploadFile(file);
+    if (!fileData) { setSending(false); return; }
+    const { error } = await supabase.from("support_messages").insert({
+      ticket_id: ticketId, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: false,
+      file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
+    });
+    if (error) toast.error("فشل في إرسال الرسالة الصوتية");
+    setSending(false);
+  };
+
   const handleSend = async () => {
     if ((!newMessage.trim() && !selectedFile) || !ticketId || !user || sending) return;
     setSending(true);
@@ -160,6 +175,7 @@ const SupportChat = () => {
 
   const renderFileAttachment = (msg: Message) => {
     if (!msg.file_url) return null;
+    if (msg.file_type?.startsWith("audio/")) return <VoicePlayer url={msg.file_url} />;
     const isMe = !msg.is_admin;
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");
     if (isImage(msg.file_type)) {
@@ -346,6 +362,7 @@ const SupportChat = () => {
             onClick={() => fileInputRef.current?.click()}>
             <Paperclip className="h-4 w-4" />
           </Button>
+          <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
           <Input value={newMessage} onChange={e => setNewMessage(e.target.value)}
             placeholder="اكتب رسالتك..." className="rounded-xl flex-1" dir="rtl" />
           <Button type="submit" size="icon" className="rounded-xl shrink-0"
