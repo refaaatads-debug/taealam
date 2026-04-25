@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
+import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -46,6 +47,7 @@ const TAB_TITLES: Record<string, string> = {
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",
   bookings: "إدارة الحجوزات",
+  sessions_status: "حالات الجلسات",
   session_reports: "تقارير الحصص",
   session_pricing: "أسعار الحصص",
   materials_monitor: "مراقبة المواد",
@@ -79,7 +81,14 @@ const AdminDashboard = () => {
   const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
   });
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+
+  // Sync tab when ?tab= changes (e.g. from a notification link)
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t) setActiveTab(t);
+  }, [searchParams]);
   const [teacherDateFrom, setTeacherDateFrom] = useState("");
   const [teacherDateTo, setTeacherDateTo] = useState("");
   const [bookingDateFrom, setBookingDateFrom] = useState("");
@@ -319,6 +328,7 @@ const AdminDashboard = () => {
     teachers: "manage_teachers",
     teacher_performance: "view_teacher_performance",
     bookings: "manage_bookings",
+    sessions_status: "manage_bookings",
     session_reports: "manage_session_reports",
     session_pricing: "manage_session_pricing",
     materials_monitor: "manage_materials",
@@ -353,6 +363,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
+      case "sessions_status": return <SessionsStatusTab />;
       case "violations": return <ViolationsTab violations={filteredViolations} setViolations={setViolations} user={user} searchQuery={violationSearchQuery} setSearchQuery={setViolationSearchQuery} statusFilter={violationStatusFilter} setStatusFilter={setViolationStatusFilter} dateFrom={violationDateFrom} dateTo={violationDateTo} setDateFrom={setViolationDateFrom} setDateTo={setViolationDateTo} />;
       case "plans": return <PlansManagementTab />;
       case "coupons": return <CouponsManagementTab />;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarClock, Loader2, Video, Bell, BookOpen, Filter } from "lucide-react";
+import { CalendarClock, Loader2, Video, Bell, BookOpen, Filter, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 interface UpcomingRow {
   id: string;
@@ -40,10 +41,12 @@ const formatCountdown = (ms: number) => {
 
 const formatDateAr = (iso: string) => {
   const d = new Date(iso);
+  // اليوم + التاريخ الكامل + الوقت
   return d.toLocaleString("ar-SA", {
-    weekday: "short",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
     day: "numeric",
-    month: "short",
     hour: "numeric",
     minute: "2-digit",
   });
@@ -59,6 +62,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; otherId?: string } | null>(null);
 
   // Persist notified-once IDs in localStorage per user — survives reloads / new tabs.
   const notifiedKey = user ? `upcoming_hour_notified_${user.id}` : "upcoming_hour_notified";
@@ -321,32 +325,45 @@ export default function UpcomingSessionsTable({ role }: Props) {
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
-                        {r.live ? (
-                          <Button
-                            size="sm"
-                            className="h-8 px-3 gradient-cta text-secondary-foreground rounded-lg gap-1"
-                            onClick={() => navigate(`/session?booking=${r.id}`)}
-                          >
-                            <Video className="h-3.5 w-3.5" /> انضم الآن
-                          </Button>
-                        ) : r.joinable ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-3 rounded-lg gap-1 border-secondary/40 text-secondary hover:bg-secondary/10"
-                            onClick={() => navigate(`/session?booking=${r.id}`)}
-                          >
-                            <Video className="h-3.5 w-3.5" /> ابدأ
-                          </Button>
-                        ) : r.soon ? (
-                          <Badge className="bg-amber-500/15 text-amber-600 border-0 text-[10px] gap-1">
-                            <Bell className="h-3 w-3" /> قريبًا
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-primary/10 text-primary border-0 text-[10px]">
-                            مجدولة
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {r.live ? (
+                            <Button
+                              size="sm"
+                              className="h-8 px-3 gradient-cta text-secondary-foreground rounded-lg gap-1"
+                              onClick={() => navigate(`/session?booking=${r.id}`)}
+                            >
+                              <Video className="h-3.5 w-3.5" /> انضم الآن
+                            </Button>
+                          ) : r.joinable ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 rounded-lg gap-1 border-secondary/40 text-secondary hover:bg-secondary/10"
+                              onClick={() => navigate(`/session?booking=${r.id}`)}
+                            >
+                              <Video className="h-3.5 w-3.5" /> ابدأ
+                            </Button>
+                          ) : r.soon ? (
+                            <Badge className="bg-amber-500/15 text-amber-600 border-0 text-[10px] gap-1">
+                              <Bell className="h-3 w-3" /> قريبًا
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-primary/10 text-primary border-0 text-[10px]">
+                              مجدولة
+                            </Badge>
+                          )}
+                          {role === "teacher" && !r.live && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg"
+                              onClick={() => setCancelTarget({ id: r.id, otherId: r.other_id })}
+                              title="إلغاء الحصة"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   ))}
@@ -356,6 +373,16 @@ export default function UpcomingSessionsTable({ role }: Props) {
           </div>
         )}
       </CardContent>
+
+      {role === "teacher" && (
+        <CancelSessionDialog
+          open={!!cancelTarget}
+          onOpenChange={(v) => !v && setCancelTarget(null)}
+          bookingId={cancelTarget?.id ?? null}
+          studentId={cancelTarget?.otherId ?? null}
+          onCancelled={() => { setCancelTarget(null); fetchRows(); }}
+        />
+      )}
     </Card>
   );
 }

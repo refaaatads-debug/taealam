@@ -86,9 +86,9 @@ export default function TeacherScheduleTable() {
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, subjects(name)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name)")
       .eq("teacher_id", user.id)
-      .in("status", ["confirmed", "completed", "pending"])
+      .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
 
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
@@ -172,11 +172,13 @@ export default function TeacherScheduleTable() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-destructive/10 text-destructive border-0 text-[10px]">مكتملة</Badge>;
+        return <Badge className="bg-primary/10 text-primary border-0 text-[10px]">مكتملة</Badge>;
       case "confirmed":
         return <Badge className="bg-secondary/10 text-secondary border-0 text-[10px]">مؤكدة</Badge>;
       case "pending":
         return <Badge className="bg-amber-500/10 text-amber-600 border-0 text-[10px]">قيد الانتظار</Badge>;
+      case "cancelled":
+        return <Badge className="bg-destructive/10 text-destructive border-0 text-[10px]">تم الإلغاء</Badge>;
       default:
         return <Badge className="bg-muted text-muted-foreground border-0 text-[10px]">{status}</Badge>;
     }

@@ -74,6 +74,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "الحجوزات والحصص",
       items: [
         { id: "bookings", title: "الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings, permission: "manage_bookings" },
+        { id: "sessions_status", title: "حالات الجلسات", icon: Monitor, permission: "manage_bookings" },
         { id: "session_reports", title: "تقارير الحصص", icon: FileText, permission: "manage_session_reports" },
         { id: "session_pricing", title: "أسعار الحصص", icon: DollarSign, permission: "manage_session_pricing" },
         { id: "materials_monitor", title: "مراقبة المواد", icon: BookOpen, permission: "manage_materials" },

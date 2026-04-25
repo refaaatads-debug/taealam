@@ -20,6 +20,7 @@ import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 import LiveAIAssistant from "@/components/LiveAIAssistant";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
+import ScreenShareToolbar from "@/components/teacher/ScreenShareToolbar";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -64,6 +65,9 @@ const LiveSession = () => {
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
   const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // Floating screen-share annotation toolbar (teacher) + remote drawings (student sees teacher's annotations)
+  const [screenToolbarOpen, setScreenToolbarOpen] = useState(false);
+  const [screenAnnotations, setScreenAnnotations] = useState<any[]>([]);
   const [pageFrozen, setPageFrozen] = useState(false);
   const [remoteVideoStatus, setRemoteVideoStatus] = useState("idle");
   const [lastDataMessageType, setLastDataMessageType] = useState("-");
@@ -180,6 +184,10 @@ const LiveSession = () => {
       if (!isTeacher) setBoardOpen(!!msg.open);
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
+    } else if (msg.type === "screen-annotation") {
+      setScreenAnnotations((prev) => [...prev, msg.action]);
+    } else if (msg.type === "screen-annotation-clear") {
+      setScreenAnnotations([]);
     } else if (msg.type === "laser-move") {
       setRemoteLaserPos(msg.pos);
     } else if (msg.type === "laser-hide") {
@@ -1332,6 +1340,12 @@ const LiveSession = () => {
     }
   }, [screenSharing, isTeacher]);
 
+  // Auto open/close floating annotation toolbar when teacher toggles screen share
+  useEffect(() => {
+    if (isTeacher && screenSharing) setScreenToolbarOpen(true);
+    if (!screenSharing) { setScreenToolbarOpen(false); setScreenAnnotations([]); }
+  }, [screenSharing, isTeacher]);
+
   // Callback to pass to whiteboard for sending data
   const handleWhiteboardSend = useCallback((msg: any) => {
     sendDataMessage(msg);
@@ -1934,6 +1948,19 @@ const LiveSession = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Floating annotation toolbar — appears for teacher during screen sharing; student sees annotations as remote actions */}
+      {((isTeacher && screenSharing) || (!isTeacher && remoteScreenSharing)) && (
+        <ScreenShareToolbar
+          enabled={isTeacher ? screenToolbarOpen : true}
+          onClose={() => setScreenToolbarOpen(false)}
+          onSendAction={isTeacher ? (action) => {
+            if (action.type === "clear") sendDataMessage({ type: "screen-annotation-clear" });
+            else sendDataMessage({ type: "screen-annotation", action });
+          } : undefined}
+          remoteActions={screenAnnotations}
+        />
       )}
     </div>
   );
