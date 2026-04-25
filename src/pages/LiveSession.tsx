@@ -1340,6 +1340,12 @@ const LiveSession = () => {
     }
   }, [screenSharing, isTeacher]);
 
+  // Auto open/close floating annotation toolbar when teacher toggles screen share
+  useEffect(() => {
+    if (isTeacher && screenSharing) setScreenToolbarOpen(true);
+    if (!screenSharing) { setScreenToolbarOpen(false); setScreenAnnotations([]); }
+  }, [screenSharing, isTeacher]);
+
   // Callback to pass to whiteboard for sending data
   const handleWhiteboardSend = useCallback((msg: any) => {
     sendDataMessage(msg);
