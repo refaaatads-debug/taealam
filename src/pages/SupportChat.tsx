@@ -117,7 +117,10 @@ const SupportChat = () => {
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
     const ext = file.name.split('.').pop();
     const path = `${ticketId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("support-files").upload(path, file);
+    const { error } = await supabase.storage.from("support-files").upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
     if (error) { toast.error("فشل في رفع الملف"); return null; }
     const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
     return { url: urlData.publicUrl, name: file.name, type: file.type };
