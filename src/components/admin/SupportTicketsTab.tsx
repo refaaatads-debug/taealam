@@ -109,8 +109,9 @@ const SupportTicketsTab = () => {
       if (ticket) {
         await supabase.from("notifications").insert({
           user_id: ticket.user_id, title: "رد من خدمة العملاء 💬",
-          body: content.length > 50 ? content.slice(0, 50) + "..." : content, type: "support_reply",
-        });
+          body: content.length > 140 ? content.slice(0, 140) + "..." : content, type: "support_reply",
+          link: `/support?ticket=${selectedTicket}`,
+        } as any);
       }
     }
     setSending(false);
@@ -131,7 +132,8 @@ const SupportTicketsTab = () => {
       const ticket = tickets.find(t => t.id === selectedTicket);
       if (ticket) await supabase.from("notifications").insert({
         user_id: ticket.user_id, title: "رد من خدمة العملاء 💬", body: "🎤 رسالة صوتية", type: "support_reply",
-      });
+        link: `/support?ticket=${selectedTicket}`,
+      } as any);
     }
     setSending(false);
   };
