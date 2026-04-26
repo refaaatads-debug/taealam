@@ -350,8 +350,9 @@ const SupportTicketsTab = () => {
                 });
                 await supabase.from("notifications").insert({
                   user_id: initiateUser.user_id, title: "رسالة جديدة من خدمة العملاء 💬",
-                  body: initiateMessage.slice(0, 80), type: "support_reply",
-                });
+                  body: initiateMessage.slice(0, 140), type: "support_reply",
+                  link: `/support?ticket=${ticket.id}`,
+                } as any);
                 toast.success("تم إرسال الرسالة");
                 setInitiateOpen(false); setInitiateUser(null); setInitiateSubject(""); setInitiateMessage("");
                 setCreating(false);
