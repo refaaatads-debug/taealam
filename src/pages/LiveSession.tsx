@@ -1824,7 +1824,7 @@ const LiveSession = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf,.jpg,.jpeg,.png,.webm,.m4a,audio/*"
                   className="hidden"
                   onChange={handleChatFileUpload}
                 />
