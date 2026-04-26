@@ -1018,13 +1018,12 @@ const LiveSession = () => {
     }
   };
 
-  const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !bookingId || !user) return;
-
+  const uploadChatFile = async (file: File) => {
+    if (!bookingId || !user) return;
+    const isAudio = file.type.startsWith("audio/");
     const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("يُسمح فقط بملفات PDF و JPG و PNG");
+    if (!isAudio && !allowedTypes.includes(file.type)) {
+      toast.error("يُسمح فقط بملفات PDF و JPG و PNG والرسائل الصوتية");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -1034,28 +1033,39 @@ const LiveSession = () => {
 
     setFileUploading(true);
     try {
-      const ext = file.name.split(".").pop();
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase();
       const filePath = `${bookingId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("chat-files").upload(filePath, file);
+      const { error: uploadError } = await supabase.storage
+        .from("chat-files")
+        .upload(filePath, file, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(filePath);
+      const safeContent = isAudio ? "🎤 رسالة صوتية" : `📎 ${file.name}`;
       const { error: msgError } = await supabase.from("chat_messages").insert({
         booking_id: bookingId,
         sender_id: user.id,
-        content: `📎 ${file.name}`,
+        content: safeContent,
         file_url: urlData.publicUrl,
         file_name: file.name,
         file_type: file.type,
       });
       if (msgError) throw msgError;
-      toast.success("تم إرسال الملف بنجاح");
+      toast.success(isAudio ? "تم إرسال الرسالة الصوتية" : "تم إرسال الملف بنجاح");
     } catch (err: any) {
       toast.error(err.message || "فشل في رفع الملف");
     } finally {
       setFileUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleChatFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await uploadChatFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const sendMessage = async () => {
