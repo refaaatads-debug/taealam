@@ -76,7 +76,10 @@ const SupportTicketsTab = () => {
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
     const ext = file.name.split('.').pop();
     const path = `${selectedTicket}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("support-files").upload(path, file);
+    const { error } = await supabase.storage.from("support-files").upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
     if (error) { toast.error("فشل في رفع الملف"); return null; }
     const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
     return { url: urlData.publicUrl, name: file.name, type: file.type };
@@ -109,8 +112,9 @@ const SupportTicketsTab = () => {
       if (ticket) {
         await supabase.from("notifications").insert({
           user_id: ticket.user_id, title: "رد من خدمة العملاء 💬",
-          body: content.length > 50 ? content.slice(0, 50) + "..." : content, type: "support_reply",
-        });
+          body: content.length > 140 ? content.slice(0, 140) + "..." : content, type: "support_reply",
+          link: `/support?ticket=${selectedTicket}`,
+        } as any);
       }
     }
     setSending(false);
@@ -131,7 +135,8 @@ const SupportTicketsTab = () => {
       const ticket = tickets.find(t => t.id === selectedTicket);
       if (ticket) await supabase.from("notifications").insert({
         user_id: ticket.user_id, title: "رد من خدمة العملاء 💬", body: "🎤 رسالة صوتية", type: "support_reply",
-      });
+        link: `/support?ticket=${selectedTicket}`,
+      } as any);
     }
     setSending(false);
   };
@@ -350,8 +355,9 @@ const SupportTicketsTab = () => {
                 });
                 await supabase.from("notifications").insert({
                   user_id: initiateUser.user_id, title: "رسالة جديدة من خدمة العملاء 💬",
-                  body: initiateMessage.slice(0, 80), type: "support_reply",
-                });
+                  body: initiateMessage.slice(0, 140), type: "support_reply",
+                  link: `/support?ticket=${ticket.id}`,
+                } as any);
                 toast.success("تم إرسال الرسالة");
                 setInitiateOpen(false); setInitiateUser(null); setInitiateSubject(""); setInitiateMessage("");
                 setCreating(false);

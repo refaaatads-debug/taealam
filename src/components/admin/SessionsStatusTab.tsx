@@ -79,10 +79,19 @@ export default function SessionsStatusTab() {
   const fetchCounts = useCallback(async () => {
     const nowIso = new Date().toISOString();
     const [{ count: liveCount }, { count: upcomingCount }, { count: pastCount }] = await Promise.all([
-      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("session_status", "in_progress"),
+      // LIVE = strictly in_progress AND not yet completed/cancelled
       supabase.from("bookings").select("id", { count: "exact", head: true })
-        .in("status", ["confirmed", "pending"]).gte("scheduled_at", nowIso),
-      supabase.from("bookings").select("id", { count: "exact", head: true }).in("status", ["completed", "cancelled"]),
+        .eq("session_status", "in_progress")
+        .not("status", "in", "(completed,cancelled)"),
+      // UPCOMING = scheduled in the future, NOT live, NOT completed/cancelled
+      supabase.from("bookings").select("id", { count: "exact", head: true })
+        .in("status", ["confirmed", "pending"])
+        .neq("session_status", "in_progress")
+        .neq("session_status", "completed")
+        .gte("scheduled_at", nowIso),
+      // PAST = completed/cancelled OR session already ended
+      supabase.from("bookings").select("id", { count: "exact", head: true })
+        .or("status.in.(completed,cancelled),session_status.eq.completed"),
     ]);
     setCounts({ live: liveCount ?? 0, upcoming: upcomingCount ?? 0, past: pastCount ?? 0 });
   }, []);
@@ -99,11 +108,17 @@ export default function SessionsStatusTab() {
       .limit(PAGE_SIZE);
 
     if (tab === "live") {
-      q = q.eq("session_status", "in_progress");
+      q = q
+        .eq("session_status", "in_progress")
+        .not("status", "in", "(completed,cancelled)");
     } else if (tab === "upcoming") {
-      q = q.in("status", ["confirmed", "pending"]).gte("scheduled_at", nowIso);
+      q = q
+        .in("status", ["confirmed", "pending"])
+        .neq("session_status", "in_progress")
+        .neq("session_status", "completed")
+        .gte("scheduled_at", nowIso);
     } else {
-      q = q.in("status", ["completed", "cancelled"]);
+      q = q.or("status.in.(completed,cancelled),session_status.eq.completed");
     }
 
     const { data: bookings } = await q;
@@ -165,13 +180,24 @@ export default function SessionsStatusTab() {
     const ch = supabase
       .channel("admin-sessions-status")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
-        // Throttle refetch
+        // Throttle refetch (snappier — every 1.2s)
         if (refetchTimerRef.current) return;
         refetchTimerRef.current = setTimeout(() => {
           fetchCounts();
+          // Invalidate all loaded tabs so the user sees the latest on switch
+          setLoaded({ live: false, upcoming: false, past: false });
           fetchTab(activeTab, true);
           refetchTimerRef.current = null;
-        }, 4000);
+        }, 1200);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {
+        if (refetchTimerRef.current) return;
+        refetchTimerRef.current = setTimeout(() => {
+          fetchCounts();
+          setLoaded({ live: false, upcoming: false, past: false });
+          fetchTab(activeTab, true);
+          refetchTimerRef.current = null;
+        }, 1200);
       })
       .subscribe();
     return () => {

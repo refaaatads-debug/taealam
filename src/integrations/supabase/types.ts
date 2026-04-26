@@ -472,6 +472,7 @@ export type Database = {
           file_url: string | null
           id: string
           is_read: boolean | null
+          link: string | null
           title: string
           type: string | null
           user_id: string
@@ -483,6 +484,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           is_read?: boolean | null
+          link?: string | null
           title: string
           type?: string | null
           user_id: string
@@ -494,6 +496,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           is_read?: boolean | null
+          link?: string | null
           title?: string
           type?: string | null
           user_id?: string

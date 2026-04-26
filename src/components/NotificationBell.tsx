@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Popover,
   PopoverContent,
@@ -18,10 +19,12 @@ interface Notification {
   is_read: boolean | null;
   created_at: string;
   type: string | null;
+  link?: string | null;
 }
 
 export default function NotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const { play: playSound } = useNotificationSound();
@@ -36,7 +39,7 @@ export default function NotificationBell() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
-      if (data) setNotifications(data);
+      if (data) setNotifications(data as Notification[]);
     };
 
     fetchNotifications();
@@ -51,18 +54,33 @@ export default function NotificationBell() {
           setNotifications((prev) => [newNotif, ...prev.slice(0, 9)]);
           // Play sound based on notification type
           playSound(newNotif.type);
-          // Show transient popup at bottom-right for a few seconds
+          // Default link by type if not provided
+          const target =
+            newNotif.link ||
+            (newNotif.type === "support_reply" ? "/support" : null);
+
+          // Show transient popup at bottom-right; clickable when a target exists.
           toast(newNotif.title, {
             description: newNotif.body || undefined,
-            duration: 5000,
+            duration: 7000,
             position: "bottom-right",
+            ...(target
+              ? {
+                  action: {
+                    label: "فتح المحادثة",
+                    onClick: () => navigate(target),
+                  },
+                  onDismiss: () => {},
+                  className: "cursor-pointer",
+                }
+              : {}),
           });
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, navigate, playSound]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -98,15 +116,22 @@ export default function NotificationBell() {
           {notifications.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground text-center">لا توجد إشعارات</p>
           ) : (
-            notifications.map((n) => (
-              <div key={n.id} className={`p-3 border-b last:border-0 transition-colors ${!n.is_read ? "bg-accent/50" : ""}`}>
-                <p className="text-sm font-bold text-foreground">{n.title}</p>
-                {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {new Date(n.created_at).toLocaleDateString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-            ))
+            notifications.map((n) => {
+              const target = n.link || (n.type === "support_reply" ? "/support" : null);
+              return (
+                <div
+                  key={n.id}
+                  className={`p-3 border-b last:border-0 transition-colors ${!n.is_read ? "bg-accent/50" : ""} ${target ? "cursor-pointer hover:bg-accent" : ""}`}
+                  onClick={() => { if (target) { setOpen(false); navigate(target); } }}
+                >
+                  <p className="text-sm font-bold text-foreground">{n.title}</p>
+                  {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-3">{n.body}</p>}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {new Date(n.created_at).toLocaleDateString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              );
+            })
           )}
         </div>
       </PopoverContent>
