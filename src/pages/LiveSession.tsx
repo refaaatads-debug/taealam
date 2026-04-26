@@ -21,6 +21,8 @@ import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 import LiveAIAssistant from "@/components/LiveAIAssistant";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import ScreenShareToolbar from "@/components/teacher/ScreenShareToolbar";
+import VoiceRecorder from "@/components/VoiceRecorder";
+import VoicePlayer from "@/components/VoicePlayer";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
