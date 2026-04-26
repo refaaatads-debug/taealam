@@ -20,6 +20,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
@@ -28,6 +29,7 @@ const TeacherDashboard = () => {
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
   const unreadCounts = useUnreadMessages(scheduleIds);
 
@@ -296,17 +298,7 @@ const TeacherDashboard = () => {
                           variant="outline"
                           className="rounded-xl h-8 w-8 p-0 border-destructive/30 text-destructive hover:bg-destructive/10"
                           title="رفض الحصة"
-                          onClick={async () => {
-                            await supabase.from("bookings").update({ status: "cancelled" as any, session_status: "rejected" }).eq("id", s.id);
-                            await supabase.from("notifications").insert({
-                              user_id: s.student_id,
-                              title: "❌ تم رفض الحصة",
-                              body: `المعلم رفض الحصة المجدولة. يمكنك حجز حصة أخرى.`,
-                              type: "session_rejected",
-                            });
-                            toast.success("تم رفض الحصة وإبلاغ الطالب");
-                            fetchData();
-                          }}
+                          onClick={() => setCancelTarget({ id: s.id, studentId: s.student_id })}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -337,6 +329,16 @@ const TeacherDashboard = () => {
         </div>
       </div>
       <TeacherCustomerServiceButton />
+      <CancelSessionDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => !v && setCancelTarget(null)}
+        bookingId={cancelTarget?.id ?? null}
+        studentId={cancelTarget?.studentId ?? null}
+        onCancelled={() => {
+          setCancelTarget(null);
+          fetchData();
+        }}
+      />
       <BottomNav />
     </div>
   );
