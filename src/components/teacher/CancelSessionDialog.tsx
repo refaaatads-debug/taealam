@@ -68,12 +68,13 @@ export default function CancelSessionDialog({
     setSubmitting(true);
     try {
       const now = new Date().toISOString();
+      const trimmedReason = reason.trim();
       const { error: updateErr } = await supabase
         .from("bookings")
         .update({
           status: "cancelled",
           session_status: "cancelled",
-          cancellation_reason: reason.trim(),
+          cancellation_reason: trimmedReason,
           cancelled_at: now,
           cancelled_by: user.id,
         } as any)
@@ -86,37 +87,44 @@ export default function CancelSessionDialog({
         await supabase.from("notifications").insert({
           user_id: studentId,
           title: "تم إلغاء حصتك ❌",
-          body: `قام المعلم ${profile?.full_name || ""} بإلغاء حصتك. السبب: ${reason.trim()}`,
+          body: `قام المعلم ${profile?.full_name || ""} بإلغاء حصتك. السبب: ${trimmedReason}`,
           type: "booking",
         });
       }
 
       const newCount = monthCount + 1;
+      const { data: notifyAdminsData, error: notifyAdminsError } = await supabase.functions.invoke("send-notification", {
+        body: {
+          type: "teacher_cancellation_warning",
+          bookingId,
+          teacherId: user.id,
+          teacherName: profile?.full_name || user.id,
+          studentId: studentId || null,
+          reason: trimmedReason,
+          cancellationCount: newCount,
+          monthlyLimit: MONTHLY_LIMIT,
+        },
+      });
+
+      if (notifyAdminsError) {
+        throw notifyAdminsError;
+      }
+
       if (newCount > MONTHLY_LIMIT) {
         await supabase.from("user_warnings").insert({
           user_id: user.id,
           warning_type: "excessive_cancellation",
-          description: `تجاوز حد الإلغاءات الشهرية (${newCount}/${MONTHLY_LIMIT}). آخر سبب: ${reason.trim()}`,
+          description: `تجاوز حد الإلغاءات الشهرية (${newCount}/${MONTHLY_LIMIT}). آخر سبب: ${trimmedReason}`,
           warning_count: 1,
         } as any);
-
-        const { data: admins } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "admin");
-        if (admins && admins.length > 0) {
-          await supabase.from("notifications").insert(
-            admins.map((a: any) => ({
-              user_id: a.user_id,
-              title: "🚨 تجاوز حد الإلغاءات الشهرية",
-              body: `المعلم ${profile?.full_name || user.id} ألغى ${newCount} حصص هذا الشهر (الحد ${MONTHLY_LIMIT}). آخر سبب: ${reason.trim()} | افتح: /admin?tab=violations`,
-              type: "warning",
-            }))
-          );
-        }
         toast.warning(`تم تسجيل الإلغاء — تجاوزت الحد الشهري (${newCount}/${MONTHLY_LIMIT}) وتم إنذار الإدارة`);
       } else {
-        toast.success(`تم إلغاء الحصة. (${newCount}/${MONTHLY_LIMIT} هذا الشهر)`);
+        const adminsNotified = Number((notifyAdminsData as any)?.adminRecipients || 0);
+        toast.success(
+          adminsNotified > 0
+            ? `تم إلغاء الحصة وإرسال السبب للإدارة. (${newCount}/${MONTHLY_LIMIT} هذا الشهر)`
+            : `تم إلغاء الحصة. (${newCount}/${MONTHLY_LIMIT} هذا الشهر)`
+        );
       }
 
       onCancelled?.();
