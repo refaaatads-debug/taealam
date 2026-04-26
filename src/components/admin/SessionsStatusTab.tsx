@@ -180,13 +180,24 @@ export default function SessionsStatusTab() {
     const ch = supabase
       .channel("admin-sessions-status")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
-        // Throttle refetch
+        // Throttle refetch (snappier — every 1.2s)
         if (refetchTimerRef.current) return;
         refetchTimerRef.current = setTimeout(() => {
           fetchCounts();
+          // Invalidate all loaded tabs so the user sees the latest on switch
+          setLoaded({ live: false, upcoming: false, past: false });
           fetchTab(activeTab, true);
           refetchTimerRef.current = null;
-        }, 4000);
+        }, 1200);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, () => {
+        if (refetchTimerRef.current) return;
+        refetchTimerRef.current = setTimeout(() => {
+          fetchCounts();
+          setLoaded({ live: false, upcoming: false, past: false });
+          fetchTab(activeTab, true);
+          refetchTimerRef.current = null;
+        }, 1200);
       })
       .subscribe();
     return () => {
