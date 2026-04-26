@@ -1812,6 +1812,9 @@ const LiveSession = () => {
                           </button>
                         </div>
                       )}
+                      {m.fileUrl && m.fileType?.startsWith("audio/") && (
+                        <VoicePlayer url={m.fileUrl} fileName={m.fileName} />
+                      )}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">{m.time}</p>
                   </motion.div>
@@ -1831,7 +1834,7 @@ const LiveSession = () => {
                     الدردشة محظورة مؤقتاً ({muteCountdown}ث)
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <Button
                       size="icon"
                       variant="ghost"
@@ -1841,6 +1844,7 @@ const LiveSession = () => {
                     >
                       {fileUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
+                    <VoiceRecorder onRecorded={uploadChatFile} disabled={fileUploading} />
                     <Input
                       placeholder="اكتب رسالة..."
                       className="text-right h-10 rounded-xl bg-muted/30 border-0"
