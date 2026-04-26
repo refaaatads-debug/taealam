@@ -10,7 +10,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { type } = await req.json();
+    const payload = await req.json();
+    const { type } = payload;
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -92,6 +93,50 @@ serve(async (req) => {
           type: "subscription_expiry",
         });
       }
+    }
+
+    if (type === "teacher_cancellation_warning") {
+      const {
+        bookingId,
+        teacherId,
+        teacherName,
+        studentId,
+        reason,
+        cancellationCount,
+        monthlyLimit,
+      } = payload;
+
+      if (!bookingId || !teacherId || !reason) {
+        return new Response(JSON.stringify({ error: "Missing cancellation payload" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: admins, error: adminsError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+
+      if (adminsError) throw adminsError;
+
+      const link = `/admin?tab=violations&booking=${bookingId}`;
+      const adminNotifications = (admins || []).map((admin) => ({
+        user_id: admin.user_id,
+        title: "🚨 إلغاء حصة من المعلم",
+        body: `المعلم ${teacherName || teacherId} ألغى حصة${studentId ? " للطالب" : ""}. السبب: ${reason}. عدد الإلغاءات هذا الشهر: ${cancellationCount}/${monthlyLimit}`,
+        type: "warning",
+        link,
+      }));
+
+      if (adminNotifications.length > 0) {
+        const { error: insertError } = await supabase.from("notifications").insert(adminNotifications as any);
+        if (insertError) throw insertError;
+      }
+
+      return new Response(JSON.stringify({ sent: adminNotifications.length, adminRecipients: adminNotifications.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (notifications.length > 0) {
