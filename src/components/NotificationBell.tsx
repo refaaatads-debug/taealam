@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Popover,
   PopoverContent,
@@ -18,10 +19,12 @@ interface Notification {
   is_read: boolean | null;
   created_at: string;
   type: string | null;
+  link?: string | null;
 }
 
 export default function NotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const { play: playSound } = useNotificationSound();
@@ -36,7 +39,7 @@ export default function NotificationBell() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
-      if (data) setNotifications(data);
+      if (data) setNotifications(data as Notification[]);
     };
 
     fetchNotifications();
@@ -51,18 +54,33 @@ export default function NotificationBell() {
           setNotifications((prev) => [newNotif, ...prev.slice(0, 9)]);
           // Play sound based on notification type
           playSound(newNotif.type);
-          // Show transient popup at bottom-right for a few seconds
+          // Default link by type if not provided
+          const target =
+            newNotif.link ||
+            (newNotif.type === "support_reply" ? "/support" : null);
+
+          // Show transient popup at bottom-right; clickable when a target exists.
           toast(newNotif.title, {
             description: newNotif.body || undefined,
-            duration: 5000,
+            duration: 7000,
             position: "bottom-right",
+            ...(target
+              ? {
+                  action: {
+                    label: "فتح المحادثة",
+                    onClick: () => navigate(target),
+                  },
+                  onDismiss: () => {},
+                  className: "cursor-pointer",
+                }
+              : {}),
           });
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, navigate, playSound]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
