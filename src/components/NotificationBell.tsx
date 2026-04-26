@@ -116,15 +116,22 @@ export default function NotificationBell() {
           {notifications.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground text-center">لا توجد إشعارات</p>
           ) : (
-            notifications.map((n) => (
-              <div key={n.id} className={`p-3 border-b last:border-0 transition-colors ${!n.is_read ? "bg-accent/50" : ""}`}>
-                <p className="text-sm font-bold text-foreground">{n.title}</p>
-                {n.body && <p className="text-xs text-muted-foreground mt-0.5">{n.body}</p>}
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {new Date(n.created_at).toLocaleDateString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-            ))
+            notifications.map((n) => {
+              const target = n.link || (n.type === "support_reply" ? "/support" : null);
+              return (
+                <div
+                  key={n.id}
+                  className={`p-3 border-b last:border-0 transition-colors ${!n.is_read ? "bg-accent/50" : ""} ${target ? "cursor-pointer hover:bg-accent" : ""}`}
+                  onClick={() => { if (target) { setOpen(false); navigate(target); } }}
+                >
+                  <p className="text-sm font-bold text-foreground">{n.title}</p>
+                  {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-3">{n.body}</p>}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {new Date(n.created_at).toLocaleDateString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              );
+            })
           )}
         </div>
       </PopoverContent>
