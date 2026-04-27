@@ -263,15 +263,8 @@ export default function StudentScheduleTable() {
     fetchBookings();
   };
 
-  const handleDeleteBooking = async (bookingId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
-    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
-    if (error) {
-      toast.error("تعذر حذف الحصة");
-      return;
-    }
-    toast.success("تم حذف الحصة");
-    setBookings(prev => prev.filter(b => b.id !== bookingId));
+  const handleDeleteBooking = (bookingId: string) => {
+    handleHideBooking(bookingId);
   };
 
   const getStatusBadge = (status: string, isLive: boolean) => {
@@ -292,7 +285,7 @@ export default function StudentScheduleTable() {
 
   const groupedByTeacher = useMemo(() => {
     const groups: Record<string, { teacherName: string; teacherId: string; bookings: BookingRow[] }> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.teacher_id || "unknown";
       if (!groups[key]) {
         groups[key] = { teacherName: b.teacher_name || "معلم", teacherId: key, bookings: [] };
