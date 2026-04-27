@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2 } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2, Eraser, RotateCcw } from "lucide-react";
+import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -39,29 +40,56 @@ export default function StudentScheduleTable() {
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
   const [joinRequest, setJoinRequest] = useState<{ bookingId: string; teacherName: string } | null>(null);
-  const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (user?.id) setHiddenIds(getHiddenBookings(user.id));
+  }, [user?.id]);
+  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
 
   // Compute total unread per teacher
   const unreadByTeacher = useMemo(() => {
     const result: Record<string, number> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.teacher_id || "unknown";
       result[key] = (result[key] || 0) + (unreadCounts[b.id] || 0);
     });
     return result;
-  }, [bookings, unreadCounts]);
+  }, [visibleBookings, unreadCounts]);
 
   // Get latest booking id per teacher for chat link
   const latestBookingByTeacher = useMemo(() => {
     const result: Record<string, string> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.teacher_id || "unknown";
       if (!result[key]) result[key] = b.id;
     });
     return result;
-  }, [bookings]);
+  }, [visibleBookings]);
+
+  const handleHideBooking = (bookingId: string) => {
+    if (!user?.id) return;
+    hideBooking(user.id, bookingId);
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء الحصة من الجدول");
+  };
+
+  const handleClearAll = () => {
+    if (!user?.id) return;
+    if (!confirm("هل تريد إخفاء جميع الحصص من الجدول؟ (لن يتم حذفها من النظام)")) return;
+    hideAllBookings(user.id, bookings.map(b => b.id));
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء كل الحصص من الجدول");
+  };
+
+  const handleRestoreAll = () => {
+    if (!user?.id) return;
+    clearHiddenBookings(user.id);
+    setHiddenIds(new Set());
+    toast.success("تم استعادة جميع الحصص");
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -235,15 +263,8 @@ export default function StudentScheduleTable() {
     fetchBookings();
   };
 
-  const handleDeleteBooking = async (bookingId: string) => {
-    if (!confirm("هل أنت متأكد من حذف هذه الحصة؟")) return;
-    const { error } = await supabase.from("bookings").update({ status: "cancelled" as any }).eq("id", bookingId);
-    if (error) {
-      toast.error("تعذر حذف الحصة");
-      return;
-    }
-    toast.success("تم حذف الحصة");
-    setBookings(prev => prev.filter(b => b.id !== bookingId));
+  const handleDeleteBooking = (bookingId: string) => {
+    handleHideBooking(bookingId);
   };
 
   const getStatusBadge = (status: string, isLive: boolean) => {
@@ -264,7 +285,7 @@ export default function StudentScheduleTable() {
 
   const groupedByTeacher = useMemo(() => {
     const groups: Record<string, { teacherName: string; teacherId: string; bookings: BookingRow[] }> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.teacher_id || "unknown";
       if (!groups[key]) {
         groups[key] = { teacherName: b.teacher_name || "معلم", teacherId: key, bookings: [] };
@@ -272,7 +293,7 @@ export default function StudentScheduleTable() {
       groups[key].bookings.push(b);
     });
     return Object.values(groups);
-  }, [bookings]);
+  }, [visibleBookings]);
 
   if (loading) {
     return (
@@ -350,12 +371,24 @@ export default function StudentScheduleTable() {
 
       <Card className="border-0 shadow-card">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 font-bold">
+          <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <CalendarCheck className="h-4 w-4 text-primary" />
             </div>
             جدول الحصص
-            {bookings.length > 0 && <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">{bookings.length}</Badge>}
+            {visibleBookings.length > 0 && <Badge className="bg-primary/10 text-primary border-0 text-xs">{visibleBookings.length}</Badge>}
+            <div className="mr-auto flex items-center gap-1.5">
+              {hiddenIds.size > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1" onClick={handleRestoreAll} title="استعادة الحصص المخفية">
+                  <RotateCcw className="h-3 w-3" /> استعادة ({hiddenIds.size})
+                </Button>
+              )}
+              {visibleBookings.length > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10" onClick={handleClearAll} title="مسح الجدول بالكامل">
+                  <Eraser className="h-3 w-3" /> مسح الجدول
+                </Button>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">

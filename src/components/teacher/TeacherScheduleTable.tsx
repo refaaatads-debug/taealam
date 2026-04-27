@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
+import { Eraser, RotateCcw } from "lucide-react";
 
 interface BookingRow {
   id: string;
@@ -33,29 +35,56 @@ export default function TeacherScheduleTable() {
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
-  const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (user?.id) setHiddenIds(getHiddenBookings(user.id));
+  }, [user?.id]);
+  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
 
   // Compute total unread per student
   const unreadByStudent = useMemo(() => {
     const result: Record<string, number> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.student_id || "unknown";
       result[key] = (result[key] || 0) + (unreadCounts[b.id] || 0);
     });
     return result;
-  }, [bookings, unreadCounts]);
+  }, [visibleBookings, unreadCounts]);
 
   // Get latest booking id per student for chat link
   const latestBookingByStudent = useMemo(() => {
     const result: Record<string, string> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.student_id || "unknown";
       if (!result[key]) result[key] = b.id; // bookings are ordered desc, first is latest
     });
     return result;
-  }, [bookings]);
+  }, [visibleBookings]);
+
+  const handleHideBooking = (bookingId: string) => {
+    if (!user?.id) return;
+    hideBooking(user.id, bookingId);
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء الحصة من الجدول");
+  };
+
+  const handleClearAll = () => {
+    if (!user?.id) return;
+    if (!confirm("هل تريد إخفاء جميع الحصص من الجدول؟ (لن يتم حذفها من النظام)")) return;
+    hideAllBookings(user.id, bookings.map(b => b.id));
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء كل الحصص من الجدول");
+  };
+
+  const handleRestoreAll = () => {
+    if (!user?.id) return;
+    clearHiddenBookings(user.id);
+    setHiddenIds(new Set());
+    toast.success("تم استعادة جميع الحصص");
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -186,7 +215,7 @@ export default function TeacherScheduleTable() {
 
   const groupedByStudent = useMemo(() => {
     const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.student_id || "unknown";
       if (!groups[key]) {
         groups[key] = { studentName: b.student_name || "طالب", studentId: key, bookings: [] };
@@ -194,7 +223,7 @@ export default function TeacherScheduleTable() {
       groups[key].bookings.push(b);
     });
     return Object.values(groups);
-  }, [bookings]);
+  }, [visibleBookings]);
 
   if (loading) {
     return (
@@ -209,12 +238,24 @@ export default function TeacherScheduleTable() {
   return (
     <Card className="border-0 shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 font-bold">
+        <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <CalendarCheck className="h-4 w-4 text-primary" />
           </div>
           جدول الحصص
-          {bookings.length > 0 && <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">{bookings.length}</Badge>}
+          {visibleBookings.length > 0 && <Badge className="bg-primary/10 text-primary border-0 text-xs">{visibleBookings.length}</Badge>}
+          <div className="mr-auto flex items-center gap-1.5">
+            {hiddenIds.size > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1" onClick={handleRestoreAll} title="استعادة الحصص المخفية">
+                <RotateCcw className="h-3 w-3" /> استعادة ({hiddenIds.size})
+              </Button>
+            )}
+            {visibleBookings.length > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10" onClick={handleClearAll} title="مسح الجدول بالكامل">
+                <Eraser className="h-3 w-3" /> مسح الجدول
+              </Button>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -335,16 +376,28 @@ export default function TeacherScheduleTable() {
                                 </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
                                 <td className="py-2.5 px-3">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                                    onClick={() => openCancelDialog(b.id, b.student_id)}
-                                    title="إلغاء الحصة"
-                                    disabled={b.status === "completed" || b.status === "cancelled"}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {b.status !== "completed" && b.status !== "cancelled" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-amber-600 hover:bg-amber-500/10"
+                                        onClick={() => openCancelDialog(b.id, b.student_id)}
+                                        title="إلغاء الحصة"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                      onClick={() => handleHideBooking(b.id)}
+                                      title="إخفاء من الجدول"
+                                    >
+                                      <Eraser className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}

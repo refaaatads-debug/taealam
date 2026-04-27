@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Loader2, Send, Paperclip, FileText, X, Download } from "lucide-react";
+import { DollarSign, Loader2, Send, Paperclip, FileText, X, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ export default function WithdrawalSection() {
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [manualEarnings, setManualEarnings] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -108,15 +109,25 @@ export default function WithdrawalSection() {
 
   return (
     <Card className="border-0 shadow-card">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 font-bold">
-          <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-            <DollarSign className="h-4 w-4 text-secondary" />
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-right p-4 sm:p-6 flex items-center justify-between hover:bg-muted/30 transition-colors rounded-t-lg"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+            <DollarSign className="h-5 w-5 text-secondary" />
           </div>
-          سحب الأرباح
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+          <div className="text-right">
+            <p className="text-base sm:text-lg font-bold leading-tight">سحب الأرباح</p>
+            <p className="text-xs text-muted-foreground">المتاح: <strong className="text-foreground">{balance.toLocaleString()} ر.س</strong></p>
+          </div>
+        </div>
+        {open ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+      </button>
+      {open && (
+      <CardContent className="space-y-4 pt-0">
+
         {/* Balance Summary */}
         <div className="grid grid-cols-2 gap-3">
           <div className="p-4 rounded-2xl bg-accent/50 border border-secondary/20">
@@ -262,6 +273,7 @@ export default function WithdrawalSection() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
