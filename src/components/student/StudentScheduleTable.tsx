@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2 } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2, Eraser, RotateCcw } from "lucide-react";
+import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -39,7 +40,12 @@ export default function StudentScheduleTable() {
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
   const [joinRequest, setJoinRequest] = useState<{ bookingId: string; teacherName: string } | null>(null);
-  const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (user?.id) setHiddenIds(getHiddenBookings(user.id));
+  }, [user?.id]);
+  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
 
