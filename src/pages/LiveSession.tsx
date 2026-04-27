@@ -1966,18 +1966,7 @@ const LiveSession = () => {
         </div>
       )}
 
-      {/* Floating annotation toolbar — appears for teacher during screen sharing; student sees annotations as remote actions */}
-      {((isTeacher && screenSharing) || (!isTeacher && remoteScreenSharing)) && (
-        <ScreenShareToolbar
-          enabled={isTeacher ? screenToolbarOpen : true}
-          onClose={() => setScreenToolbarOpen(false)}
-          onSendAction={isTeacher ? (action) => {
-            if (action.type === "clear") sendDataMessage({ type: "screen-annotation-clear" });
-            else sendDataMessage({ type: "screen-annotation", action });
-          } : undefined}
-          remoteActions={screenAnnotations}
-        />
-      )}
+      {/* Screen-share annotation toolbar removed per request — keeps the shared screen clean */}
     </div>
   );
 };
