@@ -47,22 +47,44 @@ export default function TeacherScheduleTable() {
   // Compute total unread per student
   const unreadByStudent = useMemo(() => {
     const result: Record<string, number> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.student_id || "unknown";
       result[key] = (result[key] || 0) + (unreadCounts[b.id] || 0);
     });
     return result;
-  }, [bookings, unreadCounts]);
+  }, [visibleBookings, unreadCounts]);
 
   // Get latest booking id per student for chat link
   const latestBookingByStudent = useMemo(() => {
     const result: Record<string, string> = {};
-    bookings.forEach(b => {
+    visibleBookings.forEach(b => {
       const key = b.student_id || "unknown";
       if (!result[key]) result[key] = b.id; // bookings are ordered desc, first is latest
     });
     return result;
-  }, [bookings]);
+  }, [visibleBookings]);
+
+  const handleHideBooking = (bookingId: string) => {
+    if (!user?.id) return;
+    hideBooking(user.id, bookingId);
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء الحصة من الجدول");
+  };
+
+  const handleClearAll = () => {
+    if (!user?.id) return;
+    if (!confirm("هل تريد إخفاء جميع الحصص من الجدول؟ (لن يتم حذفها من النظام)")) return;
+    hideAllBookings(user.id, bookings.map(b => b.id));
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء كل الحصص من الجدول");
+  };
+
+  const handleRestoreAll = () => {
+    if (!user?.id) return;
+    clearHiddenBookings(user.id);
+    setHiddenIds(new Set());
+    toast.success("تم استعادة جميع الحصص");
+  };
 
   useEffect(() => {
     if (!user) return;
