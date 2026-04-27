@@ -293,7 +293,7 @@ export default function StudentScheduleTable() {
       groups[key].bookings.push(b);
     });
     return Object.values(groups);
-  }, [bookings]);
+  }, [visibleBookings]);
 
   if (loading) {
     return (
