@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
+import { Eraser, RotateCcw } from "lucide-react";
 
 interface BookingRow {
   id: string;
@@ -33,7 +35,12 @@ export default function TeacherScheduleTable() {
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
-  const bookingIds = useMemo(() => bookings.map(b => b.id), [bookings]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (user?.id) setHiddenIds(getHiddenBookings(user.id));
+  }, [user?.id]);
+  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
 
