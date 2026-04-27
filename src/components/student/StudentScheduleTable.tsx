@@ -371,12 +371,24 @@ export default function StudentScheduleTable() {
 
       <Card className="border-0 shadow-card">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 font-bold">
+          <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <CalendarCheck className="h-4 w-4 text-primary" />
             </div>
             جدول الحصص
-            {bookings.length > 0 && <Badge className="mr-auto bg-primary/10 text-primary border-0 text-xs">{bookings.length}</Badge>}
+            {visibleBookings.length > 0 && <Badge className="bg-primary/10 text-primary border-0 text-xs">{visibleBookings.length}</Badge>}
+            <div className="mr-auto flex items-center gap-1.5">
+              {hiddenIds.size > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1" onClick={handleRestoreAll} title="استعادة الحصص المخفية">
+                  <RotateCcw className="h-3 w-3" /> استعادة ({hiddenIds.size})
+                </Button>
+              )}
+              {visibleBookings.length > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10" onClick={handleClearAll} title="مسح الجدول بالكامل">
+                  <Eraser className="h-3 w-3" /> مسح الجدول
+                </Button>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
