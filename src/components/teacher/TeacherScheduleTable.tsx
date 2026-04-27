@@ -376,16 +376,28 @@ export default function TeacherScheduleTable() {
                                 </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
                                 <td className="py-2.5 px-3">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                                    onClick={() => openCancelDialog(b.id, b.student_id)}
-                                    title="إلغاء الحصة"
-                                    disabled={b.status === "completed" || b.status === "cancelled"}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    {b.status !== "completed" && b.status !== "cancelled" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-amber-600 hover:bg-amber-500/10"
+                                        onClick={() => openCancelDialog(b.id, b.student_id)}
+                                        title="إلغاء الحصة"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                      onClick={() => handleHideBooking(b.id)}
+                                      title="إخفاء من الجدول"
+                                    >
+                                      <Eraser className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
