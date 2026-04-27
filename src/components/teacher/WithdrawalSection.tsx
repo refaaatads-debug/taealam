@@ -263,6 +263,7 @@ export default function WithdrawalSection() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
