@@ -249,18 +249,18 @@ const Profile = () => {
             <CardHeader>
               <CardTitle className="text-lg font-bold">البيانات الشخصية</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               <div>
                 <Label className="text-xs font-bold text-muted-foreground">الاسم الكامل</Label>
-                <Input value={fullName} onChange={e => setFullName(e.target.value)} className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" />
+                <Input value={fullName} onChange={e => setFullName(e.target.value)} className="mt-1.5 h-11 text-right rounded-xl bg-muted/30 border-border/50" />
               </div>
               <div>
                 <Label className="text-xs font-bold text-muted-foreground">البريد الإلكتروني</Label>
-                <Input value={user?.email || ""} disabled className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50 opacity-60" />
+                <Input value={user?.email || ""} disabled className="mt-1.5 h-11 text-right rounded-xl bg-muted/30 border-border/50 opacity-60" />
               </div>
               <div>
                 <Label className="text-xs font-bold text-muted-foreground">رقم الجوال</Label>
-                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 h-11 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
               </div>
               {isStudent && (
                 <div>
@@ -268,7 +268,7 @@ const Profile = () => {
                     <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية
                   </Label>
                   <Select value={studentStage} onValueChange={setStudentStage}>
-                    <SelectTrigger className="mt-1.5 rounded-xl bg-muted/30 border-border/50">
+                    <SelectTrigger className="mt-1.5 h-11 rounded-xl bg-muted/30 border-border/50">
                       <SelectValue placeholder="اختر مرحلتك الدراسية" />
                     </SelectTrigger>
                     <SelectContent>
@@ -304,17 +304,17 @@ const Profile = () => {
                       <Label className="text-xs font-bold text-muted-foreground">السيرة الذاتية</Label>
                       <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="اكتب نبذة عنك وخبراتك..." className="mt-1.5 text-right rounded-xl bg-muted/30 border-border/50 min-h-[100px]" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs font-bold text-muted-foreground">سنوات الخبرة</Label>
-                        <Input type="number" value={yearsExp} onChange={e => setYearsExp(e.target.value)} className="mt-1.5 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                        <Input type="number" value={yearsExp} onChange={e => setYearsExp(e.target.value)} className="mt-1.5 h-11 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
                       </div>
                       <div>
                         <Label className="text-xs font-bold text-muted-foreground">الجنسية</Label>
                         <select
                           value={nationality}
                           onChange={e => setNationality(e.target.value)}
-                          className="mt-1.5 w-full h-10 rounded-xl bg-muted/30 border border-border/50 px-3 text-sm text-right"
+                          className="mt-1.5 w-full h-11 rounded-xl bg-muted/30 border border-border/50 px-3 text-sm text-right"
                         >
                           <option value="">اختر الجنسية</option>
                           <option value="سعودي">سعودي</option>
@@ -344,14 +344,14 @@ const Profile = () => {
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
                         <Clock className="h-3.5 w-3.5" /> ساعات التوفر
                       </Label>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-[10px] text-muted-foreground">من</Label>
-                          <Input type="time" value={availFrom} onChange={e => setAvailFrom(e.target.value)} className="mt-1 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                          <Input type="time" value={availFrom} onChange={e => setAvailFrom(e.target.value)} className="mt-1 h-11 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
                         </div>
                         <div>
                           <Label className="text-[10px] text-muted-foreground">إلى</Label>
-                          <Input type="time" value={availTo} onChange={e => setAvailTo(e.target.value)} className="mt-1 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
+                          <Input type="time" value={availTo} onChange={e => setAvailTo(e.target.value)} className="mt-1 h-11 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
                         </div>
                       </div>
                     </div>
@@ -546,12 +546,12 @@ const Profile = () => {
         </motion.div>
 
         {/* Save & Actions */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="space-y-3">
-          <Button onClick={handleSaveProfile} disabled={saving} className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold h-12 text-base">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="space-y-3 sticky bottom-20 md:static md:bottom-auto z-20">
+          <Button onClick={handleSaveProfile} disabled={saving} className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold h-14 text-base">
             {saving ? <Loader2 className="h-5 w-5 animate-spin ml-2" /> : <Save className="h-5 w-5 ml-2" />}
             حفظ جميع التغييرات
           </Button>
-          <Button onClick={handleSignOut} variant="outline" className="w-full rounded-xl gap-2 text-muted-foreground">
+          <Button onClick={handleSignOut} variant="outline" className="w-full rounded-xl gap-2 h-12 text-muted-foreground">
             <LogOut className="h-4 w-4" /> تسجيل الخروج
           </Button>
         </motion.div>
