@@ -4,11 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Users as UsersIcon, ShieldCheck } from "lucide-react";
+import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Users as UsersIcon, ShieldCheck, Sparkles, Star, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { toast } from "sonner";
+import loginHero from "@/assets/login-hero.jpg";
 
 type Role = "student" | "teacher";
 
