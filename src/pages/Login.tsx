@@ -152,7 +152,7 @@ const Login = () => {
       <aside className="hidden lg:flex lg:w-1/2 relative overflow-hidden gradient-hero">
         <img
           src={loginHero}
-          alt="طلاب يتعلمون عبر منصة تعلم المستقبل"
+          alt="طالب سعودي يتعلم عبر منصة أجيال المعرفة"
           width={1024}
           height={1536}
           className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"
@@ -167,8 +167,8 @@ const Login = () => {
               <GraduationCap className="h-6 w-6" />
             </div>
             <div>
-              <span className="font-extrabold text-2xl block leading-none">تعلم المستقبل</span>
-              <span className="text-xs text-primary-foreground/70">Future Learn</span>
+              <span className="font-extrabold text-2xl block leading-none">منصة أجيال المعرفة</span>
+              <span className="text-xs text-primary-foreground/70">Ajyal Al-Maarefa</span>
             </div>
           </Link>
 
@@ -218,7 +218,7 @@ const Login = () => {
                 <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
                   <GraduationCap className="h-5 w-5 text-secondary-foreground" />
                 </div>
-                <span className="font-extrabold text-2xl text-foreground">تعلم المستقبل</span>
+                <span className="font-extrabold text-2xl text-foreground">منصة أجيال المعرفة</span>
               </Link>
               <h2 className="text-2xl sm:text-3xl font-black text-center text-foreground mb-1">
                 {isLogin ? "مرحباً بعودتك! 👋" : "انضم إلينا اليوم"}
