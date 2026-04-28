@@ -198,30 +198,44 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+    <div className="min-h-screen bg-gradient-to-b from-muted/40 via-background to-background pb-20 md:pb-8">
       <Navbar />
-      <div className="container py-8 max-w-2xl">
-        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-2xl font-black text-foreground mb-8">الملف الشخصي</motion.h1>
+      <div className="container py-6 md:py-10 max-w-2xl px-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black text-foreground">الملف الشخصي</h1>
+            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">أدر بياناتك وإعداداتك من مكان واحد</p>
+          </div>
+          <Badge variant="outline" className="hidden sm:inline-flex border-secondary/30 text-secondary bg-secondary/5 gap-1.5">
+            <Shield className="h-3 w-3" /> حساب موثّق
+          </Badge>
+        </motion.div>
 
-        {/* Avatar */}
+        {/* Avatar Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <Card className="border-0 shadow-card mb-6 overflow-hidden">
-            <div className="h-20 gradient-hero" />
-            <CardContent className="p-6 flex flex-col items-center -mt-10">
+          <Card className="border-0 shadow-card-hover mb-6 overflow-hidden">
+            <div className="h-32 md:h-36 gradient-hero relative overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-primary-foreground/10 blur-2xl" />
+              <div className="absolute bottom-0 left-0 w-48 h-24 bg-secondary/30 blur-3xl" />
+              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+            </div>
+            <CardContent className="p-5 md:p-6 flex flex-col items-center -mt-14">
               <div className="relative mb-4">
-                <div className="w-20 h-20 rounded-2xl gradient-hero flex items-center justify-center border-4 border-card">
-                  <Users className="h-10 w-10 text-primary-foreground/80" />
+                <div className="w-24 h-24 md:w-28 md:h-28 rounded-3xl bg-card p-1 shadow-card-hover">
+                  <div className="w-full h-full rounded-[1.25rem] gradient-hero flex items-center justify-center">
+                    <Users className="h-12 w-12 text-primary-foreground/90" />
+                  </div>
                 </div>
-                <button className="absolute bottom-0 left-0 w-8 h-8 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground shadow-button">
-                  <Camera className="h-3.5 w-3.5" />
+                <button className="absolute -bottom-1 -left-1 w-9 h-9 rounded-2xl gradient-cta flex items-center justify-center text-secondary-foreground shadow-button hover:scale-110 transition-transform">
+                  <Camera className="h-4 w-4" />
                 </button>
               </div>
-              <h2 className="font-black text-lg text-foreground">{profile?.full_name || "مستخدم"}</h2>
-              <p className="text-sm text-muted-foreground">{user?.email}</p>
-              <div className="flex gap-2 mt-2">
+              <h2 className="font-black text-xl md:text-2xl text-foreground text-center">{profile?.full_name || "مستخدم"}</h2>
+              <p className="text-sm text-muted-foreground mt-0.5 break-all text-center">{user?.email}</p>
+              <div className="flex flex-wrap justify-center gap-2 mt-3">
                 {roles.map(r => (
-                  <Badge key={r} variant="secondary" className="text-xs">
-                    {r === "teacher" ? "معلم" : r === "student" ? "طالب" : r === "parent" ? "ولي أمر" : "مسؤول"}
+                  <Badge key={r} className="bg-secondary/10 text-secondary border border-secondary/20 text-xs font-bold">
+                    {r === "teacher" ? "👨‍🏫 معلم" : r === "student" ? "🎓 طالب" : r === "parent" ? "👨‍👩‍👧 ولي أمر" : "🛡️ مسؤول"}
                   </Badge>
                 ))}
               </div>
