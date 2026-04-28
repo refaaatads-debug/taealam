@@ -147,30 +147,88 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-20 right-20 w-64 h-64 rounded-full border border-primary-foreground/20 animate-float" />
-        <div className="absolute bottom-20 left-20 w-40 h-40 rounded-full border border-primary-foreground/20 animate-float" style={{ animationDelay: "1s" }} />
-      </div>
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md relative z-10">
-        <Card className="border-0 shadow-card-hover overflow-hidden">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-background relative overflow-hidden">
+      {/* Left: Hero panel (desktop only) */}
+      <aside className="hidden lg:flex lg:w-1/2 relative overflow-hidden gradient-hero">
+        <img
+          src={loginHero}
+          alt="طلاب يتعلمون عبر منصة تعلم المستقبل"
+          width={1024}
+          height={1536}
+          className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"
+        />
+        <div className="absolute inset-0 bg-gradient-to-tr from-primary/80 via-primary/50 to-secondary/40" />
+        <div className="absolute top-16 left-16 w-72 h-72 rounded-full bg-secondary/20 blur-3xl animate-pulse" />
+        <div className="absolute bottom-16 right-16 w-96 h-96 rounded-full bg-primary-foreground/10 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-primary-foreground w-full">
+          <Link to="/" className="flex items-center gap-3 group w-fit">
+            <div className="w-12 h-12 rounded-2xl bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <GraduationCap className="h-6 w-6" />
+            </div>
+            <div>
+              <span className="font-extrabold text-2xl block leading-none">تعلم المستقبل</span>
+              <span className="text-xs text-primary-foreground/70">Future Learn</span>
+            </div>
+          </Link>
+
+          <div className="space-y-6 max-w-lg">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 text-xs font-semibold">
+                <Sparkles className="h-3.5 w-3.5" />
+                المنصة الأولى للتعليم الذكي
+              </span>
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-4xl xl:text-5xl font-black leading-tight">
+              ابدأ رحلتك التعليمية<br />
+              <span className="text-secondary-foreground/95">مع نخبة المعلمين</span>
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="text-lg text-primary-foreground/85 leading-relaxed">
+              حصص مباشرة، مدرس ذكي بالذكاء الاصطناعي، وجدولة مرنة — كل ما تحتاجه للتفوق في مكان واحد.
+            </motion.p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="grid gap-3 pt-4">
+              {["أكثر من 10,000 طالب نشط", "معلمون معتمدون ومراجعون يدوياً", "حصص مسجّلة وتقارير تفصيلية"].map((f) => (
+                <div key={f} className="flex items-center gap-3 text-sm">
+                  <CheckCircle2 className="h-5 w-5 text-secondary-foreground shrink-0" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star key={i} className="h-4 w-4 fill-current text-amber-300" />
+              ))}
+            </div>
+            <p className="text-xs text-primary-foreground/80">تقييم 4.9 من آلاف الطلاب</p>
+          </motion.div>
+        </div>
+      </aside>
+
+      {/* Right: Form panel */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative">
+        <div className="lg:hidden absolute inset-0 gradient-hero opacity-90" />
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md relative z-10">
+        <Card className="border-0 shadow-card-hover overflow-hidden glass-strong lg:bg-card lg:backdrop-blur-none">
           <CardContent className="p-0">
-            <div className="p-8 pb-6">
-              <Link to="/" className="flex items-center justify-center gap-2.5 mb-6">
+            <div className="p-6 sm:p-8 pb-4 sm:pb-6">
+              <Link to="/" className="flex lg:hidden items-center justify-center gap-2.5 mb-6">
                 <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
                   <GraduationCap className="h-5 w-5 text-secondary-foreground" />
                 </div>
-                <span className="font-extrabold text-2xl text-foreground">أجيال المعرفة</span>
+                <span className="font-extrabold text-2xl text-foreground">تعلم المستقبل</span>
               </Link>
-              <h2 className="text-2xl font-black text-center text-foreground mb-1">
-                {isLogin ? "مرحباً بعودتك! 👋" : "انضم لمنصة أجيال المعرفة"}
+              <h2 className="text-2xl sm:text-3xl font-black text-center text-foreground mb-1">
+                {isLogin ? "مرحباً بعودتك! 👋" : "انضم إلينا اليوم"}
               </h2>
               <p className="text-center text-muted-foreground text-sm">
-                {isLogin ? "سجّل دخولك للمتابعة" : "أكثر من 10,000 طالب يثقون بنا"}
+                {isLogin ? "سجّل دخولك للمتابعة في رحلتك" : "أكثر من 10,000 طالب يثقون بنا"}
               </p>
             </div>
 
-            <div className="px-8 pb-8">
+            <div className="px-6 sm:px-8 pb-6 sm:pb-8">
               <AnimatePresence>
                 {!isLogin && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-5">
