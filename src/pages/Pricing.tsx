@@ -139,35 +139,40 @@ const Pricing = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col pb-20 md:pb-0">
       <Navbar />
 
       {/* Hero */}
-      <div className="gradient-hero py-12 md:py-16 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-16 right-20 w-40 h-40 rounded-full border border-primary-foreground/20 animate-float" />
-          <div className="absolute bottom-10 left-16 w-24 h-24 rounded-full border border-primary-foreground/10" />
+      <div className="gradient-hero py-14 md:py-20 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-16 right-20 w-56 h-56 rounded-full bg-secondary/40 blur-3xl animate-pulse" />
+          <div className="absolute bottom-10 left-16 w-40 h-40 rounded-full bg-primary-foreground/20 blur-3xl" />
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
         </div>
-        <div className="container max-w-5xl relative z-10 text-center">
+        <div className="container max-w-5xl relative z-10 text-center px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Badge className="mb-4 bg-primary-foreground/10 text-primary-foreground border-0 text-sm px-4 py-1.5">
-              <Gift className="h-3.5 w-3.5 ml-1.5" /> وفّر حتى 40%
+            <Badge className="mb-5 bg-primary-foreground/15 backdrop-blur-md text-primary-foreground border border-primary-foreground/20 text-sm px-4 py-1.5">
+              <Gift className="h-3.5 w-3.5 ml-1.5" /> وفّر حتى 40% على الباقات السنوية
             </Badge>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-primary-foreground mb-3">اختر الباقة المناسبة لك</h1>
-            <p className="text-primary-foreground/70 text-base md:text-lg max-w-lg mx-auto">خطط مرنة تناسب جميع المستويات، ابدأ واطوّر مسيرتك التعليمية</p>
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-primary-foreground mb-4 leading-tight">
+              اختر الباقة <span className="text-secondary-foreground/95 inline-block">المناسبة لك</span>
+            </h1>
+            <p className="text-primary-foreground/80 text-base md:text-xl max-w-2xl mx-auto leading-relaxed">
+              خطط مرنة تناسب جميع المستويات — ابدأ مجاناً وطوّر مسيرتك التعليمية مع نخبة المعلمين
+            </p>
           </motion.div>
         </div>
       </div>
 
-      <div className="container max-w-5xl py-10 md:py-14">
+      <div className="container max-w-5xl py-8 md:py-14 px-4">
         {/* Trust Badges */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-wrap justify-center gap-6 mb-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-wrap justify-center gap-3 sm:gap-6 mb-10 -mt-16 md:-mt-20 relative z-10">
           {[
             { icon: Shield, text: "ضمان استرداد 7 أيام" },
             { icon: Zap, text: "تفعيل فوري" },
-            { icon: Users, text: "+500 طالب نشط" },
+            { icon: Users, text: "+10,000 طالب نشط" },
           ].map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div key={i} className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground bg-card border border-border rounded-full px-4 py-2 shadow-card">
               <item.icon className="h-4 w-4 text-secondary" />
               <span>{item.text}</span>
             </div>
