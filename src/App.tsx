@@ -37,6 +37,7 @@ const Terms = lazy(() => import("./pages/Terms"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const TeacherWallet = lazy(() => import("./pages/TeacherWallet"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const TeachWithUs = lazy(() => import("./pages/TeachWithUs"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +76,7 @@ const App = () => (
               <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
               <Route path="/search" element={<SearchTeacher />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/teach-with-us" element={<TeachWithUs />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />

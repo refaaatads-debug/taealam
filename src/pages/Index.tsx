@@ -162,9 +162,9 @@ const Index = () => {
               <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <SmartCTA user={user} />
                 <Button size="lg" variant="outline" className="border-2 border-primary-foreground/40 bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25 text-base rounded-2xl h-14 md:h-16 backdrop-blur-md w-full sm:w-auto font-black gap-2 shadow-lg" asChild>
-                  <Link to="/search">
-                    <Play className="h-5 w-5" />
-                    شاهد كيف تعمل المنصة
+                  <Link to="/teach-with-us">
+                    <GraduationCap className="h-5 w-5" />
+                    إنضم لطاقم المدرسين
                   </Link>
                 </Button>
               </motion.div>
