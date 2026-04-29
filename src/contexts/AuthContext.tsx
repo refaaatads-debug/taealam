@@ -192,10 +192,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const initializeAuthenticatedSession = async (userId: string) => {
+      // Remember last user for cache hydration on next visit
+      try { localStorage.setItem(lastUserKey, userId); } catch { /* ignore */ }
+
+      // If we have cached data for this user → release loading immediately,
+      // then refresh in background. Otherwise wait for the network.
+      const hasCache =
+        !!readCache(profileCacheKey(userId)) && !!readCache(rolesCacheKey(userId));
+      if (hasCache) setLoading(false);
+
       try {
         await claimActiveSession(userId);
-        await fetchProfile(userId);
-        await fetchRoles(userId);
+        await Promise.all([fetchProfile(userId), fetchRoles(userId)]);
         await applyPendingRole(userId);
         cleanupSingleSession();
         setupSingleSession(userId);
