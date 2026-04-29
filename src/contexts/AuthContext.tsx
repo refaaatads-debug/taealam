@@ -28,12 +28,35 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+// Cache keys + helpers (per-user) to make subsequent loads instant
+const CACHE_VERSION = "v1";
+const profileCacheKey = (uid: string) => `auth_cache_${CACHE_VERSION}_profile_${uid}`;
+const rolesCacheKey = (uid: string) => `auth_cache_${CACHE_VERSION}_roles_${uid}`;
+const lastUserKey = `auth_cache_${CACHE_VERSION}_last_user`;
+
+const readCache = <T,>(key: string): T | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+};
+const writeCache = (key: string, value: unknown) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore quota */ }
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // Hydrate from cache for the last known user → instant first paint
+  const cachedUserId = typeof window !== "undefined" ? localStorage.getItem(lastUserKey) : null;
+  const cachedProfile = cachedUserId ? readCache<AuthContextType["profile"]>(profileCacheKey(cachedUserId)) : null;
+  const cachedRoles = cachedUserId ? readCache<AppRole[]>(rolesCacheKey(cachedUserId)) : null;
+
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
-  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [profile, setProfile] = useState<AuthContextType["profile"]>(cachedProfile);
+  const [roles, setRoles] = useState<AppRole[]>(cachedRoles ?? []);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -41,7 +64,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .select("full_name, avatar_url, phone")
       .eq("user_id", userId)
       .single();
-    if (data) setProfile(data);
+    if (data) {
+      setProfile(data);
+      writeCache(profileCacheKey(userId), data);
+    }
   };
 
   const fetchRoles = async (userId: string) => {
@@ -49,7 +75,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    if (data) setRoles(data.map((r) => r.role));
+    if (data) {
+      const list = data.map((r) => r.role);
+      setRoles(list);
+      writeCache(rolesCacheKey(userId), list);
+    }
   };
 
   // Apply pending role after OAuth redirect (e.g. teacher signup via Google)
