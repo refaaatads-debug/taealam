@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,13 @@ const roles: { id: Role; label: string; icon: typeof User; desc: string }[] = [
 
 const Login = () => {
   const { user, roles: userRoles, loading: authLoading } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const initialRole: Role = searchParams.get("role") === "teacher" ? "teacher" : "student";
+  const initialIsLogin = searchParams.get("signup") !== "1" && searchParams.get("role") !== "teacher";
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [showPass, setShowPass] = useState(false);
-  const [role, setRole] = useState<Role>("student");
+  const [role, setRole] = useState<Role>(initialRole);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
