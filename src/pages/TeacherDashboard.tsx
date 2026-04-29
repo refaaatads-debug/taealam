@@ -138,18 +138,14 @@ const TeacherDashboard = () => {
   const displayName = profile?.full_name || "معلم";
   const isApproved = teacherProfile?.is_approved;
 
-  // Show loading state
+  // Show loading state (unified with global PageLoader to avoid stacked loaders)
   if (loading) {
     return (
-      <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
-        <Navbar />
-        <div className="container py-16 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-muted-foreground">جاري تحميل لوحة التحكم...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">جاري التحميل...</p>
         </div>
-        <BottomNav />
       </div>
     );
   }
