@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, GraduationCap, User, Search, LogOut, Shield } from "lucide-react";
+import { Menu, X, GraduationCap, User, Search, LogOut, Shield, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,8 +33,9 @@ const Navbar = () => {
   const links = [
     ...(!isStudent && !isTeacher ? [{ label: "الرئيسية", to: "/" }] : []),
     ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
-    ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(!user ? [{ label: "الباقات", to: "/pricing" }] : []),
+    ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
+    ...(!user ? [{ label: "انضم كمعلم", to: "/teach-with-us" }] : []),
     ...(user ? [
       ...(isAdmin
         ? [{ label: "لوحة التحكم", to: "/admin" }]
@@ -96,10 +97,20 @@ const Navbar = () => {
             </>
           ) : (
             <>
+              <Button
+                variant="outline"
+                className="rounded-xl text-sm gap-2 border-secondary/30 text-secondary hover:bg-secondary/10 hover:text-secondary font-bold"
+                asChild
+              >
+                <Link to="/teach-with-us">
+                  <Sparkles className="h-4 w-4" />
+                  إنضم لطاقم المدرسين
+                </Link>
+              </Button>
               <Button variant="ghost" className="rounded-xl text-sm" asChild>
                 <Link to="/login">{loginText}</Link>
               </Button>
-              <Button className="gradient-cta shadow-button text-secondary-foreground rounded-xl text-sm px-5" asChild>
+              <Button className="gradient-cta shadow-button text-secondary-foreground rounded-xl text-sm px-5 font-bold" asChild>
                 <Link to="/login">{ctaText}</Link>
               </Button>
             </>
@@ -122,13 +133,26 @@ const Navbar = () => {
                   </Link>
                 </motion.div>
               ))}
-              <div className="flex gap-2 pt-3 mt-2 border-t">
+              <div className="flex flex-col gap-2 pt-3 mt-2 border-t">
                 {user ? (
-                  <Button variant="outline" className="flex-1 rounded-xl" onClick={handleSignOut}>تسجيل الخروج</Button>
+                  <Button variant="outline" className="w-full rounded-xl" onClick={handleSignOut}>تسجيل الخروج</Button>
                 ) : (
                   <>
-                    <Button variant="outline" className="flex-1 rounded-xl" asChild><Link to="/login">{loginText}</Link></Button>
-                    <Button className="flex-1 gradient-cta shadow-button text-secondary-foreground rounded-xl" asChild><Link to="/login">{ctaText}</Link></Button>
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl gap-2 border-secondary/30 text-secondary hover:bg-secondary/10 hover:text-secondary font-bold"
+                      asChild
+                      onClick={() => setOpen(false)}
+                    >
+                      <Link to="/teach-with-us">
+                        <Sparkles className="h-4 w-4" />
+                        إنضم لطاقم المدرسين
+                      </Link>
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1 rounded-xl" asChild onClick={() => setOpen(false)}><Link to="/login">{loginText}</Link></Button>
+                      <Button className="flex-1 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold" asChild onClick={() => setOpen(false)}><Link to="/login">{ctaText}</Link></Button>
+                    </div>
                   </>
                 )}
               </div>
