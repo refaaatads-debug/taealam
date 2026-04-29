@@ -255,6 +255,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
+    // Clear caches for the user before sign-out
+    try {
+      const uid = user?.id ?? localStorage.getItem(lastUserKey);
+      if (uid) {
+        localStorage.removeItem(profileCacheKey(uid));
+        localStorage.removeItem(rolesCacheKey(uid));
+      }
+      localStorage.removeItem(lastUserKey);
+    } catch { /* ignore */ }
     await supabase.auth.signOut();
     sessionStorage.removeItem("session_token");
     setProfile(null);
