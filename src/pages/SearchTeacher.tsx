@@ -7,9 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -434,71 +434,101 @@ const SearchTeacher = () => {
               </Card>
             </motion.div>
           ) : (
-            <Card className="border-0 shadow-card overflow-hidden relative">
-              {/* Decorative top bar */}
-              <div className="h-1.5 w-full bg-gradient-to-l from-primary via-secondary to-primary" />
+            <Card className="border-0 shadow-xl overflow-hidden relative bg-gradient-to-br from-card via-card to-primary/[0.02]">
+              {/* Animated gradient header strip */}
+              <div className="relative h-2 w-full overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-l from-primary via-secondary to-primary bg-[length:200%_100%] animate-[shimmer_3s_linear_infinite]" />
+              </div>
 
-              <CardHeader className="pb-2 pt-5">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <CardTitle className="text-lg flex items-center gap-2.5 font-bold">
-                    <motion.div whileHover={{ rotate: 15 }} className="w-10 h-10 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shadow-sm">
-                      <CalendarCheck className="h-5 w-5 text-secondary" />
+              <CardHeader className="pb-3 pt-5 bg-gradient-to-b from-primary/[0.04] to-transparent">
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      whileHover={{ rotate: [0, -10, 10, 0], scale: 1.05 }}
+                      transition={{ duration: 0.5 }}
+                      className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-secondary/30"
+                    >
+                      <CalendarCheck className="h-6 w-6 text-white" />
+                      <motion.div
+                        animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0, 0.5] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-0 rounded-2xl bg-secondary/40"
+                      />
                     </motion.div>
-                    اطلب حصة سريعة
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-secondary/10 text-secondary border-0 text-xs font-bold px-3 py-1 rounded-full">
-                      ⚡ أسرع طريقة
-                    </Badge>
-                    {remainingMinutes > 0 && (
-                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-bold px-3 py-1 rounded-full">
-                        <Package className="h-3 w-3 ml-1" />
-                        {remainingMinutes} دقيقة
-                      </Badge>
-                    )}
+                    <div>
+                      <CardTitle className="text-xl font-black flex items-center gap-2">
+                        اطلب حصة سريعة
+                        <Badge className="bg-gradient-to-l from-secondary to-primary text-white border-0 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
+                          ⚡ فوري
+                        </Badge>
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">اختر المادة والموعد، وسنرسل طلبك لكل المعلمين المتخصصين</p>
+                    </div>
                   </div>
+                  {remainingMinutes > 0 && (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-bold px-3 py-1.5 rounded-full">
+                        <Package className="h-3 w-3 ml-1" />
+                        {remainingMinutes} دقيقة متاحة
+                      </Badge>
+                    </motion.div>
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">اختر المادة والموعد وسيتم إرسال طلبك لجميع المعلمين المتخصصين</p>
               </CardHeader>
 
-              <CardContent className="pt-2 pb-5">
-                {/* Step indicators */}
-                <div className="flex items-center gap-0 mb-5 px-1">
-                  {[
-                    { num: 1, label: "المادة والمرحلة", done: !!selectedSubject },
-                    { num: 2, label: "اليوم", done: selectedSlots.length > 0 || selectedDay >= 0 },
-                    { num: 3, label: "الساعات", done: selectedSlots.length > 0 },
-                  ].map((step, idx) => (
-                    <div key={step.num} className="flex items-center flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <motion.div
-                          animate={step.done ? { scale: [1, 1.15, 1] } : {}}
-                          transition={{ duration: 0.3 }}
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
-                            step.done
-                              ? "bg-secondary text-secondary-foreground shadow-md shadow-secondary/30"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {step.done ? <CheckCircle className="h-3.5 w-3.5" /> : step.num}
-                        </motion.div>
-                        <span className={`text-[11px] font-semibold hidden sm:inline ${step.done ? "text-secondary" : "text-muted-foreground"}`}>
-                          {step.label}
-                        </span>
+              <CardContent className="pt-4 pb-5">
+                {/* Progress bar */}
+                {(() => {
+                  const completed = [!!selectedSubject, selectedDay >= 0, selectedSlots.length > 0].filter(Boolean).length;
+                  const progress = (completed / 3) * 100;
+                  return (
+                    <div className="mb-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          {[
+                            { num: 1, label: "المادة", done: !!selectedSubject, icon: BookOpen },
+                            { num: 2, label: "اليوم", done: selectedDay >= 0, icon: CalendarCheck },
+                            { num: 3, label: "الوقت", done: selectedSlots.length > 0, icon: Clock },
+                          ].map((step, idx) => (
+                            <div key={step.num} className="flex items-center gap-1.5">
+                              <motion.div
+                                animate={step.done ? { scale: [1, 1.2, 1] } : {}}
+                                transition={{ duration: 0.4 }}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
+                                  step.done
+                                    ? "bg-secondary/15 text-secondary"
+                                    : "bg-muted/50 text-muted-foreground"
+                                }`}
+                              >
+                                {step.done ? <CheckCircle className="h-3 w-3" /> : <step.icon className="h-3 w-3" />}
+                                <span className="hidden sm:inline">{step.label}</span>
+                              </motion.div>
+                              {idx < 2 && <div className={`w-3 h-px ${step.done ? "bg-secondary/40" : "bg-border"}`} />}
+                            </div>
+                          ))}
+                        </div>
+                        <span className="text-[11px] font-black text-secondary">{Math.round(progress)}%</span>
                       </div>
-                      {idx < 2 && <div className={`flex-1 h-0.5 mx-2 rounded-full transition-all duration-500 ${step.done ? "bg-secondary/40" : "bg-muted"}`} />}
+                      <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
+                          className="h-full bg-gradient-to-l from-primary via-secondary to-primary rounded-full"
+                        />
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
 
                 {/* Row 1: Subject + Stage */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                  <motion.div whileHover={{ y: -1 }} className="group">
-                    <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <motion.div whileHover={{ y: -2 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-primary" /> اختر المادة
                     </p>
                     <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                      <SelectTrigger className={`h-12 rounded-xl border-2 transition-all duration-200 ${selectedSubject ? "border-secondary/40 bg-secondary/5" : "border-border hover:border-primary/30"}`}>
+                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedSubject ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
                         <SelectValue placeholder="المادة الدراسية" />
                       </SelectTrigger>
                       <SelectContent>
@@ -515,12 +545,12 @@ const SearchTeacher = () => {
                     )}
                   </motion.div>
 
-                  <motion.div whileHover={{ y: -1 }} className="group">
-                    <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <motion.div whileHover={{ y: -2 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       🎓 المرحلة الدراسية
                     </p>
                     <Select value={selectedStage} onValueChange={setSelectedStage}>
-                      <SelectTrigger className={`h-12 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/40 bg-secondary/5" : "border-border hover:border-primary/30"}`}>
+                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
                         <SelectValue placeholder="اختر المرحلة" />
                       </SelectTrigger>
                       <SelectContent>
@@ -534,32 +564,32 @@ const SearchTeacher = () => {
                 </div>
 
                 {/* Row 2: Days */}
-                <div className="mb-5">
-                  <p className="text-xs font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
+                <div className="mb-4">
+                  <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
                     📅 اختر اليوم
                   </p>
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                     {days.map((d, i) => {
                       const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
                       const isActive = selectedDay === i;
                       return (
                         <motion.button
                           key={i}
-                          whileHover={{ scale: 1.05 }}
+                          whileHover={{ y: -3, scale: 1.03 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setSelectedDay(i)}
-                          className={`relative flex flex-col items-center px-4 py-3 rounded-2xl text-xs font-medium whitespace-nowrap transition-all min-w-[64px] border-2 ${
+                          className={`relative flex flex-col items-center px-4 py-2.5 rounded-2xl text-xs font-medium whitespace-nowrap transition-all min-w-[68px] border-2 ${
                             isActive
-                              ? "gradient-cta text-secondary-foreground shadow-lg shadow-secondary/20 border-transparent"
-                              : "bg-card text-muted-foreground hover:bg-accent/50 border-border/50 hover:border-primary/30"
+                              ? "bg-gradient-to-br from-secondary to-primary text-white shadow-lg shadow-secondary/30 border-transparent"
+                              : "bg-card text-muted-foreground hover:bg-accent/30 border-border/50 hover:border-primary/40"
                           }`}
                         >
-                          <span className={`text-[10px] mb-0.5 ${isActive ? "opacity-90" : "opacity-60"}`}>{d.label}</span>
-                          <span className="text-lg font-black">{d.date}</span>
-                          {i === 0 && <span className={`text-[9px] mt-0.5 font-bold ${isActive ? "text-secondary-foreground/80" : "text-primary"}`}>اليوم</span>}
+                          <span className={`text-[10px] mb-0.5 font-semibold ${isActive ? "opacity-90" : "opacity-70"}`}>{d.label}</span>
+                          <span className="text-xl font-black leading-tight">{d.date}</span>
+                          {i === 0 && <span className={`text-[9px] mt-0.5 font-black ${isActive ? "text-white/90" : "text-primary"}`}>اليوم</span>}
                           {daySlotCount > 0 && (
                             <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-                              className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center shadow-sm">
+                              className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center shadow-md ring-2 ring-card">
                               {daySlotCount}
                             </motion.span>
                           )}
@@ -569,11 +599,12 @@ const SearchTeacher = () => {
                   </div>
                 </div>
 
-                {/* Row 3: Time slots */}
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-3">
+                {/* Row 3: Time slots — split AM/PM */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-primary" /> اختر الساعات
+                      <span className="text-[10px] text-muted-foreground/60 font-medium">(يمكن اختيار أكثر من ساعة)</span>
                     </p>
                     {remainingMinutes <= 0 && (
                       <Badge className="bg-destructive/10 text-destructive border-0 text-[10px] px-2.5 py-1 rounded-full">
@@ -581,8 +612,11 @@ const SearchTeacher = () => {
                       </Badge>
                     )}
                   </div>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                    {allTimeSlots.map((t) => {
+
+                  {(() => {
+                    const amSlots = allTimeSlots.filter(t => t.includes("ص"));
+                    const pmSlots = allTimeSlots.filter(t => t.includes("م"));
+                    const renderSlot = (t: string) => {
                       const isToday = selectedDay === 0;
                       const slotHour = parseTimeSlotHour(t);
                       const currentHour = new Date().getHours();
@@ -591,48 +625,84 @@ const SearchTeacher = () => {
                       return (
                         <motion.button
                           key={t}
-                          whileHover={!isPast ? { scale: 1.05 } : {}}
+                          whileHover={!isPast ? { y: -2, scale: 1.04 } : {}}
                           whileTap={!isPast ? { scale: 0.92 } : {}}
                           onClick={() => !isPast && toggleSlot(selectedDay, t)}
                           disabled={isPast}
-                          className={`px-2 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${
+                          className={`relative px-2 py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${
                             isPast
                               ? "bg-muted/20 text-muted-foreground/30 cursor-not-allowed line-through border-transparent"
                               : isSelected
-                                ? "gradient-cta text-secondary-foreground shadow-md shadow-secondary/20 border-transparent"
-                                : "bg-card text-foreground hover:bg-accent/50 border-border/50 hover:border-primary/30"
+                                ? "bg-gradient-to-br from-secondary to-primary text-white shadow-md shadow-secondary/25 border-transparent"
+                                : "bg-card text-foreground hover:bg-accent/30 border-border/50 hover:border-primary/40"
                           }`}
                         >
+                          {isSelected && (
+                            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-white text-secondary flex items-center justify-center shadow-sm">
+                              <CheckCircle className="h-3 w-3" />
+                            </motion.span>
+                          )}
                           {t}
                         </motion.button>
                       );
-                    })}
-                  </div>
+                    };
+                    return (
+                      <div className="space-y-3">
+                        {amSlots.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 mb-1.5 flex items-center gap-1">
+                              ☀️ صباحاً
+                            </p>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                              {amSlots.map(renderSlot)}
+                            </div>
+                          </div>
+                        )}
+                        {pmSlots.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1.5 flex items-center gap-1">
+                              🌙 مساءً
+                            </p>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                              {pmSlots.map(renderSlot)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Selected slots summary */}
-                {selectedSlots.length > 0 && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mb-4">
-                    <div className="p-3.5 rounded-xl bg-accent/30 border border-accent">
-                      <p className="text-xs font-bold text-accent-foreground mb-2 flex items-center gap-1.5">
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        {selectedSlots.length} حصة محددة
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedSlots.map((s, i) => (
-                          <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
-                            <Badge className="bg-card text-foreground border border-border/50 text-[11px] gap-1.5 pl-1 py-1 px-2.5 rounded-lg shadow-sm">
-                              📅 {days[s.dayIndex].label} {s.time}
-                              <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive transition-colors">
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          </motion.div>
-                        ))}
+                <AnimatePresence>
+                  {selectedSlots.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+                      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                    >
+                      <div className="p-3.5 rounded-xl bg-gradient-to-l from-secondary/10 via-primary/5 to-secondary/10 border border-secondary/20">
+                        <p className="text-xs font-black text-foreground mb-2 flex items-center gap-1.5">
+                          <CheckCircle className="h-3.5 w-3.5 text-secondary" />
+                          {selectedSlots.length} حصة محددة — جاهزة للإرسال
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedSlots.map((s, i) => (
+                            <motion.div key={`${s.dayIndex}-${s.time}`} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ delay: i * 0.03 }}>
+                              <Badge className="bg-card text-foreground border border-border/60 text-[11px] gap-1.5 pl-1 py-1 px-2.5 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                📅 {days[s.dayIndex].label} • {s.time}
+                                <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive transition-colors">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            </motion.div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* No subscription warning */}
                 {remainingMinutes <= 0 && (
@@ -655,15 +725,17 @@ const SearchTeacher = () => {
                     اشترك في باقة للحجز
                   </Button>
                 ) : (
-                  <motion.div whileHover={{ scale: 1.005 }}>
+                  <motion.div whileHover={{ scale: 1.005 }} whileTap={{ scale: 0.99 }}>
                     <Button
-                      className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-sm disabled:opacity-40"
+                      className="w-full h-13 py-3.5 gradient-cta shadow-lg shadow-secondary/20 text-secondary-foreground rounded-xl font-black text-base disabled:opacity-40 relative overflow-hidden group"
                       disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
                       onClick={handleQuickBooking}
                     >
-                      {bookingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                      {bookingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                         <>
-                          إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"}
+                          <span className="absolute inset-0 bg-gradient-to-l from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                          <Sparkles className="h-4 w-4" />
+                          إرسال {selectedSlots.length > 1 ? `${selectedSlots.length} طلبات` : "الطلب"} الآن
                           <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                         </>
                       )}
