@@ -35,7 +35,6 @@ const Navbar = () => {
     ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
     ...(!user ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
-    ...(!user ? [{ label: "انضم كمعلم", to: "/teach-with-us" }] : []),
     ...(user ? [
       ...(isAdmin
         ? [{ label: "لوحة التحكم", to: "/admin" }]
