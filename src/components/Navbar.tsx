@@ -54,43 +54,57 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "glass-strong shadow-card border-b" : "bg-card/60 backdrop-blur-md border-b border-transparent"}`}>
+    <nav className={`sticky top-0 z-50 transition-all duration-500 ${scrolled ? "bg-card/85 backdrop-blur-2xl shadow-[0_4px_30px_-10px_hsl(var(--primary)/0.15)] border-b border-border/40" : "bg-card/40 backdrop-blur-md border-b border-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
         <Link to={isAdmin ? "/admin" : isTeacher ? "/teacher" : isStudent ? "/student" : "/"} className="flex items-center gap-2.5 group">
           {logoUrl ? (
-            <img src={logoUrl} alt={siteName} className="h-9 w-9 rounded-xl object-cover transition-transform group-hover:scale-110" />
+            <img src={logoUrl} alt={siteName} className="h-10 w-10 rounded-2xl object-cover transition-transform group-hover:scale-110 shadow-md" />
           ) : (
-            <div className="w-9 h-9 rounded-xl gradient-cta flex items-center justify-center transition-transform group-hover:scale-110">
-              <GraduationCap className="h-5 w-5 text-secondary-foreground" />
-            </div>
+            <motion.div
+              whileHover={{ rotate: [0, -8, 8, 0] }}
+              transition={{ duration: 0.5 }}
+              className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20"
+            >
+              <GraduationCap className="h-5 w-5 text-white relative z-10" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
+            </motion.div>
           )}
-          <span className="font-extrabold text-xl text-foreground">{siteName}</span>
+          <div className="flex flex-col leading-none">
+            <span className="font-black text-lg text-foreground tracking-tight">{siteName}</span>
+            <span className="text-[9px] font-bold text-secondary tracking-widest hidden sm:block">EDUCATION PLATFORM</span>
+          </div>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-1 bg-muted/30 rounded-full p-1 border border-border/30">
           {links.map((l) => (
             <Link key={l.to} to={l.to}
-              className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive(l.to) ? "text-primary bg-primary/5" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}>
-              {l.label}
-              {isActive(l.to) && <motion.div layoutId="nav-indicator" className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary" />}
+              className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-300 ${isActive(l.to) ? "text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {isActive(l.to) && (
+                <motion.div
+                  layoutId="nav-pill"
+                  className="absolute inset-0 rounded-full bg-gradient-to-l from-secondary to-primary shadow-md shadow-secondary/30"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{l.label}</span>
             </Link>
           ))}
         </div>
 
         <div className="hidden md:flex items-center gap-2">
           {!isAdmin && !isTeacher && (
-            <Button variant="ghost" size="icon" className="rounded-xl" asChild>
+            <Button variant="ghost" size="icon" className="rounded-xl hover:bg-secondary/10" asChild>
               <Link to="/search"><Search className="h-4 w-4" /></Link>
             </Button>
           )}
           <NotificationBell />
           {user ? (
             <>
-              <Button variant="ghost" size="icon" className="rounded-xl" asChild>
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-secondary/10" asChild>
                 <Link to="/profile"><User className="h-4 w-4" /></Link>
               </Button>
-              <span className="text-sm text-muted-foreground">{profile?.full_name || "المستخدم"}</span>
-              <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground" onClick={handleSignOut}>
+              <span className="text-sm font-bold text-foreground">{profile?.full_name || "المستخدم"}</span>
+              <Button variant="ghost" size="icon" className="rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </>
@@ -98,7 +112,7 @@ const Navbar = () => {
             <>
               <Button
                 variant="outline"
-                className="rounded-xl text-sm gap-2 border-secondary/30 text-secondary hover:bg-secondary/10 hover:text-secondary font-bold"
+                className="rounded-xl text-sm gap-2 border-2 border-secondary/40 text-secondary hover:bg-secondary hover:text-secondary-foreground hover:border-secondary font-black transition-all"
                 asChild
               >
                 <Link to="/teach-with-us">
@@ -106,10 +120,10 @@ const Navbar = () => {
                   إنضم لطاقم المدرسين
                 </Link>
               </Button>
-              <Button variant="ghost" className="rounded-xl text-sm" asChild>
+              <Button variant="ghost" className="rounded-xl text-sm font-bold hover:bg-muted/50" asChild>
                 <Link to="/login">{loginText}</Link>
               </Button>
-              <Button className="gradient-cta shadow-button text-secondary-foreground rounded-xl text-sm px-5 font-bold" asChild>
+              <Button className="gradient-cta shadow-button text-secondary-foreground rounded-xl text-sm px-5 font-black hover:shadow-lg hover:shadow-secondary/30 transition-all" asChild>
                 <Link to="/login">{ctaText}</Link>
               </Button>
             </>
