@@ -249,17 +249,26 @@ const Index = () => {
       </section>
 
       {/* ── Stats Bar ── */}
-      <section className="py-6 md:py-8 bg-card border-b">
+      <section className="py-8 md:py-10 bg-gradient-to-b from-card via-card to-muted/20 border-b border-border/40 relative">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-secondary/40 to-transparent" />
         <div className="container">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {stats.map((s, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3 md:gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-accent flex items-center justify-center shrink-0">
-                  <s.icon className="h-5 w-5 text-accent-foreground" />
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl bg-card hover:bg-gradient-to-br hover:from-card hover:to-secondary/5 border border-border/40 hover:border-secondary/30 hover:shadow-lg transition-all duration-300 group"
+              >
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-secondary/15 to-primary/10 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                  <s.icon className="h-5 w-5 md:h-6 md:w-6 text-secondary" />
                 </div>
                 <div>
-                  <p className="text-xl md:text-2xl font-black text-foreground">{s.value}</p>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className="text-xl md:text-2xl font-black text-foreground leading-tight">{s.value}</p>
+                  <p className="text-xs md:text-sm text-muted-foreground font-medium">{s.label}</p>
                 </div>
               </motion.div>
             ))}
