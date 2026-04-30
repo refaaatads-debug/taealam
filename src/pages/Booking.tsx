@@ -163,7 +163,7 @@ const Booking = () => {
         }
       });
     }
-  }, [directTeacherId, user]);
+  }, [directTeacherId, user, prefilledSubjectParam]);
 
   // Count available teachers for broadcast mode
   useEffect(() => {
