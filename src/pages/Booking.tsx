@@ -27,12 +27,16 @@ const Booking = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const directTeacherId = searchParams.get("teacher");
+  const prefilledSubjectParam = searchParams.get("subject"); // id or name
+  const prefilledDayParam = searchParams.get("day"); // index 0..13
 
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(
+    prefilledDayParam !== null && !isNaN(Number(prefilledDayParam)) ? Math.max(0, Math.min(13, Number(prefilledDayParam))) : null
+  );
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(prefilledSubjectParam || prefilledDayParam ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [remainingMinutes, setRemainingMinutes] = useState(0);
     const SESSION_MINUTES = 30;
@@ -86,9 +90,21 @@ const Booking = () => {
   const timeSlots = generateTimeSlots();
 
   useEffect(() => {
+    // Smooth scroll to top on load
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     const fetchSubjects = async () => {
       const { data } = await supabase.from("subjects").select("id, name").order("name");
-      if (data) setSubjects(data);
+      if (data) {
+        setSubjects(data);
+        // Auto-fill subject from URL (accept id or name)
+        if (prefilledSubjectParam) {
+          const match = data.find(
+            (s) => s.id === prefilledSubjectParam || s.name === prefilledSubjectParam
+          );
+          if (match) setSelectedSubject(match.id);
+        }
+      }
     };
     fetchSubjects();
 
@@ -147,7 +163,7 @@ const Booking = () => {
         }
       });
     }
-  }, [directTeacherId, user]);
+  }, [directTeacherId, user, prefilledSubjectParam]);
 
   // Count available teachers for broadcast mode
   useEffect(() => {
