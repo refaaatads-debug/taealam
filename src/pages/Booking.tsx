@@ -90,9 +90,21 @@ const Booking = () => {
   const timeSlots = generateTimeSlots();
 
   useEffect(() => {
+    // Smooth scroll to top on load
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     const fetchSubjects = async () => {
       const { data } = await supabase.from("subjects").select("id, name").order("name");
-      if (data) setSubjects(data);
+      if (data) {
+        setSubjects(data);
+        // Auto-fill subject from URL (accept id or name)
+        if (prefilledSubjectParam) {
+          const match = data.find(
+            (s) => s.id === prefilledSubjectParam || s.name === prefilledSubjectParam
+          );
+          if (match) setSelectedSubject(match.id);
+        }
+      }
     };
     fetchSubjects();
 
