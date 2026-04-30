@@ -358,9 +358,13 @@ const Index = () => {
           </motion.div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {teachers.map((t, i) => (
+            {teachers.map((t, i) => {
+              // Smart deep-link: prefill subject + today, redirect to login if not authed
+              const bookingUrl = `/booking?subject=${encodeURIComponent(t.subject)}&day=0`;
+              const targetUrl = user ? bookingUrl : `/login?redirect=${encodeURIComponent(bookingUrl)}`;
+              return (
               <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-                <Link to="/booking" className="block h-full">
+                <Link to={targetUrl} className="block h-full">
                   <Card className="shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-2 border-0 overflow-hidden group h-full cursor-pointer">
                     <div className="h-28 md:h-36 relative overflow-hidden">
                       <img src={t.img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" width={512} height={512} />
@@ -385,14 +389,17 @@ const Index = () => {
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm md:text-lg font-black text-primary">{t.price} <span className="text-[10px] md:text-xs font-normal text-muted-foreground">ر.س/ساعة</span></span>
                       </div>
-                      <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl text-xs md:text-sm h-10 md:h-11 font-bold group-hover:shadow-glow transition-all">
+                      <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl text-xs md:text-sm h-10 md:h-11 font-bold group-hover:shadow-glow transition-all gap-1.5 group-hover:gap-2.5">
+                        <CalendarCheck className="h-4 w-4" />
                         احجز الآن
+                        <ArrowLeft className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
                       </Button>
                     </CardContent>
                   </Card>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="text-center mt-6 sm:hidden">
