@@ -39,6 +39,12 @@ const Login = () => {
   // Role application after OAuth is handled in AuthContext
 
   const goToDashboard = (userRole?: string) => {
+    // Honor explicit ?redirect= param (e.g. deep-link from "احجز الآن")
+    const redirectTo = searchParams.get("redirect");
+    if (redirectTo && redirectTo.startsWith("/")) {
+      window.location.replace(redirectTo);
+      return;
+    }
     let path = "/student";
     if (userRole === "admin") path = "/admin";
     else if (userRole === "teacher") path = "/teacher";
