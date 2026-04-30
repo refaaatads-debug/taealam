@@ -114,12 +114,14 @@ const Index = () => {
       <Navbar />
 
       {/* ── Free Trial Top Banner ── */}
-      <div className="gradient-cta text-secondary-foreground py-2.5 px-4 relative overflow-hidden">
-        <div className="container flex items-center justify-center gap-3 text-sm font-bold">
+      <div className="relative overflow-hidden bg-gradient-to-l from-primary via-secondary to-primary text-secondary-foreground py-2.5 px-4">
+        <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.15)_50%,transparent_70%)] bg-[length:200%_100%] animate-[shimmer_3s_linear_infinite]" />
+        <div className="container flex items-center justify-center gap-3 text-sm font-bold relative z-10">
           <Gift className="h-4 w-4 animate-bounce-gentle" />
-          <span>🎁 احصل على أول حصة مجانية – لفترة محدودة!</span>
-          <Link to="/login" className="underline underline-offset-4 hover:opacity-80 transition-opacity mr-2">
-            سجّل الآن
+          <span className="hidden sm:inline">🎁 احصل على أول حصة مجانية – لفترة محدودة!</span>
+          <span className="sm:hidden">🎁 أول حصة مجانية!</span>
+          <Link to="/login" className="bg-white/20 hover:bg-white/30 px-3 py-0.5 rounded-full underline-offset-4 transition-all mr-2 backdrop-blur-sm">
+            سجّل الآن ←
           </Link>
         </div>
       </div>
