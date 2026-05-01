@@ -45,6 +45,8 @@ const Booking = () => {
   const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
+  const [existingBookings, setExistingBookings] = useState<Date[]>([]);
+  const [conflictKey, setConflictKey] = useState<string | null>(null);
 
   // Teacher availability
   const [teacherAvailableDays, setTeacherAvailableDays] = useState<string[]>([]);
@@ -140,6 +142,21 @@ const Booking = () => {
         });
     }
 
+    // Fetch existing bookings for conflict detection
+    if (user) {
+      const now = new Date().toISOString();
+      const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      Promise.all([
+        supabase.from("bookings").select("scheduled_at").eq("student_id", user.id).gte("scheduled_at", now).lte("scheduled_at", future),
+        supabase.from("booking_requests").select("scheduled_at").eq("student_id", user.id).in("status", ["open", "accepted"]).gte("scheduled_at", now).lte("scheduled_at", future),
+      ]).then(([b, r]) => {
+        const all: Date[] = [];
+        (b.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        (r.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        setExistingBookings(all);
+      });
+    }
+
     if (directTeacherId) {
       Promise.all([
         supabase.from("public_profiles").select("full_name").eq("user_id", directTeacherId).single(),
@@ -194,14 +211,29 @@ const Booking = () => {
     return `${m} د`;
   };
 
+  const isConflict = (dayIndex: number, time: string): boolean => {
+    if (!days[dayIndex]) return false;
+    const d = new Date(days[dayIndex].fullDate);
+    d.setHours(parseTimeHour(time), 0, 0, 0);
+    return existingBookings.some(b => Math.abs(b.getTime() - d.getTime()) < 30 * 60 * 1000);
+  };
+
   const toggleSlot = (dayIndex: number, time: string) => {
+    const key = `${dayIndex}-${time}`;
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (isConflict(dayIndex, time)) {
+        toast.error("⚠️ تعارض! لديك حصة محجوزة في نفس هذا الموعد", { duration: 4000 });
+        setConflictKey(key);
+        setTimeout(() => setConflictKey(null), 800);
+        return prev;
+      }
       if (remainingMinutes < MIN_SESSION_MINUTES) {
         toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - الحد الأدنى للحجز ${MIN_SESSION_MINUTES} د.`);
         return prev;
       }
+      toast.success("✨ تم اختيار الموعد", { duration: 1500 });
       return [...prev, { dayIndex, time }];
     });
   };
@@ -507,15 +539,40 @@ const Booking = () => {
                         ) : (
                           days.map((d, i) => {
                             const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                            const dayHasConflict = timeSlots.some(t => isConflict(i, t));
+                            const isActive = selectedDay === i;
                             return (
-                              <button key={i} onClick={() => setSelectedDay(i)}
-                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                                <span className="text-xs opacity-80">{d.label}</span>
-                                <span className="text-lg font-black">{d.date}</span>
-                                {daySlotCount > 0 && (
-                                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center">{daySlotCount}</span>
+                              <motion.button
+                                key={i}
+                                onClick={() => setSelectedDay(i)}
+                                whileHover={{ y: -3, scale: 1.03 }}
+                                whileTap={{ scale: 0.96 }}
+                                animate={isActive ? { y: -2 } : { y: 0 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap min-w-[80px] relative overflow-hidden border ${isActive ? "gradient-cta text-secondary-foreground shadow-[0_8px_24px_-6px_hsl(var(--secondary)/0.5)] border-secondary/40" : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"}`}
+                              >
+                                {isActive && (
+                                  <motion.span
+                                    layoutId="day-glow"
+                                    className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 pointer-events-none"
+                                    initial={{ x: "-100%" }}
+                                    animate={{ x: "100%" }}
+                                    transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
+                                  />
                                 )}
-                              </button>
+                                <span className="text-xs opacity-80 relative z-10">{d.label}</span>
+                                <span className="text-lg font-black relative z-10">{d.date}</span>
+                                {daySlotCount > 0 && (
+                                  <motion.span
+                                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-secondary text-secondary-foreground text-[10px] font-black flex items-center justify-center shadow-md ring-2 ring-card"
+                                  >{daySlotCount}</motion.span>
+                                )}
+                                {dayHasConflict && daySlotCount === 0 && (
+                                  <span className="absolute -top-1.5 -left-1.5 w-2.5 h-2.5 rounded-full bg-destructive animate-pulse ring-2 ring-card" title="يوجد تعارض" />
+                                )}
+                              </motion.button>
                             );
                           })
                         )}
@@ -542,18 +599,48 @@ const Booking = () => {
                             const currentHour = new Date().getHours();
                             const isPast = isToday && slotHour <= currentHour;
                             const isSelected = selectedDay !== null && selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
+                            const hasConflict = selectedDay !== null && isConflict(selectedDay, t);
+                            const slotKey = `${selectedDay}-${t}`;
+                            const isShaking = conflictKey === slotKey;
                             return (
-                              <button key={t} onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
+                              <motion.button
+                                key={t}
+                                onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
                                 disabled={isPast}
-                                className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${
-                                  isPast
-                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                                whileHover={!isPast && !isSelected ? { y: -2, scale: 1.04 } : {}}
+                                whileTap={!isPast ? { scale: 0.94 } : {}}
+                                animate={
+                                  isShaking
+                                    ? { x: [0, -6, 6, -4, 4, 0] }
                                     : isSelected
-                                      ? "gradient-cta text-secondary-foreground shadow-button"
-                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                }`}>
-                                {t}
-                              </button>
+                                    ? { scale: [1, 1.08, 1] }
+                                    : { scale: 1 }
+                                }
+                                transition={isShaking ? { duration: 0.4 } : { type: "spring", stiffness: 400, damping: 18 }}
+                                className={`relative py-3.5 rounded-xl text-sm font-bold overflow-hidden border ${
+                                  isPast
+                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through border-transparent"
+                                    : hasConflict
+                                    ? "bg-destructive/10 text-destructive border-destructive/40 hover:bg-destructive/15"
+                                    : isSelected
+                                    ? "gradient-cta text-secondary-foreground shadow-[0_8px_24px_-6px_hsl(var(--secondary)/0.5)] border-secondary/40"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
+                                }`}
+                              >
+                                {isSelected && (
+                                  <motion.span
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none"
+                                    initial={{ x: "-100%" }}
+                                    animate={{ x: "100%" }}
+                                    transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2, ease: "easeInOut" }}
+                                  />
+                                )}
+                                <span className="relative z-10 flex items-center justify-center gap-1">
+                                  {hasConflict && !isSelected && <AlertCircle className="h-3 w-3" />}
+                                  {isSelected && <CheckCircle className="h-3.5 w-3.5" />}
+                                  {t}
+                                </span>
+                              </motion.button>
                             );
                           })}
                         </div>
