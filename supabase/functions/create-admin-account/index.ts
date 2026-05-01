@@ -61,12 +61,24 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // فقط الأدمن العام يمكنه إنشاء أدمن عام آخر
+    // قاعدة صارمة: فقط المدير العام يمكنه إنشاء مدير عام آخر أو منح صلاحية manage_admins
     if (make_full_admin && !isAdmin) {
       return new Response(JSON.stringify({ error: "فقط المدير العام يمكنه إنشاء مدير عام آخر" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (Array.isArray(permissions) && permissions.includes("manage_admins") && !isAdmin) {
+      return new Response(JSON.stringify({ error: "فقط المدير العام يمكنه منح صلاحية إدارة الفريق" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // التقاط IP و User-Agent تلقائياً للسجل
+    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("cf-connecting-ip")
+      || req.headers.get("x-real-ip")
+      || null;
+    const userAgent = req.headers.get("user-agent") || null;
 
     // 1) إنشاء الحساب
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -106,7 +118,7 @@ Deno.serve(async (req) => {
       await (admin as any).from("user_permissions").upsert(rows, { onConflict: "user_id,permission" });
     }
 
-    // 5) تسجيل العملية
+    // 5) تسجيل العملية مع IP و User-Agent
     await admin.from("admin_audit_log").insert({
       actor_id: user.id,
       actor_name: (await admin.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle()).data?.full_name || "أدمن",
@@ -117,6 +129,8 @@ Deno.serve(async (req) => {
       target_table: "auth.users",
       target_id: newUserId,
       after_data: { email, full_name, make_full_admin: !!make_full_admin, permissions: permissions || [] },
+      ip_address: ipAddress,
+      user_agent: userAgent,
     });
 
     return new Response(JSON.stringify({ success: true, user_id: newUserId }), {
