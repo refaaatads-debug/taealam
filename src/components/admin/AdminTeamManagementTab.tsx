@@ -345,7 +345,9 @@ export default function AdminTeamManagementTab() {
                                 <div key={group} className="space-y-1.5">
                                   <p className="text-xs font-bold text-muted-foreground">{group}</p>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                                    {perms.map((p) => (
+                                    {perms
+                                      .filter((p) => p.key !== "manage_admins" || isFullAdmin)
+                                      .map((p) => (
                                       <label key={p.key} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/40 cursor-pointer">
                                         <Checkbox
                                           checked={form.permissions.has(p.key)}
