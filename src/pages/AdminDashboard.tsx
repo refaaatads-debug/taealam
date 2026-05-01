@@ -404,7 +404,7 @@ const AdminDashboard = () => {
                 <div className="h-6 w-px bg-border" />
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shrink-0">
-                    <Shield className="h-4.5 w-4.5 text-primary-foreground" />
+                    <Shield className="h-5 w-5 text-primary-foreground" />
                   </div>
                   <div className="min-w-0">
                     <h1 className="text-base md:text-lg font-black text-foreground leading-tight truncate">
