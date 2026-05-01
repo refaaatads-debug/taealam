@@ -36,6 +36,10 @@ import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
 import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
+import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
+import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
+import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
+import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -98,6 +102,7 @@ const AdminDashboard = () => {
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
   const [violationStatusFilter, setViolationStatusFilter] = useState("all");
   const [adminVerified, setAdminVerified] = useState(false);
+  const [period, setPeriod] = useState<AdminPeriod>("month");
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
@@ -147,20 +152,35 @@ const AdminDashboard = () => {
     ];
     channels.forEach(ch => ch.subscribe());
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const periodStart = getPeriodStart(period);
+      const periodFilterIso = periodStart ? periodStart.toISOString() : null;
+
+      let bookingsCountQ = supabase.from("bookings").select("id", { count: "exact", head: true });
+      let paymentsQ = supabase.from("payment_records").select("amount, created_at").eq("status", "completed");
+      let violationsCountQ = (supabase as any).from("violations").select("id", { count: "exact", head: true });
+      if (periodFilterIso) {
+        bookingsCountQ = bookingsCountQ.gte("created_at", periodFilterIso);
+        paymentsQ = paymentsQ.gte("created_at", periodFilterIso);
+        violationsCountQ = violationsCountQ.gte("created_at", periodFilterIso);
+      }
+
       const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
-        supabase.from("bookings").select("id", { count: "exact", head: true }),
-        supabase.from("payment_records").select("amount, created_at").eq("status", "completed"),
-        (supabase as any).from("violations").select("id", { count: "exact", head: true }),
+        bookingsCountQ,
+        paymentsQ,
+        violationsCountQ,
       ]);
 
-      const { data: allBookingsData } = await supabase.from("bookings").select("created_at, status, price");
+      let allBookingsQ = supabase.from("bookings").select("created_at, status, price");
+      if (periodFilterIso) allBookingsQ = allBookingsQ.gte("created_at", periodFilterIso);
+      const { data: allBookingsData } = await allBookingsQ;
       const monthMap = new Map<string, { bookings: number; revenue: number }>();
       const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
       (allBookingsData ?? []).forEach(b => {
@@ -359,7 +379,7 @@ const AdminDashboard = () => {
       );
     }
     switch (activeTab) {
-      case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} />;
+      case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} />;
       case "users": return <UserManagementTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
@@ -416,6 +436,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="mr-auto flex items-center gap-2">
+                  <AdminQuickSearch onNavigateTab={handleTabChange} />
                   <Badge variant="outline" className="hidden md:flex items-center gap-1.5 bg-success/10 border-success/30 text-success">
                     <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                     متصل
@@ -464,8 +485,23 @@ const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string
   </Card>
 );
 
-const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }: any) => (
+const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab }: any) => (
   <div className="space-y-6">
+    {/* Period filter */}
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h2 className="text-lg font-black text-foreground">نظرة عامة</h2>
+        <p className="text-xs text-muted-foreground">إحصائيات محدّثة حسب الفترة المختارة</p>
+      </div>
+      <AdminPeriodFilter value={period} onChange={setPeriod} />
+    </div>
+
+    {/* Urgent tasks + Live alerts */}
+    <div className="grid lg:grid-cols-2 gap-6">
+      <AdminUrgentTasks onOpenTab={onOpenTab} />
+      <AdminLiveAlerts onOpenTab={onOpenTab} />
+    </div>
+
     {/* Stats Grid */}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard label="إجمالي المستخدمين" value={stats.users} icon={Users} color="from-primary to-primary/70" />
