@@ -13,6 +13,7 @@ import {
 import StatusFilter from "./StatusFilter";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
+import UserWarningsList from "./UserWarningsList";
 
 interface ViolationsTabProps {
   violations: any[];
@@ -347,14 +348,18 @@ const ViolationsTab = ({
       </CardHeader>
       <CardContent>
         <Tabs value={activeRole} onValueChange={(v: any) => setActiveRole(v)} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-md mb-4">
+          <TabsList className="grid grid-cols-4 w-full max-w-2xl mb-4">
             <TabsTrigger value="all">الكل ({violations.length})</TabsTrigger>
             <TabsTrigger value="student">🎓 الطلاب ({studentItems.length})</TabsTrigger>
             <TabsTrigger value="teacher">👨‍🏫 المعلمون ({teacherItems.length})</TabsTrigger>
+            <TabsTrigger value="warnings" className="gap-1">
+              <FileWarning className="h-3 w-3" /> التحذيرات والحظر
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="all"><ViolationsList items={violations} user={user} setViolations={setViolations} /></TabsContent>
           <TabsContent value="student"><ViolationsList items={studentItems} user={user} setViolations={setViolations} /></TabsContent>
           <TabsContent value="teacher"><ViolationsList items={teacherItems} user={user} setViolations={setViolations} /></TabsContent>
+          <TabsContent value="warnings"><UserWarningsList roleFilter="all" /></TabsContent>
         </Tabs>
       </CardContent>
     </Card>
