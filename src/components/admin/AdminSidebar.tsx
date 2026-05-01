@@ -105,6 +105,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "site", title: "المحتوى", icon: Settings, permission: "manage_content" },
         { id: "support", title: "الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
         { id: "admin_notifications", title: "الإشعارات", icon: Bell, permission: "manage_notifications" },
+        { id: "domain_ssl", title: "حالة SSL/HTTPS", icon: Lock, permission: "manage_admins" },
         { id: "team", title: "فريق الإدارة وسجل العمليات", icon: ShieldCheck, permission: "manage_admins" },
       ],
     },
