@@ -155,11 +155,11 @@ export default function AuditAdvancedFilter({ rows, filters, setFilters, categor
             </SelectContent>
           </Select>
         </div>
-        <div className="md:col-span-1.5">
+        <div className="md:col-span-1">
           <Label className="text-[10px]">من</Label>
           <Input type="date" value={filters.from} onChange={(e) => update({ from: e.target.value })} className="h-9 text-xs" />
         </div>
-        <div className="md:col-span-1.5">
+        <div className="md:col-span-2">
           <Label className="text-[10px]">إلى</Label>
           <Input type="date" value={filters.to} onChange={(e) => update({ to: e.target.value })} className="h-9 text-xs" />
         </div>
