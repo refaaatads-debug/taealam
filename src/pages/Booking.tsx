@@ -539,15 +539,40 @@ const Booking = () => {
                         ) : (
                           days.map((d, i) => {
                             const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
+                            const dayHasConflict = timeSlots.some(t => isConflict(i, t));
+                            const isActive = selectedDay === i;
                             return (
-                              <button key={i} onClick={() => setSelectedDay(i)}
-                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap transition-all duration-200 min-w-[80px] relative ${selectedDay === i ? "gradient-cta text-secondary-foreground shadow-button" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                                <span className="text-xs opacity-80">{d.label}</span>
-                                <span className="text-lg font-black">{d.date}</span>
-                                {daySlotCount > 0 && (
-                                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-black flex items-center justify-center">{daySlotCount}</span>
+                              <motion.button
+                                key={i}
+                                onClick={() => setSelectedDay(i)}
+                                whileHover={{ y: -3, scale: 1.03 }}
+                                whileTap={{ scale: 0.96 }}
+                                animate={isActive ? { y: -2 } : { y: 0 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                                className={`flex flex-col items-center px-5 py-3 rounded-2xl text-sm font-medium whitespace-nowrap min-w-[80px] relative overflow-hidden border ${isActive ? "gradient-cta text-secondary-foreground shadow-[0_8px_24px_-6px_hsl(var(--secondary)/0.5)] border-secondary/40" : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"}`}
+                              >
+                                {isActive && (
+                                  <motion.span
+                                    layoutId="day-glow"
+                                    className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 pointer-events-none"
+                                    initial={{ x: "-100%" }}
+                                    animate={{ x: "100%" }}
+                                    transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
+                                  />
                                 )}
-                              </button>
+                                <span className="text-xs opacity-80 relative z-10">{d.label}</span>
+                                <span className="text-lg font-black relative z-10">{d.date}</span>
+                                {daySlotCount > 0 && (
+                                  <motion.span
+                                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-secondary text-secondary-foreground text-[10px] font-black flex items-center justify-center shadow-md ring-2 ring-card"
+                                  >{daySlotCount}</motion.span>
+                                )}
+                                {dayHasConflict && daySlotCount === 0 && (
+                                  <span className="absolute -top-1.5 -left-1.5 w-2.5 h-2.5 rounded-full bg-destructive animate-pulse ring-2 ring-card" title="يوجد تعارض" />
+                                )}
+                              </motion.button>
                             );
                           })
                         )}
