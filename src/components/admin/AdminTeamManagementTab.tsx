@@ -398,11 +398,18 @@ export default function AdminTeamManagementTab() {
                             <p className="text-[10px] text-muted-foreground font-mono">{m.user_id.slice(0, 8)}...</p>
                           </div>
                         </div>
-                        {canManage && !m.is_full_admin && (
-                          <Button size="sm" variant="ghost" onClick={() => removeAdminRole(m)} className="text-destructive h-7 gap-1 text-[11px]">
-                            <Trash2 className="h-3 w-3" /> إزالة
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {canManage && !m.is_full_admin && (
+                            <Button size="sm" variant="outline" onClick={() => setEditingMember(m)} className="h-7 gap-1 text-[11px]">
+                              <Settings2 className="h-3 w-3" /> تحرير الصلاحيات
+                            </Button>
+                          )}
+                          {canManage && !m.is_full_admin && (
+                            <Button size="sm" variant="ghost" onClick={() => removeAdminRole(m)} className="text-destructive h-7 gap-1 text-[11px]">
+                              <Trash2 className="h-3 w-3" /> إزالة
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       {!m.is_full_admin && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
