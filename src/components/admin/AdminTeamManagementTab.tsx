@@ -441,38 +441,29 @@ export default function AdminTeamManagementTab() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <FileText className="h-5 w-5 text-secondary" />
                   سجل عمليات الإدارة
-                  <Badge variant="outline">{filteredLogs.length}</Badge>
+                  <Badge variant="outline">{filteredLogs.length} / {logs.length}</Badge>
                 </CardTitle>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="relative">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="بحث..." value={searchLog} onChange={(e) => setSearchLog(e.target.value)} className="pr-9 w-56 h-9" />
-                  </div>
-                  <Select value={logCategory} onValueChange={setLogCategory}>
-                    <SelectTrigger className="w-44 h-9">
-                      <Filter className="h-3 w-3 ml-1" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">كل الفئات</SelectItem>
-                      {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={fetchLogs} className="gap-1">
+                  <AuditLogExport rows={filteredLogs} categoryLabels={CATEGORY_LABELS} />
+                  <Button variant="outline" size="sm" onClick={fetchLogs} className="gap-1 h-9">
                     <RefreshCw className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="space-y-3">
+              <AuditAdvancedFilter
+                rows={logs}
+                filters={auditFilters}
+                setFilters={setAuditFilters}
+                categoryLabels={CATEGORY_LABELS}
+              />
               {logsLoading ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">جاري تحميل السجل...</div>
               ) : filteredLogs.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">لا توجد عمليات مسجّلة</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">لا توجد عمليات تطابق الفلتر</div>
               ) : (
-                <ScrollArea className="h-[560px]">
+                <ScrollArea className="h-[560px] rounded-lg border">
                   <div className="divide-y divide-border/50">
                     {filteredLogs.map((l) => (
                       <div key={l.id} className="p-4 hover:bg-muted/30 transition-colors">
@@ -491,11 +482,23 @@ export default function AdminTeamManagementTab() {
                               <span className="font-bold">{l.action}</span>
                               {l.description ? ` — ${l.description}` : ""}
                             </p>
-                            {l.target_id && (
-                              <p className="text-[10px] text-muted-foreground font-mono">
-                                {l.target_table || "هدف"} · {l.target_id.slice(0, 12)}...
-                              </p>
-                            )}
+                            <div className="flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground font-mono">
+                              {l.target_id && (
+                                <span>{l.target_table || "هدف"} · {l.target_id.slice(0, 12)}...</span>
+                              )}
+                              {l.ip_address && (
+                                <span className="flex items-center gap-1">
+                                  <Globe className="h-2.5 w-2.5" />
+                                  {l.ip_address}
+                                </span>
+                              )}
+                              {l.user_agent && (
+                                <span className="flex items-center gap-1 truncate max-w-[280px]" title={l.user_agent}>
+                                  <Monitor className="h-2.5 w-2.5" />
+                                  {l.user_agent.slice(0, 60)}{l.user_agent.length > 60 ? "…" : ""}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground flex items-center gap-1 whitespace-nowrap">
                             <Clock className="h-2.5 w-2.5" />
@@ -511,6 +514,15 @@ export default function AdminTeamManagementTab() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <PermissionEditorDialog
+        open={!!editingMember}
+        onOpenChange={(v) => { if (!v) setEditingMember(null); }}
+        member={editingMember}
+        allPermissions={ALL_PERMISSIONS}
+        canGrantManageAdmins={isFullAdmin}
+        onSaved={fetchTeam}
+      />
     </div>
   );
 }
