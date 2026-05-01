@@ -47,6 +47,60 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          actor_name: string | null
+          actor_role: string | null
+          after_data: Json | null
+          before_data: Json | null
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          target_id: string | null
+          target_table: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          actor_name?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_table?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          actor_name?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_table?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -1957,6 +2011,19 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      log_admin_action: {
+        Args: {
+          _action: string
+          _after?: Json
+          _before?: Json
+          _category?: string
+          _description?: string
+          _metadata?: Json
+          _target_id?: string
+          _target_table?: string
+        }
+        Returns: string
       }
       set_new_user_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
