@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 
 type Priority = "high" | "medium" | "low";
 type TaskItem = {
@@ -18,6 +19,14 @@ type TaskItem = {
   created_at: string;
   priority: Priority;
   raw: any;
+};
+
+// ربط كل نوع مهمة بالصلاحية المطلوبة لاتخاذ إجراء عليها
+const KIND_PERMISSION: Record<TaskItem["kind"], string> = {
+  teacher: "manage_teachers",
+  withdrawal: "manage_withdrawals",
+  support: "manage_support",
+  violation: "manage_violations",
 };
 
 interface Props {
@@ -62,6 +71,12 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | Priority>("all");
+  const { isFullAdmin, can, loading: permLoading } = useAdminPermissions();
+
+  // يحدد ما إذا كان المستخدم يستطيع اتخاذ إجراء على نوع مهمة معين
+  const canActOn = (kind: TaskItem["kind"]) => isFullAdmin || can(KIND_PERMISSION[kind]);
+  // دور المستخدم لعرضه كشارة
+  const roleLabel = isFullAdmin ? "مدير عام" : "مراجع";
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -155,6 +170,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   }, []);
 
   const approve = async (t: TaskItem) => {
+    if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
     try {
       if (t.kind === "teacher") {
         const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", t.raw.id);
@@ -180,6 +196,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   };
 
   const reject = async (t: TaskItem) => {
+    if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
     try {
       if (t.kind === "teacher") {
         await supabase.from("teacher_profiles").delete().eq("id", t.raw.id);
@@ -229,6 +246,11 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Flame className="h-4 w-4 text-destructive" />
             المهام العاجلة
+            {!permLoading && (
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-primary/5 text-primary border-primary/20">
+                {roleLabel}
+              </Badge>
+            )}
             {highCount > 0 && (
               <Badge className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] h-5 px-1.5 gap-1">
                 <AlertTriangle className="h-2.5 w-2.5" />
@@ -296,15 +318,24 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
                   </div>
 
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
-                      <CheckCircle className="h-3 w-3" /> موافقة
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                      <XCircle className="h-3 w-3" /> رفض
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => postpone(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                      <Clock className="h-3 w-3" /> تأجيل
-                    </Button>
+                    {canActOn(t.kind) ? (
+                      <>
+                        <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
+                          <CheckCircle className="h-3 w-3" /> موافقة
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
+                          <XCircle className="h-3 w-3" /> رفض
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => postpone(t)} className="h-7 text-[11px] gap-1 rounded-lg">
+                          <Clock className="h-3 w-3" /> تأجيل
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="outline" className="h-7 text-[10px] px-2 gap-1 bg-muted/40 text-muted-foreground border-dashed">
+                        <ShieldAlert className="h-3 w-3" />
+                        لا تملك صلاحية اتخاذ إجراء — للعرض فقط
+                      </Badge>
+                    )}
                     {onOpenTab && (
                       <Button size="sm" variant="ghost" onClick={() => onOpenTab(meta.tab)} className="h-7 text-[11px] gap-1 mr-auto">
                         التفاصيل <ArrowLeft className="h-3 w-3" />
