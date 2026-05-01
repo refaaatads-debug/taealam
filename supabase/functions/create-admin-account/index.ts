@@ -61,12 +61,24 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // فقط الأدمن العام يمكنه إنشاء أدمن عام آخر
+    // قاعدة صارمة: فقط المدير العام يمكنه إنشاء مدير عام آخر أو منح صلاحية manage_admins
     if (make_full_admin && !isAdmin) {
       return new Response(JSON.stringify({ error: "فقط المدير العام يمكنه إنشاء مدير عام آخر" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (Array.isArray(permissions) && permissions.includes("manage_admins") && !isAdmin) {
+      return new Response(JSON.stringify({ error: "فقط المدير العام يمكنه منح صلاحية إدارة الفريق" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // التقاط IP و User-Agent تلقائياً للسجل
+    const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("cf-connecting-ip")
+      || req.headers.get("x-real-ip")
+      || null;
+    const userAgent = req.headers.get("user-agent") || null;
 
     // 1) إنشاء الحساب
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
