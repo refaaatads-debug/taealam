@@ -246,14 +246,7 @@ export default function AdminTeamManagementTab() {
   const filteredMembers = members.filter((m) =>
     !searchTeam || m.full_name.toLowerCase().includes(searchTeam.toLowerCase()) || m.user_id.includes(searchTeam)
   );
-  const filteredLogs = logs.filter((l) => {
-    const matchCat = logCategory === "all" || l.category === logCategory;
-    const matchSearch = !searchLog ||
-      l.actor_name?.toLowerCase().includes(searchLog.toLowerCase()) ||
-      l.action?.toLowerCase().includes(searchLog.toLowerCase()) ||
-      l.description?.toLowerCase().includes(searchLog.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const filteredLogs = applyAuditFilters(logs, auditFilters);
 
   const fmtDate = (iso: string) => {
     const d = new Date(iso);
