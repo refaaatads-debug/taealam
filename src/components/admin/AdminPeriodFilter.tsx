@@ -32,7 +32,7 @@ interface Props {
 export default function AdminPeriodFilter({ value, onChange }: Props) {
   return (
     <div className="inline-flex items-center gap-1 p-1 bg-muted/50 border border-border/50 rounded-xl shadow-sm">
-      <Calendar className="h-4 w-4 text-muted-foreground mr-1.5 mr-2" />
+      <Calendar className="h-4 w-4 text-muted-foreground mr-2" />
       {OPTIONS.map(opt => (
         <Button
           key={opt.value}
