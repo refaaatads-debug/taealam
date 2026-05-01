@@ -1990,6 +1990,7 @@ export type Database = {
         | "manage_violations"
         | "manage_ai_audit"
         | "manage_notifications"
+        | "manage_admins"
       app_role: "student" | "teacher" | "parent" | "admin"
       booking_status: "pending" | "confirmed" | "completed" | "cancelled"
       subscription_tier: "basic" | "standard" | "premium" | "free"
@@ -2142,6 +2143,7 @@ export const Constants = {
         "manage_violations",
         "manage_ai_audit",
         "manage_notifications",
+        "manage_admins",
       ],
       app_role: ["student", "teacher", "parent", "admin"],
       booking_status: ["pending", "confirmed", "completed", "cancelled"],
