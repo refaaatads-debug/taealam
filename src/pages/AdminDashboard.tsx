@@ -405,6 +405,7 @@ const AdminDashboard = () => {
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
       case "team": return <AdminTeamManagementTab />;
+      case "domain_ssl": return <DomainSSLTab />;
       default: return null;
     }
   };
