@@ -436,6 +436,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="mr-auto flex items-center gap-2">
+                  <AdminQuickSearch onNavigateTab={handleTabChange} />
                   <Badge variant="outline" className="hidden md:flex items-center gap-1.5 bg-success/10 border-success/30 text-success">
                     <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                     متصل
