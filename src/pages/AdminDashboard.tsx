@@ -485,8 +485,23 @@ const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string
   </Card>
 );
 
-const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }: any) => (
+const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab }: any) => (
   <div className="space-y-6">
+    {/* Period filter */}
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h2 className="text-lg font-black text-foreground">نظرة عامة</h2>
+        <p className="text-xs text-muted-foreground">إحصائيات محدّثة حسب الفترة المختارة</p>
+      </div>
+      <AdminPeriodFilter value={period} onChange={setPeriod} />
+    </div>
+
+    {/* Urgent tasks + Live alerts */}
+    <div className="grid lg:grid-cols-2 gap-6">
+      <AdminUrgentTasks onOpenTab={onOpenTab} />
+      <AdminLiveAlerts onOpenTab={onOpenTab} />
+    </div>
+
     {/* Stats Grid */}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard label="إجمالي المستخدمين" value={stats.users} icon={Users} color="from-primary to-primary/70" />
