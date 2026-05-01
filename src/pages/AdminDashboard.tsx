@@ -152,20 +152,35 @@ const AdminDashboard = () => {
     ];
     channels.forEach(ch => ch.subscribe());
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const periodStart = getPeriodStart(period);
+      const periodFilterIso = periodStart ? periodStart.toISOString() : null;
+
+      let bookingsCountQ = supabase.from("bookings").select("id", { count: "exact", head: true });
+      let paymentsQ = supabase.from("payment_records").select("amount, created_at").eq("status", "completed");
+      let violationsCountQ = (supabase as any).from("violations").select("id", { count: "exact", head: true });
+      if (periodFilterIso) {
+        bookingsCountQ = bookingsCountQ.gte("created_at", periodFilterIso);
+        paymentsQ = paymentsQ.gte("created_at", periodFilterIso);
+        violationsCountQ = violationsCountQ.gte("created_at", periodFilterIso);
+      }
+
       const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
-        supabase.from("bookings").select("id", { count: "exact", head: true }),
-        supabase.from("payment_records").select("amount, created_at").eq("status", "completed"),
-        (supabase as any).from("violations").select("id", { count: "exact", head: true }),
+        bookingsCountQ,
+        paymentsQ,
+        violationsCountQ,
       ]);
 
-      const { data: allBookingsData } = await supabase.from("bookings").select("created_at, status, price");
+      let allBookingsQ = supabase.from("bookings").select("created_at, status, price");
+      if (periodFilterIso) allBookingsQ = allBookingsQ.gte("created_at", periodFilterIso);
+      const { data: allBookingsData } = await allBookingsQ;
       const monthMap = new Map<string, { bookings: number; revenue: number }>();
       const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
       (allBookingsData ?? []).forEach(b => {
