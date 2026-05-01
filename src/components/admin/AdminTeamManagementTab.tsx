@@ -12,11 +12,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ShieldCheck, UserPlus, History, Search, Crown, KeyRound,
-  Users, Clock, FileText, Filter, Trash2, RefreshCw,
+  Users, Clock, FileText, Trash2, RefreshCw, Settings2, Globe, Monitor,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { logAdminAction } from "@/lib/auditLog";
+import AuditLogExport, { AuditRow } from "./AuditLogExport";
+import AuditAdvancedFilter, { AuditFilters, DEFAULT_FILTERS, applyAuditFilters } from "./AuditAdvancedFilter";
+import PermissionEditorDialog from "./PermissionEditorDialog";
 import { toast } from "sonner";
 
 const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
