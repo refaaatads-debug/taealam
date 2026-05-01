@@ -71,6 +71,12 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | Priority>("all");
+  const { isFullAdmin, can, loading: permLoading } = useAdminPermissions();
+
+  // يحدد ما إذا كان المستخدم يستطيع اتخاذ إجراء على نوع مهمة معين
+  const canActOn = (kind: TaskItem["kind"]) => isFullAdmin || can(KIND_PERMISSION[kind]);
+  // دور المستخدم لعرضه كشارة
+  const roleLabel = isFullAdmin ? "مدير عام" : "مراجع";
 
   const fetchTasks = async () => {
     setLoading(true);
