@@ -32,6 +32,7 @@ import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
+import AdminTeamManagementTab from "@/components/admin/AdminTeamManagementTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
@@ -67,6 +68,7 @@ const TAB_TITLES: Record<string, string> = {
   support: "الدعم الفني",
   admin_notifications: "مركز الإشعارات",
   wallets: "المحافظ والمكالمات",
+  team: "فريق الإدارة وسجل العمليات",
 };
 
 const AdminDashboard = () => {
@@ -363,6 +365,7 @@ const AdminDashboard = () => {
     site: "manage_content",
     support: "customer_support",
     admin_notifications: "manage_notifications",
+    team: "manage_admins",
   };
 
   const renderContent = () => {
@@ -400,6 +403,7 @@ const AdminDashboard = () => {
       case "session_pricing": return <SessionPricingTab />;
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
+      case "team": return <AdminTeamManagementTab />;
       default: return null;
     }
   };
