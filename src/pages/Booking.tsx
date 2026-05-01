@@ -211,14 +211,29 @@ const Booking = () => {
     return `${m} د`;
   };
 
+  const isConflict = (dayIndex: number, time: string): boolean => {
+    if (!days[dayIndex]) return false;
+    const d = new Date(days[dayIndex].fullDate);
+    d.setHours(parseTimeHour(time), 0, 0, 0);
+    return existingBookings.some(b => Math.abs(b.getTime() - d.getTime()) < 30 * 60 * 1000);
+  };
+
   const toggleSlot = (dayIndex: number, time: string) => {
+    const key = `${dayIndex}-${time}`;
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
+      if (isConflict(dayIndex, time)) {
+        toast.error("⚠️ تعارض! لديك حصة محجوزة في نفس هذا الموعد", { duration: 4000 });
+        setConflictKey(key);
+        setTimeout(() => setConflictKey(null), 800);
+        return prev;
+      }
       if (remainingMinutes < MIN_SESSION_MINUTES) {
         toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - الحد الأدنى للحجز ${MIN_SESSION_MINUTES} د.`);
         return prev;
       }
+      toast.success("✨ تم اختيار الموعد", { duration: 1500 });
       return [...prev, { dayIndex, time }];
     });
   };
