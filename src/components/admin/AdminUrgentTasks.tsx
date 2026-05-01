@@ -8,6 +8,15 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+
+// ربط كل نوع مهمة بالصلاحية المطلوبة لاتخاذ إجراء عليها
+const KIND_PERMISSION: Record<TaskItem["kind"], string> = {
+  teacher: "manage_teachers",
+  withdrawal: "manage_withdrawals",
+  support: "manage_support",
+  violation: "manage_violations",
+};
 
 type Priority = "high" | "medium" | "low";
 type TaskItem = {
