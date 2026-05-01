@@ -397,15 +397,41 @@ const AdminDashboard = () => {
             permissions={access.permissions}
           />
           <SidebarInset>
-            {/* Top Bar */}
-            <header className="sticky top-0 z-20 flex items-center gap-3 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6 h-14">
-              <SidebarTrigger className="h-8 w-8" />
-              <div className="h-5 w-px bg-border" />
-              <h1 className="text-base font-bold text-foreground">{TAB_TITLES[activeTab] || "لوحة التحكم"}</h1>
+            {/* Top Bar - Professional */}
+            <header className="sticky top-0 z-20 border-b bg-gradient-to-l from-primary/10 via-background/95 to-secondary/10 backdrop-blur-md">
+              <div className="flex items-center gap-3 px-4 md:px-6 h-16">
+                <SidebarTrigger className="h-9 w-9 hover:bg-primary/10 rounded-lg transition-colors" />
+                <div className="h-6 w-px bg-border" />
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shrink-0">
+                    <Shield className="h-4.5 w-4.5 text-primary-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-base md:text-lg font-black text-foreground leading-tight truncate">
+                      {TAB_TITLES[activeTab] || "لوحة التحكم"}
+                    </h1>
+                    <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block">
+                      {access.isFullAdmin ? "المدير العام" : "مشرف"} · {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })}
+                    </p>
+                  </div>
+                </div>
+                <div className="mr-auto flex items-center gap-2">
+                  <Badge variant="outline" className="hidden md:flex items-center gap-1.5 bg-success/10 border-success/30 text-success">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                    متصل
+                  </Badge>
+                  {(badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed) > 0 && (
+                    <Badge className="bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed} مهمة
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in">
+            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in bg-gradient-to-br from-background via-background to-muted/20 min-h-[calc(100vh-4rem)]">
               {renderContent()}
             </main>
           </SidebarInset>
