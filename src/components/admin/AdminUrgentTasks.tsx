@@ -244,6 +244,11 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Flame className="h-4 w-4 text-destructive" />
             المهام العاجلة
+            {!permLoading && (
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-primary/5 text-primary border-primary/20">
+                {roleLabel}
+              </Badge>
+            )}
             {highCount > 0 && (
               <Badge className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] h-5 px-1.5 gap-1">
                 <AlertTriangle className="h-2.5 w-2.5" />
