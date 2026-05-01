@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle, X, Package, CreditCard } from "lucide-react";
+import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loader2, AlertCircle, X, Package, CreditCard, Sparkles, Timer, Wallet } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -350,6 +350,103 @@ const Booking = () => {
             </div>
           ))}
         </div>
+
+        {/* Live Preview Card */}
+        {step === 1 && (selectedSubject || selectedDay !== null || selectedSlots.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6"
+          >
+            <Card className="border-0 shadow-lg overflow-hidden relative bg-gradient-to-br from-primary/5 via-secondary/5 to-primary/5">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary animate-[shimmer_3s_linear_infinite] bg-[length:200%_100%]" />
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm">معاينة فورية</h3>
+                    <p className="text-[11px] text-muted-foreground">يتم تحديثها مع كل اختيار</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                  {/* Subject */}
+                  <div className="bg-card/80 backdrop-blur rounded-xl p-3 border border-border/50">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+                      <BookOpen className="h-3 w-3" /> المادة
+                    </div>
+                    <p className="font-bold text-sm truncate">
+                      {selectedSubject
+                        ? availableSubjects.find(s => s.id === selectedSubject)?.name || "—"
+                        : <span className="text-muted-foreground/60 font-normal">لم تُحدد</span>}
+                    </p>
+                  </div>
+
+                  {/* Day(s) */}
+                  <div className="bg-card/80 backdrop-blur rounded-xl p-3 border border-border/50">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+                      <CalendarCheck className="h-3 w-3" /> اليوم
+                    </div>
+                    <p className="font-bold text-sm truncate">
+                      {selectedSlots.length > 0
+                        ? `${new Set(selectedSlots.map(s => s.dayIndex)).size} يوم`
+                        : selectedDay !== null && days[selectedDay]
+                        ? `${days[selectedDay].label} ${days[selectedDay].date}`
+                        : <span className="text-muted-foreground/60 font-normal">لم يُحدد</span>}
+                    </p>
+                  </div>
+
+                  {/* Time slots count */}
+                  <div className="bg-card/80 backdrop-blur rounded-xl p-3 border border-border/50">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+                      <Clock className="h-3 w-3" /> الحصص
+                    </div>
+                    <p className="font-bold text-sm">
+                      {selectedSlots.length > 0
+                        ? `${selectedSlots.length} × ${SESSION_MINUTES} د`
+                        : <span className="text-muted-foreground/60 font-normal">لم تُحدد</span>}
+                    </p>
+                  </div>
+
+                  {/* Total minutes / cost */}
+                  <div className="bg-gradient-to-br from-secondary/15 to-primary/15 backdrop-blur rounded-xl p-3 border border-secondary/30">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+                      <Timer className="h-3 w-3" /> الإجمالي
+                    </div>
+                    <p className="font-black text-sm text-secondary">
+                      {selectedSlots.length > 0
+                        ? formatMinutes(selectedSlots.length * SESSION_MINUTES)
+                        : <span className="text-muted-foreground/60 font-normal">0 د</span>}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Balance after */}
+                {selectedSlots.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-card/60 border border-border/40"
+                  >
+                    <div className="flex items-center gap-2 text-xs">
+                      <Wallet className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-muted-foreground">رصيدك بعد الحجز:</span>
+                      <span className={`font-black ${remainingMinutes - selectedSlots.length * SESSION_MINUTES < 0 ? "text-destructive" : "text-foreground"}`}>
+                        {formatMinutes(Math.max(0, remainingMinutes - selectedSlots.length * SESSION_MINUTES))}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      من أصل {formatMinutes(remainingMinutes)}
+                    </span>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         <AnimatePresence mode="wait">
           {step === 1 && (
