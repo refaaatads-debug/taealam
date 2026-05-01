@@ -170,26 +170,45 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
   }, []);
 
+  // mapping من نوع المهمة إلى فئة سجل العمليات
+  const KIND_AUDIT_CATEGORY: Record<TaskItem["kind"], AuditCategory> = {
+    teacher: "teachers",
+    withdrawal: "withdrawals",
+    support: "support",
+    violation: "violations",
+  };
+
   const approve = async (t: TaskItem) => {
     if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
     try {
+      let targetTable = ""; let targetId = "";
       if (t.kind === "teacher") {
         const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "teacher_profiles"; targetId = t.raw.id;
         toast.success("تمت الموافقة على المعلم");
       } else if (t.kind === "withdrawal") {
         const { error } = await (supabase as any).from("withdrawal_requests").update({ status: "approved" }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "withdrawal_requests"; targetId = t.raw.id;
         toast.success("تمت الموافقة على السحب");
       } else if (t.kind === "support") {
         const { error } = await supabase.from("support_tickets").update({ status: "resolved" }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "support_tickets"; targetId = t.raw.id;
         toast.success("تم إغلاق التذكرة");
       } else if (t.kind === "violation") {
         const { error } = await (supabase as any).from("violations").update({ is_reviewed: true }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "violations"; targetId = t.raw.id;
         toast.success("تم تأكيد المخالفة");
       }
+      await logAdminAction({
+        action: "approve", category: KIND_AUDIT_CATEGORY[t.kind],
+        description: `موافقة على: ${t.title}`,
+        target_table: targetTable, target_id: targetId,
+        metadata: { source: "urgent_tasks", kind: t.kind },
+      });
       setTasks(prev => prev.filter(x => x.id !== t.id));
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -199,23 +218,34 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   const reject = async (t: TaskItem) => {
     if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
     try {
+      let targetTable = ""; let targetId = "";
       if (t.kind === "teacher") {
         await supabase.from("teacher_profiles").delete().eq("id", t.raw.id);
         await supabase.from("user_roles").update({ role: "student" as any }).eq("user_id", t.raw.user_id);
+        targetTable = "teacher_profiles"; targetId = t.raw.id;
         toast.success("تم رفض طلب المعلم");
       } else if (t.kind === "withdrawal") {
         const { error } = await (supabase as any).from("withdrawal_requests").update({ status: "rejected" }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "withdrawal_requests"; targetId = t.raw.id;
         toast.success("تم رفض طلب السحب");
       } else if (t.kind === "support") {
         const { error } = await supabase.from("support_tickets").update({ status: "closed" }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "support_tickets"; targetId = t.raw.id;
         toast.success("تم إغلاق التذكرة");
       } else if (t.kind === "violation") {
         const { error } = await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true }).eq("id", t.raw.id);
         if (error) throw error;
+        targetTable = "violations"; targetId = t.raw.id;
         toast.success("تم تعليم المخالفة كاستثناء");
       }
+      await logAdminAction({
+        action: "reject", category: KIND_AUDIT_CATEGORY[t.kind],
+        description: `رفض: ${t.title}`,
+        target_table: targetTable, target_id: targetId,
+        metadata: { source: "urgent_tasks", kind: t.kind },
+      });
       setTasks(prev => prev.filter(x => x.id !== t.id));
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -228,7 +258,13 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
     savePostponed(map);
     setTasks(prev => prev.filter(x => x.id !== t.id));
     toast("تم تأجيل المهمة 4 ساعات", { description: t.title });
+    logAdminAction({
+      action: "postpone", category: KIND_AUDIT_CATEGORY[t.kind],
+      description: `تأجيل المهمة 4 ساعات: ${t.title}`,
+      metadata: { source: "urgent_tasks", kind: t.kind, until: new Date(Date.now() + 4 * 3_600_000).toISOString() },
+    });
   };
+
 
   const filtered = filter === "all" ? tasks : tasks.filter(t => t.priority === filter);
   const highCount = tasks.filter(t => t.priority === "high").length;
