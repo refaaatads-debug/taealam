@@ -365,6 +365,7 @@ const AdminDashboard = () => {
     site: "manage_content",
     support: "customer_support",
     admin_notifications: "manage_notifications",
+    team: "manage_admins",
   };
 
   const renderContent = () => {
