@@ -68,7 +68,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
     try {
       const [teachersRes, withdrRes, supportRes, violRes] = await Promise.all([
         supabase.from("teacher_profiles").select("id, user_id, hourly_rate, years_experience, created_at").eq("is_approved", false).order("created_at", { ascending: false }).limit(10),
-        supabase.from("withdrawal_requests").select("id, teacher_id, amount, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(10),
+        (supabase as any).from("withdrawal_requests").select("id, teacher_id, amount, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(10),
         supabase.from("support_tickets").select("id, user_id, subject, category, created_at").eq("status", "open").order("created_at", { ascending: false }).limit(10),
         (supabase as any).from("violations").select("id, user_id, violation_type, created_at").eq("is_reviewed", false).order("created_at", { ascending: false }).limit(10),
       ]);

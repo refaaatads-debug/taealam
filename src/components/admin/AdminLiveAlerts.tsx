@@ -61,7 +61,7 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
     const readIds = loadReadIds();
     try {
       const [withdr, support, viol, bookings, teachers] = await Promise.all([
-        supabase.from("withdrawal_requests").select("id, amount, status, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(15),
+        (supabase as any).from("withdrawal_requests").select("id, amount, status, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(15),
         supabase.from("support_tickets").select("id, subject, status, created_at").eq("status", "open").order("created_at", { ascending: false }).limit(15),
         (supabase as any).from("violations").select("id, violation_type, created_at, is_reviewed").eq("is_reviewed", false).order("created_at", { ascending: false }).limit(15),
         supabase.from("bookings").select("id, status, scheduled_at, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(15),
