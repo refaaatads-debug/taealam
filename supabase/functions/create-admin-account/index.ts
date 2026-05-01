@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
       await (admin as any).from("user_permissions").upsert(rows, { onConflict: "user_id,permission" });
     }
 
-    // 5) تسجيل العملية
+    // 5) تسجيل العملية مع IP و User-Agent
     await admin.from("admin_audit_log").insert({
       actor_id: user.id,
       actor_name: (await admin.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle()).data?.full_name || "أدمن",
@@ -129,6 +129,8 @@ Deno.serve(async (req) => {
       target_table: "auth.users",
       target_id: newUserId,
       after_data: { email, full_name, make_full_admin: !!make_full_admin, permissions: permissions || [] },
+      ip_address: ipAddress,
+      user_agent: userAgent,
     });
 
     return new Response(JSON.stringify({ success: true, user_id: newUserId }), {
