@@ -484,7 +484,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
 
     {/* Charts */}
     <div className="grid lg:grid-cols-2 gap-6">
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-primary" />
@@ -509,7 +509,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Users className="h-4 w-4 text-secondary" />
@@ -530,7 +530,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
     </div>
 
     {bookingStatusData.length > 0 && (
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Clock className="h-4 w-4 text-accent-foreground" />
@@ -553,7 +553,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
 );
 
 const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => (
-  <Card className="border-0 shadow-sm">
+  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -638,7 +638,7 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
 );
 
 const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter, bookingDateFrom, bookingDateTo, setBookingDateFrom, setBookingDateTo }: any) => (
-  <Card className="border-0 shadow-sm">
+  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-sm font-bold">آخر الحجوزات ({bookings.length})</CardTitle>
