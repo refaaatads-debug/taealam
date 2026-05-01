@@ -2012,19 +2012,35 @@ export type Database = {
         }
         Returns: boolean
       }
-      log_admin_action: {
-        Args: {
-          _action: string
-          _after?: Json
-          _before?: Json
-          _category?: string
-          _description?: string
-          _metadata?: Json
-          _target_id?: string
-          _target_table?: string
-        }
-        Returns: string
-      }
+      log_admin_action:
+        | {
+            Args: {
+              _action: string
+              _after?: Json
+              _before?: Json
+              _category?: string
+              _description?: string
+              _metadata?: Json
+              _target_id?: string
+              _target_table?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _action: string
+              _after?: Json
+              _before?: Json
+              _category?: string
+              _description?: string
+              _ip_address?: string
+              _metadata?: Json
+              _target_id?: string
+              _target_table?: string
+              _user_agent?: string
+            }
+            Returns: string
+          }
       set_new_user_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: undefined
