@@ -36,6 +36,10 @@ import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
 import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
+import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
+import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
+import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
+import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
