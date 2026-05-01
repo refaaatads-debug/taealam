@@ -397,15 +397,41 @@ const AdminDashboard = () => {
             permissions={access.permissions}
           />
           <SidebarInset>
-            {/* Top Bar */}
-            <header className="sticky top-0 z-20 flex items-center gap-3 border-b bg-background/95 backdrop-blur-sm px-4 md:px-6 h-14">
-              <SidebarTrigger className="h-8 w-8" />
-              <div className="h-5 w-px bg-border" />
-              <h1 className="text-base font-bold text-foreground">{TAB_TITLES[activeTab] || "لوحة التحكم"}</h1>
+            {/* Top Bar - Professional */}
+            <header className="sticky top-0 z-20 border-b bg-gradient-to-l from-primary/10 via-background/95 to-secondary/10 backdrop-blur-md">
+              <div className="flex items-center gap-3 px-4 md:px-6 h-16">
+                <SidebarTrigger className="h-9 w-9 hover:bg-primary/10 rounded-lg transition-colors" />
+                <div className="h-6 w-px bg-border" />
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shrink-0">
+                    <Shield className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-base md:text-lg font-black text-foreground leading-tight truncate">
+                      {TAB_TITLES[activeTab] || "لوحة التحكم"}
+                    </h1>
+                    <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block">
+                      {access.isFullAdmin ? "المدير العام" : "مشرف"} · {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })}
+                    </p>
+                  </div>
+                </div>
+                <div className="mr-auto flex items-center gap-2">
+                  <Badge variant="outline" className="hidden md:flex items-center gap-1.5 bg-success/10 border-success/30 text-success">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                    متصل
+                  </Badge>
+                  {(badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed) > 0 && (
+                    <Badge className="bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed} مهمة
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in">
+            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in bg-gradient-to-br from-background via-background to-muted/20 min-h-[calc(100vh-4rem)]">
               {renderContent()}
             </main>
           </SidebarInset>
@@ -420,19 +446,20 @@ const AdminDashboard = () => {
    ============================================================ */
 
 const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string; value: string | number; icon: React.ElementType; color: string; subtitle?: string }) => (
-  <Card className="border-0 shadow-sm hover:shadow-md transition-shadow group overflow-hidden relative">
-    <CardContent className="p-5">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-black text-foreground">{value}</p>
+  <Card className="border border-border/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative bg-gradient-to-br from-card to-card/80">
+    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`} />
+    <CardContent className="p-5 relative">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5 min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide truncate">{label}</p>
+          <p className="text-3xl font-black text-foreground tracking-tight">{value}</p>
           {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
         </div>
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0`}>
+        <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
           <Icon className="h-5 w-5 text-primary-foreground" />
         </div>
       </div>
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-100 transition-opacity`} />
     </CardContent>
   </Card>
 );
@@ -457,7 +484,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
 
     {/* Charts */}
     <div className="grid lg:grid-cols-2 gap-6">
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-primary" />
@@ -482,7 +509,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Users className="h-4 w-4 text-secondary" />
@@ -503,7 +530,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
     </div>
 
     {bookingStatusData.length > 0 && (
-      <Card className="border-0 shadow-sm">
+      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Clock className="h-4 w-4 text-accent-foreground" />
@@ -526,7 +553,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData }:
 );
 
 const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => (
-  <Card className="border-0 shadow-sm">
+  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -611,7 +638,7 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
 );
 
 const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter, bookingDateFrom, bookingDateTo, setBookingDateFrom, setBookingDateTo }: any) => (
-  <Card className="border-0 shadow-sm">
+  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-sm font-bold">آخر الحجوزات ({bookings.length})</CardTitle>
