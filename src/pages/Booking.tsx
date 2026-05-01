@@ -599,18 +599,48 @@ const Booking = () => {
                             const currentHour = new Date().getHours();
                             const isPast = isToday && slotHour <= currentHour;
                             const isSelected = selectedDay !== null && selectedSlots.some(s => s.dayIndex === selectedDay && s.time === t);
+                            const hasConflict = selectedDay !== null && isConflict(selectedDay, t);
+                            const slotKey = `${selectedDay}-${t}`;
+                            const isShaking = conflictKey === slotKey;
                             return (
-                              <button key={t} onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
+                              <motion.button
+                                key={t}
+                                onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
                                 disabled={isPast}
-                                className={`py-3.5 rounded-xl text-sm font-bold transition-all duration-200 ${
-                                  isPast
-                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                                whileHover={!isPast && !isSelected ? { y: -2, scale: 1.04 } : {}}
+                                whileTap={!isPast ? { scale: 0.94 } : {}}
+                                animate={
+                                  isShaking
+                                    ? { x: [0, -6, 6, -4, 4, 0] }
                                     : isSelected
-                                      ? "gradient-cta text-secondary-foreground shadow-button"
-                                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                }`}>
-                                {t}
-                              </button>
+                                    ? { scale: [1, 1.08, 1] }
+                                    : { scale: 1 }
+                                }
+                                transition={isShaking ? { duration: 0.4 } : { type: "spring", stiffness: 400, damping: 18 }}
+                                className={`relative py-3.5 rounded-xl text-sm font-bold overflow-hidden border ${
+                                  isPast
+                                    ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through border-transparent"
+                                    : hasConflict
+                                    ? "bg-destructive/10 text-destructive border-destructive/40 hover:bg-destructive/15"
+                                    : isSelected
+                                    ? "gradient-cta text-secondary-foreground shadow-[0_8px_24px_-6px_hsl(var(--secondary)/0.5)] border-secondary/40"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
+                                }`}
+                              >
+                                {isSelected && (
+                                  <motion.span
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none"
+                                    initial={{ x: "-100%" }}
+                                    animate={{ x: "100%" }}
+                                    transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2, ease: "easeInOut" }}
+                                  />
+                                )}
+                                <span className="relative z-10 flex items-center justify-center gap-1">
+                                  {hasConflict && !isSelected && <AlertCircle className="h-3 w-3" />}
+                                  {isSelected && <CheckCircle className="h-3.5 w-3.5" />}
+                                  {t}
+                                </span>
+                              </motion.button>
                             );
                           })}
                         </div>
