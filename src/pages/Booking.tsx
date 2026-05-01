@@ -114,6 +114,20 @@ const Booking = () => {
 
   const timeSlots = generateTimeSlots();
 
+  // Persist booking draft so users don't lose progress on reload
+  useEffect(() => {
+    try {
+      if (!selectedSubject && selectedDay === null && selectedSlots.length === 0) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ selectedSubject, selectedDay, selectedSlots, savedAt: Date.now() })
+      );
+    } catch {}
+  }, [selectedSubject, selectedDay, selectedSlots, DRAFT_KEY]);
+
   useEffect(() => {
     // Smooth scroll to top on load
     window.scrollTo({ top: 0, behavior: "smooth" });
