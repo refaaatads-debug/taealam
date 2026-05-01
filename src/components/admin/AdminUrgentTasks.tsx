@@ -196,6 +196,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   };
 
   const reject = async (t: TaskItem) => {
+    if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
     try {
       if (t.kind === "teacher") {
         await supabase.from("teacher_profiles").delete().eq("id", t.raw.id);
