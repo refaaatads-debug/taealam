@@ -45,6 +45,8 @@ const Booking = () => {
   const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
+  const [existingBookings, setExistingBookings] = useState<Date[]>([]);
+  const [conflictKey, setConflictKey] = useState<string | null>(null);
 
   // Teacher availability
   const [teacherAvailableDays, setTeacherAvailableDays] = useState<string[]>([]);
