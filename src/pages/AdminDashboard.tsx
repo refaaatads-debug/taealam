@@ -403,6 +403,7 @@ const AdminDashboard = () => {
       case "session_pricing": return <SessionPricingTab />;
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
+      case "team": return <AdminTeamManagementTab />;
       default: return null;
     }
   };
