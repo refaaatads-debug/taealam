@@ -102,6 +102,7 @@ const AdminDashboard = () => {
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
   const [violationStatusFilter, setViolationStatusFilter] = useState("all");
   const [adminVerified, setAdminVerified] = useState(false);
+  const [period, setPeriod] = useState<AdminPeriod>("month");
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
