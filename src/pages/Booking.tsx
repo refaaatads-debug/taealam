@@ -142,6 +142,21 @@ const Booking = () => {
         });
     }
 
+    // Fetch existing bookings for conflict detection
+    if (user) {
+      const now = new Date().toISOString();
+      const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      Promise.all([
+        supabase.from("bookings").select("scheduled_at").eq("student_id", user.id).gte("scheduled_at", now).lte("scheduled_at", future),
+        supabase.from("booking_requests").select("scheduled_at").eq("student_id", user.id).in("status", ["open", "accepted"]).gte("scheduled_at", now).lte("scheduled_at", future),
+      ]).then(([b, r]) => {
+        const all: Date[] = [];
+        (b.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        (r.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        setExistingBookings(all);
+      });
+    }
+
     if (directTeacherId) {
       Promise.all([
         supabase.from("public_profiles").select("full_name").eq("user_id", directTeacherId).single(),
