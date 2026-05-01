@@ -13,6 +13,7 @@ import {
 import StatusFilter from "./StatusFilter";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
+import UserWarningsList from "./UserWarningsList";
 
 interface ViolationsTabProps {
   violations: any[];
