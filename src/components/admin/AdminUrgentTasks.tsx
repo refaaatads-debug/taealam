@@ -316,15 +316,24 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
                   </div>
 
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
-                      <CheckCircle className="h-3 w-3" /> موافقة
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                      <XCircle className="h-3 w-3" /> رفض
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => postpone(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                      <Clock className="h-3 w-3" /> تأجيل
-                    </Button>
+                    {canActOn(t.kind) ? (
+                      <>
+                        <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
+                          <CheckCircle className="h-3 w-3" /> موافقة
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
+                          <XCircle className="h-3 w-3" /> رفض
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => postpone(t)} className="h-7 text-[11px] gap-1 rounded-lg">
+                          <Clock className="h-3 w-3" /> تأجيل
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="outline" className="h-7 text-[10px] px-2 gap-1 bg-muted/40 text-muted-foreground border-dashed">
+                        <ShieldAlert className="h-3 w-3" />
+                        لا تملك صلاحية اتخاذ إجراء — للعرض فقط
+                      </Badge>
+                    )}
                     {onOpenTab && (
                       <Button size="sm" variant="ghost" onClick={() => onOpenTab(meta.tab)} className="h-7 text-[11px] gap-1 mr-auto">
                         التفاصيل <ArrowLeft className="h-3 w-3" />
