@@ -68,6 +68,7 @@ const TAB_TITLES: Record<string, string> = {
   support: "الدعم الفني",
   admin_notifications: "مركز الإشعارات",
   wallets: "المحافظ والمكالمات",
+  team: "فريق الإدارة وسجل العمليات",
 };
 
 const AdminDashboard = () => {
