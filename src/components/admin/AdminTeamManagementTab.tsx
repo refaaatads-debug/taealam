@@ -73,19 +73,7 @@ type TeamMember = {
   permissions: string[];
 };
 
-type AuditEntry = {
-  id: string;
-  actor_id: string;
-  actor_name: string;
-  actor_role: string;
-  action: string;
-  category: string;
-  description: string | null;
-  target_table: string | null;
-  target_id: string | null;
-  metadata: any;
-  created_at: string;
-};
+type AuditEntry = AuditRow;
 
 export default function AdminTeamManagementTab() {
   const { isFullAdmin, can } = useAdminPermissions();
@@ -96,8 +84,10 @@ export default function AdminTeamManagementTab() {
   const [loading, setLoading] = useState(true);
   const [logsLoading, setLogsLoading] = useState(true);
   const [searchTeam, setSearchTeam] = useState("");
-  const [searchLog, setSearchLog] = useState("");
-  const [logCategory, setLogCategory] = useState<string>("all");
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>(DEFAULT_FILTERS);
+
+  // محرّر الصلاحيات التفصيلي
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
 
   // إنشاء حساب
   const [createOpen, setCreateOpen] = useState(false);
