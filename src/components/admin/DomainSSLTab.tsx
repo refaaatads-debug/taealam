@@ -82,7 +82,7 @@ const DomainSSLTab = () => {
       toast({ title: "✅ اكتمل الفحص", description: `تم فحص ${domains.length} دومين` });
       await logAdminAction({
         action: "ssl_check",
-        category: "system",
+        category: "settings",
         description: `فحص SSL لـ ${domains.join(", ")}`,
         metadata: { domains, results: data?.results },
       });
