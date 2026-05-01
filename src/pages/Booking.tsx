@@ -30,13 +30,36 @@ const Booking = () => {
   const prefilledSubjectParam = searchParams.get("subject"); // id or name
   const prefilledDayParam = searchParams.get("day"); // index 0..13
 
+  // Persistent draft key (scoped per-teacher to avoid cross-mixing)
+  const DRAFT_KEY = `booking_draft_v1:${directTeacherId || "general"}`;
+  const loadDraft = () => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // expire after 24h
+      if (parsed?.savedAt && Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(DRAFT_KEY);
+        return null;
+      }
+      return parsed;
+    } catch { return null; }
+  };
+  const draft = loadDraft();
+
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState<string>(draft?.selectedSubject || "");
   const [selectedDay, setSelectedDay] = useState<number | null>(
-    prefilledDayParam !== null && !isNaN(Number(prefilledDayParam)) ? Math.max(0, Math.min(13, Number(prefilledDayParam))) : null
+    prefilledDayParam !== null && !isNaN(Number(prefilledDayParam))
+      ? Math.max(0, Math.min(13, Number(prefilledDayParam)))
+      : (typeof draft?.selectedDay === "number" ? draft.selectedDay : null)
   );
-  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
-  const [step, setStep] = useState(prefilledSubjectParam || prefilledDayParam ? 2 : 1);
+  const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>(
+    Array.isArray(draft?.selectedSlots) ? draft.selectedSlots : []
+  );
+  const [step, setStep] = useState(
+    prefilledSubjectParam || prefilledDayParam || draft?.selectedSlots?.length ? 2 : 1
+  );
   const [loading, setLoading] = useState(false);
   const [remainingMinutes, setRemainingMinutes] = useState(0);
     const SESSION_MINUTES = 30;
