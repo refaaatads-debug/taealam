@@ -491,6 +491,60 @@ export type Database = {
           },
         ]
       }
+      domain_ssl_checks: {
+        Row: {
+          cert_issuer: string | null
+          cert_subject: string | null
+          cert_valid: boolean | null
+          cert_valid_from: string | null
+          cert_valid_to: string | null
+          checked_at: string
+          checked_by: string | null
+          days_until_expiry: number | null
+          domain: string
+          error_message: string | null
+          https_enabled: boolean
+          id: string
+          protocol: string | null
+          response_time_ms: number | null
+          status_code: number | null
+        }
+        Insert: {
+          cert_issuer?: string | null
+          cert_subject?: string | null
+          cert_valid?: boolean | null
+          cert_valid_from?: string | null
+          cert_valid_to?: string | null
+          checked_at?: string
+          checked_by?: string | null
+          days_until_expiry?: number | null
+          domain: string
+          error_message?: string | null
+          https_enabled?: boolean
+          id?: string
+          protocol?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+        }
+        Update: {
+          cert_issuer?: string | null
+          cert_subject?: string | null
+          cert_valid?: boolean | null
+          cert_valid_from?: string | null
+          cert_valid_to?: string | null
+          checked_at?: string
+          checked_by?: string | null
+          days_until_expiry?: number | null
+          domain?: string
+          error_message?: string | null
+          https_enabled?: boolean
+          id?: string
+          protocol?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+        }
+        Relationships: []
+      }
       financial_months: {
         Row: {
           closed_at: string | null

@@ -16,6 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
+import DomainSSLTab from "@/components/admin/DomainSSLTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
 import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
@@ -404,6 +405,7 @@ const AdminDashboard = () => {
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
       case "team": return <AdminTeamManagementTab />;
+      case "domain_ssl": return <DomainSSLTab />;
       default: return null;
     }
   };
