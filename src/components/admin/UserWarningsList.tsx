@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle, Ban, ShieldCheck, Trash2, RefreshCw, Calendar,
-  ShieldOff, GraduationCap, BookOpen, Lock, Eye, BellRing, BellOff, CheckCircle2, XCircle,
+  ShieldOff, GraduationCap, BookOpen, Lock, Eye, CheckCircle2, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { logAdminAction } from "@/lib/auditLog";
