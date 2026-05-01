@@ -392,6 +392,7 @@ const Booking = () => {
         }
         toast.success(`تم إرسال ${selectedSlots.length} طلب لجميع المعلمين! 🎉`);
       }
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setStep(3);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
