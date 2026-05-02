@@ -352,13 +352,15 @@ const AdminDashboard = () => {
   // ربط كل تبويب بصلاحيته
   const TAB_PERMISSIONS: Record<string, string> = {
     overview: "view_overview",
+    advanced_analytics: "view_advanced_analytics",
     users: "manage_users",
-    student_profiles: "manage_users",
-    teacher_profiles: "manage_teachers",
-    teachers: "manage_teachers",
+    student_profiles: "manage_student_profiles",
+    teacher_profiles: "manage_teacher_profiles",
+    teachers: "manage_pending_teachers",
     teacher_performance: "view_teacher_performance",
+    featured_teachers: "manage_featured_teachers",
     bookings: "manage_bookings",
-    sessions_status: "manage_bookings",
+    sessions_status: "manage_sessions_status",
     session_reports: "manage_session_reports",
     session_pricing: "manage_session_pricing",
     materials_monitor: "manage_materials",
@@ -369,10 +371,12 @@ const AdminDashboard = () => {
     teacher_earnings: "manage_teacher_earnings",
     wallets: "manage_wallets",
     violations: "manage_violations",
+    call_transcripts: "view_call_transcripts",
     ai_audit: "manage_ai_audit",
     site: "manage_content",
     support: "customer_support",
     admin_notifications: "manage_notifications",
+    domain_ssl: "manage_domain_ssl",
     team: "manage_admins",
   };
 

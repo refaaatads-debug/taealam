@@ -290,12 +290,18 @@ export default function UserManagementTab() {
   const PERMISSION_LABELS: Record<string, { label: string; description: string; icon: string; group: string }> = {
     // الرئيسية
     view_overview: { label: "نظرة عامة", description: "عرض الإحصائيات والرسوم البيانية", icon: "📊", group: "الرئيسية" },
+    view_advanced_analytics: { label: "التحليلات المتقدمة", description: "عرض المخططات والتحليلات التفصيلية", icon: "📈", group: "الرئيسية" },
     // المستخدمين
     manage_users: { label: "إدارة المستخدمين", description: "عرض وتعديل وحذف المستخدمين", icon: "👥", group: "المستخدمين" },
-    manage_teachers: { label: "طلبات المعلمين", description: "مراجعة طلبات تسجيل المعلمين والموافقة عليها", icon: "👨‍🏫", group: "المستخدمين" },
+    manage_student_profiles: { label: "ملفات الطلاب", description: "الوصول لملفات الطلاب التفصيلية", icon: "🎓", group: "المستخدمين" },
+    manage_teacher_profiles: { label: "ملفات المعلمين", description: "الوصول لملفات المعلمين التفصيلية", icon: "📁", group: "المستخدمين" },
+    manage_pending_teachers: { label: "طلبات اعتماد المعلمين", description: "اعتماد ورفض المعلمين الجدد", icon: "✅", group: "المستخدمين" },
+    manage_teachers: { label: "إدارة المعلمين (عام)", description: "صلاحية شاملة على المعلمين", icon: "👨‍🏫", group: "المستخدمين" },
+    manage_featured_teachers: { label: "المدرسون المميزون", description: "إدارة المعلمين المميزين على الواجهة", icon: "⭐", group: "المستخدمين" },
     view_teacher_performance: { label: "أداء المعلمين", description: "عرض تقارير أداء المعلمين", icon: "📈", group: "المستخدمين" },
     // الحصص
     manage_bookings: { label: "إدارة الحجوزات", description: "عرض وتعديل جميع الحجوزات", icon: "📅", group: "الحصص" },
+    manage_sessions_status: { label: "حالات الجلسات", description: "متابعة الجلسات المباشرة", icon: "🟢", group: "الحصص" },
     manage_session_reports: { label: "تقارير الحصص", description: "الوصول لتقارير AI للحصص", icon: "📄", group: "الحصص" },
     manage_session_pricing: { label: "أسعار الحصص", description: "تعديل أسعار ساعات المعلمين", icon: "💵", group: "الحصص" },
     manage_materials: { label: "مراقبة المواد", description: "متابعة المواد التعليمية والتسجيلات", icon: "📚", group: "الحصص" },
@@ -309,11 +315,13 @@ export default function UserManagementTab() {
     manage_payments: { label: "إدارة المدفوعات (عام)", description: "صلاحية شاملة للمدفوعات", icon: "💼", group: "المالية" },
     // الأمان
     manage_violations: { label: "المخالفات", description: "مراجعة مخالفات الطلاب والمعلمين", icon: "⚠️", group: "الأمان" },
+    view_call_transcripts: { label: "تفريغ المكالمات", description: "الاطلاع على نصوص المكالمات", icon: "🎙️", group: "الأمان" },
     manage_ai_audit: { label: "فحص AI", description: "مراجعة جودة استجابات الذكاء الاصطناعي", icon: "🧠", group: "الأمان" },
     // النظام
     manage_content: { label: "إدارة المحتوى", description: "تعديل محتوى الموقع والإعدادات", icon: "📝", group: "النظام" },
     customer_support: { label: "الدعم الفني", description: "الوصول لتذاكر الدعم والرد عليها", icon: "💬", group: "النظام" },
     manage_notifications: { label: "الإشعارات", description: "إرسال إشعارات للمستخدمين", icon: "🔔", group: "النظام" },
+    manage_domain_ssl: { label: "حالة SSL/HTTPS", description: "متابعة شهادات الموقع", icon: "🔒", group: "النظام" },
     view_reports: { label: "عرض التقارير (عام)", description: "صلاحية شاملة للتقارير", icon: "📋", group: "النظام" },
   };
 
