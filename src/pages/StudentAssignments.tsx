@@ -41,13 +41,25 @@ const StudentAssignments = () => {
   const fetchAll = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: a }, { data: subs }] = await Promise.all([
-      supabase.from("assignments" as any).select("*, subject:subjects(name)").or(`student_id.eq.${user.id},student_id.is.null`).eq("status", "active").order("created_at", { ascending: false }),
-      supabase.from("assignment_submissions" as any).select("*, assignment:assignments(title, total_points)").eq("student_id", user.id).order("submitted_at", { ascending: false }),
-    ]);
+    // الواجبات أولاً (الأهم) — استعلام مبسط بدون joins ثقيلة
+    const { data: a } = await supabase
+      .from("assignments" as any)
+      .select("id, title, description, total_points, due_date, questions, attachments, allow_text, allow_image, allow_audio, subject_id, teaching_stage, created_at, student_id")
+      .or(`student_id.eq.${user.id},student_id.is.null`)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(100);
     setAssignments((a as any[]) || []);
-    setSubmissions((subs as any[]) || []);
     setLoading(false);
+
+    // الحلول لاحقاً في الخلفية
+    const { data: subs } = await supabase
+      .from("assignment_submissions" as any)
+      .select("id, assignment_id, status, ai_score, teacher_score, final_score, submitted_at")
+      .eq("student_id", user.id)
+      .order("submitted_at", { ascending: false })
+      .limit(200);
+    setSubmissions((subs as any[]) || []);
   };
 
   const submittedIds = new Set(submissions.map(s => s.assignment_id));
