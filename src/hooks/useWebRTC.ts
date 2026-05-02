@@ -247,11 +247,26 @@ export function useWebRTC({
       onConnectionStateRef.current?.(state);
       if (state === "connected") {
         detectIceTransportType(pc);
+        reconnectAttemptsRef.current = 0;
+      }
+      if (state === "disconnected") {
+        // Auto-recovery: try ICE restart if still disconnected after 4s
+        setTimeout(() => {
+          const cur = pcRef.current;
+          if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
+            console.log("[webrtc] disconnected >4s — attempting ICE restart");
+            restartConnection();
+          }
+        }, 4000);
       }
       if (state === "failed") {
+        const attempt = reconnectAttemptsRef.current;
+        const delay = Math.min(2000 * Math.pow(2, attempt), 15000); // exponential backoff, max 15s
+        reconnectAttemptsRef.current = attempt + 1;
+        console.log(`[webrtc] failed — retry attempt ${attempt + 1} in ${delay}ms`);
         setTimeout(() => {
           if (pcRef.current?.connectionState === "failed") restartConnection();
-        }, 2000);
+        }, delay);
       }
     };
 
