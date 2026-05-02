@@ -12,6 +12,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   ts: number;
+  ticketId?: string;
 }
 
 const STORAGE_KEY = "ai_support_chat_v1";
