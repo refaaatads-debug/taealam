@@ -296,7 +296,7 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
                   type="file"
                   accept="image/*"
                   disabled={uploading}
-                  onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+                  onChange={(e) => e.target.files?.[0] && openCropper(e.target.files[0])}
                 />
                 <Input
                   placeholder="أو الصق رابط صورة"
