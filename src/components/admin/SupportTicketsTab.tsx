@@ -224,38 +224,70 @@ const SupportTicketsTab = () => {
     if (!user || !selectedTicket) return;
     const prev = tickets.find(t => t.id === selectedTicket);
     const previousAssignee = prev?.assigned_to;
+
+    // Prevent re-claiming if already assigned to me
+    if (previousAssignee === user.id) {
+      toast.info("هذه التذكرة معينة لك بالفعل");
+      return;
+    }
+
     const { error } = await supabase.from("support_tickets")
       .update({ assigned_to: user.id, assigned_at: new Date().toISOString(), status: "in_progress" })
       .eq("id", selectedTicket);
     if (error) { toast.error("فشل تعيين التذكرة"); return; }
 
     const myName = profileNameMap.get(user.id) || (await fetchProfileName(user.id));
-    const isTransfer = previousAssignee && previousAssignee !== user.id;
+    const isTransfer = !!previousAssignee && previousAssignee !== user.id;
     const prevName = previousAssignee ? (profileNameMap.get(previousAssignee) || prev?.assigned_name || "موظف سابق") : null;
 
-    const welcomeText = isTransfer
-      ? `👋 مرحباً، تم تحويل المحادثة من ${prevName} إلى ${myName} وسأكون معك من الآن لمتابعة طلبك.`
-      : `👋 مرحباً، تم استلام المحادثة من قبل الموظف ${myName} وسأكون معك لمتابعة طلبك.`;
+    // Check if a welcome/transfer log already exists from this admin to avoid duplicates
+    const { data: existingLogs } = await supabase
+      .from("support_messages")
+      .select("id, content")
+      .eq("ticket_id", selectedTicket)
+      .eq("sender_id", user.id)
+      .eq("is_admin", true)
+      .or("content.ilike.%تم استلام المحادثة%,content.ilike.%تم تحويل المحادثة%")
+      .limit(1);
 
-    await supabase.from("support_messages").insert({
-      ticket_id: selectedTicket, sender_id: user.id, content: welcomeText, is_admin: true,
-    });
+    const alreadyWelcomed = (existingLogs?.length ?? 0) > 0;
 
-    // Notify the user (student/teacher) that an agent took the ticket
+    if (!alreadyWelcomed) {
+      // 1) Transfer log line (always logged when it's a transfer)
+      if (isTransfer) {
+        await supabase.from("support_messages").insert({
+          ticket_id: selectedTicket,
+          sender_id: user.id,
+          content: `🔄 سجل التحويل: تم تحويل المحادثة من «${prevName}» إلى «${myName}» بتاريخ ${new Date().toLocaleString("ar-EG")}.`,
+          is_admin: true,
+        });
+      }
+
+      // 2) Welcome message (sent once)
+      const welcomeText = isTransfer
+        ? `👋 مرحباً، تم تحويل المحادثة من ${prevName} إلى ${myName} وسأكون معك من الآن لمتابعة طلبك.`
+        : `👋 مرحباً، تم استلام المحادثة من قبل الموظف ${myName} وسأكون معك لمتابعة طلبك.`;
+
+      await supabase.from("support_messages").insert({
+        ticket_id: selectedTicket, sender_id: user.id, content: welcomeText, is_admin: true,
+      });
+    }
+
+    // Notify the user (student/teacher) — always, so they know who's handling it now
     const ticket = tickets.find(t => t.id === selectedTicket);
     if (ticket) {
       await supabase.from("notifications").insert({
         user_id: ticket.user_id,
-        title: "تم استلام محادثتك ✅",
+        title: isTransfer ? "🔄 تم تحويل محادثتك" : "تم استلام محادثتك ✅",
         body: isTransfer
-          ? `تم تحويل محادثتك إلى ${myName} وسيتابع طلبك.`
+          ? `تم تحويل محادثتك من ${prevName} إلى ${myName}، وسيتابع طلبك.`
           : `تم استلام محادثتك من قبل ${myName}.`,
         type: "support_reply",
         link: `/support?ticket=${selectedTicket}`,
       } as any);
     }
 
-    toast.success("تم استلام التذكرة");
+    toast.success(isTransfer ? `تم تحويل التذكرة إليك` : "تم استلام التذكرة");
     fetchTickets();
   };
 
@@ -297,8 +329,8 @@ const SupportTicketsTab = () => {
 
     // 2) Post a system-style admin note in the conversation (visible to admins + user)
     const noteText = transferNote.trim()
-      ? `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.\n📝 ملاحظة: ${transferNote.trim()}`
-      : `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.`;
+      ? `🔄 سجل التحويل: تم تحويل المحادثة من «${fromName}» إلى «${toName}» بتاريخ ${new Date().toLocaleString("ar-EG")}.\n📝 ملاحظة: ${transferNote.trim()}`
+      : `🔄 سجل التحويل: تم تحويل المحادثة من «${fromName}» إلى «${toName}» بتاريخ ${new Date().toLocaleString("ar-EG")}.`;
     await supabase.from("support_messages").insert({
       ticket_id: selectedTicket, sender_id: transferTarget.user_id, content: noteText, is_admin: true,
     });
@@ -311,6 +343,18 @@ const SupportTicketsTab = () => {
       type: "support_reply",
       link: `/admin?tab=support&ticket=${selectedTicket}`,
     } as any);
+
+    // 3b) Notify the end user (student/teacher) that their ticket was transferred
+    const ticketRow = tickets.find(t => t.id === selectedTicket);
+    if (ticketRow) {
+      await supabase.from("notifications").insert({
+        user_id: ticketRow.user_id,
+        title: "🔄 تم تحويل محادثتك",
+        body: `تم تحويل محادثتك من ${fromName} إلى ${toName}، وسيتابع ${toName} طلبك.`,
+        type: "support_reply",
+        link: `/support?ticket=${selectedTicket}`,
+      } as any);
+    }
 
     // 4) Audit log
     await supabase.rpc("log_admin_action", {
