@@ -266,7 +266,12 @@ const Chat = () => {
     try {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("fetch failed");
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      // Force correct MIME type — Supabase storage sometimes returns octet-stream which iframes can't render
+      const isPdfFile = fileName?.toLowerCase().endsWith(".pdf") || rawBlob.type === "application/pdf";
+      const blob = isPdfFile && rawBlob.type !== "application/pdf"
+        ? new Blob([rawBlob], { type: "application/pdf" })
+        : rawBlob;
       const blobUrl = URL.createObjectURL(blob);
       if (mode === "download") {
         const a = document.createElement("a");
@@ -524,17 +529,34 @@ const Chat = () => {
       >
         <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col" dir="rtl">
           <DialogHeader className="px-4 py-3 border-b">
-            <DialogTitle className="text-sm flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              <span className="truncate">{pdfViewer?.name}</span>
+            <DialogTitle className="text-sm flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 min-w-0">
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="truncate">{pdfViewer?.name}</span>
+              </span>
+              {pdfViewer && (
+                <a
+                  href={pdfViewer.url}
+                  download={pdfViewer.name}
+                  className="text-xs text-primary hover:underline shrink-0"
+                >
+                  تحميل
+                </a>
+              )}
             </DialogTitle>
           </DialogHeader>
           {pdfViewer && (
-            <iframe
-              src={pdfViewer.url}
-              title={pdfViewer.name}
+            <object
+              data={pdfViewer.url}
+              type="application/pdf"
               className="flex-1 w-full bg-background"
-            />
+            >
+              <iframe
+                src={pdfViewer.url}
+                title={pdfViewer.name}
+                className="w-full h-full bg-background"
+              />
+            </object>
           )}
         </DialogContent>
       </Dialog>
