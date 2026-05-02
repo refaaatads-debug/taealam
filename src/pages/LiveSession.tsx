@@ -40,6 +40,7 @@ const LiveSession = () => {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [remoteHandRaised, setRemoteHandRaised] = useState(false);
+  const [showPreJoin, setShowPreJoin] = useState(true);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef(0);
