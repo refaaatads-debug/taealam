@@ -518,6 +518,40 @@ const TeacherAssignments = () => {
 
           {/* Question bank */}
           <TabsContent value="bank" className="space-y-3">
+            {/* استيراد أسئلة من ملف */}
+            <Card className="border-dashed border-2 border-secondary/40 bg-secondary/5">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-secondary shrink-0 mt-1" />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-sm">استيراد أسئلة من ملف بالذكاء الاصطناعي</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ارفع ملف PDF / Word / صورة وسيقوم AI باستخراج الأسئلة وتنسيقها وإضافتها للبنك تلقائياً.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Input
+                        type="file"
+                        accept=".pdf,.doc,.docx,image/*"
+                        disabled={extracting}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) extractFromFile(f);
+                          e.target.value = "";
+                        }}
+                        className="max-w-xs"
+                      />
+                      {extracting && (
+                        <span className="flex items-center gap-2 text-xs text-secondary">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          جارٍ الاستخراج...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Dialog open={qOpen} onOpenChange={setQOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2"><Plus className="h-4 w-4" /> إضافة سؤال</Button>
