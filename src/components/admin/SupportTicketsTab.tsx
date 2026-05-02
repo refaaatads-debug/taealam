@@ -224,7 +224,12 @@ const SupportTicketsTab = () => {
       ticket_id: selectedTicket, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: true,
       file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
     });
-    if (error) toast.error("فشل في إرسال الرسالة الصوتية");
+    if (error) {
+      if ((error.message || "").includes("TICKET_LOCKED")) {
+        toast.error("التذكرة مقفلة على موظف آخر — لا يمكنك الرد");
+        await fetchTickets();
+      } else toast.error("فشل في إرسال الرسالة الصوتية");
+    }
     else {
       await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
       const ticket = tickets.find(t => t.id === selectedTicket);
