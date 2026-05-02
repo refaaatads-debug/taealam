@@ -191,6 +191,22 @@ const StudentAssignments = () => {
           </TabsList>
 
           <TabsContent value="pending" className="space-y-3 mt-4">
+            {!hasActiveSubscription && pending.length > 0 && (
+              <Card className="border-amber-500/40 bg-amber-500/5">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-bold text-foreground">حل الواجبات يتطلب اشتراكاً نشطاً</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      يمكنك تصفح الواجبات، ولكن لتسليم الإجابات تحتاج إلى باقة نشطة. لا يتم خصم أي دقائق من رصيدك عند حل الواجبات.
+                    </p>
+                    <Button size="sm" className="mt-2" onClick={() => navigate("/pricing")}>
+                      عرض الباقات
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {pending.length === 0 && <Card className="p-8 text-center text-muted-foreground">لا توجد واجبات مطلوبة</Card>}
             {pending.map(a => (
               <Card key={a.id}>
@@ -205,11 +221,17 @@ const StudentAssignments = () => {
                         {a.due_date && <Badge variant="outline">حتى {new Date(a.due_date).toLocaleDateString("ar")}</Badge>}
                       </div>
                     </div>
-                    <Button onClick={() => {
-                      setOpenSubmit(a);
-                      setAnswers(new Array((a.questions || []).length).fill(""));
-                    }}>
-                      حل الواجب
+                    <Button
+                      disabled={!hasActiveSubscription}
+                      onClick={() => {
+                        if (!hasActiveSubscription) {
+                          toast.error("تحتاج إلى اشتراك نشط لحل الواجبات");
+                          return;
+                        }
+                        setOpenSubmit(a);
+                        setAnswers(new Array((a.questions || []).length).fill(""));
+                      }}>
+                      {hasActiveSubscription ? "حل الواجب" : <><Lock className="h-3 w-3 ml-1" /> مقفل</>}
                     </Button>
                   </div>
                 </CardContent>
