@@ -96,7 +96,7 @@ type FeaturedCard = (typeof fallbackTeachers)[number] & { hidePrice?: boolean };
 const Index = () => {
   const { user, profile, roles, loading } = useAuth();
   const { hours, minutes, seconds } = useCountdown(24 * 60 * 60); // 24 hours
-  const [teachers, setTeachers] = useState<typeof fallbackTeachers>(fallbackTeachers);
+  const [teachers, setTeachers] = useState<FeaturedCard[]>(fallbackTeachers);
 
   useEffect(() => {
     const loadFeatured = async () => {
