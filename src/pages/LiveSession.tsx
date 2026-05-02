@@ -1533,6 +1533,33 @@ const LiveSession = () => {
   }, [sendDataMessage]);
 
 
+  // Pre-join screen: show before user clicks "join the session" so they can verify mic.
+  // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
+  if (showPreJoin && !meetingStarted && bookingId) {
+    const studentJoinDisabled = !isTeacher && !teacherStarted;
+    const lowBalance = hasSubscription && subscriptionRemainingMinutes < 5;
+    const canJoin = !studentJoinDisabled && !lowBalance;
+    const reason = lowBalance
+      ? "رصيد الدقائق غير كافٍ"
+      : studentJoinDisabled
+        ? "بانتظار بدء المعلم..."
+        : undefined;
+    return (
+      <PreJoinCheck
+        otherName={otherName}
+        isTeacher={isTeacher}
+        canJoin={canJoin}
+        joinDisabledReason={reason}
+        onJoin={() => {
+          setShowPreJoin(false);
+          // Defer the actual start by one tick so state updates flush before getUserMedia runs again
+          setTimeout(() => { startMeeting(); }, 50);
+        }}
+        onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
+      />
+    );
+  }
+
   return (
     <div className="h-screen bg-foreground flex flex-col">
       <audio ref={remoteAudioRef} autoPlay playsInline />
