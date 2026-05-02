@@ -1820,7 +1820,7 @@ const LiveSession = () => {
                   />
                   {/* Whiteboard overlay on student's screen share view */}
                    {bookingId && user && (
-                     <div className="absolute inset-0 z-20 pointer-events-none">
+                     <div className={`absolute inset-0 z-20 ${studentCanDraw ? "pointer-events-auto" : "pointer-events-none"}`}>
                        <WhiteboardCanvas
                          bookingId={bookingId}
                          userId={user.id}
@@ -1830,6 +1830,7 @@ const LiveSession = () => {
                          overlay={true}
                          remoteActions={whiteboardRemoteActions}
                          remoteLaserPos={remoteLaserPos}
+                         studentCanDraw={studentCanDraw}
                        />
                      </div>
                    )}
