@@ -184,7 +184,7 @@ const Index = () => {
       {/* ═══════════════ HERO SECTION ═══════════════ */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroBanner} alt="منصة تعلّم التعليمية" className="w-full h-full object-cover" width={1920} height={1080} />
+          <img src={heroBanner} alt="منصة تعلّم التعليمية" className="w-full h-full object-cover" width={1920} height={1080} fetchPriority="high" loading="eager" decoding="async" />
           <div className="absolute inset-0 bg-gradient-to-l from-primary/95 via-primary/88 to-primary/75" />
         </div>
 
