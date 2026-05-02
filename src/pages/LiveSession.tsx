@@ -39,6 +39,7 @@ const LiveSession = () => {
   const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
+  const [remoteHandRaised, setRemoteHandRaised] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef(0);
