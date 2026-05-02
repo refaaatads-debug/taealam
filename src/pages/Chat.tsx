@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download, ClipboardList } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
