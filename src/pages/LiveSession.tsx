@@ -1863,6 +1863,8 @@ const LiveSession = () => {
                         onSendData={handleWhiteboardSend}
                         overlay={true}
                         remoteActions={whiteboardRemoteActions}
+                        studentCanDraw={studentCanDraw}
+                        onToggleStudentDraw={handleToggleStudentDraw}
                       />
                     </div>
                   )}
