@@ -51,6 +51,60 @@ serve(async (req) => {
       });
     }
 
+    // Tier gate: feature limited to advanced (standard) and professional (premium) plans
+    // and requires an active subscription with remaining minutes > 0.
+    const nowIso = new Date().toISOString();
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
+      .eq("user_id", user.id);
+
+    const subsList = (subs as any[]) || [];
+    const eligibleTiers = ["standard", "premium"];
+    const eligibleSubs = subsList.filter((s: any) => eligibleTiers.includes(s.subscription_plans?.tier));
+    const validSub = eligibleSubs.find(
+      (s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) > 0
+    );
+
+    if (!validSub) {
+      const activeSubs = subsList.filter((s: any) => s.is_active && s.ends_at > nowIso);
+      let reason_code = "no_subscription";
+      let error_msg = "هذه الميزة متاحة فقط للباقات المتقدمة والاحترافية. يرجى الاشتراك أو الترقية.";
+
+      if (eligibleSubs.length === 0 && activeSubs.length > 0) {
+        reason_code = "wrong_tier";
+        error_msg = "مساعد الواجبات البصري متاح فقط للباقات المتقدمة والاحترافية. يرجى ترقية باقتك.";
+      } else if (eligibleSubs.length > 0) {
+        const expired = eligibleSubs.find((s: any) => s.ends_at <= nowIso || !s.is_active);
+        const noMinutes = eligibleSubs.find((s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) <= 0);
+        if (noMinutes) {
+          reason_code = "no_minutes";
+          error_msg = "نفدت دقائق باقتك. يرجى تجديد الاشتراك لاستخدام مساعد الواجبات البصري.";
+        } else if (expired) {
+          reason_code = "subscription_expired";
+          error_msg = "انتهت صلاحية باقتك. يرجى تجديد الاشتراك.";
+        }
+      }
+
+      await supabase.from("system_logs").insert({
+        level: "warn",
+        source: "homework_solver",
+        message: `Blocked homework solver access: ${reason_code}`,
+        metadata: {
+          user_id: user.id,
+          email: user.email,
+          reason_code,
+          eligible_subs: eligibleSubs.length,
+          active_subs: activeSubs.length,
+        },
+      }).then(() => {}, () => {});
+
+      return new Response(JSON.stringify({ error: error_msg, reason_code }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { imageBase64, extraQuestion } = await req.json();
     if (!imageBase64 || typeof imageBase64 !== "string") {
       return new Response(JSON.stringify({ error: "صورة الواجب مطلوبة" }), {
