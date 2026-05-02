@@ -28,6 +28,7 @@ const HomeworkSolver = () => {
   const [extraQuestion, setExtraQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [solution, setSolution] = useState<Solution | null>(null);
+  const [tierBlocked, setTierBlocked] = useState<{ msg: string; code: string } | null>(null);
 
   const handleFile = async (file: File) => {
     if (file.size > 8 * 1024 * 1024) {
