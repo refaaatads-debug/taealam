@@ -475,8 +475,8 @@ const Booking = () => {
                       <BookOpen className="h-3 w-3" /> المادة
                     </div>
                     <p className="font-bold text-sm truncate">
-                      {selectedSubject
-                        ? availableSubjects.find(s => s.id === selectedSubject)?.name || "—"
+                      {selectedSubject || selectedSubjectName
+                        ? selectedSubjectName || "—"
                         : <span className="text-muted-foreground/60 font-normal">لم تُحدد</span>}
                     </p>
                   </div>
