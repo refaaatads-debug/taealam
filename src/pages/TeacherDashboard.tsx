@@ -305,9 +305,21 @@ const TeacherDashboard = () => {
                           <Play className="h-4 w-4" />
                           <span className="text-xs font-medium">أرسل طلب</span>
                         </Button>
-                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                          <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
-                        </Button>
+                        {isPhone ? (
+                          <Button
+                            size="sm"
+                            className="gradient-cta text-secondary-foreground rounded-xl shadow-button opacity-60"
+                            onClick={() =>
+                              toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب لبدء الجلسة.")
+                            }
+                          >
+                            ابدأ الحصة
+                          </Button>
+                        ) : (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                            <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
