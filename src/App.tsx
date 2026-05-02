@@ -20,6 +20,7 @@ const Booking = lazy(() => import("./pages/Booking"));
 const LiveSession = lazy(() => import("./pages/LiveSession"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Rating = lazy(() => import("./pages/Rating"));
+const Install = lazy(() => import("./pages/Install"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -80,6 +81,7 @@ const App = () => (
               <Route path="/search" element={<SearchTeacher />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/teach-with-us" element={<TeachWithUs />} />
+              <Route path="/install" element={<Install />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
