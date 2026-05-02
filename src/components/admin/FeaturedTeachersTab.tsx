@@ -381,6 +381,13 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
           </div>
         </div>
       </DialogContent>
+      <ImageCropDialog
+        open={!!cropSrc}
+        imageSrc={cropSrc}
+        onCancel={() => setCropSrc(null)}
+        onCropped={handleCroppedUpload}
+        aspect={1}
+      />
     </Dialog>
   );
 }
