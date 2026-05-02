@@ -145,6 +145,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await claimActiveSession(userId);
       return true;
     }
+    // Cooldown after a manual take-over (avoid loop with realtime echo)
+    const takeoverAt = (window as any).__sessionTakeoverAt || 0;
+    if (Date.now() - takeoverAt < 15000) {
+      await claimActiveSession(userId);
+      return true;
+    }
     triggerSessionConflict({ userId, myToken: token });
     return false;
   };
