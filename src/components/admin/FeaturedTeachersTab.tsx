@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Star, Plus, Trash2, ArrowUp, ArrowDown, Search, Pencil, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ImageCropDialog from "./ImageCropDialog";
 
 interface FeaturedRow {
   id: string;
@@ -213,6 +214,7 @@ export default function FeaturedTeachersTab() {
 function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Partial<FeaturedRow>>({});
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (row) {
@@ -231,12 +233,20 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
 
   if (!row) return null;
 
-  const handleUpload = async (file: File) => {
+  const openCropper = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleCroppedUpload = async (blob: Blob) => {
+    setCropSrc(null);
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${row.teacher_id}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("featured-teachers").upload(path, file, { upsert: true });
+      const path = `${row.teacher_id}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from("featured-teachers")
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
       if (error) throw error;
       const { data } = supabase.storage.from("featured-teachers").getPublicUrl(path);
       setForm((f) => ({ ...f, image_url: data.publicUrl }));
@@ -286,7 +296,7 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
                   type="file"
                   accept="image/*"
                   disabled={uploading}
-                  onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+                  onChange={(e) => e.target.files?.[0] && openCropper(e.target.files[0])}
                 />
                 <Input
                   placeholder="أو الصق رابط صورة"
@@ -371,6 +381,13 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
           </div>
         </div>
       </DialogContent>
+      <ImageCropDialog
+        open={!!cropSrc}
+        imageSrc={cropSrc}
+        onCancel={() => setCropSrc(null)}
+        onCropped={handleCroppedUpload}
+        aspect={1}
+      />
     </Dialog>
   );
 }
