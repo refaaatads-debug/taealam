@@ -94,6 +94,55 @@ function SmartCTA({ user, className = "" }: { user: any; className?: string }) {
 const Index = () => {
   const { user, profile, roles, loading } = useAuth();
   const { hours, minutes, seconds } = useCountdown(24 * 60 * 60); // 24 hours
+  const [teachers, setTeachers] = useState<typeof fallbackTeachers>(fallbackTeachers);
+
+  useEffect(() => {
+    const loadFeatured = async () => {
+      const { data: feat } = await supabase
+        .from("featured_teachers")
+        .select("teacher_id, badge_label, display_order")
+        .eq("is_active", true)
+        .order("display_order");
+      if (!feat || feat.length === 0) return; // keep fallback
+
+      const ids = feat.map((f: any) => f.teacher_id);
+      const [profilesRes, tpRes, subjRes] = await Promise.all([
+        supabase.from("public_profiles").select("user_id, full_name, avatar_url").in("user_id", ids),
+        supabase
+          .from("public_teacher_profiles")
+          .select("user_id, avg_rating, total_sessions, hourly_rate")
+          .in("user_id", ids),
+        supabase
+          .from("teacher_subjects")
+          .select("teacher_id, teacher_profiles!inner(user_id), subjects(name)")
+          .in("teacher_profiles.user_id", ids),
+      ]);
+      const profMap = new Map((profilesRes.data ?? []).map((p: any) => [p.user_id, p]));
+      const tpMap = new Map((tpRes.data ?? []).map((t: any) => [t.user_id, t]));
+      const subjMap = new Map<string, string>();
+      (subjRes.data ?? []).forEach((s: any) => {
+        const uid = s.teacher_profiles?.user_id;
+        if (uid && !subjMap.has(uid) && s.subjects?.name) subjMap.set(uid, s.subjects.name);
+      });
+
+      const mapped = feat.map((f: any, i: number) => {
+        const p: any = profMap.get(f.teacher_id);
+        const tp: any = tpMap.get(f.teacher_id);
+        return {
+          name: p?.full_name || "مدرس",
+          subject: subjMap.get(f.teacher_id) || "متعدد",
+          rating: Number(tp?.avg_rating ?? 4.8),
+          students: tp?.total_sessions ?? 100,
+          price: Number(tp?.hourly_rate ?? 80),
+          img: p?.avatar_url || fallbackImgs[i % fallbackImgs.length],
+          badge: f.badge_label || "مدرس مميز",
+          sessions: tp?.total_sessions ?? 500,
+        };
+      });
+      setTeachers(mapped);
+    };
+    loadFeatured();
+  }, []);
 
   // While auth is resolving, or while a logged-in user's roles are still loading,
   // show a blank loading screen — never flash the landing page to authenticated users.
