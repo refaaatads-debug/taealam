@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import BrandLoader from "@/components/BrandLoader";
 import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
