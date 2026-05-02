@@ -167,10 +167,14 @@ const Login = () => {
       if (!isLogin) {
         localStorage.setItem("pending_role", role);
       }
-      const result = await withAuthTimeout(lovable.auth.signInWithOAuth(provider, {
+      const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
-      }));
+      });
       if (result.error) throw result.error;
+      if (!result.redirected && user) {
+        const primaryRole = await pickPrimaryRole(user.id);
+        redirectByRole(primaryRole);
+      }
     } catch (e) {
       toast.error(getAuthErrorMessage(e));
     } finally {
