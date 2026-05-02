@@ -23,36 +23,72 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Fetch submission + assignment
+    // Fetch submission + assignment + subject
     const { data: sub, error: subErr } = await supabase
       .from("assignment_submissions")
-      .select("*, assignment:assignments(*)")
+      .select("*, assignment:assignments(*, subject:subjects(name))")
       .eq("id", submission_id)
       .single();
     if (subErr || !sub) throw new Error("Submission not found");
 
-    const assignment = (sub as any).assignment;
+    const assignment: any = (sub as any).assignment;
+    const subjectName = assignment?.subject?.name || "غير محدد";
+    const stage = assignment?.teaching_stage || "غير محدد";
+    const totalPoints = Number(assignment?.total_points || 100);
+    const questions: any[] = Array.isArray(assignment?.questions) ? assignment.questions : [];
+    const studentAnswers: any[] = Array.isArray((sub as any).answers) ? (sub as any).answers : [];
+    const imageUrls: string[] = Array.isArray((sub as any).image_urls) ? (sub as any).image_urls : [];
 
-    // Build prompt
-    const systemPrompt = `أنت معلم خبير تقوم بتصحيح واجبات الطلاب بدقة وعدالة. قم بتقييم الإجابة وأعطِ:
-1. درجة من ${assignment.total_points}
-2. ملاحظات بناءة باللغة العربية
-3. تحليل تفصيلي لكل سؤال (إن وجد)
-أجب بصيغة JSON صحيحة فقط.`;
+    // بناء أسئلة/إجابات منظمة للمقارنة الدقيقة
+    const qaPairs = questions.map((q: any, i: number) => {
+      const studentAns = studentAnswers[i] ?? "(لم يجب)";
+      return {
+        index: i + 1,
+        text: q.text || q.question || "",
+        type: q.type || "text",
+        max_points: Number(q.points || 0),
+        correct_answer: q.correct_answer ?? q.answer ?? null,
+        options: q.options || null,
+        student_answer: studentAns,
+      };
+    });
 
-    const userPrompt = `الواجب: ${assignment.title}
-الوصف: ${assignment.description || "—"}
-الأسئلة: ${JSON.stringify(assignment.questions || [], null, 2)}
-الدرجة الكلية: ${assignment.total_points}
+    const systemPrompt = `أنت مُصحِّح أكاديمي خبير ومتشدد متخصص فقط في المواد العلمية والدروس المدرسية والجامعية (رياضيات، فيزياء، كيمياء، أحياء، لغات، علوم، تاريخ، جغرافيا، حاسب، دراسات إسلامية، إلخ).
 
-إجابة الطالب:
-- النص: ${sub.text_answer || "(لا يوجد)"}
-- إجابات الأسئلة: ${JSON.stringify(sub.answers || [], null, 2)}
-- صور مرفقة: ${(sub.image_urls as any[])?.length || 0}
-- تسجيل صوتي: ${sub.audio_url ? "نعم" : "لا"}
+قواعد التصحيح الصارمة:
+1. التزم تماماً بالإجابة الصحيحة المرجعية إن وُجدت — لا تقبل المرادفات إلا إذا كانت مكافئة علمياً 100%.
+2. الإجابات الجزئية: امنح درجة جزئية فقط بقدر ما هو صحيح فعلاً، وكن صارماً.
+3. الإجابات الفارغة، أو "لا أعرف"، أو غير المرتبطة بالسؤال = صفر.
+4. الإجابات خارج نطاق المادة العلمية أو غير الجادة (دردشة، إيموجي، كلام عام) = صفر مع ملاحظة "إجابة غير علمية وخارج نطاق المادة".
+5. الأخطاء الإملائية البسيطة لا تُنقص الدرجة إن كان المعنى العلمي صحيحاً، لكن الأخطاء المفهومية تُنقص.
+6. لا تُجامل ولا تُبالغ في الإطراء؛ كن موضوعياً ومحدداً.
+7. اذكر السبب العلمي الدقيق لكل خصم، واذكر الإجابة الصحيحة المرجعية للطالب ليتعلم.
+8. مجموع الدرجات الفرعية يجب أن يساوي ${totalPoints} كحد أقصى — لا تتجاوزه أبداً.
+9. اللغة: العربية الفصحى الواضحة والمختصرة.
+10. إن لم تكن متأكداً من إجابة بسبب طبيعة السؤال (مقالي مفتوح)، قيّم على أساس: الدقة العلمية، اكتمال المفاهيم، الاستشهاد، التنظيم.`;
 
-قيّم وأعطِ JSON بالصيغة:
-{"score": رقم, "feedback": "نص التعليق", "breakdown": [{"question": "...", "points": رقم, "comment": "..."}]}`;
+    const userPromptText = `**معلومات الواجب:**
+- المادة: ${subjectName}
+- المرحلة الدراسية: ${stage}
+- العنوان: ${assignment?.title || "—"}
+- الوصف: ${assignment?.description || "—"}
+- الدرجة الكلية: ${totalPoints}
+
+**الأسئلة وإجابات الطالب (${qaPairs.length} سؤال):**
+${JSON.stringify(qaPairs, null, 2)}
+
+${(sub as any).text_answer ? `**إجابة نصية حرة من الطالب:**\n${(sub as any).text_answer}\n` : ""}
+${imageUrls.length > 0 ? `**يوجد ${imageUrls.length} صورة مرفقة من الطالب — افحصها بصرياً.**` : ""}
+
+**مهمتك:** صحّح كل سؤال على حدة بدقة بالغة، ثم أعطِ الدرجة النهائية وملاحظات تعليمية بنّاءة.`;
+
+    // بناء محتوى الرسالة بصيغة multimodal لو فيه صور
+    const userContent: any[] = [{ type: "text", text: userPromptText }];
+    for (const url of imageUrls.slice(0, 4)) {
+      if (typeof url === "string" && url.startsWith("http")) {
+        userContent.push({ type: "image_url", image_url: { url } });
+      }
+    }
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -61,39 +97,54 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userContent },
         ],
         tools: [{
           type: "function",
           function: {
             name: "submit_grade",
-            description: "Submit the grade evaluation",
+            description: "تقديم تقييم دقيق وصارم للواجب",
             parameters: {
               type: "object",
               properties: {
-                score: { type: "number", description: `Score from 0 to ${assignment.total_points}` },
-                feedback: { type: "string", description: "Overall feedback in Arabic" },
+                is_academic: {
+                  type: "boolean",
+                  description: "هل الإجابة ضمن نطاق المادة العلمية وجادة؟",
+                },
+                score: {
+                  type: "number",
+                  description: `الدرجة النهائية من 0 إلى ${totalPoints}. يجب أن تكون مجموع نقاط الـ breakdown.`,
+                },
+                feedback: {
+                  type: "string",
+                  description: "ملاحظات عامة موضوعية بالعربية: نقاط القوة، الأخطاء الجوهرية، نصائح للتحسين. مختصرة ومحددة.",
+                },
                 breakdown: {
                   type: "array",
+                  description: "تقييم سؤال بسؤال — يجب أن يطابق عدد الأسئلة بالضبط.",
                   items: {
                     type: "object",
                     properties: {
-                      question: { type: "string" },
-                      points: { type: "number" },
-                      comment: { type: "string" },
+                      question: { type: "string", description: "نص السؤال" },
+                      max_points: { type: "number", description: "الدرجة القصوى للسؤال" },
+                      points: { type: "number", description: "الدرجة الممنوحة فعلياً (0 إلى max_points)" },
+                      correct_answer: { type: "string", description: "الإجابة الصحيحة المرجعية" },
+                      student_answer: { type: "string", description: "ملخص إجابة الطالب" },
+                      comment: { type: "string", description: "السبب الدقيق للدرجة الممنوحة" },
                     },
-                    required: ["question", "points", "comment"],
+                    required: ["question", "max_points", "points", "correct_answer", "student_answer", "comment"],
                   },
                 },
               },
-              required: ["score", "feedback", "breakdown"],
+              required: ["is_academic", "score", "feedback", "breakdown"],
             },
           },
         }],
         tool_choice: { type: "function", function: { name: "submit_grade" } },
+        reasoning: { effort: "medium" },
       }),
     });
 
@@ -118,19 +169,39 @@ Deno.serve(async (req) => {
 
     const result = JSON.parse(toolCall.function.arguments);
 
+    // ضمان عدم تجاوز الدرجة الكلية + إعادة حساب من breakdown
+    const breakdown = Array.isArray(result.breakdown) ? result.breakdown : [];
+    const computedScore = breakdown.reduce((sum: number, b: any) => sum + Number(b.points || 0), 0);
+    let finalScore = Number(result.score);
+    if (Number.isNaN(finalScore) || Math.abs(finalScore - computedScore) > 0.5) {
+      finalScore = computedScore; // ثقة أكبر بمجموع التفاصيل
+    }
+    finalScore = Math.max(0, Math.min(totalPoints, finalScore));
+
+    let feedback = String(result.feedback || "");
+    if (result.is_academic === false) {
+      feedback = "⚠️ الإجابة خارج نطاق المادة العلمية أو غير جادة.\n\n" + feedback;
+    }
+
     // Update submission with AI grade
     await supabase
       .from("assignment_submissions")
       .update({
-        ai_score: result.score,
-        ai_feedback: result.feedback,
-        ai_breakdown: result.breakdown,
+        ai_score: finalScore,
+        ai_feedback: feedback,
+        ai_breakdown: breakdown,
         status: "ai_graded",
         graded_at: new Date().toISOString(),
       })
       .eq("id", submission_id);
 
-    return new Response(JSON.stringify({ success: true, ...result }), {
+    return new Response(JSON.stringify({
+      success: true,
+      score: finalScore,
+      feedback,
+      breakdown,
+      is_academic: result.is_academic,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
