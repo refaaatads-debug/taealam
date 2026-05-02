@@ -14,9 +14,8 @@ import { ar } from "date-fns/locale";
 interface StudentRow {
   user_id: string;
   full_name: string | null;
-  email: string | null;
   avatar_url: string | null;
-  phone_number: string | null;
+  phone: string | null;
   created_at: string | null;
   remaining_minutes: number | null;
   active_subscription: boolean;
@@ -49,8 +48,8 @@ const StudentProfilesTab = () => {
       }
 
       const [profilesRes, subsRes, ticketsRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, email, avatar_url, phone_number, created_at").in("user_id", ids),
-        supabase.from("user_subscriptions").select("user_id, remaining_minutes, status").in("user_id", ids),
+        supabase.from("profiles").select("user_id, full_name, avatar_url, phone, created_at").in("user_id", ids),
+        supabase.from("user_subscriptions").select("user_id, remaining_minutes, is_active").in("user_id", ids),
         supabase.from("support_tickets").select("user_id, status").in("user_id", ids).neq("status", "closed"),
       ]);
 
@@ -58,7 +57,7 @@ const StudentProfilesTab = () => {
       (subsRes.data || []).forEach((s: any) => {
         const cur = subsByUser.get(s.user_id) || { mins: 0, active: false };
         cur.mins += Number(s.remaining_minutes || 0);
-        if (s.status === "active") cur.active = true;
+        if (s.is_active) cur.active = true;
         subsByUser.set(s.user_id, cur);
       });
 
@@ -70,9 +69,8 @@ const StudentProfilesTab = () => {
       const list: StudentRow[] = (profilesRes.data || []).map((p: any) => ({
         user_id: p.user_id,
         full_name: p.full_name,
-        email: p.email,
         avatar_url: p.avatar_url,
-        phone_number: p.phone_number,
+        phone: p.phone,
         created_at: p.created_at,
         remaining_minutes: subsByUser.get(p.user_id)?.mins ?? 0,
         active_subscription: subsByUser.get(p.user_id)?.active ?? false,
@@ -95,8 +93,7 @@ const StudentProfilesTab = () => {
       if (!q) return true;
       return (
         (r.full_name || "").toLowerCase().includes(q) ||
-        (r.email || "").toLowerCase().includes(q) ||
-        (r.phone_number || "").toLowerCase().includes(q)
+        (r.phone || "").toLowerCase().includes(q)
       );
     });
   }, [rows, query, filter]);
@@ -227,7 +224,7 @@ const StudentProfilesTab = () => {
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground truncate mt-0.5">
-                      {r.email} {r.phone_number ? `• ${r.phone_number}` : ""}
+                      {r.phone || "—"}
                     </div>
                   </div>
                   <div className="hidden md:flex flex-col items-end text-xs text-muted-foreground shrink-0">

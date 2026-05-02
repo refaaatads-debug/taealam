@@ -82,7 +82,7 @@ const SupportTicketsTab = () => {
     setPeekLoading(true);
     try {
       const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, email, phone_number, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
+        supabase.from("profiles").select("user_id, full_name, phone, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
         supabase.from("user_subscriptions").select("remaining_minutes, is_active, subscription_plans(name_ar)").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("support_tickets").select("id, status").eq("user_id", uid),
         supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
@@ -532,15 +532,15 @@ const SupportTicketsTab = () => {
                             </Avatar>
                             <div className="min-w-0 flex-1">
                               <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
-                              <p className="text-xs text-muted-foreground truncate">{peekData.email}</p>
+                              <p className="text-xs text-muted-foreground truncate" dir="ltr">{peekData.phone || "—"}</p>
                             </div>
                           </div>
                         </div>
                         <div className="p-3 space-y-2 text-xs">
-                          {peekData.phone_number && (
+                          {peekData.phone && (
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Phone className="h-3.5 w-3.5" />
-                              <span dir="ltr">{peekData.phone_number}</span>
+                              <span dir="ltr">{peekData.phone}</span>
                             </div>
                           )}
                           <div className="grid grid-cols-2 gap-2 pt-1">
