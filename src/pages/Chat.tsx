@@ -512,6 +512,32 @@ const Chat = () => {
       </div>
 
       <BottomNav />
+
+      <Dialog
+        open={!!pdfViewer}
+        onOpenChange={(o) => {
+          if (!o && pdfViewer) {
+            URL.revokeObjectURL(pdfViewer.url);
+            setPdfViewer(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col" dir="rtl">
+          <DialogHeader className="px-4 py-3 border-b">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="truncate">{pdfViewer?.name}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {pdfViewer && (
+            <iframe
+              src={pdfViewer.url}
+              title={pdfViewer.name}
+              className="flex-1 w-full bg-background"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
