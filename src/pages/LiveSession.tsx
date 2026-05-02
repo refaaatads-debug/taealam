@@ -79,6 +79,7 @@ const LiveSession = () => {
   const [debugEvents, setDebugEvents] = useState<{ time: string; label: string; value: string }[]>([]);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
+  const sessionStatusChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
   const [unreadCount, setUnreadCount] = useState(0);
   const [fileUploading, setFileUploading] = useState(false);
@@ -631,10 +632,36 @@ const LiveSession = () => {
           setTeacherStarted(true);
           toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
         }
+        // If the other party marked the session completed/cancelled, force-end on this side too
+        if ((updated.status === "completed" || updated.session_status === "completed" ||
+             updated.status === "cancelled" || updated.session_status === "cancelled")
+            && !sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "sessions",
+        filter: `booking_id=eq.${bookingId}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.ended_at && !sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
+      })
+      .on("broadcast", { event: "session-end" }, () => {
+        if (!sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    sessionStatusChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); sessionStatusChannelRef.current = null; };
   }, [bookingId, user, bookingData, meetingStarted]);
 
   // Set bothJoined when meetingStarted and remoteConnected are both true
@@ -1195,6 +1222,14 @@ const LiveSession = () => {
 
     // 1) Notify peer immediately so their side starts closing in parallel
     try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
+    // Also broadcast via Supabase Realtime in case DataChannel isn't connected
+    try {
+      sessionStatusChannelRef.current?.send({
+        type: "broadcast",
+        event: "session-end",
+        payload: { elapsed, by: user?.id },
+      });
+    } catch {}
 
     // 2) Show success toast right away — UX feels instant
     toast.success("تم إنهاء الحصة ✅");
