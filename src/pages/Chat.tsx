@@ -295,10 +295,12 @@ const Chat = () => {
           <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
             <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
           </a>
-          <a href={msg.file_url} download={msg.file_name || "image"} target="_blank" rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", true)}
             className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Download className="h-3 w-3" /> تحميل الصورة
-          </a>
+          </button>
         </div>
       );
     }
