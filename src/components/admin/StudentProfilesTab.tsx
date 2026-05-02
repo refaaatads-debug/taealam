@@ -93,8 +93,7 @@ const StudentProfilesTab = () => {
       if (!q) return true;
       return (
         (r.full_name || "").toLowerCase().includes(q) ||
-        (r.email || "").toLowerCase().includes(q) ||
-        (r.phone_number || "").toLowerCase().includes(q)
+        (r.phone || "").toLowerCase().includes(q)
       );
     });
   }, [rows, query, filter]);
