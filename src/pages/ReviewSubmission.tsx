@@ -107,9 +107,9 @@ const ReviewSubmission = () => {
     if (sub?.student_id) {
       await supabase.from("notifications").insert({
         user_id: sub.student_id,
-        title: "تم تصحيح واجبك",
+        title: "✅ تم تصحيح واجبك",
         body: `تم تصحيح "${sub.assignment?.title}" - حصلت على ${aiScore} من ${sub.assignment?.total_points}`,
-        type: "assignment",
+        type: "assignment_graded",
         link: `/student/assignments`,
       });
     }
