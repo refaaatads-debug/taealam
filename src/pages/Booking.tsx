@@ -61,11 +61,12 @@ const Booking = () => {
     prefilledSubjectParam || prefilledDayParam || draft?.selectedSlots?.length ? 2 : 1
   );
   const [loading, setLoading] = useState(false);
-  const [remainingMinutes, setRemainingMinutes] = useState(0);
-    const SESSION_MINUTES = 30;
-  const MIN_SESSION_MINUTES = 10;
+  const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
+  const [reservedMinutes, setReservedMinutes] = useState(0);
+  const SESSION_MINUTES = 60;
+  const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
-  const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
+  const canBook = remainingMinutes >= SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
   const [existingBookings, setExistingBookings] = useState<Date[]>([]);
@@ -163,30 +164,48 @@ const Booking = () => {
         });
     }
 
-    // Fetch remaining minutes
-    if (user) {
-      supabase
-        .from("user_subscriptions")
-        .select("sessions_remaining, remaining_minutes")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => {
-          const remainMin = (data as any)?.remaining_minutes ?? (data?.sessions_remaining || 0) * 45;
-          setRemainingMinutes(Math.max(0, remainMin));
-        });
-    }
-
-    // Fetch existing bookings for conflict detection
+    // Fetch remaining minutes and reserve future booked/requested sessions from available balance
     if (user) {
       const now = new Date().toISOString();
       const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       Promise.all([
-        supabase.from("bookings").select("scheduled_at").eq("student_id", user.id).gte("scheduled_at", now).lte("scheduled_at", future),
-        supabase.from("booking_requests").select("scheduled_at").eq("student_id", user.id).in("status", ["open", "accepted"]).gte("scheduled_at", now).lte("scheduled_at", future),
-      ]).then(([b, r]) => {
+        supabase
+          .from("user_subscriptions")
+          .select("sessions_remaining, remaining_minutes")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("bookings")
+          .select("scheduled_at, duration_minutes")
+          .eq("student_id", user.id)
+          .in("status", ["pending", "confirmed"])
+          .gte("scheduled_at", now)
+          .lte("scheduled_at", future),
+        supabase
+          .from("booking_requests")
+          .select("scheduled_at, duration_minutes")
+          .eq("student_id", user.id)
+          .in("status", ["open", "accepted"])
+          .gte("scheduled_at", now)
+          .lte("scheduled_at", future),
+      ]).then(([subRes, b, r]) => {
+        const remainMin = (subRes.data as any)?.remaining_minutes ?? (subRes.data?.sessions_remaining || 0) * 45;
+        setBaseRemainingMinutes(Math.max(0, remainMin));
+
+        const reservedFromBookings = (b.data || []).reduce(
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          0
+        );
+        const reservedFromRequests = (r.data || []).reduce(
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          0
+        );
+
+        setReservedMinutes(reservedFromBookings + reservedFromRequests);
+
         const all: Date[] = [];
         (b.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
         (r.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
@@ -266,8 +285,8 @@ const Booking = () => {
         setTimeout(() => setConflictKey(null), 800);
         return prev;
       }
-      if (remainingMinutes < MIN_SESSION_MINUTES) {
-        toast.error(`رصيدك ${formatMinutes(remainingMinutes)} - لا يمكن الحجز. يرجى تجديد الباقة.`, { duration: 4000 });
+      if (remainingMinutes < SESSION_MINUTES) {
+        toast.error(`رصيدك المتاح ${formatMinutes(remainingMinutes)} - لا يكفي لحجز حصة واحدة (${SESSION_MINUTES} دقيقة).`, { duration: 4000 });
         return prev;
       }
       const nextTotalMinutes = (prev.length + 1) * SESSION_MINUTES;
@@ -290,7 +309,7 @@ const Booking = () => {
     // If no subscription, redirect to pricing
     // If insufficient remaining time, redirect to pricing
     if (!canBook) {
-      toast.error(`رصيد باقتك أقل من ${MIN_SESSION_MINUTES} دقائق. اشترك أو جدّد الباقة لحجز الحصص.`);
+      toast.error(`رصيدك المتاح ${formatMinutes(remainingMinutes)} ولا يكفي لحجز حصة واحدة (${SESSION_MINUTES} دقيقة).`);
       navigate("/pricing");
       return;
     }
@@ -304,13 +323,6 @@ const Booking = () => {
 
     setLoading(true);
     try {
-      // Allow booking shorter sessions if remaining < SESSION_MINUTES (min 10 min)
-      if (remainingMinutes < MIN_SESSION_MINUTES) {
-        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - الحد الأدنى ${MIN_SESSION_MINUTES} د.`);
-        setLoading(false);
-        return;
-      }
-
       const scheduledDates = selectedSlots.map(slot => {
         const day = days[slot.dayIndex].fullDate;
         const hour = parseTimeHour(slot.time);

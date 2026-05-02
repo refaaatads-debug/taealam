@@ -63,8 +63,8 @@ const SearchTeacher = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
-  const [remainingMinutes, setRemainingMinutes] = useState(0);
-  const [sessionsRemaining, setSessionsRemaining] = useState(0);
+  const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
+  const [reservedMinutes, setReservedMinutes] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
 
   // Filters for "اختر معلم محدد" section
@@ -73,22 +73,55 @@ const SearchTeacher = () => {
   const [filterSubject, setFilterSubject] = useState("all");
 
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
+  const QUICK_SESSION_MINUTES = 45;
+  const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
+  const maxQuickSlots = Math.floor(remainingMinutes / QUICK_SESSION_MINUTES);
+  const canQuickBook = remainingMinutes >= QUICK_SESSION_MINUTES;
+
   // Fetch student's remaining sessions
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("user_subscriptions")
-      .select("sessions_remaining, remaining_minutes")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .gt("remaining_minutes", 0)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        setRemainingMinutes(data?.remaining_minutes || 0);
-        setSessionsRemaining(data?.sessions_remaining || 0);
-      });
+    const now = new Date().toISOString();
+    const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    Promise.all([
+      supabase
+        .from("user_subscriptions")
+        .select("sessions_remaining, remaining_minutes")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("remaining_minutes", 0)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("bookings")
+        .select("duration_minutes")
+        .eq("student_id", user.id)
+        .in("status", ["pending", "confirmed"])
+        .gte("scheduled_at", now)
+        .lte("scheduled_at", future),
+      supabase
+        .from("booking_requests")
+        .select("duration_minutes")
+        .eq("student_id", user.id)
+        .in("status", ["open", "accepted"])
+        .gte("scheduled_at", now)
+        .lte("scheduled_at", future),
+    ]).then(([subRes, bookingsRes, requestsRes]) => {
+      setBaseRemainingMinutes(subRes.data?.remaining_minutes || 0);
+
+      const reservedFromBookings = (bookingsRes.data || []).reduce(
+        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
+        0
+      );
+      const reservedFromRequests = (requestsRes.data || []).reduce(
+        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
+        0
+      );
+
+      setReservedMinutes(reservedFromBookings + reservedFromRequests);
+    });
   }, [user]);
 
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -207,8 +240,12 @@ const SearchTeacher = () => {
     setSelectedSlots(prev => {
       const exists = prev.some(s => s.dayIndex === dayIndex && s.time === time);
       if (exists) return prev.filter(s => !(s.dayIndex === dayIndex && s.time === time));
-      if (sessionsRemaining > 0 && prev.length >= sessionsRemaining) {
-        toast.error(`رصيدك ${sessionsRemaining} حصة فقط. لا يمكن إضافة المزيد.`);
+      if (!canQuickBook) {
+        toast.error(`رصيدك المتاح ${remainingMinutes} دقيقة فقط، والحد الأدنى للحجز ${QUICK_SESSION_MINUTES} دقيقة.`);
+        return prev;
+      }
+      if (prev.length >= maxQuickSlots) {
+        toast.error(`لا يمكنك اختيار أكثر من ${maxQuickSlots} حصة حسب رصيدك المتاح (${remainingMinutes} دقيقة).`);
         return prev;
       }
       return [...prev, { dayIndex, time }];
@@ -224,14 +261,14 @@ const SearchTeacher = () => {
     if (!selectedSubject || selectedSlots.length === 0) return;
 
     // Check subscription - if no subscription, redirect to pricing
-    if (remainingMinutes <= 0) {
+    if (!canQuickBook) {
       toast.error("لا يوجد لديك باقة نشطة. اشترك في باقة أولاً لحجز الحصص.");
       navigate("/pricing");
       return;
     }
 
-    const maxSlots = Math.floor(remainingMinutes / 45);
-    if (maxSlots > 0 && selectedSlots.length > maxSlots) {
+    const maxSlots = Math.floor(remainingMinutes / QUICK_SESSION_MINUTES);
+    if (selectedSlots.length > maxSlots) {
       toast.error(`رصيدك ${remainingMinutes} دقيقة (${maxSlots} حصة). قللّ عدد الحصص أو جدّد باقتك.`);
       return;
     }
@@ -242,7 +279,7 @@ const SearchTeacher = () => {
       const hour = parseTimeSlotHour(slot.time);
       const scheduled = new Date(day);
       scheduled.setHours(hour, 0, 0, 0);
-      return { ...slot, scheduled, scheduledEnd: new Date(scheduled.getTime() + 45 * 60 * 1000) };
+        return { ...slot, scheduled, scheduledEnd: new Date(scheduled.getTime() + QUICK_SESSION_MINUTES * 60 * 1000) };
     });
 
     // Check conflicts
@@ -280,7 +317,7 @@ const SearchTeacher = () => {
         student_id: user.id,
         subject_id: selectedSubject,
         scheduled_at: sd.scheduled.toISOString(),
-        duration_minutes: 45,
+        duration_minutes: QUICK_SESSION_MINUTES,
         status: "open",
         expires_at: expiresAt,
         teaching_stage: stageValue,
@@ -705,18 +742,18 @@ const SearchTeacher = () => {
                 </AnimatePresence>
 
                 {/* No subscription warning */}
-                {remainingMinutes <= 0 && (
+                {!canQuickBook && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                     className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-3 mb-4">
                     <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
                       <CreditCard className="h-4 w-4" />
                     </div>
-                    <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                    <span>رصيدك المتاح لا يكفي لحجز حصة سريعة كاملة. <Link to="/pricing" className="font-bold underline">جدّد الباقة</Link> أو زد الرصيد ثم أعد المحاولة.</span>
                   </motion.div>
                 )}
 
                 {/* Submit button */}
-                {remainingMinutes <= 0 ? (
+                {!canQuickBook ? (
                   <Button
                     className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-sm"
                     onClick={() => navigate("/pricing")}
@@ -728,7 +765,7 @@ const SearchTeacher = () => {
                   <motion.div whileHover={{ scale: 1.005 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       className="w-full h-13 py-3.5 gradient-cta shadow-lg shadow-secondary/20 text-secondary-foreground rounded-xl font-black text-base disabled:opacity-40 relative overflow-hidden group"
-                      disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
+                      disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading || selectedSlots.length > maxQuickSlots}
                       onClick={handleQuickBooking}
                     >
                       {bookingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
