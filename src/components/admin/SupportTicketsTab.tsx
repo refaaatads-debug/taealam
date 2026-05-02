@@ -11,13 +11,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon,
-  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter, ArrowLeftRight
+  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter, ArrowLeftRight, FolderOpen, ExternalLink, Phone, Mail, Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface Ticket {
   id: string; user_id: string; subject: string; status: string; category: string; created_at: string; updated_at?: string;
@@ -72,7 +73,38 @@ const SupportTicketsTab = () => {
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
 
-  useEffect(() => { fetchTickets(); }, []);
+  // Student quick-peek
+  const [peekLoading, setPeekLoading] = useState(false);
+  const [peekData, setPeekData] = useState<any>(null);
+
+  const loadStudentPeek = async (uid: string) => {
+    if (peekData?.user_id === uid) return;
+    setPeekLoading(true);
+    try {
+      const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, email, phone_number, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
+        supabase.from("user_subscriptions").select("remaining_minutes, is_active, subscription_plans(name_ar)").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("support_tickets").select("id, status").eq("user_id", uid),
+        supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+      ]);
+      const subs = (subsRes.data || []) as any[];
+      const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
+      const activePlan = subs.find((s: any) => s.is_active)?.subscription_plans?.name_ar || "—";
+      const openTickets = (ticketsRes.data || []).filter((t: any) => t.status !== "closed").length;
+      setPeekData({
+        user_id: uid,
+        ...((profileRes.data as any) || {}),
+        totalMins,
+        activePlan,
+        openTickets,
+        totalTickets: (ticketsRes.data || []).length,
+        balance: walletRes.data?.balance ?? 0,
+      });
+    } finally {
+      setPeekLoading(false);
+    }
+  };
+
 
   // Realtime: refresh ticket list on any change (new tickets / status / assignment)
   useEffect(() => {
@@ -474,6 +506,77 @@ const SupportTicketsTab = () => {
                   <SelectItem value="closed">مغلقة</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Quick access to student profile */}
+              {ticket?.user_id && (
+                <Popover onOpenChange={(open) => { if (open) loadStudentPeek(ticket.user_id); }}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline" className="rounded-xl gap-1.5 border-primary/30 hover:bg-primary/10">
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      <span className="hidden sm:inline">ملف الطالب</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 p-0 overflow-hidden" dir="rtl">
+                    {peekLoading || !peekData ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="bg-gradient-to-l from-primary/10 to-transparent p-4 border-b">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-12 w-12 ring-2 ring-primary/30">
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                {initials(peekData.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
+                              <p className="text-xs text-muted-foreground truncate">{peekData.email}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-3 space-y-2 text-xs">
+                          {peekData.phone_number && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5" />
+                              <span dir="ltr">{peekData.phone_number}</span>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">الباقة الحالية</div>
+                              <div className="font-bold truncate">{peekData.activePlan}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">الدقائق المتبقية</div>
+                              <div className="font-bold">{peekData.totalMins}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
+                              <div className="font-bold">{Number(peekData.balance).toFixed(2)}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                              <div className="font-bold">
+                                {peekData.openTickets} / {peekData.totalTickets}
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full mt-2 rounded-lg gap-1.5"
+                            onClick={() => window.open(`/admin/students/${peekData.user_id}`, "_blank")}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            فتح الملف الكامل
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {/* Conflict / takeover banner */}
