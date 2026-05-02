@@ -237,6 +237,12 @@ const LiveSession = () => {
       if (isTeacher) {
         sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
       }
+    } else if (msg.type === "hand-raise") {
+      setRemoteHandRaised(!!msg.raised);
+      if (msg.raised) {
+        playHandRaiseSound();
+        toast.info(isTeacher ? "✋ الطالب رفع يده" : "✋ المعلم رفع يده", { id: "hand-raise" });
+      }
     }
   }, [isTeacher, pushDebugEvent]);
 
