@@ -423,7 +423,36 @@ export function useWebRTC({
     }
   }, [sendSignal]);
 
-  const toggleMic = useCallback(() => {
+  /**
+   * Adaptive bitrate: tunes outbound video sender params based on network quality.
+   * Called by useConnectionQuality consumer when quality drops/recovers.
+   */
+  const setVideoQuality = useCallback(async (level: "high" | "medium" | "low") => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    const profile = {
+      high:   { maxBitrate: 4_000_000, maxFramerate: 30, scaleResolutionDownBy: 1 },
+      medium: { maxBitrate: 1_200_000, maxFramerate: 24, scaleResolutionDownBy: 1.5 },
+      low:    { maxBitrate: 400_000,   maxFramerate: 15, scaleResolutionDownBy: 2 },
+    }[level];
+
+    pc.getSenders().forEach(async (sender) => {
+      if (!sender.track || sender.track.kind !== "video") return;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{} as any];
+        }
+        params.encodings[0].maxBitrate = profile.maxBitrate;
+        (params.encodings[0] as any).maxFramerate = profile.maxFramerate;
+        (params.encodings[0] as any).scaleResolutionDownBy = profile.scaleResolutionDownBy;
+        await sender.setParameters(params);
+        console.log(`[adaptive-bitrate] -> ${level}`, profile);
+      } catch (e) {
+        console.warn("[adaptive-bitrate] setParameters failed:", e);
+      }
+    });
+  }, []);
     localStreamRef.current?.getAudioTracks().forEach((t) => {
       t.enabled = !t.enabled;
       setMicEnabled(t.enabled);
