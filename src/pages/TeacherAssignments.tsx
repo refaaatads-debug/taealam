@@ -68,22 +68,46 @@ const TeacherAssignments = () => {
     setLoading(true);
     const [
       { data: a },
-      { data: subs },
       { data: qb },
       { data: subj },
       { data: realBookings },
     ] = await Promise.all([
       supabase.from("assignments" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("assignment_submissions" as any).select("*, assignment:assignments(title), profiles:profiles!assignment_submissions_student_id_fkey(full_name)").order("submitted_at", { ascending: false }),
       supabase.from("question_bank" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("subjects").select("*"),
       // فقط الطلاب الذين تمت معهم حصص فعلية (مؤكدة أو منتهية)
       supabase.from("bookings").select("student_id, status").eq("teacher_id", user.id).in("status", ["confirmed", "completed"]),
     ]);
-    setAssignments((a as any[]) || []);
-    setSubmissions((subs as any[]) || []);
+    const assignmentsList = (a as any[]) || [];
+    setAssignments(assignmentsList);
     setBank((qb as any[]) || []);
     setSubjects(subj || []);
+
+    // جلب الحلول الواردة لواجبات هذا المعلم فقط مع بيانات الطالب
+    const assignmentIds = assignmentsList.map((x: any) => x.id);
+    if (assignmentIds.length > 0) {
+      const { data: subs } = await supabase
+        .from("assignment_submissions" as any)
+        .select("*")
+        .in("assignment_id", assignmentIds)
+        .order("submitted_at", { ascending: false });
+      const subsList = (subs as any[]) || [];
+      const studentIdsSubs = Array.from(new Set(subsList.map((s: any) => s.student_id).filter(Boolean)));
+      let profMap: Record<string, string> = {};
+      if (studentIdsSubs.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIdsSubs);
+        (profs || []).forEach((p: any) => { profMap[p.user_id] = p.full_name || "طالب"; });
+      }
+      const titleMap: Record<string, string> = {};
+      assignmentsList.forEach((x: any) => { titleMap[x.id] = x.title; });
+      setSubmissions(subsList.map((s: any) => ({
+        ...s,
+        assignment: { title: titleMap[s.assignment_id] || "واجب" },
+        profiles: { full_name: profMap[s.student_id] || "طالب" },
+      })));
+    } else {
+      setSubmissions([]);
+    }
 
     const studentIds = Array.from(new Set(((realBookings as any[]) || []).map(b => b.student_id).filter(Boolean)));
     let list: { id: string; name: string }[] = [];
