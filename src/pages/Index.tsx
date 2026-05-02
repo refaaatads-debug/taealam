@@ -11,6 +11,7 @@ import SmartPopup from "@/components/SmartPopup";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCountdown } from "@/hooks/useCountdown";
+import BrandLoader from "@/components/BrandLoader";
 import {
   GraduationCap, BookOpen, Users, Star, Video, Brain,
   ChevronLeft, Search, CalendarCheck, Shield,
@@ -149,10 +150,10 @@ const Index = () => {
 
   // While auth is resolving, or while a logged-in user's roles are still loading,
   // show a blank loading screen — never flash the landing page to authenticated users.
-  if (loading || (user && roles.length === 0)) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <BrandLoader />
       </div>
     );
   }

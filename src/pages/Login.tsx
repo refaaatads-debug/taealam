@@ -58,7 +58,14 @@ const Login = () => {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (authLoading || !user) return;
-    if (localStorage.getItem("pending_role")) return;
+    const pendingRole = localStorage.getItem("pending_role");
+    if (pendingRole) {
+      const t = setTimeout(() => {
+        localStorage.removeItem("pending_role");
+        goToDashboard(pendingRole === "teacher" ? "teacher" : undefined);
+      }, 2500);
+      return () => clearTimeout(t);
+    }
     // If roles loaded → use highest privilege; else fall back to student after short wait
     if (userRoles.length > 0) {
       const r = userRoles.includes("admin") ? "admin"
