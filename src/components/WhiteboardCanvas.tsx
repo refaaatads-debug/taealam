@@ -740,6 +740,50 @@ export default function WhiteboardCanvas({
             <div className="w-4 h-4 rounded-full bg-destructive animate-pulse shadow-[0_0_12px_4px_rgba(239,68,68,0.6)]" />
           </div>
         )}
+
+        {/* Inline floating text editor (replaces native prompt) */}
+        {textEditor && canDraw && (
+          <div
+            className="absolute z-50 flex items-center gap-1 bg-foreground/95 backdrop-blur-md rounded-xl shadow-2xl border border-card/20 p-1.5"
+            style={{
+              left: Math.max(8, Math.min(textEditor.x, (containerRef.current?.clientWidth ?? 800) - 280)),
+              top: Math.max(8, textEditor.y - 4),
+            }}
+          >
+            <input
+              ref={textInputRef}
+              type="text"
+              value={textEditor.value}
+              onChange={(e) => setTextEditor({ ...textEditor, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); commitText(); }
+                else if (e.key === "Escape") { e.preventDefault(); setTextEditor(null); }
+              }}
+              placeholder="اكتب النص..."
+              className="bg-transparent text-card text-sm font-bold px-2 py-1 outline-none w-48 placeholder:text-card/40"
+              style={{ color }}
+              dir="auto"
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-lg text-secondary hover:bg-secondary/20"
+              onClick={commitText}
+              title="إضافة"
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-lg text-destructive hover:bg-destructive/20"
+              onClick={() => setTextEditor(null)}
+              title="إلغاء"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
