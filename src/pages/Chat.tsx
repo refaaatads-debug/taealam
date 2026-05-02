@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const isImageType = (t?: string | null) => !!t && t.startsWith("image/");
 const isPdfType = (t?: string | null, n?: string | null) =>
@@ -48,6 +49,7 @@ const Chat = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [allBookingIds, setAllBookingIds] = useState<string[]>([]);
+  const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!bookingId || !user) return;
@@ -256,26 +258,29 @@ const Chat = () => {
   };
 
   // Fetch via blob to bypass ad-blockers (ERR_BLOCKED_BY_CLIENT) that block direct storage URLs
-  const openFileSafely = async (url: string, fileName?: string | null, download = false) => {
+  const openFileSafely = async (
+    url: string,
+    fileName?: string | null,
+    mode: "download" | "preview" = "preview",
+  ) => {
     try {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("fetch failed");
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
-      if (download) {
+      if (mode === "download") {
         const a = document.createElement("a");
         a.href = blobUrl;
         a.download = fileName || "file";
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       } else {
-        window.open(blobUrl, "_blank", "noopener,noreferrer");
+        // Open inside the app instead of new tab — avoids ad-blockers blocking blob: navigation
+        setPdfViewer({ url: blobUrl, name: fileName || "ملف" });
       }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (e) {
-      // Fallback to direct link
-      window.open(url, "_blank", "noopener,noreferrer");
       toast.error("تعذّر فتح الملف. قد يكون مانع الإعلانات يحجبه — جرّب تعطيله.");
     }
   };
@@ -297,7 +302,7 @@ const Chat = () => {
           </a>
           <button
             type="button"
-            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", true)}
+            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", "download")}
             className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Download className="h-3 w-3" /> تحميل الصورة
           </button>
@@ -313,12 +318,12 @@ const Chat = () => {
             <span className="text-xs truncate flex-1">{msg.file_name || "ملف PDF"}</span>
             <button
               type="button"
-              onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name, "preview")}
               className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
             >فتح</button>
             <button
               type="button"
-              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", true)}
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", "download")}
               className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
               aria-label="تحميل"
             >
@@ -335,12 +340,12 @@ const Chat = () => {
         <span className="text-xs truncate flex-1">{msg.file_name || "ملف"}</span>
         <button
           type="button"
-          onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name, "preview")}
           className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
         >فتح</button>
         <button
           type="button"
-          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", true)}
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", "download")}
           className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
           aria-label="تحميل"
         >
@@ -507,6 +512,32 @@ const Chat = () => {
       </div>
 
       <BottomNav />
+
+      <Dialog
+        open={!!pdfViewer}
+        onOpenChange={(o) => {
+          if (!o && pdfViewer) {
+            URL.revokeObjectURL(pdfViewer.url);
+            setPdfViewer(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col" dir="rtl">
+          <DialogHeader className="px-4 py-3 border-b">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="truncate">{pdfViewer?.name}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {pdfViewer && (
+            <iframe
+              src={pdfViewer.url}
+              title={pdfViewer.name}
+              className="flex-1 w-full bg-background"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
