@@ -26,6 +26,7 @@ const Install = lazy(() => import("./pages/Install"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminStudentProfile = lazy(() => import("./pages/AdminStudentProfile"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -113,6 +114,7 @@ const App = () => (
               <Route path="/teacher/assignments/review/:id" element={<ProtectedRoute><ReviewSubmission /></ProtectedRoute>} />
               <Route path="/student/assignments" element={<ProtectedRoute><StudentAssignments /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/students/:id" element={<ProtectedRoute><AdminStudentProfile /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/help" element={<HelpCenter />} />

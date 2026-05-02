@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
@@ -67,6 +68,7 @@ interface UserDetail extends UserProfile {
 
 export default function UserManagementTab() {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
@@ -506,9 +508,21 @@ export default function UserManagementTab() {
                             variant="ghost"
                             className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
                             onClick={() => fetchUserDetail(u)}
+                            title="عرض سريع"
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {(userRolesMap.get(u.user_id) || "student") === "student" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-secondary hover:text-secondary hover:bg-secondary/10"
+                              onClick={() => navigate(`/admin/students/${u.user_id}`)}
+                              title="ملف الطالب الكامل"
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {!isCurrentUser && (
                             <>
                               <Button
