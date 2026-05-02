@@ -37,6 +37,7 @@ const SessionConflictDialog = () => {
   const handleSignOut = async () => {
     setLoading(true);
     await supabase.auth.signOut();
+    localStorage.removeItem("session_token");
     sessionStorage.removeItem("session_token");
     window.location.href = "/login";
   };
@@ -46,17 +47,19 @@ const SessionConflictDialog = () => {
     setLoading(true);
     try {
       const deviceInfo = `${navigator.platform} - ${navigator.userAgent.substring(0, 100)}`;
-      // Force-claim the active session for this tab
+      // Persist this device's token so future checks recognize us as the owner
+      localStorage.setItem("session_token", detail.myToken);
+      // Force-claim the active session for this device
       await supabase.from("user_active_session").upsert({
         user_id: detail.userId,
         session_token: detail.myToken,
         device_info: deviceInfo,
         last_seen: new Date().toISOString(),
       });
+      // Suppress conflict re-trigger briefly while realtime echoes
+      (window as any).__sessionTakeoverAt = Date.now();
       setOpen(false);
       setLoading(false);
-      // Reload to re-initialize auth state cleanly on this device
-      window.location.reload();
     } catch (e) {
       console.error("Take-over failed:", e);
       setLoading(false);
