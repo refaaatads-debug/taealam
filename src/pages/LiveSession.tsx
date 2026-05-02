@@ -710,6 +710,46 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
+  // Recover any stranded local backups from previous failed sessions (teacher only)
+  const backupRecoveryAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!isTeacher || !user || backupRecoveryAttemptedRef.current) return;
+    backupRecoveryAttemptedRef.current = true;
+    (async () => {
+      try {
+        const { listAllBackups, clearRecordingBackup } = await import("@/lib/recordingBackup");
+        const backups = await listAllBackups();
+        const mine = backups.filter((b) => b.userId === user.id);
+        if (mine.length === 0) return;
+        console.log(`[recording-backup] found ${mine.length} pending backup(s), retrying upload...`);
+        for (const b of mine) {
+          try {
+            const { error } = await supabase.storage
+              .from("session-recordings")
+              .upload(b.fileName, b.blob, { contentType: "video/webm", upsert: true });
+            if (error) {
+              console.warn("[recording-backup] retry failed for", b.bookingId, error.message);
+              continue;
+            }
+            const { data: signedData } = await supabase.storage
+              .from("session-recordings")
+              .createSignedUrl(b.fileName, 60 * 60 * 24 * 7);
+            const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(b.fileName);
+            await supabase.functions.invoke("save-session-recording", {
+              body: { booking_id: b.bookingId, recording_url: signedData?.signedUrl || urlData.publicUrl },
+            });
+            await clearRecordingBackup(b.bookingId);
+            toast.success("تم استرداد ورفع تسجيل سابق محفوظ محلياً ✅");
+          } catch (e) {
+            console.warn("[recording-backup] recovery exception:", e);
+          }
+        }
+      } catch (e) {
+        console.warn("[recording-backup] recovery init failed:", e);
+      }
+    })();
+  }, [isTeacher, user]);
+
   // NOTE: Recording is NOT tied to screen sharing. The auto-recorder (canvas pipeline)
   // captures audio + whiteboard + remote video as soon as both parties join.
   // No nagging toast is needed — teachers may share the screen optionally.
