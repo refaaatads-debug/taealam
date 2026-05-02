@@ -105,6 +105,7 @@ const SupportTicketsTab = () => {
     }
   };
 
+  useEffect(() => { fetchTickets(); }, []);
 
   // Realtime: refresh ticket list on any change (new tickets / status / assignment)
   useEffect(() => {
