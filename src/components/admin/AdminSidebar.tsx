@@ -60,6 +60,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "الرئيسية",
       items: [
         { id: "overview", title: "نظرة عامة", icon: BarChart3, permission: "view_overview" },
+        { id: "advanced_analytics", title: "التحليلات المتقدمة", icon: TrendingUp, permission: "view_overview" },
       ],
     },
     {
