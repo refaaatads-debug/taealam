@@ -22,16 +22,18 @@ const VoiceTutorInner = () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const { data, error } = await supabase.functions.invoke("ai-tutor-token");
-      if (error || !data?.token) {
+      console.log("ai-tutor-token response:", { data, error });
+      if (error || !data?.signedUrl) {
         toast.error(data?.error || "تعذر بدء المحادثة. تأكد من إعداد المساعد.");
         setConnecting(false);
         return;
       }
       await conversation.startSession({
-        conversationToken: data.token,
-        connectionType: "webrtc",
+        signedUrl: data.signedUrl,
+        connectionType: "websocket",
       });
     } catch (e: any) {
+      console.error("startSession error:", e);
       toast.error(e?.message || "تعذر الوصول للميكروفون");
     } finally {
       setConnecting(false);
