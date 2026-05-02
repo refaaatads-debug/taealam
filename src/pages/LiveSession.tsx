@@ -148,6 +148,15 @@ const LiveSession = () => {
   }, []);
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
 
+  // Block teachers from starting/joining session on phone devices
+  const isPhone = useIsPhoneDevice();
+  useEffect(() => {
+    if (isPhone && isTeacher && bookingData) {
+      toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب.");
+      navigate("/teacher", { replace: true });
+    }
+  }, [isPhone, isTeacher, bookingData, navigate]);
+
   const pushDebugEvent = useCallback((label: string, value: string) => {
     const time = new Date().toLocaleTimeString("ar-SA", {
       hour: "2-digit",
