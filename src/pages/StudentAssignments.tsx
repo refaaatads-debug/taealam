@@ -223,6 +223,29 @@ const StudentAssignments = () => {
               <div className="space-y-4">
                 {openSubmit.description && <p className="text-sm text-muted-foreground">{openSubmit.description}</p>}
 
+                {(openSubmit.attachments || []).length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-base">مرفقات الواجب</Label>
+                    <div className="space-y-2">
+                      {(openSubmit.attachments as any[]).map((f, i) => (
+                        <a
+                          key={i}
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-muted/40 hover:bg-muted/60 rounded-lg p-3 transition"
+                        >
+                          <FileText className="h-4 w-4 text-secondary shrink-0" />
+                          <span className="text-sm flex-1 truncate">{f.name}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {f.type?.includes("pdf") ? "PDF" : "صورة"}
+                          </Badge>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {(openSubmit.questions || []).length > 0 && (
                   <div className="space-y-3">
                     <Label className="text-base">الأسئلة</Label>

@@ -44,6 +44,8 @@ const TeacherAssignments = () => {
   const [stage, setStage] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [attachments, setAttachments] = useState<{ name: string; url: string; type: string }[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Question bank
@@ -70,23 +72,48 @@ const TeacherAssignments = () => {
       { data: qb },
       { data: subj },
       { data: bookings },
+      { data: chats },
     ] = await Promise.all([
       supabase.from("assignments" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("assignment_submissions" as any).select("*, assignment:assignments(title), profiles:profiles!assignment_submissions_student_id_fkey(full_name)").order("submitted_at", { ascending: false }),
       supabase.from("question_bank" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("subjects").select("*"),
-      supabase.from("bookings").select("student_id, profiles!bookings_student_id_fkey(user_id, full_name)").eq("teacher_id", user.id),
+      // كل الحجوزات (مهما كانت الحالة) لجمع الطلاب الذين تواصلوا مع المعلم
+      supabase.from("bookings").select("student_id").eq("teacher_id", user.id),
+      // المحادثات: الطلاب الذين راسلوا المعلم
+      supabase.from("chat_messages").select("sender_id, receiver_id").or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
     ]);
     setAssignments((a as any[]) || []);
     setSubmissions((subs as any[]) || []);
     setBank((qb as any[]) || []);
     setSubjects(subj || []);
-    // unique students
-    const uniq = new Map<string, any>();
-    (bookings || []).forEach((b: any) => {
-      if (b.student_id && b.profiles) uniq.set(b.student_id, { id: b.student_id, name: b.profiles.full_name });
+
+    // اجمع كل معرّفات الطلاب من المصادر المختلفة
+    const studentIds = new Set<string>();
+    (bookings || []).forEach((b: any) => { if (b.student_id) studentIds.add(b.student_id); });
+    (chats || []).forEach((m: any) => {
+      const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+      if (otherId && otherId !== user.id) studentIds.add(otherId);
     });
-    setStudents([...uniq.values()]);
+
+    if (studentIds.size > 0) {
+      const ids = [...studentIds];
+      // اجلب الأسماء + تحقق من أنهم طلاب فعلاً
+      const [{ data: profs }, { data: roles }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", ids),
+        supabase.from("user_roles").select("user_id, role").in("user_id", ids),
+      ]);
+      const studentRoleSet = new Set(
+        (roles || []).filter((r: any) => r.role === "student").map((r: any) => r.user_id)
+      );
+      const list = (profs || [])
+        .filter((p: any) => studentRoleSet.has(p.user_id))
+        .map((p: any) => ({ id: p.user_id, name: p.full_name || "طالب" }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+      setStudents(list);
+    } else {
+      setStudents([]);
+    }
     setLoading(false);
   };
 
@@ -117,6 +144,43 @@ const TeacherAssignments = () => {
     toast.success("تم إضافة السؤال");
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !user) return;
+    setUploadingFile(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name}: الحجم يتجاوز 10MB`);
+          continue;
+        }
+        const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"];
+        if (!allowed.includes(file.type)) {
+          toast.error(`${file.name}: نوع غير مدعوم (PDF/JPG/PNG فقط)`);
+          continue;
+        }
+        const ext = file.name.split(".").pop();
+        const path = `${user.id}/assignments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
+        if (upErr) { toast.error(upErr.message); continue; }
+        const { data: signed } = await supabase.storage.from("assignment-files").createSignedUrl(path, 60 * 60 * 24 * 365);
+        setAttachments(prev => [...prev, {
+          name: file.name,
+          url: signed?.signedUrl || path,
+          type: file.type,
+        }]);
+      }
+      toast.success("تم رفع المرفقات");
+    } finally {
+      setUploadingFile(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const saveAssignment = async () => {
     if (!user || !title.trim()) { toast.error("العنوان مطلوب"); return; }
     setSaving(true);
@@ -128,6 +192,7 @@ const TeacherAssignments = () => {
       subject_id: subjectId || null,
       teaching_stage: stage || null,
       questions: questions as any,
+      attachments: attachments as any,
       total_points: total,
       due_date: dueDate || null,
     });
@@ -135,7 +200,7 @@ const TeacherAssignments = () => {
     if (error) { toast.error("خطأ: " + error.message); return; }
     toast.success("تم إنشاء الواجب");
     setOpen(false);
-    setTitle(""); setDescription(""); setStudentId(""); setSubjectId(""); setStage(""); setDueDate(""); setQuestions([]);
+    setTitle(""); setDescription(""); setStudentId(""); setSubjectId(""); setStage(""); setDueDate(""); setQuestions([]); setAttachments([]);
     fetchAll();
   };
 
@@ -245,6 +310,46 @@ const TeacherAssignments = () => {
                       <Label>تاريخ التسليم</Label>
                       <Input type="datetime-local" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                     </div>
+                  </div>
+
+                  {/* Attachments */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-base">مرفقات الواجب (PDF / صور)</Label>
+                      <Button size="sm" variant="outline" asChild disabled={uploadingFile}>
+                        <label className="cursor-pointer">
+                          {uploadingFile ? <Loader2 className="h-3 w-3 animate-spin ml-1" /> : <Plus className="h-3 w-3 ml-1" />}
+                          إضافة ملف
+                          <input
+                            type="file"
+                            multiple
+                            accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+                            className="hidden"
+                            onChange={handleFileUpload}
+                          />
+                        </label>
+                      </Button>
+                    </div>
+                    {attachments.length > 0 ? (
+                      <div className="space-y-2">
+                        {attachments.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between bg-muted/40 rounded-lg p-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 text-secondary shrink-0" />
+                              <span className="text-sm truncate">{f.name}</span>
+                              <Badge variant="outline" className="text-[10px]">
+                                {f.type.includes("pdf") ? "PDF" : "صورة"}
+                              </Badge>
+                            </div>
+                            <Button size="icon" variant="ghost" onClick={() => removeAttachment(i)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">PDF أو JPG/PNG — حتى 10MB لكل ملف</p>
+                    )}
                   </div>
 
                   <div className="border-t pt-4">
