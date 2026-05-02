@@ -94,13 +94,22 @@ const SupportTicketsTab = () => {
       const openTickets = (ticketsRes.data || []).filter((t: any) => t.status !== "closed").length;
 
       if (role === "teacher") {
-        const [tpRes, walletRes] = await Promise.all([
+        const [tpRes, walletRes, bookingsRes, earningsRes] = await Promise.all([
           supabase.from("teacher_profiles")
             .select("hourly_rate, avg_rating, total_reviews, total_sessions, balance, is_approved")
             .eq("user_id", uid).maybeSingle(),
           supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+          supabase.from("bookings").select("id, status, scheduled_at").eq("teacher_id", uid).order("scheduled_at", { ascending: false }).limit(200),
+          supabase.from("teacher_earnings").select("amount, status").eq("teacher_id", uid),
         ]);
         const tp: any = tpRes.data || {};
+        const bookings = (bookingsRes.data || []) as any[];
+        const completed = bookings.filter(b => b.status === "completed").length;
+        const cancelled = bookings.filter(b => b.status === "cancelled").length;
+        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        const earnings = (earningsRes.data || []) as any[];
+        const paidTotal = earnings.filter(e => e.status === "paid").reduce((s, e) => s + Number(e.amount || 0), 0);
+        const lastBooking = bookings[0]?.scheduled_at || null;
         setPeekData({
           user_id: uid,
           role,
@@ -114,26 +123,40 @@ const SupportTicketsTab = () => {
           balance: walletRes.data?.balance ?? 0,
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
+          completed, cancelled, upcoming, paidTotal, lastBooking,
         });
       } else {
-        const [subsRes, walletRes] = await Promise.all([
+        const [subsRes, walletRes, bookingsRes, paymentsRes] = await Promise.all([
           supabase.from("user_subscriptions")
-            .select("remaining_minutes, is_active, subscription_plans(name_ar)")
+            .select("remaining_minutes, is_active, ends_at, subscription_plans(name_ar)")
             .eq("user_id", uid).order("created_at", { ascending: false }),
           supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+          supabase.from("bookings").select("id, status, scheduled_at").eq("student_id", uid).order("scheduled_at", { ascending: false }).limit(200),
+          supabase.from("payment_records").select("amount, status").eq("user_id", uid),
         ]);
         const subs = (subsRes.data || []) as any[];
         const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
-        const activePlan = subs.find((s: any) => s.is_active)?.subscription_plans?.name_ar || "—";
+        const activeSub = subs.find((s: any) => s.is_active);
+        const activePlan = activeSub?.subscription_plans?.name_ar || "—";
+        const planExpiry = activeSub?.ends_at || null;
+        const bookings = (bookingsRes.data || []) as any[];
+        const completed = bookings.filter(b => b.status === "completed").length;
+        const cancelled = bookings.filter(b => b.status === "cancelled").length;
+        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        const lastBooking = bookings[0]?.scheduled_at || null;
+        const payments = (paymentsRes.data || []) as any[];
+        const totalSpent = payments.filter(p => p.status === "completed" || p.status === "paid" || p.status === "succeeded").reduce((s, p) => s + Number(p.amount || 0), 0);
         setPeekData({
           user_id: uid,
           role,
           ...((profileRes.data as any) || {}),
           totalMins,
           activePlan,
+          planExpiry,
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
           balance: walletRes.data?.balance ?? 0,
+          completed, cancelled, upcoming, lastBooking, totalSpent,
         });
       }
     } finally {
