@@ -135,8 +135,8 @@ const Login = () => {
         if (error) throw error;
         toast.success("تم التحقق بنجاح!");
         if (data.user) {
-          const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).limit(1).single();
-          redirectByRole(roleData?.role);
+          const primaryRole = await pickPrimaryRole(data.user.id);
+          redirectByRole(primaryRole);
         }
       }
     } catch (e: any) {
