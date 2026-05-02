@@ -631,10 +631,36 @@ const LiveSession = () => {
           setTeacherStarted(true);
           toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
         }
+        // If the other party marked the session completed/cancelled, force-end on this side too
+        if ((updated.status === "completed" || updated.session_status === "completed" ||
+             updated.status === "cancelled" || updated.session_status === "cancelled")
+            && !sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
+      })
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "sessions",
+        filter: `booking_id=eq.${bookingId}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.ended_at && !sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
+      })
+      .on("broadcast", { event: "session-end" }, () => {
+        if (!sessionEndingRef.current && meetingStarted) {
+          toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
+          setTimeout(() => endSession(), 1000);
+        }
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    sessionStatusChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); sessionStatusChannelRef.current = null; };
   }, [bookingId, user, bookingData, meetingStarted]);
 
   // Set bothJoined when meetingStarted and remoteConnected are both true
