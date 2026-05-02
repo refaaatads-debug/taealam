@@ -1467,6 +1467,21 @@ const LiveSession = () => {
                   {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
                 </span>
               )}
+              {connectionState === "connected" && connectionQuality.level !== "disconnected" && (
+                <span
+                  title={`RTT: ${connectionQuality.rtt ?? 0}ms | Loss: ${((connectionQuality.packetLoss ?? 0) * 100).toFixed(1)}% | ${connectionQuality.bitrate ?? 0}kbps`}
+                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                    connectionQuality.level === "excellent" ? "text-green-400 bg-green-400/10" :
+                    connectionQuality.level === "good" ? "text-emerald-400 bg-emerald-400/10" :
+                    connectionQuality.level === "fair" ? "text-yellow-400 bg-yellow-400/10" :
+                    "text-red-400 bg-red-400/10 animate-pulse"
+                  }`}
+                >
+                  {connectionQuality.level === "excellent" ? "📶 ممتاز" :
+                   connectionQuality.level === "good" ? "📶 جيد" :
+                   connectionQuality.level === "fair" ? "📶 متوسط" : "⚠️ ضعيف"}
+                </span>
+              )}
             </div>
           </div>
         </div>
