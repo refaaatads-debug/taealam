@@ -59,7 +59,7 @@ export default function ImageCropDialog({ open, imageSrc, onCancel, onCropped, a
 
   const handleSave = async () => {
     if (!imageSrc || !areaPx) return;
-    const blob = await getCroppedBlob(imageSrc, areaPx);
+    const blob = await getCroppedBlob(imageSrc, areaPx, aspectRatio);
     onCropped(blob);
   };
 
