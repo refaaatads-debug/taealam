@@ -434,7 +434,7 @@ const Booking = () => {
         </div>
 
         {/* Live Preview Card */}
-        {step === 1 && (selectedSubject || selectedDay !== null || selectedSlots.length > 0) && (
+        {step === 1 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
