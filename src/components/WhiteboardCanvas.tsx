@@ -79,6 +79,8 @@ export default function WhiteboardCanvas({
   const [showColors, setShowColors] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [laserPos, setLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // White background toggle — even works in overlay mode (hides screen share behind)
+  const [whiteBg, setWhiteBg] = useState(false);
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
