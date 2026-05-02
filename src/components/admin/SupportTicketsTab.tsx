@@ -586,6 +586,72 @@ const SupportTicketsTab = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Transfer Ticket Dialog */}
+        <Dialog open={transferOpen} onOpenChange={(o) => { setTransferOpen(o); if (!o) { setTransferTarget(null); setTransferNote(""); setTransferSearch(""); setTransferResults([]); } }}>
+          <DialogContent dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5 text-primary" /> تحويل المحادثة لموظف آخر
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              {!transferTarget ? (
+                <>
+                  <p className="text-xs text-muted-foreground">ابحث عن موظف دعم آخر لنقل المتابعة إليه. سيتم إخطاره وتسجيل العملية في سجلّ الإدارة.</p>
+                  <div className="relative">
+                    <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input className="pr-8 rounded-xl" placeholder="ابحث باسم الموظف..." value={transferSearch}
+                      onChange={(e) => searchAdmins(e.target.value)} />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-1">
+                    {transferResults.map(u => (
+                      <button key={u.user_id} onClick={() => setTransferTarget(u)}
+                        className="w-full text-right px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-2">
+                        <Avatar className="h-7 w-7"><AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">{initials(u.full_name)}</AvatarFallback></Avatar>
+                        <span className="text-sm font-medium">{u.full_name || "بدون اسم"}</span>
+                      </button>
+                    ))}
+                    {transferSearch.length >= 2 && transferResults.length === 0 && (
+                      <p className="text-center text-xs text-muted-foreground py-3">لا يوجد موظفون مطابقون</p>
+                    )}
+                    {transferSearch.length < 2 && (
+                      <p className="text-center text-xs text-muted-foreground py-3">اكتب حرفين على الأقل للبحث</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5">
+                    <Avatar className="h-9 w-9"><AvatarFallback className="bg-primary/15 text-primary font-bold">{initials(transferTarget.full_name)}</AvatarFallback></Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground">سيستلمها</p>
+                      <p className="font-bold text-sm truncate">{transferTarget.full_name}</p>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setTransferTarget(null)}><X className="h-3.5 w-3.5" /></Button>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground mb-1 block">ملاحظة للموظف الجديد (اختياري)</label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px]"
+                      placeholder="مثال: العميل يحتاج متابعة استرداد المبلغ، تواصلت معه مسبقاً..."
+                      value={transferNote}
+                      onChange={(e) => setTransferNote(e.target.value)}
+                      maxLength={500}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">{transferNote.length}/500 — ستظهر هذه الملاحظة كرسالة داخل المحادثة.</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setTransferOpen(false)}>إلغاء</Button>
+              <Button disabled={!transferTarget || transferring} onClick={performTransfer} className="gap-1">
+                {transferring ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ArrowLeftRight className="h-4 w-4" /> تأكيد التحويل</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
