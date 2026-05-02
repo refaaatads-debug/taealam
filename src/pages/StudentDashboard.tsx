@@ -497,6 +497,26 @@ const StudentDashboard = () => {
               </Card>
             </motion.div>
 
+            {/* Assignments Quick Access */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+              <Card className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-secondary" />
+                    </div>
+                    <div>
+                      <p className="text-base font-black">الواجبات والاختبارات</p>
+                      <p className="text-xs text-muted-foreground">حلّ واجباتك واحصل على تقييم AI</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="w-full rounded-xl" asChild>
+                    <Link to="/student/assignments">عرض الواجبات</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
             {/* Smart Match */}
             <SmartMatchWidget />
           </div>
