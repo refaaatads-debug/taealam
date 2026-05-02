@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
-  Highlighter, Crosshair
+  Highlighter, Crosshair, PaintBucket
 } from "lucide-react";
 import {
   Tooltip,
@@ -79,6 +79,8 @@ export default function WhiteboardCanvas({
   const [showColors, setShowColors] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [laserPos, setLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // White background toggle — even works in overlay mode (hides screen share behind)
+  const [whiteBg, setWhiteBg] = useState(false);
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
@@ -105,7 +107,7 @@ export default function WhiteboardCanvas({
 
   const fillBackground = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.clearRect(0, 0, w, h);
-    if (!overlay) {
+    if (!overlay || whiteBg) {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "#e0e0e0";
@@ -117,7 +119,7 @@ export default function WhiteboardCanvas({
         }
       }
     }
-  }, [overlay]);
+  }, [overlay, whiteBg]);
 
   const drawAction = useCallback((ctx: CanvasRenderingContext2D, action: DrawAction) => {
     ctx.save();
@@ -199,6 +201,16 @@ export default function WhiteboardCanvas({
     window.addEventListener("resize", resizeCanvas);
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
+
+  // Re-render canvas when whiteBg toggles so the background paints immediately
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    redrawAll(ctx, rect.width, rect.height);
+  }, [whiteBg, redrawAll]);
 
   // Denormalize action from virtual canvas to local coordinates
   const denormalizeAction = useCallback((action: DrawAction): DrawAction => {
@@ -493,7 +505,7 @@ export default function WhiteboardCanvas({
   const activeLaser = canDraw ? laserPos : remoteLaserPos;
 
   return (
-    <div className={`flex flex-col h-full ${overlay ? "bg-transparent" : "bg-card"}`}>
+    <div className={`flex flex-col h-full ${overlay ? (whiteBg ? "bg-white" : "bg-transparent") : "bg-card"}`}>
       {/* Floating Toolbar - teacher only, auto-hide */}
       {canDraw && (
         <TooltipProvider delayDuration={200}>
@@ -587,6 +599,28 @@ export default function WhiteboardCanvas({
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">مسح الكل</TooltipContent>
             </Tooltip>
+
+            {overlay && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-9 w-9 rounded-xl transition-all duration-150 ${
+                      whiteBg
+                        ? "bg-primary text-primary-foreground shadow-md scale-110"
+                        : "text-card/70 hover:text-card hover:bg-card/10"
+                    }`}
+                    onClick={() => { setWhiteBg(v => !v); resetHideTimer(); }}
+                  >
+                    <PaintBucket className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {whiteBg ? "إخفاء الخلفية البيضاء" : "خلفية بيضاء (تخفي مشاركة الشاشة)"}
+                </TooltipContent>
+              </Tooltip>
+            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
