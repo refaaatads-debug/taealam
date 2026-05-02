@@ -1,5 +1,5 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +7,21 @@ import { supabase } from "@/integrations/supabase/client";
 
 const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
+  const [studentName, setStudentName] = useState<string>("");
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const name = (data?.full_name || user.user_metadata?.full_name || "").toString().trim();
+      if (name) setStudentName(name);
+    })();
+  }, []);
 
   const conversation = useConversation({
     onConnect: () => toast.success("تم الاتصال بالمعلم الذكي 🎙️"),
@@ -28,17 +43,31 @@ const VoiceTutorInner = () => {
         setConnecting(false);
         return;
       }
+
+      const firstName = studentName ? studentName.split(" ")[0] : "";
+      const overrides = studentName
+        ? {
+            agent: {
+              firstMessage: `مرحباً ${firstName}! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟`,
+              prompt: {
+                prompt: `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${studentName}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". كن ودوداً وشخصياً وشجّعه على التعلم بالعربية والإنجليزية.`,
+              },
+            },
+          }
+        : undefined;
+
       await conversation.startSession({
         signedUrl: data.signedUrl,
         connectionType: "websocket",
-      });
+        ...(overrides ? { overrides } : {}),
+      } as any);
     } catch (e: any) {
       console.error("startSession error:", e);
       toast.error(e?.message || "تعذر الوصول للميكروفون");
     } finally {
       setConnecting(false);
     }
-  }, [conversation]);
+  }, [conversation, studentName]);
 
   const stop = useCallback(async () => {
     await conversation.endSession();
@@ -66,7 +95,7 @@ const VoiceTutorInner = () => {
       <h3 className="text-lg font-bold mb-1">
         {isActive
           ? conversation.isSpeaking ? "المعلم يتحدث..." : "أنا أستمع إليك"
-          : "محادثة صوتية مباشرة"}
+          : studentName ? `مرحباً ${studentName.split(" ")[0]} 👋` : "محادثة صوتية مباشرة"}
       </h3>
       <p className="text-sm text-muted-foreground mb-6">
         {isActive
