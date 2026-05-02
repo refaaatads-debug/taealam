@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Users as UsersIcon, ShieldCheck, Sparkles, Star, CheckCircle2 } from "lucide-react";
+import brandLogo from "@/assets/logo.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -172,8 +173,8 @@ const Login = () => {
 
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-primary-foreground w-full">
           <Link to="/" className="flex items-center gap-3 group w-fit">
-            <div className="w-12 h-12 rounded-2xl bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <GraduationCap className="h-6 w-6" />
+            <div className="w-14 h-14 rounded-2xl bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 flex items-center justify-center group-hover:scale-110 transition-transform p-1">
+              <img src={brandLogo} alt="logo" className="h-full w-full object-contain" />
             </div>
             <div>
               <span className="font-extrabold text-2xl block leading-none">منصة أجيال المعرفة</span>
@@ -224,9 +225,7 @@ const Login = () => {
           <CardContent className="p-0">
             <div className="p-6 sm:p-8 pb-4 sm:pb-6">
               <Link to="/" className="flex lg:hidden items-center justify-center gap-2.5 mb-6">
-                <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-secondary-foreground" />
-                </div>
+                <img src={brandLogo} alt="logo" className="w-10 h-10 object-contain" />
                 <span className="font-extrabold text-2xl text-foreground">منصة أجيال المعرفة</span>
               </Link>
               <h2 className="text-2xl sm:text-3xl font-black text-center text-foreground mb-1">

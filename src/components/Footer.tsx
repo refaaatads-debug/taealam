@@ -1,4 +1,5 @@
 import { GraduationCap, Mail, Phone, MapPin, Twitter, Linkedin, Youtube, Instagram, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
+import brandLogo from "@/assets/logo.png";
 import { Link } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
@@ -61,13 +62,7 @@ const Footer = () => {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2.5 mb-4">
-              {logoUrl ? (
-                <img src={logoUrl} alt={siteName} className="h-10 w-10 rounded-xl object-cover" />
-              ) : (
-                <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-secondary-foreground" />
-                </div>
-              )}
+              <img src={logoUrl || brandLogo} alt={siteName} className="h-10 w-10 object-contain" />
               <span className="font-extrabold text-xl">{siteName}</span>
             </div>
             <p className="text-sm opacity-70 leading-relaxed mb-5">{description}</p>
