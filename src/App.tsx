@@ -66,6 +66,14 @@ const PageLoader = () => (
   </div>
 );
 
+const DashboardRedirect = () => {
+  const { roles, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (roles.includes("admin")) return <Navigate to="/admin" replace />;
+  if (roles.includes("teacher")) return <Navigate to="/teacher" replace />;
+  return <Navigate to="/student" replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
