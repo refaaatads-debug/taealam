@@ -56,14 +56,20 @@ const Login = () => {
 
   // Auto-redirect if already logged in
   useEffect(() => {
-    if (!authLoading && user && userRoles.length > 0) {
-      if (localStorage.getItem("pending_role")) return;
+    if (authLoading || !user) return;
+    if (localStorage.getItem("pending_role")) return;
+    // If roles loaded → use highest privilege; else fall back to student after short wait
+    if (userRoles.length > 0) {
       const r = userRoles.includes("admin") ? "admin"
         : userRoles.includes("teacher") ? "teacher"
         : userRoles.includes("parent") ? "parent"
         : "student";
       goToDashboard(r);
+      return;
     }
+    // No roles yet — wait briefly then default to student
+    const t = setTimeout(() => goToDashboard("student"), 1500);
+    return () => clearTimeout(t);
   }, [user, userRoles, authLoading]);
 
   // Pick the highest-privileged role among all user_roles rows
