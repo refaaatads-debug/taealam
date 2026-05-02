@@ -116,6 +116,25 @@ const SupportChat = () => {
     }
   };
 
+  const createTicketFromAI = async (subject: string, conversationLog: string) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("support_tickets")
+      .insert({ user_id: user.id, subject })
+      .select().single();
+    if (error || !data) { toast.error("فشل في إنشاء التذكرة"); return; }
+    // Seed first message with conversation context
+    await supabase.from("support_messages").insert({
+      ticket_id: data.id,
+      sender_id: user.id,
+      content: `📋 محادثة سابقة مع المساعد الذكي:\n\n${conversationLog}`,
+      is_admin: false,
+    });
+    setSearchParams({ ticket: data.id });
+    fetchTickets();
+    toast.success("تم تحويل المحادثة لفريق الدعم");
+  };
+
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
     const ext = file.name.split('.').pop();
     const path = `${ticketId}/${Date.now()}.${ext}`;
