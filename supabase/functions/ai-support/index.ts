@@ -210,18 +210,62 @@ async function runTool(
     }
 
     case "create_support_ticket": {
-      const { data, error } = await supabase
+      const subject = String(args?.subject || "").slice(0, 80) || "طلب دعم";
+      const category = ["technical","payment","session","account","other"].includes(args?.category) ? args.category : "other";
+      const summary = String(args?.summary || "لم يُوفّر ملخص.").slice(0, 4000);
+
+      const { data: ticket, error } = await supabase
         .from("support_tickets")
-        .insert({
-          user_id: userId,
-          subject: args.subject,
-          category: args.category,
-          status: "open",
-        })
+        .insert({ user_id: userId, subject, category, status: "open" })
         .select("id")
         .single();
-      if (error) return { error: error.message };
-      return { success: true, ticket_id: data.id, message: "تم إنشاء التذكرة وسيتواصل معك فريق الدعم قريبًا." };
+      if (error || !ticket) return { error: error?.message || "تعذّر إنشاء التذكرة" };
+
+      // Seed first message with AI summary so support staff have context immediately
+      const intro =
+        `🤖 **تذكرة محوّلة من المساعد الذكي**\n\n` +
+        `**التصنيف:** ${category}\n\n` +
+        `**ملخص المشكلة:**\n${summary}\n\n` +
+        `_(تمت إحالة المستخدم لفريق الدعم البشري بعد محادثة مع المساعد الذكي.)_`;
+      await supabase.from("support_messages").insert({
+        ticket_id: ticket.id,
+        sender_id: userId,
+        content: intro,
+        is_admin: false,
+      });
+
+      // Notify admins via service role (bypass RLS) — best effort, do not fail if unavailable
+      try {
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (serviceKey) {
+          const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
+          const { data: admins } = await admin
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "admin");
+          if (admins?.length) {
+            await admin.from("notifications").insert(
+              admins.map((a: any) => ({
+                user_id: a.user_id,
+                type: "support_ticket",
+                title: "🆘 تذكرة دعم جديدة (AI)",
+                body: `تذكرة محوّلة من المساعد الذكي: ${subject}`,
+                link: `/admin/support?ticket=${ticket.id}`,
+              })),
+            );
+          }
+        }
+      } catch (e) {
+        console.error("admin notify failed:", e);
+      }
+
+      return {
+        success: true,
+        ticket_id: ticket.id,
+        category,
+        subject,
+        message: "تم إنشاء تذكرة دعم بشري. سيتواصل معك فريق الدعم خلال وقت قصير.",
+      };
     }
   }
   return { error: `Unknown tool: ${name}` };
