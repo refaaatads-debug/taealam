@@ -498,7 +498,10 @@ const SupportTicketsTab = () => {
               </div>
             )}
             {isMine && (
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg gap-1" onClick={() => setTransferOpen(true)}>
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> تحويل لموظف آخر
+                </Button>
                 <Button size="sm" variant="ghost" className="text-xs h-7" onClick={releaseTicket}>
                   تحرير التذكرة
                 </Button>
