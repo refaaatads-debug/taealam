@@ -194,7 +194,12 @@ const SupportTicketsTab = () => {
 
     if (error) {
       setNewMessage(content);
-      toast.error("فشل في إرسال الرسالة");
+      if ((error.message || "").includes("TICKET_LOCKED")) {
+        toast.error("التذكرة مقفلة على موظف آخر — لا يمكنك الرد", { duration: 5000 });
+        await fetchTickets();
+      } else {
+        toast.error("فشل في إرسال الرسالة");
+      }
     } else {
       await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
       const ticket = tickets.find(t => t.id === selectedTicket);
