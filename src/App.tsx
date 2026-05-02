@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -65,6 +66,14 @@ const PageLoader = () => (
   </div>
 );
 
+const DashboardRedirect = () => {
+  const { roles, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (roles.includes("admin")) return <Navigate to="/admin" replace />;
+  if (roles.includes("teacher")) return <Navigate to="/teacher" replace />;
+  return <Navigate to="/student" replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -76,6 +85,11 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Navigate to="/login?signup=1" replace />} />
+              <Route path="/signup" element={<Navigate to="/login?signup=1" replace />} />
+              <Route path="/teacher-register" element={<Navigate to="/login?signup=1&role=teacher" replace />} />
+              <Route path="/teacher-signup" element={<Navigate to="/login?signup=1&role=teacher" replace />} />
+              <Route path="/dashboard" element={<ProtectedRoute><DashboardRedirect /></ProtectedRoute>} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />

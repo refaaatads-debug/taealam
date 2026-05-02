@@ -386,7 +386,9 @@ const SearchTeacher = () => {
         <div className="container relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-foreground mb-2">ابحث عن مدرسك المثالي</h1>
-            <p className="text-primary-foreground/70 mb-5 md:mb-6 text-sm md:text-base">أكثر من {teachers.length} مدرس معتمد</p>
+            <p className="text-primary-foreground/70 mb-5 md:mb-6 text-sm md:text-base">
+              {loading ? "جاري تحميل المدرسين..." : `أكثر من ${teachers.length} مدرس معتمد`}
+            </p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
