@@ -89,10 +89,17 @@ const Login = () => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Fetch role to redirect correctly (highest privilege wins)
-        const primaryRole = await pickPrimaryRole(data.user.id);
         toast.success("تم تسجيل الدخول بنجاح!");
-        redirectByRole(primaryRole);
+        // Fetch role with timeout fallback to prevent hanging
+        try {
+          const primaryRole = await Promise.race([
+            pickPrimaryRole(data.user.id),
+            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 3000)),
+          ]);
+          redirectByRole(primaryRole);
+        } catch {
+          redirectByRole();
+        }
       } else {
         if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
         if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
