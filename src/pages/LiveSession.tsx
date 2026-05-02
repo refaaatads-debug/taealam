@@ -79,6 +79,7 @@ const LiveSession = () => {
   const [debugEvents, setDebugEvents] = useState<{ time: string; label: string; value: string }[]>([]);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const chatChannelRef = useRef<any>(null);
+  const sessionStatusChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
   const [unreadCount, setUnreadCount] = useState(0);
   const [fileUploading, setFileUploading] = useState(false);
