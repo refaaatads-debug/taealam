@@ -14,9 +14,8 @@ import { ar } from "date-fns/locale";
 interface StudentRow {
   user_id: string;
   full_name: string | null;
-  email: string | null;
   avatar_url: string | null;
-  phone_number: string | null;
+  phone: string | null;
   created_at: string | null;
   remaining_minutes: number | null;
   active_subscription: boolean;
