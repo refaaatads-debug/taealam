@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -57,6 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<AuthContextType["profile"]>(cachedProfile);
   const [roles, setRoles] = useState<AppRole[]>(cachedRoles ?? []);
+  const initializingUserRef = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -246,6 +247,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const initializeAuthenticatedSession = async (userId: string) => {
+      if (initializingUserRef.current === userId) return;
+      initializingUserRef.current = userId;
+
       // Remember last user for cache hydration on next visit
       try { localStorage.setItem(lastUserKey, userId); } catch { /* ignore */ }
 
@@ -266,6 +270,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         console.error("Error loading user data:", e);
       } finally {
+        if (initializingUserRef.current === userId) {
+          initializingUserRef.current = null;
+        }
         setLoading(false);
       }
     };
@@ -275,11 +282,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Small delay to ensure DB triggers have completed
-          setTimeout(() => {
-            void initializeAuthenticatedSession(session.user.id);
-          }, 500);
+          void initializeAuthenticatedSession(session.user.id);
         } else {
+          initializingUserRef.current = null;
           cleanupSingleSession();
           setProfile(null);
           setRoles([]);
@@ -294,6 +299,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         await initializeAuthenticatedSession(session.user.id);
       } else {
+        initializingUserRef.current = null;
         cleanupSingleSession();
         setProfile(null);
         setRoles([]);
