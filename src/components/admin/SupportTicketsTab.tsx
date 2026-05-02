@@ -777,8 +777,13 @@ const SupportTicketsTab = () => {
                                 <div className="font-bold text-emerald-600">{peekData.completed}</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">قادمة</div>
-                                <div className="font-bold text-blue-600">{peekData.upcoming}</div>
+                                <div className="text-muted-foreground text-[10px]">قادمة (مؤكدة)</div>
+                                <div className="font-bold text-blue-600">
+                                  {peekData.upcoming}
+                                  {peekData.pending > 0 && (
+                                    <span className="text-[9px] text-amber-600 font-medium ms-1">+{peekData.pending} بانتظار</span>
+                                  )}
+                                </div>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px]">ملغاة</div>
