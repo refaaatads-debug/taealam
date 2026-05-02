@@ -34,6 +34,7 @@ const TeacherDashboard = () => {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
   const unreadCounts = useUnreadMessages(scheduleIds);
+  const isPhone = useIsPhoneDevice();
 
   useEffect(() => {
     if (!user) return;
