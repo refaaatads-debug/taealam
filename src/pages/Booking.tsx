@@ -773,7 +773,7 @@ const Booking = () => {
                     )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">المادة</span>
-                      <span className="text-foreground font-bold">{(directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name}</span>
+                      <span className="text-foreground font-bold">{selectedSubjectName || "—"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">عدد الحصص</span>
