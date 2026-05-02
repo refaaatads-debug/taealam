@@ -165,7 +165,7 @@ const TeacherAssignments = () => {
     if (!user || !title.trim()) { toast.error("العنوان مطلوب"); return; }
     setSaving(true);
     const total = questions.reduce((s, q) => s + (q.points || 0), 0) || 100;
-    const { error } = await supabase.from("assignments" as any).insert({
+    const { data: created, error } = await supabase.from("assignments" as any).insert({
       teacher_id: user.id,
       student_id: studentId || null,
       title, description,
@@ -175,10 +175,38 @@ const TeacherAssignments = () => {
       attachments: attachments as any,
       total_points: total,
       due_date: dueDate || null,
-    });
+    }).select().single();
     setSaving(false);
     if (error) { toast.error("خطأ: " + error.message); return; }
-    toast.success("تم إنشاء الواجب");
+
+    // إرسال إشعار للطالب/الطلاب
+    try {
+      const assignmentId = (created as any)?.id;
+      const link = `/student/assignments`;
+      if (studentId) {
+        await supabase.from("notifications").insert({
+          user_id: studentId,
+          title: "📝 واجب جديد",
+          body: `تم إسناد واجب: ${title}`,
+          type: "assignment",
+          link,
+        });
+      } else {
+        // واجب عام: أرسل لجميع الطلاب الذين لديهم حصص فعلية مع المعلم
+        const { data: bks } = await supabase.from("bookings")
+          .select("student_id")
+          .eq("teacher_id", user.id)
+          .in("status", ["confirmed", "completed"]);
+        const ids = Array.from(new Set((bks || []).map((b: any) => b.student_id).filter(Boolean)));
+        if (ids.length > 0) {
+          await supabase.from("notifications").insert(
+            ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
+          );
+        }
+      }
+    } catch (e) { console.warn("notif failed", e); }
+
+    toast.success("تم إنشاء الواجب وإرسال إشعار للطالب");
     setOpen(false);
     setTitle(""); setDescription(""); setStudentId(""); setSubjectId(""); setStage(""); setDueDate(""); setQuestions([]); setAttachments([]);
     fetchAll();
