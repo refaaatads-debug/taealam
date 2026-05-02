@@ -544,13 +544,15 @@ const SupportTicketsTab = () => {
                 </SelectContent>
               </Select>
 
-              {/* Quick access to student profile */}
+              {/* Quick access to user profile (student or teacher) */}
               {ticket?.user_id && (
                 <Popover onOpenChange={(open) => { if (open) loadStudentPeek(ticket.user_id); }}>
                   <PopoverTrigger asChild>
                     <Button size="sm" variant="outline" className="rounded-xl gap-1.5 border-primary/30 hover:bg-primary/10">
                       <FolderOpen className="h-4 w-4 text-primary" />
-                      <span className="hidden sm:inline">ملف الطالب</span>
+                      <span className="hidden sm:inline">
+                        {peekData?.user_id === ticket.user_id && peekData?.role === "teacher" ? "ملف المعلم" : "ملف الطالب"}
+                      </span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-80 p-0 overflow-hidden" dir="rtl">
@@ -568,7 +570,12 @@ const SupportTicketsTab = () => {
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0 flex-1">
-                              <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
+                                <Badge variant="outline" className="text-[10px] h-4">
+                                  {peekData.role === "teacher" ? "معلم" : peekData.role === "admin" ? "مشرف" : "طالب"}
+                                </Badge>
+                              </div>
                               <p className="text-xs text-muted-foreground truncate" dir="ltr">{peekData.phone || "—"}</p>
                             </div>
                           </div>
@@ -580,30 +587,62 @@ const SupportTicketsTab = () => {
                               <span dir="ltr">{peekData.phone}</span>
                             </div>
                           )}
-                          <div className="grid grid-cols-2 gap-2 pt-1">
-                            <div className="rounded-lg border p-2">
-                              <div className="text-muted-foreground text-[10px]">الباقة الحالية</div>
-                              <div className="font-bold truncate">{peekData.activePlan}</div>
-                            </div>
-                            <div className="rounded-lg border p-2">
-                              <div className="text-muted-foreground text-[10px]">الدقائق المتبقية</div>
-                              <div className="font-bold">{peekData.totalMins}</div>
-                            </div>
-                            <div className="rounded-lg border p-2">
-                              <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
-                              <div className="font-bold">{Number(peekData.balance).toFixed(2)}</div>
-                            </div>
-                            <div className="rounded-lg border p-2">
-                              <div className="text-muted-foreground text-[10px]">التذاكر</div>
-                              <div className="font-bold">
-                                {peekData.openTickets} / {peekData.totalTickets}
+                          {peekData.role === "teacher" ? (
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">حالة الاعتماد</div>
+                                <div className="font-bold truncate">{peekData.isApproved ? "معتمد" : "بانتظار"}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">السعر/ساعة</div>
+                                <div className="font-bold">{Number(peekData.hourlyRate).toFixed(0)} ر.س</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">التقييم</div>
+                                <div className="font-bold">{Number(peekData.avgRating).toFixed(1)} ({peekData.totalReviews})</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">الحصص</div>
+                                <div className="font-bold">{peekData.totalSessions}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
+                                <div className="font-bold">{Number(peekData.tpBalance).toFixed(2)}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                                <div className="font-bold">{peekData.openTickets} / {peekData.totalTickets}</div>
                               </div>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">الباقة الحالية</div>
+                                <div className="font-bold truncate">{peekData.activePlan}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">الدقائق المتبقية</div>
+                                <div className="font-bold">{peekData.totalMins}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
+                                <div className="font-bold">{Number(peekData.balance).toFixed(2)}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                                <div className="font-bold">{peekData.openTickets} / {peekData.totalTickets}</div>
+                              </div>
+                            </div>
+                          )}
                           <Button
                             size="sm"
                             className="w-full mt-2 rounded-lg gap-1.5"
-                            onClick={() => window.open(`/admin/students/${peekData.user_id}`, "_blank")}
+                            onClick={() => window.open(
+                              peekData.role === "teacher"
+                                ? `/admin/teachers/${peekData.user_id}`
+                                : `/admin/students/${peekData.user_id}`,
+                              "_blank"
+                            )}
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                             فتح الملف الكامل
