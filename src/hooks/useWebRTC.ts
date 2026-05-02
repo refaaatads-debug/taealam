@@ -59,6 +59,7 @@ export function useWebRTC({
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const reconnectAttemptsRef = useRef(0);
   const onDataMessageRef = useRef(onDataMessage);
   onDataMessageRef.current = onDataMessage;
 
@@ -247,11 +248,26 @@ export function useWebRTC({
       onConnectionStateRef.current?.(state);
       if (state === "connected") {
         detectIceTransportType(pc);
+        reconnectAttemptsRef.current = 0;
+      }
+      if (state === "disconnected") {
+        // Auto-recovery: try ICE restart if still disconnected after 4s
+        setTimeout(() => {
+          const cur = pcRef.current;
+          if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
+            console.log("[webrtc] disconnected >4s — attempting ICE restart");
+            restartConnection();
+          }
+        }, 4000);
       }
       if (state === "failed") {
+        const attempt = reconnectAttemptsRef.current;
+        const delay = Math.min(2000 * Math.pow(2, attempt), 15000); // exponential backoff, max 15s
+        reconnectAttemptsRef.current = attempt + 1;
+        console.log(`[webrtc] failed — retry attempt ${attempt + 1} in ${delay}ms`);
         setTimeout(() => {
           if (pcRef.current?.connectionState === "failed") restartConnection();
-        }, 2000);
+        }, delay);
       }
     };
 
@@ -406,6 +422,37 @@ export function useWebRTC({
       console.error("Restart error:", err);
     }
   }, [sendSignal]);
+
+  /**
+   * Adaptive bitrate: tunes outbound video sender params based on network quality.
+   * Called by useConnectionQuality consumer when quality drops/recovers.
+   */
+  const setVideoQuality = useCallback(async (level: "high" | "medium" | "low") => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    const profile = {
+      high:   { maxBitrate: 4_000_000, maxFramerate: 30, scaleResolutionDownBy: 1 },
+      medium: { maxBitrate: 1_200_000, maxFramerate: 24, scaleResolutionDownBy: 1.5 },
+      low:    { maxBitrate: 400_000,   maxFramerate: 15, scaleResolutionDownBy: 2 },
+    }[level];
+
+    pc.getSenders().forEach(async (sender) => {
+      if (!sender.track || sender.track.kind !== "video") return;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{} as any];
+        }
+        params.encodings[0].maxBitrate = profile.maxBitrate;
+        (params.encodings[0] as any).maxFramerate = profile.maxFramerate;
+        (params.encodings[0] as any).scaleResolutionDownBy = profile.scaleResolutionDownBy;
+        await sender.setParameters(params);
+        console.log(`[adaptive-bitrate] -> ${level}`, profile);
+      } catch (e) {
+        console.warn("[adaptive-bitrate] setParameters failed:", e);
+      }
+    });
+  }, []);
 
   const toggleMic = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
@@ -1001,5 +1048,7 @@ export function useWebRTC({
     getRecordingBlob,
     restartConnection,
     sendDataMessage,
+    setVideoQuality,
+    pcRef,
   };
 }

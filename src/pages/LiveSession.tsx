@@ -16,6 +16,7 @@ import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
@@ -256,6 +257,8 @@ const LiveSession = () => {
     getRecordingBlob,
     restartConnection,
     sendDataMessage,
+    setVideoQuality,
+    pcRef,
   } = useWebRTC({
     bookingId: bookingId || "",
     userId: user?.id || "",
@@ -339,7 +342,29 @@ const LiveSession = () => {
     },
   });
 
-  // ─── Anti-Cheat System ───
+  // ─── Connection Quality Monitoring + Adaptive Bitrate ───
+  const lastQualityLevelRef = useRef<ConnectionQuality["level"]>("good");
+  const connectionQuality = useConnectionQuality(pcRef.current, {
+    intervalMs: 3000,
+    disconnectThresholdMs: 30000,
+    onQualityChange: (q) => {
+      // Adaptive bitrate: downgrade/upgrade video sender based on quality
+      if (q.level === lastQualityLevelRef.current) return;
+      lastQualityLevelRef.current = q.level;
+      if (q.level === "poor") {
+        setVideoQuality("low");
+        toast.warning("جودة الاتصال ضعيفة — تم تخفيض جودة الفيديو تلقائياً", { id: "net-quality" });
+      } else if (q.level === "fair") {
+        setVideoQuality("medium");
+      } else if (q.level === "good" || q.level === "excellent") {
+        setVideoQuality("high");
+      }
+    },
+    onSustainedDisconnect: (ms) => {
+      toast.error(`انقطع الاتصال لأكثر من ${Math.round(ms / 1000)} ثانية. جاري المحاولة...`, { id: "net-down" });
+    },
+  });
+
   const {
     isTabLocked,
     peerDisconnected,
@@ -1440,6 +1465,21 @@ const LiveSession = () => {
                   "text-muted-foreground bg-muted/30"
                 }`}>
                   {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
+                </span>
+              )}
+              {connectionState === "connected" && connectionQuality.level !== "disconnected" && (
+                <span
+                  title={`RTT: ${connectionQuality.rtt ?? 0}ms | Loss: ${((connectionQuality.packetLoss ?? 0) * 100).toFixed(1)}% | ${connectionQuality.bitrate ?? 0}kbps`}
+                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                    connectionQuality.level === "excellent" ? "text-green-400 bg-green-400/10" :
+                    connectionQuality.level === "good" ? "text-emerald-400 bg-emerald-400/10" :
+                    connectionQuality.level === "fair" ? "text-yellow-400 bg-yellow-400/10" :
+                    "text-red-400 bg-red-400/10 animate-pulse"
+                  }`}
+                >
+                  {connectionQuality.level === "excellent" ? "📶 ممتاز" :
+                   connectionQuality.level === "good" ? "📶 جيد" :
+                   connectionQuality.level === "fair" ? "📶 متوسط" : "⚠️ ضعيف"}
                 </span>
               )}
             </div>
