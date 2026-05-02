@@ -63,11 +63,11 @@ const Navbar = () => {
             transition={{ duration: 0.5 }}
             src={logoUrl || brandLogo}
             alt={siteName}
-            className="h-10 w-10 object-contain"
+            className="h-14 w-14 md:h-16 md:w-16 object-contain"
           />
-          <div className="flex flex-col leading-none">
-            <span className="font-black text-lg text-foreground tracking-tight">{siteName}</span>
-            <span className="text-[9px] font-bold text-secondary tracking-widest hidden sm:block">EDUCATION PLATFORM</span>
+          <div className="flex flex-col leading-tight">
+            <span className="font-black text-xl md:text-2xl text-foreground tracking-tight">{siteName}</span>
+            <span className="text-[10px] md:text-[11px] font-bold text-secondary tracking-widest hidden sm:block">EDUCATION PLATFORM</span>
           </div>
         </Link>
 
