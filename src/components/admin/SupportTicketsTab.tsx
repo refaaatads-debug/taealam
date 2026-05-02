@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,20 +6,40 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon, X, Download, Plus, Search } from "lucide-react";
+import {
+  MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon,
+  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter
+} from "lucide-react";
 import { toast } from "sonner";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface Ticket {
-  id: string; user_id: string; subject: string; status: string; category: string; created_at: string; user_name?: string;
+  id: string; user_id: string; subject: string; status: string; category: string; created_at: string; updated_at?: string;
+  assigned_to?: string | null; assigned_at?: string | null;
+  user_name?: string;
+  assigned_name?: string | null;
+  last_message?: string;
+  unread_count?: number;
 }
 interface Message {
   id: string; ticket_id: string; sender_id: string; content: string; is_admin: boolean; created_at: string;
   file_url?: string | null; file_name?: string | null; file_type?: string | null;
+  sender_name?: string;
 }
+
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  open: { label: "مفتوحة", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30", icon: AlertCircle },
+  in_progress: { label: "قيد المعالجة", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", icon: Hourglass },
+  closed: { label: "مغلقة", color: "bg-muted text-muted-foreground border-border", icon: CheckCircle2 },
+};
+
+const initials = (name?: string) => (name || "?").trim().split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
 
 const SupportTicketsTab = () => {
   const { user } = useAuth();
@@ -30,6 +50,7 @@ const SupportTicketsTab = () => {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -41,8 +62,17 @@ const SupportTicketsTab = () => {
   const [initiateMessage, setInitiateMessage] = useState("");
   const [initiateUser, setInitiateUser] = useState<{ user_id: string; full_name: string } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [profileNameMap, setProfileNameMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => { fetchTickets(); }, []);
+
+  // Realtime: refresh ticket list on any change (new tickets / status / assignment)
+  useEffect(() => {
+    const ch = supabase.channel("admin-tickets-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchTickets())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   useEffect(() => {
     if (!selectedTicket) return;
@@ -50,35 +80,92 @@ const SupportTicketsTab = () => {
     const channel = supabase
       .channel(`admin-support-${selectedTicket}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: `ticket_id=eq.${selectedTicket}` },
-        (payload) => { const msg = payload.new as Message; setMessages(prev => { if (prev.some(m => m.id === msg.id)) return prev; if (msg.sender_id !== user?.id) playSupportSound(); return [...prev, msg]; }); })
+        async (payload) => {
+          const msg = payload.new as Message;
+          // hydrate sender name if admin
+          let sender_name: string | undefined;
+          if (msg.is_admin) sender_name = profileNameMap.get(msg.sender_id) || (await fetchProfileName(msg.sender_id));
+          setMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev;
+            if (msg.sender_id !== user?.id) playSupportSound();
+            return [...prev, { ...msg, sender_name }];
+          });
+        })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedTicket]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  const fetchProfileName = async (uid: string) => {
+    const { data } = await supabase.from("profiles").select("full_name").eq("user_id", uid).maybeSingle();
+    const name = data?.full_name || "موظف الدعم";
+    setProfileNameMap(prev => new Map(prev).set(uid, name));
+    return name;
+  };
+
   const fetchTickets = async () => {
     const { data: ticketData } = await supabase.from("support_tickets").select("*").order("updated_at", { ascending: false });
-    if (ticketData) {
-      const userIds = [...new Set(ticketData.map(t => t.user_id))];
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
-      const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
-      setTickets(ticketData.map(t => ({ ...t, user_name: nameMap.get(t.user_id) || "مستخدم" })) as Ticket[]);
-    }
+    if (!ticketData) { setLoading(false); return; }
+    const userIds = [...new Set([
+      ...ticketData.map(t => t.user_id),
+      ...ticketData.map((t: any) => t.assigned_to).filter(Boolean),
+    ])];
+    const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", userIds);
+    const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name || "مستخدم"]) || []);
+    setProfileNameMap(prev => new Map([...prev, ...nameMap]));
+    setTickets(ticketData.map((t: any) => ({
+      ...t,
+      user_name: nameMap.get(t.user_id) || "مستخدم",
+      assigned_name: t.assigned_to ? (nameMap.get(t.assigned_to) || "موظف") : null,
+    })) as Ticket[]);
     setLoading(false);
   };
 
   const fetchMessages = async () => {
     const { data } = await supabase.from("support_messages").select("*").eq("ticket_id", selectedTicket!).order("created_at", { ascending: true });
-    if (data) setMessages(data as Message[]);
+    if (!data) return;
+    const adminSenders = [...new Set(data.filter(m => m.is_admin).map(m => m.sender_id))];
+    const missing = adminSenders.filter(id => !profileNameMap.has(id));
+    if (missing.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", missing);
+      if (profs) setProfileNameMap(prev => { const next = new Map(prev); profs.forEach(p => next.set(p.user_id, p.full_name || "موظف الدعم")); return next; });
+    }
+    setMessages(data.map(m => ({ ...m, sender_name: m.is_admin ? (profileNameMap.get(m.sender_id) || "موظف الدعم") : undefined })) as Message[]);
+  };
+
+  const claimTicketIfNeeded = async (ticketId: string) => {
+    if (!user) return;
+    const t = tickets.find(x => x.id === ticketId);
+    if (t?.assigned_to) return; // already claimed
+    await supabase.from("support_tickets")
+      .update({ assigned_to: user.id, assigned_at: new Date().toISOString(), status: "in_progress" })
+      .eq("id", ticketId);
+  };
+
+  const reassignToMe = async () => {
+    if (!user || !selectedTicket) return;
+    const { error } = await supabase.from("support_tickets")
+      .update({ assigned_to: user.id, assigned_at: new Date().toISOString() })
+      .eq("id", selectedTicket);
+    if (error) toast.error("فشل تعيين التذكرة");
+    else toast.success("تم تعيين التذكرة لك");
+  };
+
+  const releaseTicket = async () => {
+    if (!selectedTicket) return;
+    const { error } = await supabase.from("support_tickets")
+      .update({ assigned_to: null, assigned_at: null })
+      .eq("id", selectedTicket);
+    if (error) toast.error("فشل تحرير التذكرة");
+    else toast.success("تم تحرير التذكرة");
   };
 
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
     const ext = file.name.split('.').pop();
     const path = `${selectedTicket}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("support-files").upload(path, file, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
+      contentType: file.type || "application/octet-stream", upsert: false,
     });
     if (error) { toast.error("فشل في رفع الملف"); return null; }
     const { data: urlData } = supabase.storage.from("support-files").getPublicUrl(path);
@@ -97,6 +184,8 @@ const SupportTicketsTab = () => {
       if (!fileData) { setSending(false); return; }
       setSelectedFile(null);
     }
+
+    await claimTicketIfNeeded(selectedTicket);
 
     const { error } = await supabase.from("support_messages").insert({
       ticket_id: selectedTicket, sender_id: user.id, content, is_admin: true,
@@ -125,6 +214,7 @@ const SupportTicketsTab = () => {
     setSending(true);
     const fileData = await uploadFile(file);
     if (!fileData) { setSending(false); return; }
+    await claimTicketIfNeeded(selectedTicket);
     const { error } = await supabase.from("support_messages").insert({
       ticket_id: selectedTicket, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: true,
       file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
@@ -164,11 +254,11 @@ const SupportTicketsTab = () => {
       return (
         <div className="mt-2 space-y-1">
           <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
-            <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
+            <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[240px] rounded-lg border border-border/30" loading="lazy" />
           </a>
           <a href={msg.file_url} download={msg.file_name || "image"} target="_blank" rel="noopener noreferrer"
-            className={`flex items-center gap-1 text-[11px] ${msg.is_admin ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            <Download className="h-3 w-3" /> تحميل الصورة
+            className={`inline-flex items-center gap-1 text-[11px] ${msg.is_admin ? "text-primary-foreground/80 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <Download className="h-3 w-3" /> تحميل
           </a>
         </div>
       );
@@ -204,56 +294,182 @@ const SupportTicketsTab = () => {
     );
   };
 
-  const filteredTickets = filter === "all" ? tickets : tickets.filter(t => t.status === filter);
+  const stats = useMemo(() => ({
+    total: tickets.length,
+    open: tickets.filter(t => t.status === "open").length,
+    in_progress: tickets.filter(t => t.status === "in_progress").length,
+    closed: tickets.filter(t => t.status === "closed").length,
+    mine: tickets.filter(t => t.assigned_to === user?.id).length,
+    unassigned: tickets.filter(t => !t.assigned_to && t.status !== "closed").length,
+  }), [tickets, user?.id]);
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-      open: { label: "مفتوحة", variant: "default" }, in_progress: { label: "قيد المعالجة", variant: "secondary" }, closed: { label: "مغلقة", variant: "destructive" },
-    };
-    const s = map[status] || map.open;
-    return <Badge variant={s.variant}>{s.label}</Badge>;
+  const filteredTickets = useMemo(() => {
+    let list = tickets;
+    if (filter === "mine") list = list.filter(t => t.assigned_to === user?.id);
+    else if (filter === "unassigned") list = list.filter(t => !t.assigned_to && t.status !== "closed");
+    else if (filter !== "all") list = list.filter(t => t.status === filter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(t =>
+        t.subject?.toLowerCase().includes(q) ||
+        t.user_name?.toLowerCase().includes(q) ||
+        t.assigned_name?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [tickets, filter, search, user?.id]);
+
+  const StatusBadge = ({ status }: { status: string }) => {
+    const c = statusConfig[status] || statusConfig.open;
+    const Icon = c.icon;
+    return (
+      <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", c.color)}>
+        <Icon className="h-3 w-3" />{c.label}
+      </span>
+    );
   };
 
-  if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  const timeAgo = (iso?: string) => {
+    if (!iso) return "";
+    const d = new Date(iso); const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "الآن";
+    if (m < 60) return `قبل ${m} د`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `قبل ${h} س`;
+    return d.toLocaleDateString("ar-SA");
+  };
 
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+
+  // ============ DETAIL VIEW ============
   if (selectedTicket) {
     const ticket = tickets.find(t => t.id === selectedTicket);
+    const isMine = ticket?.assigned_to === user?.id;
+    const isClaimed = !!ticket?.assigned_to;
+    const claimedByOther = isClaimed && !isMine;
+
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => { setSelectedTicket(null); setMessages([]); setSelectedFile(null); }}>
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <p className="font-bold text-foreground">{ticket?.subject}</p>
-            <p className="text-xs text-muted-foreground"><User className="h-3 w-3 inline ml-1" />{ticket?.user_name}</p>
-          </div>
-          <Select value={ticket?.status} onValueChange={v => updateTicketStatus(selectedTicket, v)}>
-            <SelectTrigger className="w-36 rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="open">مفتوحة</SelectItem>
-              <SelectItem value="in_progress">قيد المعالجة</SelectItem>
-              <SelectItem value="closed">مغلقة</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Card>
+        {/* Header bar */}
+        <Card className="overflow-hidden border-primary/20 bg-gradient-to-l from-primary/5 via-card to-card">
           <CardContent className="p-4">
-            <div className="h-80 overflow-y-auto space-y-3 mb-4">
-              {messages.length === 0 ? (
-                <p className="text-center text-muted-foreground text-sm py-8">لا توجد رسائل</p>
-              ) : messages.map(msg => (
-                <div key={msg.id} className={`flex ${msg.is_admin ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${msg.is_admin ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                    {renderFileAttachment(msg)}
-                    <p className={`text-[10px] mt-1 ${msg.is_admin ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                      {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="ghost" size="icon" className="rounded-xl shrink-0"
+                onClick={() => { setSelectedTicket(null); setMessages([]); setSelectedFile(null); }}>
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-10 w-10 ring-2 ring-primary/30 shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">{initials(ticket?.user_name)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-foreground truncate">{ticket?.subject}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{ticket?.user_name}</span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{timeAgo(ticket?.created_at)}</span>
+                  {ticket && <><span>·</span><StatusBadge status={ticket.status} /></>}
+                </div>
+              </div>
+
+              {/* Assignment indicator (admin-only) */}
+              {isClaimed ? (
+                <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-1.5">
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <div className="text-xs leading-tight">
+                    <p className="text-muted-foreground">يتابع الردّ:</p>
+                    <p className="font-bold text-foreground">{isMine ? "أنت" : ticket?.assigned_name}</p>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                  غير مُسنَدة
+                </Badge>
+              )}
+
+              <Select value={ticket?.status} onValueChange={v => updateTicketStatus(selectedTicket, v)}>
+                <SelectTrigger className="w-36 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">مفتوحة</SelectItem>
+                  <SelectItem value="in_progress">قيد المعالجة</SelectItem>
+                  <SelectItem value="closed">مغلقة</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Conflict / takeover banner */}
+            {claimedByOther && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span className="text-amber-700 dark:text-amber-300">
+                  هذه التذكرة يتابعها <b>{ticket?.assigned_name}</b> حالياً — تجنّب التداخل، أو خذها إذا لزم.
+                </span>
+                <Button size="sm" variant="outline" className="ms-auto rounded-lg h-7 text-[11px]" onClick={reassignToMe}>
+                  <UserCheck className="h-3.5 w-3.5 ml-1" />استلامها
+                </Button>
+              </div>
+            )}
+            {!isClaimed && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-foreground">لم يستلمها أحد بعد — سيتمّ تعيينك تلقائياً عند أول ردّ.</span>
+                <Button size="sm" className="ms-auto rounded-lg h-7 text-[11px]" onClick={reassignToMe}>
+                  استلام الآن
+                </Button>
+              </div>
+            )}
+            {isMine && (
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" variant="ghost" className="text-xs h-7" onClick={releaseTicket}>
+                  تحرير التذكرة
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Messages */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="h-[55vh] overflow-y-auto space-y-3 mb-4 pe-1">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
+                  <p className="text-sm">لا توجد رسائل بعد</p>
+                </div>
+              ) : messages.map(msg => {
+                const isMyMessage = msg.is_admin && msg.sender_id === user?.id;
+                return (
+                  <div key={msg.id} className={`flex ${msg.is_admin ? "justify-start" : "justify-end"} gap-2`}>
+                    {msg.is_admin && (
+                      <Avatar className="h-7 w-7 mt-1 shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                          {initials(msg.sender_name || "موظف")}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <div className={cn(
+                      "max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm",
+                      msg.is_admin
+                        ? (isMyMessage ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground border border-border")
+                        : "bg-muted text-foreground"
+                    )}>
+                      {msg.is_admin && (
+                        <p className={cn("text-[10px] font-bold mb-0.5", isMyMessage ? "text-primary-foreground/80" : "text-primary")}>
+                          {isMyMessage ? "أنت (موظف الدعم)" : `${msg.sender_name || "موظف الدعم"}`}
+                        </p>
+                      )}
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                      {renderFileAttachment(msg)}
+                      <p className={cn("text-[10px] mt-1",
+                        msg.is_admin ? (isMyMessage ? "text-primary-foreground/60" : "text-muted-foreground") : "text-muted-foreground"
+                      )}>
+                        {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
               <div ref={bottomRef} />
             </div>
             {selectedFile && (
@@ -271,7 +487,7 @@ const SupportTicketsTab = () => {
               <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
               <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="اكتب ردك..." className="rounded-xl flex-1" dir="rtl" />
               <Button type="submit" size="icon" className="rounded-xl" disabled={(!newMessage.trim() && !selectedFile) || sending}>
-                <Send className="h-4 w-4" />
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
           </CardContent>
@@ -280,24 +496,62 @@ const SupportTicketsTab = () => {
     );
   }
 
+  // ============ LIST VIEW ============
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="تصفية" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">الكل</SelectItem>
-            <SelectItem value="open">مفتوحة</SelectItem>
-            <SelectItem value="in_progress">قيد المعالجة</SelectItem>
-            <SelectItem value="closed">مغلقة</SelectItem>
-          </SelectContent>
-        </Select>
-        <Badge variant="secondary">{filteredTickets.length} تذكرة</Badge>
-        <Button size="sm" className="rounded-xl gap-1 mr-auto" onClick={() => setInitiateOpen(true)}>
-          <Plus className="h-4 w-4" /> إرسال رسالة لمستخدم
-        </Button>
+      {/* Hero Header */}
+      <div className="rounded-2xl border bg-gradient-to-l from-primary/10 via-primary/5 to-card p-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-primary/15 grid place-items-center shrink-0">
+            <Headphones className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-extrabold text-foreground">الدعم الفني</h2>
+            <p className="text-xs text-muted-foreground">إدارة احترافية للتذاكر مع تتبع المتابعة بين الموظفين</p>
+          </div>
+          <Button className="rounded-xl gap-1" onClick={() => setInitiateOpen(true)}>
+            <Plus className="h-4 w-4" /> رسالة لمستخدم
+          </Button>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
+          <StatCard label="الإجمالي" value={stats.total} icon={MessageSquare} />
+          <StatCard label="مفتوحة" value={stats.open} icon={AlertCircle} accent="emerald" />
+          <StatCard label="قيد المعالجة" value={stats.in_progress} icon={Hourglass} accent="amber" />
+          <StatCard label="غير مُسنَدة" value={stats.unassigned} icon={Users} accent="rose" />
+          <StatCard label="تذاكري" value={stats.mine} icon={UserCheck} accent="primary" />
+        </div>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Tabs value={filter} onValueChange={setFilter} className="flex-shrink-0">
+          <TabsList className="rounded-xl">
+            <TabsTrigger value="all" className="rounded-lg text-xs">الكل</TabsTrigger>
+            <TabsTrigger value="open" className="rounded-lg text-xs">مفتوحة</TabsTrigger>
+            <TabsTrigger value="in_progress" className="rounded-lg text-xs">قيد المعالجة</TabsTrigger>
+            <TabsTrigger value="unassigned" className="rounded-lg text-xs gap-1">
+              <Users className="h-3 w-3" /> غير مُسنَدة
+            </TabsTrigger>
+            <TabsTrigger value="mine" className="rounded-lg text-xs gap-1">
+              <UserCheck className="h-3 w-3" /> تذاكري
+            </TabsTrigger>
+            <TabsTrigger value="closed" className="rounded-lg text-xs">مغلقة</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="بحث بالعنوان، اسم العميل، أو الموظف..."
+            className="pe-9 rounded-xl"
+          />
+        </div>
+      </div>
+
+      {/* Initiate dialog */}
       <Dialog open={initiateOpen} onOpenChange={(o) => { setInitiateOpen(o); if (!o) { setInitiateUser(null); setInitiateSubject(""); setInitiateMessage(""); setUserSearch(""); setUserResults([]); } }}>
         <DialogContent dir="rtl">
           <DialogHeader><DialogTitle>إرسال رسالة لطالب أو معلم</DialogTitle></DialogHeader>
@@ -347,7 +601,10 @@ const SupportTicketsTab = () => {
                 if (!initiateUser || !user) return;
                 setCreating(true);
                 const { data: ticket, error } = await supabase.from("support_tickets")
-                  .insert({ user_id: initiateUser.user_id, subject: initiateSubject.trim(), status: "in_progress" })
+                  .insert({
+                    user_id: initiateUser.user_id, subject: initiateSubject.trim(), status: "in_progress",
+                    assigned_to: user.id, assigned_at: new Date().toISOString(),
+                  } as any)
                   .select().single();
                 if (error || !ticket) { toast.error("فشل إنشاء المحادثة"); setCreating(false); return; }
                 await supabase.from("support_messages").insert({
@@ -370,28 +627,93 @@ const SupportTicketsTab = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Tickets list */}
       {filteredTickets.length === 0 ? (
-        <div className="text-center py-12">
-          <MessageSquare className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground">لا توجد تذاكر دعم</p>
-        </div>
+        <Card>
+          <CardContent className="text-center py-16">
+            <MessageSquare className="h-14 w-14 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">لا توجد تذاكر تطابق الفلتر</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">جرّب تغيير الفلتر أو البحث</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-3">
-          {filteredTickets.map(t => (
-            <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedTicket(t.id)}>
-              <CardContent className="py-4 flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="font-semibold text-sm text-foreground">{t.subject}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <User className="h-3 w-3 inline ml-1" />{t.user_name} · <Clock className="h-3 w-3 inline ml-1" />{new Date(t.created_at).toLocaleDateString("ar-SA")}
-                  </p>
-                </div>
-                {statusBadge(t.status)}
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-2">
+          {filteredTickets.map(t => {
+            const isMine = t.assigned_to === user?.id;
+            const isUnassigned = !t.assigned_to;
+            return (
+              <Card key={t.id}
+                className={cn(
+                  "group cursor-pointer transition-all hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 border",
+                  isMine && "border-primary/40 bg-primary/5",
+                  isUnassigned && t.status !== "closed" && "border-amber-500/30 bg-amber-500/5",
+                )}
+                onClick={() => setSelectedTicket(t.id)}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm shrink-0">
+                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">{initials(t.user_name)}</AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2 mb-1">
+                        <p className="font-bold text-sm text-foreground truncate flex-1">{t.subject}</p>
+                        <StatusBadge status={t.status} />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{t.user_name}</span>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{timeAgo(t.updated_at || t.created_at)}</span>
+                      </div>
+                    </div>
+
+                    {/* Assignment indicator (admin-only view) */}
+                    <div className="shrink-0 text-end">
+                      {t.assigned_to ? (
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border",
+                          isMine
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-secondary text-secondary-foreground border-border"
+                        )}>
+                          <UserCheck className="h-3 w-3" />
+                          {isMine ? "أنت تتابع" : t.assigned_name}
+                        </div>
+                      ) : t.status !== "closed" ? (
+                        <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          <Users className="h-3 w-3" /> غير مُسنَدة
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+};
+
+const StatCard = ({ label, value, icon: Icon, accent }: { label: string; value: number; icon: any; accent?: "emerald" | "amber" | "rose" | "primary" }) => {
+  const colorMap = {
+    emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
+    amber: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
+    rose: "text-rose-600 dark:text-rose-400 bg-rose-500/10",
+    primary: "text-primary bg-primary/10",
+    default: "text-foreground bg-muted",
+  };
+  const cls = colorMap[accent || "default"];
+  return (
+    <div className="rounded-xl border bg-card p-3 flex items-center gap-3">
+      <div className={cn("h-9 w-9 rounded-lg grid place-items-center shrink-0", cls)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] text-muted-foreground font-medium">{label}</p>
+        <p className="text-lg font-extrabold text-foreground leading-tight">{value}</p>
+      </div>
     </div>
   );
 };
