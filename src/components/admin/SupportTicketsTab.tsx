@@ -104,9 +104,13 @@ const SupportTicketsTab = () => {
         ]);
         const tp: any = tpRes.data || {};
         const bookings = (bookingsRes.data || []) as any[];
+        const now = new Date();
+        // مطابقة دقيقة لحالات قاعدة البيانات: pending | confirmed | completed | cancelled
         const completed = bookings.filter(b => b.status === "completed").length;
         const cancelled = bookings.filter(b => b.status === "cancelled").length;
-        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        // قادمة = مؤكدة فقط ولم يحن وقتها بعد (pending = بانتظار القبول، يُعرض منفصلًا)
+        const upcoming = bookings.filter(b => b.status === "confirmed" && new Date(b.scheduled_at) > now).length;
+        const pending = bookings.filter(b => b.status === "pending").length;
         const earnings = (earningsRes.data || []) as any[];
         const paidTotal = earnings.filter(e => e.status === "paid").reduce((s, e) => s + Number(e.amount || 0), 0);
         const lastBooking = bookings[0]?.scheduled_at || null;
