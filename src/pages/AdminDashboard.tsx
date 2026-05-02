@@ -407,6 +407,7 @@ const AdminDashboard = () => {
       case "wallets": return <WalletsManagementTab />;
       case "team": return <AdminTeamManagementTab />;
       case "domain_ssl": return <DomainSSLTab />;
+      case "advanced_analytics": return <AdvancedAnalyticsTab />;
       default: return null;
     }
   };
