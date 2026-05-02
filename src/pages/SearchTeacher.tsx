@@ -742,18 +742,18 @@ const SearchTeacher = () => {
                 </AnimatePresence>
 
                 {/* No subscription warning */}
-                {remainingMinutes <= 0 && (
+                {!canQuickBook && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                     className="rounded-xl p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-3 mb-4">
                     <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
                       <CreditCard className="h-4 w-4" />
                     </div>
-                    <span>لا يوجد لديك باقة نشطة. <Link to="/pricing" className="font-bold underline">اشترك الآن</Link> لحجز الحصص.</span>
+                    <span>رصيدك المتاح لا يكفي لحجز حصة سريعة كاملة. <Link to="/pricing" className="font-bold underline">جدّد الباقة</Link> أو زد الرصيد ثم أعد المحاولة.</span>
                   </motion.div>
                 )}
 
                 {/* Submit button */}
-                {remainingMinutes <= 0 ? (
+                {!canQuickBook ? (
                   <Button
                     className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-sm"
                     onClick={() => navigate("/pricing")}
@@ -765,7 +765,7 @@ const SearchTeacher = () => {
                   <motion.div whileHover={{ scale: 1.005 }} whileTap={{ scale: 0.99 }}>
                     <Button
                       className="w-full h-13 py-3.5 gradient-cta shadow-lg shadow-secondary/20 text-secondary-foreground rounded-xl font-black text-base disabled:opacity-40 relative overflow-hidden group"
-                      disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading}
+                      disabled={selectedSlots.length === 0 || !selectedSubject || bookingLoading || selectedSlots.length > maxQuickSlots}
                       onClick={handleQuickBooking}
                     >
                       {bookingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
