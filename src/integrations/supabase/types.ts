@@ -2254,6 +2254,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_all_students: {
+        Args: never
+        Returns: {
+          full_name: string
+          user_id: string
+        }[]
+      }
       log_admin_action:
         | {
             Args: {
