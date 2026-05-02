@@ -38,6 +38,7 @@ import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
 import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
+import AdvancedAnalyticsTab from "@/components/admin/AdvancedAnalyticsTab";
 import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
 import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
 import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
@@ -70,6 +71,7 @@ const TAB_TITLES: Record<string, string> = {
   admin_notifications: "مركز الإشعارات",
   wallets: "المحافظ والمكالمات",
   team: "فريق الإدارة وسجل العمليات",
+  advanced_analytics: "التحليلات المتقدمة",
 };
 
 const AdminDashboard = () => {
@@ -406,6 +408,7 @@ const AdminDashboard = () => {
       case "wallets": return <WalletsManagementTab />;
       case "team": return <AdminTeamManagementTab />;
       case "domain_ssl": return <DomainSSLTab />;
+      case "advanced_analytics": return <AdvancedAnalyticsTab />;
       default: return null;
     }
   };

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { LiveVoiceTutor } from "@/components/ai/LiveVoiceTutor";
 
 interface Msg { role: "user" | "assistant"; content: string; audio?: string }
 
@@ -132,23 +133,8 @@ const AITutor = () => {
 
           <TabsContent value="voice" className="mt-4">
             <Card>
-              <CardContent className="p-8 text-center">
-                {!agentId ? (
-                  <>
-                    <Mic className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
-                    <h3 className="text-lg font-bold mb-2">المحادثة الصوتية الحية قريباً</h3>
-                    <p className="text-sm text-muted-foreground">
-                      نعمل على تفعيل المحادثة الصوتية المباشرة مع الذكاء الاصطناعي.<br />
-                      في الوقت الحالي، استخدم وضع "نص + نطق" للتفاعل الكامل.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      المحادثة الصوتية الحية متاحة. سيتم تفعيلها قريباً في تحديث قادم.
-                    </p>
-                  </>
-                )}
+              <CardContent className="p-4">
+                <LiveVoiceTutor />
               </CardContent>
             </Card>
           </TabsContent>

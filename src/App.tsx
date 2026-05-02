@@ -42,6 +42,7 @@ const TeachWithUs = lazy(() => import("./pages/TeachWithUs"));
 const TeacherAssignments = lazy(() => import("./pages/TeacherAssignments"));
 const StudentAssignments = lazy(() => import("./pages/StudentAssignments"));
 const ReviewSubmission = lazy(() => import("./pages/ReviewSubmission"));
+const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,6 +101,7 @@ const App = () => (
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
               <Route path="/faq" element={<FAQ />} />
+              <Route path="/help" element={<HelpCenter />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund" element={<RefundPolicy />} />

@@ -972,6 +972,56 @@ export type Database = {
           },
         ]
       }
+      session_compensations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          incident_id: string | null
+          minutes_credited: number
+          reason: string | null
+          session_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          minutes_credited?: number
+          reason?: string | null
+          session_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          minutes_credited?: number
+          reason?: string | null
+          session_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_compensations_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "session_quality_incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_events: {
         Row: {
           booking_id: string | null
@@ -1047,6 +1097,54 @@ export type Database = {
           teacher_id?: string
           title?: string
           whiteboard_data?: Json | null
+        }
+        Relationships: []
+      }
+      session_quality_incidents: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          duration_ms: number | null
+          id: string
+          incident_type: string
+          jitter_ms: number | null
+          metadata: Json | null
+          packet_loss: number | null
+          rtt_ms: number | null
+          session_id: string
+          severity: string
+          user_id: string
+          was_compensated: boolean | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          incident_type: string
+          jitter_ms?: number | null
+          metadata?: Json | null
+          packet_loss?: number | null
+          rtt_ms?: number | null
+          session_id: string
+          severity?: string
+          user_id: string
+          was_compensated?: boolean | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          incident_type?: string
+          jitter_ms?: number | null
+          metadata?: Json | null
+          packet_loss?: number | null
+          rtt_ms?: number | null
+          session_id?: string
+          severity?: string
+          user_id?: string
+          was_compensated?: boolean | null
         }
         Relationships: []
       }
