@@ -90,6 +90,34 @@ const ReviewSubmission = () => {
     navigate("/teacher/assignments");
   };
 
+  const sendAIGradeToStudent = async () => {
+    if (sub?.ai_score == null) return;
+    setSaving(true);
+    const aiScore = Number(sub.ai_score);
+    const aiFb = sub.ai_feedback || "";
+    const { error } = await supabase.from("assignment_submissions" as any).update({
+      teacher_score: aiScore,
+      teacher_feedback: aiFb,
+      final_score: aiScore,
+      status: "reviewed",
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", id);
+    if (error) { setSaving(false); toast.error(error.message); return; }
+
+    if (sub?.student_id) {
+      await supabase.from("notifications").insert({
+        user_id: sub.student_id,
+        title: "تم تصحيح واجبك",
+        body: `تم تصحيح "${sub.assignment?.title}" - حصلت على ${aiScore} من ${sub.assignment?.total_points}`,
+        type: "assignment",
+        link: `/student/assignments`,
+      });
+    }
+    setSaving(false);
+    toast.success("تم اعتماد درجة AI وإرسالها للطالب");
+    navigate("/teacher/assignments");
+  };
+
   if (loading || !sub) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
@@ -182,8 +210,9 @@ const ReviewSubmission = () => {
                   ))}
                 </div>
               )}
-              <Button size="sm" variant="outline" onClick={() => setScore(String(sub.ai_score))}>
-                استخدام درجة AI
+              <Button size="sm" variant="outline" onClick={sendAIGradeToStudent} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                استخدام درجة AI وإرسالها للطالب
               </Button>
             </CardContent>
           </Card>
