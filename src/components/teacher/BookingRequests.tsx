@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import CountdownTimer from "@/components/CountdownTimer";
 import FirstImpressionDialog from "@/components/teacher/FirstImpressionDialog";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 
 interface BookingRequest {
   id: string;
