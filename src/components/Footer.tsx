@@ -1,4 +1,5 @@
 import { GraduationCap, Mail, Phone, MapPin, Twitter, Linkedin, Youtube, Instagram, ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
+import brandLogo from "@/assets/logo.png";
 import { Link } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
