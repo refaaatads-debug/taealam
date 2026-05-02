@@ -73,6 +73,8 @@ export default function WhiteboardCanvas({
   overlay = false,
   remoteActions,
   remoteLaserPos,
+  studentCanDraw = false,
+  onToggleStudentDraw,
 }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,8 +85,10 @@ export default function WhiteboardCanvas({
   const [showColors, setShowColors] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [laserPos, setLaserPos] = useState<{ x: number; y: number } | null>(null);
-  // White background toggle — even works in overlay mode (hides screen share behind)
   const [whiteBg, setWhiteBg] = useState(false);
+  // Inline text editor (replaces prompt())
+  const [textEditor, setTextEditor] = useState<{ x: number; y: number; value: string } | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
@@ -93,7 +97,8 @@ export default function WhiteboardCanvas({
   const throttleRef = useRef<number>(0);
   const hideTimerRef = useRef<number>();
 
-  const canDraw = isTeacher;
+  // Teacher always draws. Student draws only when teacher grants permission.
+  const canDraw = isTeacher || studentCanDraw;
 
   // Auto-hide toolbar after 4s of inactivity
   const resetHideTimer = useCallback(() => {
