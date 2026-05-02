@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { LiveVoiceTutor } from "@/components/ai/LiveVoiceTutor";
 
 interface Msg { role: "user" | "assistant"; content: string; audio?: string }
 
