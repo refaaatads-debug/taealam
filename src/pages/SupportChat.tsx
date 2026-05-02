@@ -281,7 +281,10 @@ const SupportChat = () => {
 
             <TabsContent value="ai" className="mt-0">
               <Card className="overflow-hidden">
-                <AIAssistantChat onCreateTicket={createTicketFromAI} />
+                <AIAssistantChat
+                  onCreateTicket={createTicketFromAI}
+                  onTicketCreated={(id) => { fetchTickets(); setSearchParams({ ticket: id }); }}
+                />
               </Card>
             </TabsContent>
 

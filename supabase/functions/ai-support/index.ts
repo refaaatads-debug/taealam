@@ -87,17 +87,21 @@ const tools = [
     function: {
       name: "create_support_ticket",
       description:
-        "ينشئ تذكرة دعم بشري عند عدم القدرة على حل المشكلة، أو طلب المستخدم التحدث لموظف، أو وجود مشكلة مالية حساسة.",
+        "ينشئ تذكرة دعم بشري عند: (1) طلب المستخدم صراحةً التحدث لموظف، (2) فشلك في حل المشكلة بعد محاولتين، (3) مشاكل مالية حساسة (استرداد، خطأ في الفوترة)، (4) مشاكل تقنية تستلزم تدخل بشري. اذكر ملخصًا واضحًا للمشكلة في summary لكي يفهم الموظف السياق فورًا.",
       parameters: {
         type: "object",
         properties: {
-          subject: { type: "string", description: "عنوان المشكلة بإيجاز" },
+          subject: { type: "string", description: "عنوان مختصر (≤60 حرف)" },
           category: {
             type: "string",
             enum: ["technical", "payment", "session", "account", "other"],
           },
+          summary: {
+            type: "string",
+            description: "ملخص مفصّل (3-5 أسطر) للمشكلة وما تمت محاولته وما يحتاجه الموظف لحلها.",
+          },
         },
-        required: ["subject", "category"],
+        required: ["subject", "category", "summary"],
         additionalProperties: false,
       },
     },
@@ -206,18 +210,62 @@ async function runTool(
     }
 
     case "create_support_ticket": {
-      const { data, error } = await supabase
+      const subject = String(args?.subject || "").slice(0, 80) || "طلب دعم";
+      const category = ["technical","payment","session","account","other"].includes(args?.category) ? args.category : "other";
+      const summary = String(args?.summary || "لم يُوفّر ملخص.").slice(0, 4000);
+
+      const { data: ticket, error } = await supabase
         .from("support_tickets")
-        .insert({
-          user_id: userId,
-          subject: args.subject,
-          category: args.category,
-          status: "open",
-        })
+        .insert({ user_id: userId, subject, category, status: "open" })
         .select("id")
         .single();
-      if (error) return { error: error.message };
-      return { success: true, ticket_id: data.id, message: "تم إنشاء التذكرة وسيتواصل معك فريق الدعم قريبًا." };
+      if (error || !ticket) return { error: error?.message || "تعذّر إنشاء التذكرة" };
+
+      // Seed first message with AI summary so support staff have context immediately
+      const intro =
+        `🤖 **تذكرة محوّلة من المساعد الذكي**\n\n` +
+        `**التصنيف:** ${category}\n\n` +
+        `**ملخص المشكلة:**\n${summary}\n\n` +
+        `_(تمت إحالة المستخدم لفريق الدعم البشري بعد محادثة مع المساعد الذكي.)_`;
+      await supabase.from("support_messages").insert({
+        ticket_id: ticket.id,
+        sender_id: userId,
+        content: intro,
+        is_admin: false,
+      });
+
+      // Notify admins via service role (bypass RLS) — best effort, do not fail if unavailable
+      try {
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (serviceKey) {
+          const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
+          const { data: admins } = await admin
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "admin");
+          if (admins?.length) {
+            await admin.from("notifications").insert(
+              admins.map((a: any) => ({
+                user_id: a.user_id,
+                type: "support_ticket",
+                title: "🆘 تذكرة دعم جديدة (AI)",
+                body: `تذكرة محوّلة من المساعد الذكي: ${subject}`,
+                link: `/admin/support?ticket=${ticket.id}`,
+              })),
+            );
+          }
+        }
+      } catch (e) {
+        console.error("admin notify failed:", e);
+      }
+
+      return {
+        success: true,
+        ticket_id: ticket.id,
+        category,
+        subject,
+        message: "تم إنشاء تذكرة دعم بشري. سيتواصل معك فريق الدعم خلال وقت قصير.",
+      };
     }
   }
   return { error: `Unknown tool: ${name}` };
@@ -301,6 +349,8 @@ Deno.serve(async (req) => {
       ...messages,
     ];
 
+    let createdTicket: { id: string; subject: string; category: string } | null = null;
+
     for (let hop = 0; hop < 5; hop++) {
       const aiResp = await fetch(LOVABLE_AI_URL, {
         method: "POST",
@@ -327,6 +377,7 @@ Deno.serve(async (req) => {
         return json({
           role: "assistant",
           content: msg.content || "",
+          ticket: createdTicket,
         });
       }
 
@@ -342,6 +393,13 @@ Deno.serve(async (req) => {
           userId,
           role,
         });
+        if (tc.function.name === "create_support_ticket" && result?.success) {
+          createdTicket = {
+            id: result.ticket_id,
+            subject: result.subject,
+            category: result.category,
+          };
+        }
         convo.push({
           role: "tool",
           tool_call_id: tc.id,
@@ -350,7 +408,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ role: "assistant", content: "تعذّر إنهاء المعالجة. يرجى المحاولة مجددًا." });
+    return json({ role: "assistant", content: "تعذّر إنهاء المعالجة. يرجى المحاولة مجددًا.", ticket: createdTicket });
   } catch (e: any) {
     console.error("ai-support fatal:", e);
     return json({ error: e?.message || "Unknown error" }, 500);
