@@ -91,6 +91,8 @@ function SmartCTA({ user, className = "" }: { user: any; className?: string }) {
   );
 }
 
+type FeaturedCard = (typeof fallbackTeachers)[number] & { hidePrice?: boolean };
+
 const Index = () => {
   const { user, profile, roles, loading } = useAuth();
   const { hours, minutes, seconds } = useCountdown(24 * 60 * 60); // 24 hours
@@ -100,7 +102,7 @@ const Index = () => {
     const loadFeatured = async () => {
       const { data: feat } = await supabase
         .from("featured_teachers")
-        .select("teacher_id, badge_label, display_order")
+        .select("teacher_id, badge_label, display_order, image_url, subject_label, price, hide_price, students_count, sessions_count, rating_override")
         .eq("is_active", true)
         .order("display_order");
       if (!feat || feat.length === 0) return; // keep fallback
@@ -125,18 +127,19 @@ const Index = () => {
         if (uid && !subjMap.has(uid) && s.subjects?.name) subjMap.set(uid, s.subjects.name);
       });
 
-      const mapped = feat.map((f: any, i: number) => {
+      const mapped: FeaturedCard[] = feat.map((f: any, i: number) => {
         const p: any = profMap.get(f.teacher_id);
         const tp: any = tpMap.get(f.teacher_id);
         return {
           name: p?.full_name || "مدرس",
-          subject: subjMap.get(f.teacher_id) || "متعدد",
-          rating: Number(tp?.avg_rating ?? 4.8),
-          students: tp?.total_sessions ?? 100,
-          price: Number(tp?.hourly_rate ?? 80),
-          img: p?.avatar_url || fallbackImgs[i % fallbackImgs.length],
+          subject: f.subject_label || subjMap.get(f.teacher_id) || "متعدد",
+          rating: Number(f.rating_override ?? tp?.avg_rating ?? 4.8),
+          students: f.students_count ?? tp?.total_sessions ?? 100,
+          price: Number(f.price ?? tp?.hourly_rate ?? 80),
+          img: f.image_url || p?.avatar_url || fallbackImgs[i % fallbackImgs.length],
           badge: f.badge_label || "مدرس مميز",
-          sessions: tp?.total_sessions ?? 500,
+          sessions: f.sessions_count ?? tp?.total_sessions ?? 500,
+          hidePrice: !!f.hide_price,
         };
       });
       setTeachers(mapped);
