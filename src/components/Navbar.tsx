@@ -63,7 +63,7 @@ const Navbar = () => {
             transition={{ duration: 0.5 }}
             src={logoUrl || brandLogo}
             alt={siteName}
-            className="h-10 w-10 object-contain"
+            className="h-14 w-14 md:h-16 md:w-16 object-contain"
           />
           <div className="flex flex-col leading-none">
             <span className="font-black text-lg text-foreground tracking-tight">{siteName}</span>

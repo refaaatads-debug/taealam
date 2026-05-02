@@ -62,7 +62,7 @@ const Footer = () => {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2.5 mb-4">
-              <img src={logoUrl || brandLogo} alt={siteName} className="h-10 w-10 object-contain" />
+              <img src={logoUrl || brandLogo} alt={siteName} className="h-14 w-14 object-contain" />
               <span className="font-extrabold text-xl">{siteName}</span>
             </div>
             <p className="text-sm opacity-70 leading-relaxed mb-5">{description}</p>
