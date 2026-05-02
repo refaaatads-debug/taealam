@@ -87,17 +87,21 @@ const tools = [
     function: {
       name: "create_support_ticket",
       description:
-        "ينشئ تذكرة دعم بشري عند عدم القدرة على حل المشكلة، أو طلب المستخدم التحدث لموظف، أو وجود مشكلة مالية حساسة.",
+        "ينشئ تذكرة دعم بشري عند: (1) طلب المستخدم صراحةً التحدث لموظف، (2) فشلك في حل المشكلة بعد محاولتين، (3) مشاكل مالية حساسة (استرداد، خطأ في الفوترة)، (4) مشاكل تقنية تستلزم تدخل بشري. اذكر ملخصًا واضحًا للمشكلة في summary لكي يفهم الموظف السياق فورًا.",
       parameters: {
         type: "object",
         properties: {
-          subject: { type: "string", description: "عنوان المشكلة بإيجاز" },
+          subject: { type: "string", description: "عنوان مختصر (≤60 حرف)" },
           category: {
             type: "string",
             enum: ["technical", "payment", "session", "account", "other"],
           },
+          summary: {
+            type: "string",
+            description: "ملخص مفصّل (3-5 أسطر) للمشكلة وما تمت محاولته وما يحتاجه الموظف لحلها.",
+          },
         },
-        required: ["subject", "category"],
+        required: ["subject", "category", "summary"],
         additionalProperties: false,
       },
     },
