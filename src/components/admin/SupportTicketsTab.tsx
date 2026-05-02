@@ -163,7 +163,7 @@ const SupportTicketsTab = () => {
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
           balance: walletRes.data?.balance ?? 0,
-          completed, cancelled, upcoming, lastBooking, totalSpent,
+          completed, cancelled, upcoming, pending, lastBooking, totalSpent,
         });
       }
     } finally {
