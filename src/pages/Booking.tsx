@@ -413,7 +413,21 @@ const Booking = () => {
     }
   };
 
-  const availableSubjects = directTeacherId ? teacherSubjects : subjects;
+  // Merge both lists so preview always resolves the subject name even before
+  // the slow list (teacher-specific or global) finishes loading.
+  const availableSubjects = (() => {
+    const primary = directTeacherId ? teacherSubjects : subjects;
+    const secondary = directTeacherId ? subjects : teacherSubjects;
+    const map = new Map<string, { id: string; name: string }>();
+    [...primary, ...secondary].forEach((s) => { if (s?.id && !map.has(s.id)) map.set(s.id, s); });
+    return Array.from(map.values());
+  })();
+  // Resolve a display name for the selected subject with graceful fallbacks
+  const selectedSubjectName =
+    availableSubjects.find((s) => s.id === selectedSubject)?.name ||
+    (prefilledSubjectParam && (prefilledSubjectParam === selectedSubject || !selectedSubject)
+      ? prefilledSubjectParam
+      : "");
   const noAvailability = directTeacherId && teacherAvailableDays.length === 0 && !teacherAvailableFrom && !teacherAvailableTo;
 
   return (
@@ -461,8 +475,8 @@ const Booking = () => {
                       <BookOpen className="h-3 w-3" /> المادة
                     </div>
                     <p className="font-bold text-sm truncate">
-                      {selectedSubject
-                        ? availableSubjects.find(s => s.id === selectedSubject)?.name || "—"
+                      {selectedSubject || selectedSubjectName
+                        ? selectedSubjectName || "—"
                         : <span className="text-muted-foreground/60 font-normal">لم تُحدد</span>}
                     </p>
                   </div>
@@ -759,7 +773,7 @@ const Booking = () => {
                     )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">المادة</span>
-                      <span className="text-foreground font-bold">{(directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name}</span>
+                      <span className="text-foreground font-bold">{selectedSubjectName || "—"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">عدد الحصص</span>
