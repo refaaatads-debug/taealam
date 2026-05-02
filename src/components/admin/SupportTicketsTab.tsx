@@ -532,15 +532,15 @@ const SupportTicketsTab = () => {
                             </Avatar>
                             <div className="min-w-0 flex-1">
                               <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
-                              <p className="text-xs text-muted-foreground truncate">{peekData.email}</p>
+                              <p className="text-xs text-muted-foreground truncate" dir="ltr">{peekData.phone || "—"}</p>
                             </div>
                           </div>
                         </div>
                         <div className="p-3 space-y-2 text-xs">
-                          {peekData.phone_number && (
+                          {peekData.phone && (
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Phone className="h-3.5 w-3.5" />
-                              <span dir="ltr">{peekData.phone_number}</span>
+                              <span dir="ltr">{peekData.phone}</span>
                             </div>
                           )}
                           <div className="grid grid-cols-2 gap-2 pt-1">
