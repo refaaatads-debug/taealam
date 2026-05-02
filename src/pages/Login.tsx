@@ -66,6 +66,20 @@ const Login = () => {
     }
   }, [user, userRoles, authLoading]);
 
+  // Pick the highest-privileged role among all user_roles rows
+  const pickPrimaryRole = async (userId: string): Promise<string | undefined> => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const list = (data || []).map((r: any) => r.role);
+    if (list.includes("admin")) return "admin";
+    if (list.includes("teacher")) return "teacher";
+    if (list.includes("parent")) return "parent";
+    if (list.includes("student")) return "student";
+    return list[0];
+  };
+
   const redirectByRole = (userRole?: string) => goToDashboard(userRole);
 
   const handleEmailAuth = async () => {
