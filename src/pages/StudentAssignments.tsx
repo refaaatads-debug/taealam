@@ -46,11 +46,11 @@ const StudentAssignments = () => {
     // تحقق من وجود اشتراك نشط (بدون خصم من الرصيد - فقط للتفعيل)
     const { data: sub } = await supabase
       .from("user_subscriptions")
-      .select("id, is_active, remaining_minutes, end_date")
+      .select("id, is_active, remaining_minutes, ends_at")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .gt("remaining_minutes", 0)
-      .gte("end_date", new Date().toISOString())
+      .gte("ends_at", new Date().toISOString())
       .limit(1)
       .maybeSingle();
     setHasActiveSubscription(!!sub);
