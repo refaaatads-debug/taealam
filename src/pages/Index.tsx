@@ -441,9 +441,11 @@ const Index = () => {
                         <span>•</span>
                         <span className="flex items-center gap-0.5"><Video className="h-3 w-3" />{t.sessions} حصة</span>
                       </div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm md:text-lg font-black text-primary">{t.price} <span className="text-[10px] md:text-xs font-normal text-muted-foreground">ر.س/ساعة</span></span>
-                      </div>
+                      {!(t as any).hidePrice && (
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm md:text-lg font-black text-primary">{t.price} <span className="text-[10px] md:text-xs font-normal text-muted-foreground">ر.س/ساعة</span></span>
+                        </div>
+                      )}
                       <Button className="w-full gradient-cta shadow-button text-secondary-foreground rounded-xl text-xs md:text-sm h-10 md:h-11 font-bold group-hover:shadow-glow transition-all gap-1.5 group-hover:gap-2.5">
                         <CalendarCheck className="h-4 w-4" />
                         احجز الآن
