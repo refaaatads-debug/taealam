@@ -652,7 +652,7 @@ const SupportTicketsTab = () => {
                       </span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-80 p-0 overflow-hidden" dir="rtl">
+                  <PopoverContent align="start" className="w-96 p-0 overflow-hidden" dir="rtl">
                     {peekLoading || !peekData ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -674,21 +674,22 @@ const SupportTicketsTab = () => {
                                 </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground truncate" dir="ltr">{peekData.phone || "—"}</p>
+                              {peekData.created_at && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  انضم في {new Date(peekData.created_at).toLocaleDateString("ar-EG")}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div className="p-3 space-y-2 text-xs">
-                          {peekData.phone && (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Phone className="h-3.5 w-3.5" />
-                              <span dir="ltr">{peekData.phone}</span>
-                            </div>
-                          )}
                           {peekData.role === "teacher" ? (
-                            <div className="grid grid-cols-2 gap-2 pt-1">
-                              <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">حالة الاعتماد</div>
-                                <div className="font-bold truncate">{peekData.isApproved ? "معتمد" : "بانتظار"}</div>
+                            <div className="grid grid-cols-3 gap-2 pt-1">
+                              <div className="rounded-lg border p-2 col-span-3 flex items-center justify-between bg-muted/30">
+                                <span className="text-muted-foreground text-[10px]">حالة الاعتماد</span>
+                                <Badge variant={peekData.isApproved ? "default" : "secondary"} className="text-[10px] h-4">
+                                  {peekData.isApproved ? "✓ معتمد" : "بانتظار الاعتماد"}
+                                </Badge>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px]">السعر/ساعة</div>
@@ -696,39 +697,95 @@ const SupportTicketsTab = () => {
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px]">التقييم</div>
-                                <div className="font-bold">{Number(peekData.avgRating).toFixed(1)} ({peekData.totalReviews})</div>
+                                <div className="font-bold">⭐ {Number(peekData.avgRating).toFixed(1)}</div>
+                                <div className="text-[9px] text-muted-foreground">{peekData.totalReviews} مراجعة</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">الحصص</div>
+                                <div className="text-muted-foreground text-[10px]">إجمالي الحصص</div>
                                 <div className="font-bold">{peekData.totalSessions}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">مكتملة</div>
+                                <div className="font-bold text-emerald-600">{peekData.completed}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">قادمة</div>
+                                <div className="font-bold text-blue-600">{peekData.upcoming}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">ملغاة</div>
+                                <div className="font-bold text-rose-600">{peekData.cancelled}</div>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
                                 <div className="font-bold">{Number(peekData.tpBalance).toFixed(2)}</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">التذاكر</div>
-                                <div className="font-bold">{peekData.openTickets} / {peekData.totalTickets}</div>
+                                <div className="text-muted-foreground text-[10px]">مدفوع</div>
+                                <div className="font-bold">{Number(peekData.paidTotal).toFixed(0)}</div>
                               </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                                <div className="font-bold">{peekData.openTickets}/{peekData.totalTickets}</div>
+                              </div>
+                              {peekData.lastBooking && (
+                                <div className="rounded-lg border p-2 col-span-3 bg-muted/20">
+                                  <div className="text-muted-foreground text-[10px]">آخر حصة</div>
+                                  <div className="font-medium text-[11px]">{new Date(peekData.lastBooking).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })}</div>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className="grid grid-cols-2 gap-2 pt-1">
-                              <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">الباقة الحالية</div>
-                                <div className="font-bold truncate">{peekData.activePlan}</div>
+                            <div className="grid grid-cols-3 gap-2 pt-1">
+                              <div className="rounded-lg border p-2 col-span-3 bg-muted/30">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground text-[10px]">الباقة الحالية</span>
+                                  <span className="font-bold text-[11px] truncate max-w-[55%]">{peekData.activePlan}</span>
+                                </div>
+                                {peekData.planExpiry && (
+                                  <div className="text-[9px] text-muted-foreground mt-0.5">
+                                    تنتهي: {new Date(peekData.planExpiry).toLocaleDateString("ar-EG")}
+                                  </div>
+                                )}
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">الدقائق المتبقية</div>
-                                <div className="font-bold">{peekData.totalMins}</div>
+                                <div className="text-muted-foreground text-[10px]">الدقائق</div>
+                                <div className="font-bold text-primary">{peekData.totalMins}</div>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
                                 <div className="font-bold">{Number(peekData.balance).toFixed(2)}</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                                <div className="text-muted-foreground text-[10px]">منفق</div>
+                                <div className="font-bold">{Number(peekData.totalSpent).toFixed(0)}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">مكتملة</div>
+                                <div className="font-bold text-emerald-600">{peekData.completed}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">قادمة</div>
+                                <div className="font-bold text-blue-600">{peekData.upcoming}</div>
+                              </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">ملغاة</div>
+                                <div className="font-bold text-rose-600">{peekData.cancelled}</div>
+                              </div>
+                              <div className="rounded-lg border p-2 col-span-2">
+                                <div className="text-muted-foreground text-[10px]">التذاكر (مفتوحة/الكل)</div>
                                 <div className="font-bold">{peekData.openTickets} / {peekData.totalTickets}</div>
                               </div>
+                              <div className="rounded-lg border p-2">
+                                <div className="text-muted-foreground text-[10px]">الهاتف</div>
+                                <div className="font-bold text-[10px] truncate" dir="ltr">{peekData.phone || "—"}</div>
+                              </div>
+                              {peekData.lastBooking && (
+                                <div className="rounded-lg border p-2 col-span-3 bg-muted/20">
+                                  <div className="text-muted-foreground text-[10px]">آخر حصة</div>
+                                  <div className="font-medium text-[11px]">{new Date(peekData.lastBooking).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })}</div>
+                                </div>
+                              )}
                             </div>
                           )}
                           <Button
