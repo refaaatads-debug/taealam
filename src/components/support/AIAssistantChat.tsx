@@ -257,6 +257,18 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
                   minute: "2-digit",
                 })}
               </p>
+              {m.ticketId && (
+                <div className="mt-2 pt-2 border-t border-border/30">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => onTicketCreated?.(m.ticketId!)}
+                    className="w-full rounded-xl gap-1.5 text-xs h-8"
+                  >
+                    <Headphones className="h-3 w-3" /> فتح تذكرة الدعم
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ))}
