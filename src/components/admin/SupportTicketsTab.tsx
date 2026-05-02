@@ -144,9 +144,12 @@ const SupportTicketsTab = () => {
         const activePlan = activeSub?.subscription_plans?.name_ar || "—";
         const planExpiry = activeSub?.ends_at || null;
         const bookings = (bookingsRes.data || []) as any[];
+        const now = new Date();
+        // مطابقة دقيقة لحالات قاعدة البيانات
         const completed = bookings.filter(b => b.status === "completed").length;
         const cancelled = bookings.filter(b => b.status === "cancelled").length;
-        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        const upcoming = bookings.filter(b => b.status === "confirmed" && new Date(b.scheduled_at) > now).length;
+        const pending = bookings.filter(b => b.status === "pending").length;
         const lastBooking = bookings[0]?.scheduled_at || null;
         const payments = (paymentsRes.data || []) as any[];
         const totalSpent = payments.filter(p => p.status === "completed" || p.status === "paid" || p.status === "succeeded").reduce((s, p) => s + Number(p.amount || 0), 0);
