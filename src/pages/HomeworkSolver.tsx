@@ -28,6 +28,7 @@ const HomeworkSolver = () => {
   const [extraQuestion, setExtraQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [solution, setSolution] = useState<Solution | null>(null);
+  const [tierBlocked, setTierBlocked] = useState<{ msg: string; code: string } | null>(null);
 
   const handleFile = async (file: File) => {
     if (file.size > 8 * 1024 * 1024) {
@@ -46,10 +47,18 @@ const HomeworkSolver = () => {
     if (!imageBase64) { toast.error("الرجاء رفع صورة الواجب أولاً"); return; }
     setLoading(true);
     setSolution(null);
+    setTierBlocked(null);
     try {
       const { data, error } = await supabase.functions.invoke("solve-homework", {
         body: { imageBase64, extraQuestion },
       });
+      // Tier/subscription block (403 from edge function)
+      const reasonCode = (data as any)?.reason_code;
+      if (reasonCode && (data as any)?.error) {
+        setTierBlocked({ msg: (data as any).error, code: reasonCode });
+        toast.error((data as any).error);
+        return;
+      }
       if (error) throw error;
       if (data?.error && !data?.final_answer) {
         toast.error(data.error);
@@ -84,7 +93,19 @@ const HomeworkSolver = () => {
           </div>
           <h1 className="text-2xl md:text-3xl font-black">مساعد الواجبات البصري</h1>
           <p className="text-sm text-muted-foreground mt-1">صوّر واجبك (حتى بخط اليد) واحصل على الحل خطوة بخطوة</p>
+          <p className="text-xs text-primary font-bold mt-2">✨ متاح للباقات المتقدمة والاحترافية فقط</p>
         </div>
+
+        {tierBlocked && (
+          <Card className="mb-4 border-destructive/40 bg-destructive/5">
+            <CardContent className="p-4 text-center space-y-3">
+              <p className="text-sm font-bold text-destructive">{tierBlocked.msg}</p>
+              <Button onClick={() => navigate("/pricing")} size="sm" className="rounded-full">
+                عرض الباقات
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Image upload */}
         {!imageBase64 ? (
