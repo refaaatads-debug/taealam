@@ -329,8 +329,8 @@ const SupportTicketsTab = () => {
 
     // 2) Post a system-style admin note in the conversation (visible to admins + user)
     const noteText = transferNote.trim()
-      ? `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.\n📝 ملاحظة: ${transferNote.trim()}`
-      : `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.`;
+      ? `🔄 سجل التحويل: تم تحويل المحادثة من «${fromName}» إلى «${toName}» بتاريخ ${new Date().toLocaleString("ar-EG")}.\n📝 ملاحظة: ${transferNote.trim()}`
+      : `🔄 سجل التحويل: تم تحويل المحادثة من «${fromName}» إلى «${toName}» بتاريخ ${new Date().toLocaleString("ar-EG")}.`;
     await supabase.from("support_messages").insert({
       ticket_id: selectedTicket, sender_id: transferTarget.user_id, content: noteText, is_admin: true,
     });
@@ -343,6 +343,18 @@ const SupportTicketsTab = () => {
       type: "support_reply",
       link: `/admin?tab=support&ticket=${selectedTicket}`,
     } as any);
+
+    // 3b) Notify the end user (student/teacher) that their ticket was transferred
+    const ticketRow = tickets.find(t => t.id === selectedTicket);
+    if (ticketRow) {
+      await supabase.from("notifications").insert({
+        user_id: ticketRow.user_id,
+        title: "🔄 تم تحويل محادثتك",
+        body: `تم تحويل محادثتك من ${fromName} إلى ${toName}، وسيتابع ${toName} طلبك.`,
+        type: "support_reply",
+        link: `/support?ticket=${selectedTicket}`,
+      } as any);
+    }
 
     // 4) Audit log
     await supabase.rpc("log_admin_action", {
