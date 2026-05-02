@@ -20,6 +20,7 @@ const Booking = lazy(() => import("./pages/Booking"));
 const LiveSession = lazy(() => import("./pages/LiveSession"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Rating = lazy(() => import("./pages/Rating"));
+const Install = lazy(() => import("./pages/Install"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
