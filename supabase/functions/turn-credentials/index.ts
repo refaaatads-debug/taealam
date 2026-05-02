@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
     // coturn use-auth-secret: username = "<unix-expiry>:<user-id>"
     const expiry = Math.floor(Date.now() / 1000) + TTL;
-    const username = `${expiry}:${userData.user.id}`;
+    const username = `${expiry}:${userId}`;
     const credential = await hmacSha1Base64(TURN_SECRET, username);
 
     const iceServers = [
