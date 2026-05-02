@@ -302,7 +302,7 @@ const Chat = () => {
           </a>
           <button
             type="button"
-            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", true)}
+            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", "download")}
             className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Download className="h-3 w-3" /> تحميل الصورة
           </button>
@@ -318,12 +318,12 @@ const Chat = () => {
             <span className="text-xs truncate flex-1">{msg.file_name || "ملف PDF"}</span>
             <button
               type="button"
-              onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name, "preview")}
               className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
             >فتح</button>
             <button
               type="button"
-              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", true)}
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", "download")}
               className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
               aria-label="تحميل"
             >
@@ -340,12 +340,12 @@ const Chat = () => {
         <span className="text-xs truncate flex-1">{msg.file_name || "ملف"}</span>
         <button
           type="button"
-          onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name, "preview")}
           className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
         >فتح</button>
         <button
           type="button"
-          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", true)}
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", "download")}
           className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
           aria-label="تحميل"
         >
