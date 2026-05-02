@@ -204,18 +204,40 @@ const TeacherAssignments = () => {
     setSaving(false);
     if (error) { toast.error("خطأ: " + error.message); return; }
 
-    // إرسال إشعار للطالب/الطلاب
+    // إرسال إشعار + رسالة محادثة تلقائية
     try {
-      const assignmentId = (created as any)?.id;
       const link = `/student/assignments`;
+      const chatLink = (a_studentId: string, a_link: string) => `[[ASSIGNMENT:${a_link}]]\n📝 واجب جديد: ${title}${description ? "\n" + description : ""}\n${(questions || []).length} أسئلة • ${total} درجة${dueDate ? " • حتى " + new Date(dueDate).toLocaleDateString("ar") : ""}`;
+
+      const sendChatToStudent = async (sId: string) => {
+        // ابحث عن أي حجز بين المعلم والطالب لربط الرسالة
+        const { data: bk } = await supabase.from("bookings")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .eq("student_id", sId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (bk?.id) {
+          await supabase.from("chat_messages").insert({
+            booking_id: bk.id,
+            sender_id: user.id,
+            content: chatLink(sId, link),
+          });
+        }
+      };
+
       if (studentId) {
-        await supabase.from("notifications").insert({
-          user_id: studentId,
-          title: "📝 واجب جديد",
-          body: `تم إسناد واجب: ${title}`,
-          type: "assignment",
-          link,
-        });
+        await Promise.all([
+          supabase.from("notifications").insert({
+            user_id: studentId,
+            title: "📝 واجب جديد",
+            body: `تم إسناد واجب: ${title}`,
+            type: "assignment",
+            link,
+          }),
+          sendChatToStudent(studentId),
+        ]);
       } else {
         // واجب عام: أرسل لجميع الطلاب الذين لديهم حصص فعلية مع المعلم
         const { data: bks } = await supabase.from("bookings")
@@ -236,9 +258,12 @@ const TeacherAssignments = () => {
           ids = ids.filter(id => activeIds.has(id));
         }
         if (ids.length > 0) {
-          await supabase.from("notifications").insert(
-            ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
-          );
+          await Promise.all([
+            supabase.from("notifications").insert(
+              ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
+            ),
+            ...ids.map(uid => sendChatToStudent(uid)),
+          ]);
         }
       }
     } catch (e) { console.warn("notif failed", e); }
