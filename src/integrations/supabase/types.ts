@@ -687,8 +687,15 @@ export type Database = {
           badge_label: string | null
           created_at: string
           display_order: number
+          hide_price: boolean
           id: string
+          image_url: string | null
           is_active: boolean
+          price: number | null
+          rating_override: number | null
+          sessions_count: number | null
+          students_count: number | null
+          subject_label: string | null
           teacher_id: string
           updated_at: string
         }
@@ -696,8 +703,15 @@ export type Database = {
           badge_label?: string | null
           created_at?: string
           display_order?: number
+          hide_price?: boolean
           id?: string
+          image_url?: string | null
           is_active?: boolean
+          price?: number | null
+          rating_override?: number | null
+          sessions_count?: number | null
+          students_count?: number | null
+          subject_label?: string | null
           teacher_id: string
           updated_at?: string
         }
@@ -705,8 +719,15 @@ export type Database = {
           badge_label?: string | null
           created_at?: string
           display_order?: number
+          hide_price?: boolean
           id?: string
+          image_url?: string | null
           is_active?: boolean
+          price?: number | null
+          rating_override?: number | null
+          sessions_count?: number | null
+          students_count?: number | null
+          subject_label?: string | null
           teacher_id?: string
           updated_at?: string
         }
