@@ -127,7 +127,7 @@ const SupportTicketsTab = () => {
           balance: walletRes.data?.balance ?? 0,
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
-          completed, cancelled, upcoming, paidTotal, lastBooking,
+          completed, cancelled, upcoming, pending, paidTotal, lastBooking,
         });
       } else {
         const [subsRes, walletRes, bookingsRes, paymentsRes] = await Promise.all([
