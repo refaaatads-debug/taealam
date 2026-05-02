@@ -144,6 +144,43 @@ const TeacherAssignments = () => {
     toast.success("تم إضافة السؤال");
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !user) return;
+    setUploadingFile(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name}: الحجم يتجاوز 10MB`);
+          continue;
+        }
+        const allowed = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"];
+        if (!allowed.includes(file.type)) {
+          toast.error(`${file.name}: نوع غير مدعوم (PDF/JPG/PNG فقط)`);
+          continue;
+        }
+        const ext = file.name.split(".").pop();
+        const path = `${user.id}/assignments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
+        if (upErr) { toast.error(upErr.message); continue; }
+        const { data: signed } = await supabase.storage.from("assignment-files").createSignedUrl(path, 60 * 60 * 24 * 365);
+        setAttachments(prev => [...prev, {
+          name: file.name,
+          url: signed?.signedUrl || path,
+          type: file.type,
+        }]);
+      }
+      toast.success("تم رفع المرفقات");
+    } finally {
+      setUploadingFile(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const saveAssignment = async () => {
     if (!user || !title.trim()) { toast.error("العنوان مطلوب"); return; }
     setSaving(true);
@@ -155,6 +192,7 @@ const TeacherAssignments = () => {
       subject_id: subjectId || null,
       teaching_stage: stage || null,
       questions: questions as any,
+      attachments: attachments as any,
       total_points: total,
       due_date: dueDate || null,
     });
@@ -162,7 +200,7 @@ const TeacherAssignments = () => {
     if (error) { toast.error("خطأ: " + error.message); return; }
     toast.success("تم إنشاء الواجب");
     setOpen(false);
-    setTitle(""); setDescription(""); setStudentId(""); setSubjectId(""); setStage(""); setDueDate(""); setQuestions([]);
+    setTitle(""); setDescription(""); setStudentId(""); setSubjectId(""); setStage(""); setDueDate(""); setQuestions([]); setAttachments([]);
     fetchAll();
   };
 
