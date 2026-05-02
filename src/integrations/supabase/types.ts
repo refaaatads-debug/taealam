@@ -264,6 +264,7 @@ export type Database = {
           allow_audio: boolean | null
           allow_image: boolean | null
           allow_text: boolean | null
+          attachments: Json
           booking_id: string | null
           created_at: string
           description: string | null
@@ -283,6 +284,7 @@ export type Database = {
           allow_audio?: boolean | null
           allow_image?: boolean | null
           allow_text?: boolean | null
+          attachments?: Json
           booking_id?: string | null
           created_at?: string
           description?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           allow_audio?: boolean | null
           allow_image?: boolean | null
           allow_text?: boolean | null
+          attachments?: Json
           booking_id?: string | null
           created_at?: string
           description?: string | null
