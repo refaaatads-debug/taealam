@@ -8,18 +8,29 @@ import { supabase } from "@/integrations/supabase/client";
 const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
   const [studentName, setStudentName] = useState<string>("");
+  const [hasPremium, setHasPremium] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
+      if (!user) { setHasPremium(false); return; }
+      const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("id", user.id)
         .maybeSingle();
-      const name = (data?.full_name || user.user_metadata?.full_name || "").toString().trim();
+      const name = (profile?.full_name || user.user_metadata?.full_name || "").toString().trim();
       if (name) setStudentName(name);
+
+      const { data: subs } = await supabase
+        .from("user_subscriptions")
+        .select("ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("remaining_minutes", 0)
+        .gt("ends_at", new Date().toISOString());
+      const ok = (subs || []).some((s: any) => s.subscription_plans?.tier === "premium");
+      setHasPremium(ok);
     })();
   }, []);
 
