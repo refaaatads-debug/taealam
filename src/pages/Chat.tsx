@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const isImageType = (t?: string | null) => !!t && t.startsWith("image/");
 const isPdfType = (t?: string | null, n?: string | null) =>
