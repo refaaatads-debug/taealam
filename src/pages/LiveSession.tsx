@@ -1222,6 +1222,14 @@ const LiveSession = () => {
 
     // 1) Notify peer immediately so their side starts closing in parallel
     try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
+    // Also broadcast via Supabase Realtime in case DataChannel isn't connected
+    try {
+      sessionStatusChannelRef.current?.send({
+        type: "broadcast",
+        event: "session-end",
+        payload: { elapsed, by: user?.id },
+      });
+    } catch {}
 
     // 2) Show success toast right away — UX feels instant
     toast.success("تم إنهاء الحصة ✅");
