@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,14 +28,15 @@ serve(async (req) => {
       const userClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
-      const { data: { user } } = await userClient.auth.getUser();
-      if (!user) {
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      const userId = claimsData?.claims?.sub;
+      if (claimsError || !userId) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const { data: roleRow } = await userClient
-        .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+        .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
       if (!roleRow) {
         return new Response(JSON.stringify({ error: "Forbidden" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
