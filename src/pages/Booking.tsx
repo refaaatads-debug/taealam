@@ -425,13 +425,15 @@ const Booking = () => {
     }
   };
 
-  // Merge both lists so preview always resolves the subject name even before
-  // the slow list (teacher-specific or global) finishes loading.
+  // For a specific teacher: show ONLY subjects they teach (from their profile).
+  // For broadcast mode: show all subjects.
+  // Fallback to the global list only if the teacher subjects haven't loaded yet.
   const availableSubjects = (() => {
-    const primary = directTeacherId ? teacherSubjects : subjects;
-    const secondary = directTeacherId ? subjects : teacherSubjects;
+    if (directTeacherId) {
+      return teacherSubjects.length > 0 ? teacherSubjects : [];
+    }
     const map = new Map<string, { id: string; name: string }>();
-    [...primary, ...secondary].forEach((s) => { if (s?.id && !map.has(s.id)) map.set(s.id, s); });
+    [...subjects, ...teacherSubjects].forEach((s) => { if (s?.id && !map.has(s.id)) map.set(s.id, s); });
     return Array.from(map.values());
   })();
   // Resolve a display name for the selected subject with graceful fallbacks
