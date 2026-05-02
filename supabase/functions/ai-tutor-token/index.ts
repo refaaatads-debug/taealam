@@ -31,6 +31,27 @@ serve(async (req) => {
       });
     }
 
+    // Check premium subscription (tier = 'premium', active, with remaining minutes)
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("remaining_minutes", 0)
+      .gt("ends_at", new Date().toISOString());
+
+    const hasPremium = (subs || []).some(
+      (s: any) => s.subscription_plans?.tier === "premium"
+    );
+
+    if (!hasPremium) {
+      return new Response(JSON.stringify({
+        error: "المحادثة الصوتية الحية متاحة فقط لمشتركي الباقة الاحترافية مع رصيد دقائق متبقي."
+      }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Read agent_id from site_settings
     const { data: setting } = await supabase
       .from("site_settings")
