@@ -202,6 +202,16 @@ export default function WhiteboardCanvas({
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
 
+  // Re-render canvas when whiteBg toggles so the background paints immediately
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    redrawAll(ctx, rect.width, rect.height);
+  }, [whiteBg, redrawAll]);
+
   // Denormalize action from virtual canvas to local coordinates
   const denormalizeAction = useCallback((action: DrawAction): DrawAction => {
     const container = containerRef.current;
