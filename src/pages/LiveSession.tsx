@@ -23,6 +23,7 @@ import CallStudentButton from "@/components/teacher/CallStudentButton";
 import ScreenShareToolbar from "@/components/teacher/ScreenShareToolbar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
+import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -146,6 +147,15 @@ const LiveSession = () => {
     return () => window.removeEventListener("open-session-chat", handleOpenChat);
   }, []);
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
+
+  // Block teachers from starting/joining session on phone devices
+  const isPhone = useIsPhoneDevice();
+  useEffect(() => {
+    if (isPhone && isTeacher && bookingData) {
+      toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب.");
+      navigate("/teacher", { replace: true });
+    }
+  }, [isPhone, isTeacher, bookingData, navigate]);
 
   const pushDebugEvent = useCallback((label: string, value: string) => {
     const time = new Date().toLocaleTimeString("ar-SA", {

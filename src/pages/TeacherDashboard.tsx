@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
@@ -33,6 +34,7 @@ const TeacherDashboard = () => {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
   const unreadCounts = useUnreadMessages(scheduleIds);
+  const isPhone = useIsPhoneDevice();
 
   useEffect(() => {
     if (!user) return;
@@ -303,9 +305,21 @@ const TeacherDashboard = () => {
                           <Play className="h-4 w-4" />
                           <span className="text-xs font-medium">أرسل طلب</span>
                         </Button>
-                        <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                          <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
-                        </Button>
+                        {isPhone ? (
+                          <Button
+                            size="sm"
+                            className="gradient-cta text-secondary-foreground rounded-xl shadow-button opacity-60"
+                            onClick={() =>
+                              toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب لبدء الجلسة.")
+                            }
+                          >
+                            ابدأ الحصة
+                          </Button>
+                        ) : (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                            <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
