@@ -63,7 +63,7 @@ const Booking = () => {
   const [loading, setLoading] = useState(false);
   const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
   const [reservedMinutes, setReservedMinutes] = useState(0);
-  const SESSION_MINUTES = 60;
+  const SESSION_MINUTES = 45;
   const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
   const canBook = remainingMinutes >= SESSION_MINUTES;
@@ -343,7 +343,7 @@ const Booking = () => {
         student_id: user.id,
         subject_id: selectedSubject,
         scheduled_at: sd.scheduled.toISOString(),
-        duration_minutes: 60,
+        duration_minutes: SESSION_MINUTES,
         status: "open",
         expires_at: expiresAt,
         group_id: groupId,
