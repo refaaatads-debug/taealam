@@ -311,6 +311,7 @@ const LiveSession = () => {
     },
     onRemoteJoin: () => {
       setRemoteConnected(true);
+      try { playJoinSound(); } catch {}
       if (meetingStarted) {
         setBothJoined(true);
         toast.success("انضم المشارك الآخر! بدأ العداد 🎉");
@@ -320,6 +321,7 @@ const LiveSession = () => {
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
+      try { playLeaveSound(); } catch {}
       toast.info("غادر المشارك الآخر الجلسة");
     },
     onConnectionState: (state) => {
