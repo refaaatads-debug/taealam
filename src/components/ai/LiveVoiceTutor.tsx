@@ -114,8 +114,19 @@ const VoiceTutorInner = () => {
           : "تحدث مع المعلم الذكي بصوتك مباشرة"}
       </p>
 
+      {hasPremium === false && !isActive && (
+        <div className="mb-4 p-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground max-w-md mx-auto">
+          🔒 المحادثة الصوتية الحية متاحة فقط لمشتركي <strong className="text-foreground">الباقة الاحترافية</strong> مع رصيد دقائق متبقي.
+          <div className="mt-3">
+            <Button size="sm" variant="default" onClick={() => window.location.href = "/pricing"} className="rounded-full">
+              ترقية الباقة
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!isActive ? (
-        <Button onClick={start} disabled={connecting} size="lg" className="gap-2 rounded-full px-8">
+        <Button onClick={start} disabled={connecting || hasPremium !== true} size="lg" className="gap-2 rounded-full px-8">
           {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
           {connecting ? "جاري الاتصال..." : "ابدأ المحادثة"}
         </Button>
