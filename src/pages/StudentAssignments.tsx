@@ -157,9 +157,9 @@ const StudentAssignments = () => {
       // Notify teacher
       await supabase.from("notifications").insert({
         user_id: openSubmit.teacher_id,
-        title: "حل واجب جديد",
+        title: "📥 حل واجب جديد",
         body: `تم تسليم حل لواجب "${openSubmit.title}"`,
-        type: "assignment",
+        type: "submission",
         link: "/teacher/assignments",
       });
 
