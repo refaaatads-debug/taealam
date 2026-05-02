@@ -71,23 +71,28 @@ const TeacherAssignments = () => {
       { data: subs },
       { data: qb },
       { data: subj },
-      { data: allStudents },
+      { data: realBookings },
     ] = await Promise.all([
       supabase.from("assignments" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("assignment_submissions" as any).select("*, assignment:assignments(title), profiles:profiles!assignment_submissions_student_id_fkey(full_name)").order("submitted_at", { ascending: false }),
       supabase.from("question_bank" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("subjects").select("*"),
-      // كل الطلاب المسجلين في المنصة (عبر دالة آمنة)
-      supabase.rpc("list_all_students" as any),
+      // فقط الطلاب الذين تمت معهم حصص فعلية (مؤكدة أو منتهية)
+      supabase.from("bookings").select("student_id, status").eq("teacher_id", user.id).in("status", ["confirmed", "completed"]),
     ]);
     setAssignments((a as any[]) || []);
     setSubmissions((subs as any[]) || []);
     setBank((qb as any[]) || []);
     setSubjects(subj || []);
 
-    const list = ((allStudents as any[]) || [])
-      .map((s: any) => ({ id: s.user_id, name: s.full_name || "طالب" }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+    const studentIds = Array.from(new Set(((realBookings as any[]) || []).map(b => b.student_id).filter(Boolean)));
+    let list: { id: string; name: string }[] = [];
+    if (studentIds.length > 0) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
+      list = (profs || [])
+        .map((p: any) => ({ id: p.user_id, name: p.full_name || "طالب" }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+    }
     setStudents(list);
     setLoading(false);
   };
