@@ -104,12 +104,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Single-session enforcement: generate a unique token per browser tab
+  // Single-session enforcement: stable token per browser/device (localStorage)
   const getSessionToken = () => {
-    let token = sessionStorage.getItem("session_token");
+    let token = localStorage.getItem("session_token");
     if (!token) {
-      token = crypto.randomUUID();
-      sessionStorage.setItem("session_token", token);
+      // Migrate from sessionStorage if exists
+      const old = sessionStorage.getItem("session_token");
+      token = old || crypto.randomUUID();
+      localStorage.setItem("session_token", token);
     }
     return token;
   };
@@ -140,6 +142,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const ageMs = Date.now() - lastSeen;
     if (ageMs > 120000) {
       // Stale — silently take over
+      await claimActiveSession(userId);
+      return true;
+    }
+    // Cooldown after a manual take-over (avoid loop with realtime echo)
+    const takeoverAt = (window as any).__sessionTakeoverAt || 0;
+    if (Date.now() - takeoverAt < 15000) {
       await claimActiveSession(userId);
       return true;
     }
