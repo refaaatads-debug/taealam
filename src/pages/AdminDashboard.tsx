@@ -29,6 +29,7 @@ import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
+import StudentProfilesTab from "@/components/admin/StudentProfilesTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
@@ -349,6 +350,7 @@ const AdminDashboard = () => {
   const TAB_PERMISSIONS: Record<string, string> = {
     overview: "view_overview",
     users: "manage_users",
+    student_profiles: "manage_users",
     teachers: "manage_teachers",
     teacher_performance: "view_teacher_performance",
     bookings: "manage_bookings",
@@ -386,6 +388,7 @@ const AdminDashboard = () => {
     switch (activeTab) {
       case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} />;
       case "users": return <UserManagementTab />;
+      case "student_profiles": return <StudentProfilesTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
       case "sessions_status": return <SessionsStatusTab />;

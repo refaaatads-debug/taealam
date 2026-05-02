@@ -17,7 +17,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star,
+  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,6 +67,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "إدارة المستخدمين",
       items: [
         { id: "users", title: "المستخدمين", icon: Users, permission: "manage_users" },
+        { id: "student_profiles", title: "ملفات الطلاب", icon: FolderOpen, permission: "manage_users" },
         { id: "teachers", title: "طلبات المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_teachers" },
         { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
         { id: "featured_teachers", title: "المدرسون المميزون", icon: Star, permission: "manage_content" },
