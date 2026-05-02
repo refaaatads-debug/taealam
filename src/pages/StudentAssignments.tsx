@@ -52,14 +52,21 @@ const StudentAssignments = () => {
     setAssignments((a as any[]) || []);
     setLoading(false);
 
-    // الحلول لاحقاً في الخلفية
+    // الحلول لاحقاً في الخلفية - مع التفاصيل الكاملة
     const { data: subs } = await supabase
       .from("assignment_submissions" as any)
-      .select("id, assignment_id, status, ai_score, teacher_score, final_score, submitted_at")
+      .select("id, assignment_id, status, ai_score, ai_feedback, ai_breakdown, teacher_score, teacher_feedback, final_score, submitted_at, reviewed_at")
       .eq("student_id", user.id)
       .order("submitted_at", { ascending: false })
       .limit(200);
-    setSubmissions((subs as any[]) || []);
+    const subsList = (subs as any[]) || [];
+    // اربط بيانات الواجب
+    const titleMap: Record<string, any> = {};
+    ((a as any[]) || []).forEach((x: any) => { titleMap[x.id] = x; });
+    setSubmissions(subsList.map((s: any) => ({
+      ...s,
+      assignment: titleMap[s.assignment_id] || null,
+    })));
   };
 
   const submittedIds = new Set(submissions.map(s => s.assignment_id));
