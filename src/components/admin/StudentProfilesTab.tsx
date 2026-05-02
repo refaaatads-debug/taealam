@@ -224,7 +224,7 @@ const StudentProfilesTab = () => {
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground truncate mt-0.5">
-                      {r.email} {r.phone_number ? `• ${r.phone_number}` : ""}
+                      {r.phone || "—"}
                     </div>
                   </div>
                   <div className="hidden md:flex flex-col items-end text-xs text-muted-foreground shrink-0">
