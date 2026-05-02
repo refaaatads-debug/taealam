@@ -256,6 +256,8 @@ const LiveSession = () => {
     getRecordingBlob,
     restartConnection,
     sendDataMessage,
+    setVideoQuality,
+    pcRef,
   } = useWebRTC({
     bookingId: bookingId || "",
     userId: user?.id || "",
