@@ -1,22 +1,36 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Send, Loader2, Sparkles, RefreshCw, Headphones } from "lucide-react";
+import {
+  Send, Loader2, Sparkles, RefreshCw, Headphones,
+  Paperclip, X, FileText, Image as ImageIcon, Mic, Square,
+} from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
+
+interface Attachment {
+  url: string;
+  name: string;
+  type: string;
+  textContent?: string; // extracted text for AI context
+}
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   ts: number;
   ticketId?: string;
+  attachment?: Attachment;
+  /** while streaming the typing simulation */
+  streaming?: boolean;
 }
 
 const STORAGE_KEY = "ai_support_chat_v1";
 const MAX_HISTORY = 20;
+const TYPING_CHARS_PER_TICK = 3;
+const TYPING_INTERVAL_MS = 18;
 
 const QUICK_REPLIES_STUDENT = [
   "كم الدقائق المتبقية في باقتي؟",
@@ -43,9 +57,17 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
 
-  // Load persisted history (per-user)
+  // Load persisted history
   useEffect(() => {
     if (!user) return;
     try {
@@ -54,9 +76,10 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
     } catch {}
   }, [user]);
 
-  // Persist
+  // Persist (skip while a message is mid-stream so we don't save partial text)
   useEffect(() => {
     if (!user) return;
+    if (messages.some((m) => m.streaming)) return;
     try {
       localStorage.setItem(
         `${STORAGE_KEY}:${user.id}`,
@@ -69,49 +92,195 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || loading || !user) return;
+  // Auto-resize textarea
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+  }, [input]);
 
-    const userMsg: ChatMessage = { role: "user", content: text.trim(), ts: Date.now() };
+  // ─── File handling ───────────────────────────────────────────────────
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("الحد الأقصى 8 ميجابايت");
+      return;
+    }
+    setPendingFile(file);
+  };
+
+  const uploadAttachment = async (file: File): Promise<Attachment | null> => {
+    if (!user) return null;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `ai-support/${user.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("support-files")
+        .upload(path, file, { contentType: file.type || "application/octet-stream" });
+      if (error) throw error;
+      const { data } = supabase.storage.from("support-files").getPublicUrl(path);
+
+      // Try to extract text content for AI context (text/markdown/json/csv only)
+      let textContent: string | undefined;
+      if (
+        file.type.startsWith("text/") ||
+        file.type === "application/json" ||
+        file.name.match(/\.(md|txt|csv|log|json)$/i)
+      ) {
+        try {
+          const raw = await file.text();
+          textContent = raw.slice(0, 12000);
+        } catch {}
+      }
+      return { url: data.publicUrl, name: file.name, type: file.type, textContent };
+    } catch (err: any) {
+      toast.error("فشل رفع الملف");
+      console.error(err);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ─── Voice recording → transcription ─────────────────────────────────
+  const startRecording = async () => {
+    if (recording || transcribing || loading) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      recordChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size) recordChunksRef.current.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(recordChunksRef.current, { type: "audio/webm" });
+        if (!blob.size) return;
+        await transcribe(new File([blob], "voice.webm", { type: "audio/webm" }));
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+    } catch (err) {
+      toast.error("تعذر الوصول للميكروفون");
+    }
+  };
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  const transcribe = async (file: File) => {
+    setTranscribing(true);
+    try {
+      const fd = new FormData();
+      fd.append("audio", file);
+      const { data, error } = await supabase.functions.invoke(
+        "ai-support-transcribe",
+        { body: fd },
+      );
+      if (error) throw error;
+      const text = (data?.text as string)?.trim();
+      if (text) {
+        setInput((prev) => (prev ? `${prev} ${text}` : text));
+        textareaRef.current?.focus();
+      } else {
+        toast.error("لم يتم التعرف على كلام");
+      }
+    } catch {
+      toast.error("فشل تحويل الصوت لنص");
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  // ─── Typing simulation for assistant replies ─────────────────────────
+  const streamReply = (full: string, ticketId?: string) => {
+    return new Promise<void>((resolve) => {
+      // Add placeholder message marked streaming
+      const baseTs = Date.now();
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "", ts: baseTs, streaming: true, ticketId },
+      ]);
+
+      let i = 0;
+      const tick = () => {
+        i = Math.min(i + TYPING_CHARS_PER_TICK, full.length);
+        setMessages((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && last.streaming) {
+            copy[copy.length - 1] = { ...last, content: full.slice(0, i) };
+          }
+          return copy;
+        });
+        if (i < full.length) {
+          setTimeout(tick, TYPING_INTERVAL_MS);
+        } else {
+          // finalize
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            if (last && last.streaming) {
+              copy[copy.length - 1] = { ...last, streaming: false };
+            }
+            return copy;
+          });
+          resolve();
+        }
+      };
+      tick();
+    });
+  };
+
+  // ─── Send message ────────────────────────────────────────────────────
+  const sendMessage = async (rawText?: string) => {
+    const text = (rawText ?? input).trim();
+    if ((!text && !pendingFile) || loading || !user) return;
+
+    // Upload pending file first
+    let attachment: Attachment | null = null;
+    if (pendingFile) {
+      attachment = await uploadAttachment(pendingFile);
+      if (!attachment) return;
+      setPendingFile(null);
+    }
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: text || (attachment ? `📎 ${attachment.name}` : ""),
+      ts: Date.now(),
+      attachment: attachment ?? undefined,
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
 
-    // Handoff intent — short-circuit to ticket creation
-    const lower = text.toLowerCase();
-    if (
-      lower.includes("دعم بشري") ||
-      lower.includes("موظف") ||
-      lower.includes("human support")
-    ) {
-      const reply: ChatMessage = {
-        role: "assistant",
-        content:
-          "بالتأكيد 👨‍💻 سأقوم بتحويلك لفريق الدعم البشري. اضغط على زر **«تحويل لفريق الدعم»** بالأسفل وسيتم إنشاء تذكرة تحتوي على محادثتنا.",
-        ts: Date.now(),
-      };
-      setMessages([...newMessages, reply]);
-      setLoading(false);
-      return;
-    }
-
     try {
-      const history = newMessages.slice(-MAX_HISTORY).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Build history; inject extracted file text as system-side context
+      const history = newMessages.slice(-MAX_HISTORY).map((m) => {
+        let content = m.content;
+        if (m.attachment?.textContent) {
+          content += `\n\n[📎 محتوى الملف "${m.attachment.name}"]:\n${m.attachment.textContent}`;
+        } else if (m.attachment) {
+          content += `\n\n[📎 رفع المستخدم ملفاً: ${m.attachment.name} (${m.attachment.type}). الرابط: ${m.attachment.url}]`;
+        }
+        return { role: m.role, content };
+      });
 
       const { data, error } = await supabase.functions.invoke("ai-support", {
         body: { messages: history },
       });
-
       if (error) throw error;
 
-      const reply = (data?.content as string) || (data?.reply as string) || "عذرًا، لم أتمكن من الرد. حاول مرة أخرى.";
+      const reply = (data?.content as string) || "عذرًا، لم أتمكن من الرد. حاول مرة أخرى.";
       const ticket = data?.ticket as { id: string; subject: string; category: string } | null;
 
-      // If AI created a ticket, seed conversation log into it (best effort) and surface CTA
       if (ticket?.id && user) {
         const log = newMessages
           .map((m) => `${m.role === "user" ? "👤 المستخدم" : "🤖 المساعد"}: ${m.content}`)
@@ -127,18 +296,10 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
           console.error("Failed to seed conversation log:", err);
         }
         toast.success("تم تحويلك لفريق الدعم");
-        onTicketCreated?.(ticket.id);
       }
 
-      setMessages([
-        ...newMessages,
-        {
-          role: "assistant",
-          content: reply,
-          ts: Date.now(),
-          ticketId: ticket?.id,
-        } as ChatMessage,
-      ]);
+      await streamReply(reply, ticket?.id);
+      if (ticket?.id) onTicketCreated?.(ticket.id);
     } catch (e: any) {
       console.error("AI support error:", e);
       const errMsg = e?.message?.includes("429")
@@ -146,13 +307,20 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
         : e?.message?.includes("402")
         ? "⚠️ يحتاج النظام لإعادة تعبئة الرصيد. تواصل مع الإدارة."
         : "حدث خطأ في الاتصال بالمساعد. حاول مرة أخرى.";
-      setMessages([
-        ...newMessages,
+      setMessages((prev) => [
+        ...prev,
         { role: "assistant", content: errMsg, ts: Date.now() },
       ]);
       toast.error("فشل الاتصال بالمساعد الذكي");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onTextareaKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      sendMessage();
     }
   };
 
@@ -174,10 +342,11 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
   };
 
   const quickReplies = isTeacher ? QUICK_REPLIES_TEACHER : QUICK_REPLIES_STUDENT;
+  const isImage = (t?: string) => t?.startsWith("image/");
 
   return (
     <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
-      {/* Header strip */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-l from-primary/5 to-transparent rounded-t-xl">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -193,8 +362,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
         </div>
         {messages.length > 0 && (
           <Button variant="ghost" size="sm" onClick={resetChat} className="rounded-xl gap-1 text-xs">
-            <RefreshCw className="h-3 w-3" />
-            محادثة جديدة
+            <RefreshCw className="h-3 w-3" /> محادثة جديدة
           </Button>
         )}
       </div>
@@ -208,8 +376,8 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
             </div>
             <h3 className="font-bold text-foreground">مرحبًا 👋</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              أنا مساعدك الذكي. يمكنني الرد على استفساراتك حول باقتك، حصصك، واجباتك،
-              {isTeacher && " أرباحك،"} والمزيد.
+              أنا مساعدك الذكي. اسألني عن باقتك، حصصك، واجباتك،
+              {isTeacher && " أرباحك،"} ويمكنك إرفاق ملف أو التسجيل بالصوت.
             </p>
           </div>
         )}
@@ -235,33 +403,52 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
                   <Sparkles className="h-2.5 w-2.5" /> المساعد الذكي
                 </p>
               )}
-              <div
-                className={cn(
-                  "text-sm leading-relaxed prose prose-sm max-w-none",
-                  "prose-headings:text-current prose-strong:text-current prose-p:text-current prose-li:text-current prose-a:text-current",
-                  m.role === "user" ? "prose-invert" : "dark:prose-invert"
-                )}
-              >
-                <ReactMarkdown>{m.content}</ReactMarkdown>
-              </div>
-              <p
-                className={cn(
-                  "text-[10px] mt-1 text-left",
-                  m.role === "user"
-                    ? "text-primary-foreground/60"
-                    : "text-muted-foreground"
-                )}
-              >
-                {new Date(m.ts).toLocaleTimeString("ar-SA", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+              {m.attachment && (
+                <div className="mb-2">
+                  {isImage(m.attachment.type) ? (
+                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={m.attachment.url}
+                        alt={m.attachment.name}
+                        className="max-w-[220px] rounded-lg border border-border/30"
+                        loading="lazy"
+                      />
+                    </a>
+                  ) : (
+                    <div className={cn(
+                      "flex items-center gap-2 rounded-xl px-3 py-2",
+                      m.role === "user" ? "bg-primary-foreground/10" : "bg-muted"
+                    )}>
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="text-xs truncate flex-1">{m.attachment.name}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {m.content && (
+                <div
+                  className={cn(
+                    "text-sm leading-relaxed prose prose-sm max-w-none",
+                    "prose-headings:text-current prose-strong:text-current prose-p:text-current prose-li:text-current prose-a:text-current",
+                    m.role === "user" ? "prose-invert" : "dark:prose-invert"
+                  )}
+                >
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  {m.streaming && (
+                    <span className="inline-block w-1.5 h-3.5 bg-current opacity-70 align-middle ml-0.5 animate-pulse" />
+                  )}
+                </div>
+              )}
+              <p className={cn(
+                "text-[10px] mt-1 text-left",
+                m.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"
+              )}>
+                {new Date(m.ts).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
               </p>
-              {m.ticketId && (
+              {m.ticketId && !m.streaming && (
                 <div className="mt-2 pt-2 border-t border-border/30">
                   <Button
                     size="sm"
-                    variant="default"
                     onClick={() => onTicketCreated?.(m.ticketId!)}
                     className="w-full rounded-xl gap-1.5 text-xs h-8"
                   >
@@ -273,7 +460,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
           </div>
         ))}
 
-        {loading && (
+        {loading && !messages.some((m) => m.streaming) && (
           <div className="flex justify-end">
             <div className="bg-card border border-border/40 rounded-2xl px-4 py-3 shadow-sm">
               <div className="flex items-center gap-1.5">
@@ -307,7 +494,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
         </div>
       )}
 
-      {/* Handoff CTA when conversation has substance */}
+      {/* Handoff CTA */}
       {messages.length >= 2 && onCreateTicket && (
         <div className="px-4 pt-2 pb-1 bg-card/50">
           <Button
@@ -322,27 +509,77 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
         </div>
       )}
 
+      {/* Pending attachment preview */}
+      {pendingFile && (
+        <div className="px-3 pt-2 bg-card/70">
+          <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-2 text-sm">
+            {pendingFile.type.startsWith("image/") ? (
+              <ImageIcon className="h-4 w-4 text-primary shrink-0" />
+            ) : (
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+            )}
+            <span className="truncate flex-1 text-foreground">{pendingFile.name}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6"
+              onClick={() => setPendingFile(null)}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          sendMessage(input);
-        }}
-        className="p-3 border-t bg-card flex items-center gap-2 rounded-b-xl"
+        onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
+        className="p-3 border-t bg-card flex items-end gap-2 rounded-b-xl"
       >
-        <Input
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*,.pdf,.txt,.md,.csv,.json,.doc,.docx"
+          onChange={handleFilePick}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="rounded-xl shrink-0"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading || uploading}
+          title="إرفاق ملف"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+        </Button>
+        <Button
+          type="button"
+          variant={recording ? "destructive" : "ghost"}
+          size="icon"
+          className="rounded-xl shrink-0"
+          onClick={recording ? stopRecording : startRecording}
+          disabled={loading || transcribing}
+          title={recording ? "إيقاف التسجيل" : "تسجيل صوتي"}
+        >
+          {transcribing ? <Loader2 className="h-4 w-4 animate-spin" />
+            : recording ? <Square className="h-4 w-4" />
+            : <Mic className="h-4 w-4" />}
+        </Button>
+        <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="اسأل المساعد الذكي..."
-          className="rounded-xl flex-1"
+          onKeyDown={onTextareaKeyDown}
+          placeholder={recording ? "🔴 جارٍ التسجيل..." : "اسأل المساعد الذكي... (Enter لإرسال، Shift+Enter لسطر جديد)"}
+          rows={1}
           dir="rtl"
-          disabled={loading}
+          disabled={loading || recording}
+          className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          style={{ maxHeight: 140 }}
         />
         <Button
           type="submit"
           size="icon"
           className="rounded-xl shrink-0"
-          disabled={!input.trim() || loading}
+          disabled={(!input.trim() && !pendingFile) || loading || uploading}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
