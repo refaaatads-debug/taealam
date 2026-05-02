@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
-  Highlighter, Crosshair, PaintBucket
+  Highlighter, Crosshair, PaintBucket, UserCheck, UserX, Check, X
 } from "lucide-react";
 import {
   Tooltip,
@@ -38,6 +38,10 @@ interface WhiteboardCanvasProps {
   overlay?: boolean;
   remoteActions?: DrawAction[];
   remoteLaserPos?: { x: number; y: number } | null;
+  /** When true, student is allowed to draw (granted by teacher) */
+  studentCanDraw?: boolean;
+  /** Teacher-only: toggle student draw permission. Called when teacher clicks the grant button */
+  onToggleStudentDraw?: (allow: boolean) => void;
 }
 
 const COLORS = [
@@ -69,6 +73,8 @@ export default function WhiteboardCanvas({
   overlay = false,
   remoteActions,
   remoteLaserPos,
+  studentCanDraw = false,
+  onToggleStudentDraw,
 }: WhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,8 +85,10 @@ export default function WhiteboardCanvas({
   const [showColors, setShowColors] = useState(false);
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [laserPos, setLaserPos] = useState<{ x: number; y: number } | null>(null);
-  // White background toggle — even works in overlay mode (hides screen share behind)
   const [whiteBg, setWhiteBg] = useState(false);
+  // Inline text editor (replaces prompt())
+  const [textEditor, setTextEditor] = useState<{ x: number; y: number; value: string } | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
@@ -89,7 +97,8 @@ export default function WhiteboardCanvas({
   const throttleRef = useRef<number>(0);
   const hideTimerRef = useRef<number>();
 
-  const canDraw = isTeacher;
+  // Teacher always draws. Student draws only when teacher grants permission.
+  const canDraw = isTeacher || studentCanDraw;
 
   // Auto-hide toolbar after 4s of inactivity
   const resetHideTimer = useCallback(() => {
@@ -291,20 +300,10 @@ export default function WhiteboardCanvas({
     }
 
     if (tool === "text") {
-      const text = prompt("اكتب النص:");
-      if (text) {
-        const action: DrawAction = { type: "text", text, x: pt.x, y: pt.y, fontSize: lineWidth * 6, color };
-        actionsRef.current.push(action);
-        undoneRef.current = [];
-        broadcastAction(action);
-        const canvas = canvasRef.current;
-        const container = containerRef.current;
-        if (canvas && container) {
-          const ctx = canvas.getContext("2d");
-          const rect = container.getBoundingClientRect();
-          if (ctx) redrawAll(ctx, rect.width, rect.height);
-        }
-      }
+      // Open inline floating text editor at click position; no native prompt() interruption.
+      setTextEditor({ x: pt.x, y: pt.y, value: "" });
+      // Focus the input on next tick after it mounts
+      setTimeout(() => textInputRef.current?.focus(), 50);
       return;
     }
 
@@ -488,6 +487,34 @@ export default function WhiteboardCanvas({
     link.click();
   };
 
+  // Commit the inline text editor as a text action
+  const commitText = useCallback(() => {
+    if (!textEditor) return;
+    const trimmed = textEditor.value.trim();
+    if (trimmed) {
+      const fontSize = lineWidth * 6 + 12;
+      const action: DrawAction = {
+        type: "text",
+        text: trimmed,
+        x: textEditor.x,
+        y: textEditor.y + fontSize * 0.85,
+        fontSize,
+        color,
+      };
+      actionsRef.current.push(action);
+      undoneRef.current = [];
+      broadcastAction(action);
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (canvas && container) {
+        const ctx = canvas.getContext("2d");
+        const rect = container.getBoundingClientRect();
+        if (ctx) redrawAll(ctx, rect.width, rect.height);
+      }
+    }
+    setTextEditor(null);
+  }, [textEditor, lineWidth, color, redrawAll]);
+
   const tools: { id: Tool; icon: typeof Pen; label: string }[] = [
     { id: "pen", icon: Pen, label: "قلم" },
     { id: "highlighter", icon: Highlighter, label: "تحديد" },
@@ -622,6 +649,29 @@ export default function WhiteboardCanvas({
               </Tooltip>
             )}
 
+            {/* Teacher-only: grant/revoke student drawing permission */}
+            {isTeacher && onToggleStudentDraw && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-9 w-9 rounded-xl transition-all duration-150 ${
+                      studentCanDraw
+                        ? "bg-secondary text-secondary-foreground shadow-md scale-110"
+                        : "text-card/70 hover:text-card hover:bg-card/10"
+                    }`}
+                    onClick={() => { onToggleStudentDraw(!studentCanDraw); resetHideTimer(); }}
+                  >
+                    {studentCanDraw ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {studentCanDraw ? "سحب إذن الرسم من الطالب" : "السماح للطالب بالرسم"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleDownload}>
@@ -634,14 +684,26 @@ export default function WhiteboardCanvas({
         </TooltipProvider>
       )}
 
-      {/* Student view-only label */}
-      {!canDraw && !overlay && (
-        <div className="flex items-center gap-2 p-2 border-b bg-muted/30 text-sm text-muted-foreground">
+      {/* Student status label (view-only or permission granted) */}
+      {!isTeacher && !overlay && (
+        <div className={`flex items-center gap-2 p-2 border-b text-sm ${
+          studentCanDraw ? "bg-secondary/15 text-secondary border-secondary/30" : "bg-muted/30 text-muted-foreground"
+        }`}>
           <Pen className="h-4 w-4" />
-          <span>السبورة - عرض فقط</span>
+          <span className="font-bold">
+            {studentCanDraw ? "✏️ يمكنك الرسم الآن — منحك المعلم الإذن" : "السبورة - عرض فقط"}
+          </span>
           <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground mr-auto" onClick={handleDownload} title="تحميل">
             <Download className="h-4 w-4" />
           </Button>
+        </div>
+      )}
+
+      {/* Floating "permission granted" badge for student in overlay mode */}
+      {!isTeacher && overlay && studentCanDraw && (
+        <div className="absolute top-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-xs font-bold shadow-lg animate-pulse">
+          <UserCheck className="h-3.5 w-3.5" />
+          <span>يمكنك الرسم</span>
         </div>
       )}
 
@@ -676,6 +738,50 @@ export default function WhiteboardCanvas({
             }}
           >
             <div className="w-4 h-4 rounded-full bg-destructive animate-pulse shadow-[0_0_12px_4px_rgba(239,68,68,0.6)]" />
+          </div>
+        )}
+
+        {/* Inline floating text editor (replaces native prompt) */}
+        {textEditor && canDraw && (
+          <div
+            className="absolute z-50 flex items-center gap-1 bg-foreground/95 backdrop-blur-md rounded-xl shadow-2xl border border-card/20 p-1.5"
+            style={{
+              left: Math.max(8, Math.min(textEditor.x, (containerRef.current?.clientWidth ?? 800) - 280)),
+              top: Math.max(8, textEditor.y - 4),
+            }}
+          >
+            <input
+              ref={textInputRef}
+              type="text"
+              value={textEditor.value}
+              onChange={(e) => setTextEditor({ ...textEditor, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); commitText(); }
+                else if (e.key === "Escape") { e.preventDefault(); setTextEditor(null); }
+              }}
+              placeholder="اكتب النص..."
+              className="bg-transparent text-card text-sm font-bold px-2 py-1 outline-none w-48 placeholder:text-card/40"
+              style={{ color }}
+              dir="auto"
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-lg text-secondary hover:bg-secondary/20"
+              onClick={commitText}
+              title="إضافة"
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-lg text-destructive hover:bg-destructive/20"
+              onClick={() => setTextEditor(null)}
+              title="إلغاء"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         )}
       </div>

@@ -74,6 +74,8 @@ const LiveSession = () => {
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
   const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // Whiteboard: teacher can grant the student permission to draw. State is mirrored on both sides.
+  const [studentCanDraw, setStudentCanDraw] = useState(false);
   // Floating screen-share annotation toolbar (teacher) + remote drawings (student sees teacher's annotations)
   const [screenToolbarOpen, setScreenToolbarOpen] = useState(false);
   const [screenAnnotations, setScreenAnnotations] = useState<any[]>([]);
@@ -201,6 +203,15 @@ const LiveSession = () => {
     } else if (msg.type === "whiteboard-toggle") {
       // Sync board open/close state from teacher to student instantly
       if (!isTeacher) setBoardOpen(!!msg.open);
+    } else if (msg.type === "whiteboard-permission") {
+      // Teacher granted/revoked draw permission for the student
+      if (!isTeacher) {
+        const allow = !!msg.allow;
+        setStudentCanDraw(allow);
+        toast.info(allow ? "✏️ منحك المعلم إذن الرسم على السبورة" : "تم سحب إذن الرسم من السبورة", {
+          id: "wb-permission",
+        });
+      }
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
     } else if (msg.type === "screen-annotation") {
@@ -1532,6 +1543,15 @@ const LiveSession = () => {
     sendDataMessage(msg);
   }, [sendDataMessage]);
 
+  // Teacher-only: grant or revoke the student's permission to draw on the whiteboard.
+  // The new state is broadcast to the student so both sides stay in sync.
+  const handleToggleStudentDraw = useCallback((allow: boolean) => {
+    if (!isTeacher) return;
+    setStudentCanDraw(allow);
+    sendDataMessage({ type: "whiteboard-permission", allow });
+    toast.success(allow ? "✏️ تم منح الطالب إذن الرسم" : "تم سحب إذن الرسم");
+  }, [isTeacher, sendDataMessage]);
+
 
   // Pre-join screen: show before user clicks "join the session" so they can verify mic.
   // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
@@ -1800,7 +1820,7 @@ const LiveSession = () => {
                   />
                   {/* Whiteboard overlay on student's screen share view */}
                    {bookingId && user && (
-                     <div className="absolute inset-0 z-20 pointer-events-none">
+                     <div className={`absolute inset-0 z-20 ${studentCanDraw ? "pointer-events-auto" : "pointer-events-none"}`}>
                        <WhiteboardCanvas
                          bookingId={bookingId}
                          userId={user.id}
@@ -1810,6 +1830,7 @@ const LiveSession = () => {
                          overlay={true}
                          remoteActions={whiteboardRemoteActions}
                          remoteLaserPos={remoteLaserPos}
+                         studentCanDraw={studentCanDraw}
                        />
                      </div>
                    )}
@@ -1842,6 +1863,8 @@ const LiveSession = () => {
                         onSendData={handleWhiteboardSend}
                         overlay={true}
                         remoteActions={whiteboardRemoteActions}
+                        studentCanDraw={studentCanDraw}
+                        onToggleStudentDraw={handleToggleStudentDraw}
                       />
                     </div>
                   )}
@@ -1864,6 +1887,8 @@ const LiveSession = () => {
                     onSendData={handleWhiteboardSend}
                     overlay={false}
                     remoteActions={whiteboardRemoteActions}
+                    studentCanDraw={studentCanDraw}
+                    onToggleStudentDraw={handleToggleStudentDraw}
                   />
                   <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
@@ -1885,6 +1910,7 @@ const LiveSession = () => {
                     overlay={false}
                     remoteActions={whiteboardRemoteActions}
                     remoteLaserPos={remoteLaserPos}
+                    studentCanDraw={studentCanDraw}
                   />
                   <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
