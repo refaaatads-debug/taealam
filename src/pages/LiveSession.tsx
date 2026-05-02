@@ -1543,6 +1543,15 @@ const LiveSession = () => {
     sendDataMessage(msg);
   }, [sendDataMessage]);
 
+  // Teacher-only: grant or revoke the student's permission to draw on the whiteboard.
+  // The new state is broadcast to the student so both sides stay in sync.
+  const handleToggleStudentDraw = useCallback((allow: boolean) => {
+    if (!isTeacher) return;
+    setStudentCanDraw(allow);
+    sendDataMessage({ type: "whiteboard-permission", allow });
+    toast.success(allow ? "✏️ تم منح الطالب إذن الرسم" : "تم سحب إذن الرسم");
+  }, [isTeacher, sendDataMessage]);
+
 
   // Pre-join screen: show before user clicks "join the session" so they can verify mic.
   // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
