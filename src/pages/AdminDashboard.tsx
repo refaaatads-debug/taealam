@@ -29,6 +29,7 @@ import StatusFilter from "@/components/admin/StatusFilter";
 import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
+import StudentProfilesTab from "@/components/admin/StudentProfilesTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
