@@ -73,7 +73,38 @@ const SupportTicketsTab = () => {
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
 
-  useEffect(() => { fetchTickets(); }, []);
+  // Student quick-peek
+  const [peekLoading, setPeekLoading] = useState(false);
+  const [peekData, setPeekData] = useState<any>(null);
+
+  const loadStudentPeek = async (uid: string) => {
+    if (peekData?.user_id === uid) return;
+    setPeekLoading(true);
+    try {
+      const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, email, phone_number, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
+        supabase.from("user_subscriptions").select("remaining_minutes, status, subscription_plans(name)").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("support_tickets").select("id, status").eq("user_id", uid),
+        supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+      ]);
+      const subs = subsRes.data || [];
+      const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
+      const activePlan = subs.find((s: any) => s.status === "active")?.subscription_plans?.name || "—";
+      const openTickets = (ticketsRes.data || []).filter((t: any) => t.status !== "closed").length;
+      setPeekData({
+        user_id: uid,
+        ...profileRes.data,
+        totalMins,
+        activePlan,
+        openTickets,
+        totalTickets: (ticketsRes.data || []).length,
+        balance: walletRes.data?.balance ?? 0,
+      });
+    } finally {
+      setPeekLoading(false);
+    }
+  };
+
 
   // Realtime: refresh ticket list on any change (new tickets / status / assignment)
   useEffect(() => {
