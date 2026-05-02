@@ -31,23 +31,59 @@ serve(async (req) => {
       });
     }
 
-    // Check premium subscription (tier = 'premium', active, with remaining minutes)
-    const { data: subs } = await supabase
+    // Check premium subscription with detailed reason classification
+    const nowIso = new Date().toISOString();
+    const { data: allSubs } = await supabase
       .from("user_subscriptions")
-      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier)")
+      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
       .eq("user_id", user.id)
-      .eq("is_active", true)
-      .gt("remaining_minutes", 0)
-      .gt("ends_at", new Date().toISOString());
+      .order("ends_at", { ascending: false });
 
-    const hasPremium = (subs || []).some(
-      (s: any) => s.subscription_plans?.tier === "premium"
+    const subsList = allSubs || [];
+    const activeSubs = subsList.filter((s: any) => s.is_active && s.ends_at > nowIso);
+    const premiumSubs = subsList.filter((s: any) => s.subscription_plans?.tier === "premium");
+    const validPremium = premiumSubs.find(
+      (s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) > 0
     );
 
-    if (!hasPremium) {
-      return new Response(JSON.stringify({
-        error: "المحادثة الصوتية الحية متاحة فقط لمشتركي الباقة الاحترافية مع رصيد دقائق متبقي."
-      }), {
+    if (!validPremium) {
+      let reason_code = "no_subscription";
+      let error_msg = "المحادثة الصوتية الحية متاحة فقط لمشتركي الباقة الاحترافية. يرجى الاشتراك أولاً.";
+
+      if (premiumSubs.length === 0 && activeSubs.length > 0) {
+        reason_code = "wrong_tier";
+        const currentTier = activeSubs[0].subscription_plans?.name_ar || "غير الاحترافية";
+        error_msg = `باقتك الحالية (${currentTier}) لا تشمل المحادثة الصوتية الحية. يرجى الترقية إلى الباقة الاحترافية.`;
+      } else if (premiumSubs.length > 0) {
+        const expiredPremium = premiumSubs.find((s: any) => s.ends_at <= nowIso || !s.is_active);
+        const noMinutesPremium = premiumSubs.find((s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) <= 0);
+        if (noMinutesPremium) {
+          reason_code = "no_minutes";
+          error_msg = "نفدت دقائقك في الباقة الاحترافية. يرجى تجديد الاشتراك للمتابعة.";
+        } else if (expiredPremium) {
+          reason_code = "subscription_expired";
+          error_msg = "انتهت صلاحية باقتك الاحترافية. يرجى التجديد لاستئناف المحادثة الصوتية.";
+        }
+      }
+
+      console.warn("ai-tutor-token blocked:", { user_id: user.id, reason_code, subs_count: subsList.length });
+
+      // Persist for support/audit
+      await supabase.from("system_logs").insert({
+        level: "warn",
+        source: "ai_tutor_token",
+        message: `Blocked live voice access: ${reason_code}`,
+        metadata: {
+          user_id: user.id,
+          email: user.email,
+          reason_code,
+          subs_count: subsList.length,
+          active_subs: activeSubs.length,
+          premium_subs: premiumSubs.length,
+        },
+      }).then(() => {}, () => {});
+
+      return new Response(JSON.stringify({ error: error_msg, reason_code }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
