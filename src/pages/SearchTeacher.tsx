@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 
 interface TeacherResult {
   id: string;
@@ -345,12 +346,16 @@ const SearchTeacher = () => {
           });
         }
 
-        const stageText = selectedStage && selectedStage !== "all_stages" ? ` - ${selectedStage}` : "";
+        const stageLabel = selectedStage && selectedStage !== "all_stages" ? selectedStage : undefined;
+        const tpl = notificationTemplates.bookingRequest({
+          count: selectedSlots.length,
+          subjectName,
+          stage: stageLabel,
+          slotsText,
+        });
         const notifications = eligibleTeachers.map((ts: any) => ({
             user_id: ts.teacher_profiles.user_id,
-            title: `📚 ${selectedSlots.length} طلب حصة جديد - ${subjectName}${stageText}`,
-            body: `طالب يبحث عن معلم ${subjectName}${stageText}: ${slotsText}. سارع بالقبول!`,
-            type: "booking_request",
+            ...tpl,
           }));
 
         if (notifications.length > 0) {

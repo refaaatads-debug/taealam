@@ -270,12 +270,11 @@ export default function BookingRequests() {
       const count = acceptedRequests.length;
       await supabase.from("notifications").insert({
         user_id: group.student_id,
-        title: count > 1 ? `تم قبول ${count} حصص! ✅` : "تم قبول طلبك! ✅",
-        body:
-          count > 1
-            ? `قبل المعلم ${profile?.full_name || "معلم"} جميع حصصك في ${group.subject_name}. تحقق من الجدول.`
-            : `قبل المعلم ${profile?.full_name || "معلم"} طلب حصتك في ${group.subject_name}. جهّز نفسك!`,
-        type: "booking",
+        ...notificationTemplates.bookingConfirmed({
+          teacherName: profile?.full_name || "معلمك",
+          subjectName: group.subject_name,
+          count,
+        }),
       });
 
       // Welcome chat on first booking only
