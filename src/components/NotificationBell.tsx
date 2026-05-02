@@ -57,7 +57,16 @@ export default function NotificationBell() {
           // Default link by type if not provided
           const target =
             newNotif.link ||
-            (newNotif.type === "support_reply" ? "/support" : null);
+            (newNotif.type === "support_reply" ? "/support" :
+             newNotif.type === "assignment" ? "/student/assignments" :
+             newNotif.type === "submission" ? "/teacher/assignments" : null);
+
+          // Action label per type
+          const actionLabel =
+            newNotif.type === "assignment" ? "📝 فتح الواجب" :
+            newNotif.type === "submission" ? "📥 عرض الحل" :
+            newNotif.type === "support_reply" ? "فتح المحادثة" :
+            "فتح";
 
           // Show transient popup at bottom-right; clickable when a target exists.
           toast(newNotif.title, {
@@ -67,7 +76,7 @@ export default function NotificationBell() {
             ...(target
               ? {
                   action: {
-                    label: "فتح المحادثة",
+                    label: actionLabel,
                     onClick: () => navigate(target),
                   },
                   onDismiss: () => {},
