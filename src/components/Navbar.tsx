@@ -57,7 +57,11 @@ const Navbar = () => {
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-500 ${scrolled ? "bg-card/85 backdrop-blur-2xl shadow-[0_4px_30px_-10px_hsl(var(--primary)/0.15)] border-b border-border/40" : "bg-card/40 backdrop-blur-md border-b border-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
-        <Link to={isAdmin ? "/admin" : isTeacher ? "/teacher" : isStudent ? "/student" : "/"} className="flex items-center gap-2.5 group">
+        <Link
+          to={isAdmin ? "/admin" : isTeacher ? "/teacher" : isStudent ? "/student" : "/"}
+          className="flex items-center gap-2.5 group"
+          title={siteName}
+        >
           <motion.img
             whileHover={{ rotate: [0, -8, 8, 0], scale: 1.1 }}
             transition={{ duration: 0.5 }}
