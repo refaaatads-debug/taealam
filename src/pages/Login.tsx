@@ -173,7 +173,7 @@ const Login = () => {
 
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-primary-foreground w-full">
           <Link to="/" className="flex items-center gap-3 group w-fit">
-            <div className="w-14 h-14 rounded-2xl bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 flex items-center justify-center group-hover:scale-110 transition-transform p-1">
+            <div className="w-20 h-20 rounded-2xl bg-primary-foreground/15 backdrop-blur-md border border-primary-foreground/20 flex items-center justify-center group-hover:scale-110 transition-transform p-1.5">
               <img src={brandLogo} alt="logo" className="h-full w-full object-contain" />
             </div>
             <div>
@@ -225,7 +225,7 @@ const Login = () => {
           <CardContent className="p-0">
             <div className="p-6 sm:p-8 pb-4 sm:pb-6">
               <Link to="/" className="flex lg:hidden items-center justify-center gap-2.5 mb-6">
-                <img src={brandLogo} alt="logo" className="w-10 h-10 object-contain" />
+                <img src={brandLogo} alt="logo" className="w-14 h-14 object-contain" />
                 <span className="font-extrabold text-2xl text-foreground">منصة أجيال المعرفة</span>
               </Link>
               <h2 className="text-2xl sm:text-3xl font-black text-center text-foreground mb-1">
