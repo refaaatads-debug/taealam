@@ -101,6 +101,7 @@ const App = () => (
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
               <Route path="/faq" element={<FAQ />} />
+              <Route path="/help" element={<HelpCenter />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund" element={<RefundPolicy />} />
