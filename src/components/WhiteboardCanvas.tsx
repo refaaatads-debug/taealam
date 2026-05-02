@@ -107,7 +107,7 @@ export default function WhiteboardCanvas({
 
   const fillBackground = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.clearRect(0, 0, w, h);
-    if (!overlay) {
+    if (!overlay || whiteBg) {
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "#e0e0e0";
@@ -119,7 +119,7 @@ export default function WhiteboardCanvas({
         }
       }
     }
-  }, [overlay]);
+  }, [overlay, whiteBg]);
 
   const drawAction = useCallback((ctx: CanvasRenderingContext2D, action: DrawAction) => {
     ctx.save();
