@@ -229,6 +229,25 @@ const TeacherDashboard = () => {
           ))}
         </div>
 
+        <div className="mb-6">
+          <Link to="/teacher/assignments">
+            <Card className="border-0 shadow-card hover:shadow-lg transition cursor-pointer bg-gradient-to-l from-primary/10 to-secondary/10">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                    <CalendarCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold">الواجبات والاختبارات</h3>
+                    <p className="text-xs text-muted-foreground">أنشئ واجبات وراجع حلول الطلاب بمساعدة AI</p>
+                  </div>
+                </div>
+                <Badge>جديد</Badge>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <BookingRequests />
 
