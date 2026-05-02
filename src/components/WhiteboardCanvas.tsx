@@ -487,6 +487,34 @@ export default function WhiteboardCanvas({
     link.click();
   };
 
+  // Commit the inline text editor as a text action
+  const commitText = useCallback(() => {
+    if (!textEditor) return;
+    const trimmed = textEditor.value.trim();
+    if (trimmed) {
+      const fontSize = lineWidth * 6 + 12;
+      const action: DrawAction = {
+        type: "text",
+        text: trimmed,
+        x: textEditor.x,
+        y: textEditor.y + fontSize * 0.85,
+        fontSize,
+        color,
+      };
+      actionsRef.current.push(action);
+      undoneRef.current = [];
+      broadcastAction(action);
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (canvas && container) {
+        const ctx = canvas.getContext("2d");
+        const rect = container.getBoundingClientRect();
+        if (ctx) redrawAll(ctx, rect.width, rect.height);
+      }
+    }
+    setTextEditor(null);
+  }, [textEditor, lineWidth, color, redrawAll]);
+
   const tools: { id: Tool; icon: typeof Pen; label: string }[] = [
     { id: "pen", icon: Pen, label: "قلم" },
     { id: "highlighter", icon: Highlighter, label: "تحديد" },
