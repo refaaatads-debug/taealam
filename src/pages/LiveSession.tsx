@@ -74,6 +74,8 @@ const LiveSession = () => {
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
   const [remoteLaserPos, setRemoteLaserPos] = useState<{ x: number; y: number } | null>(null);
+  // Whiteboard: teacher can grant the student permission to draw. State is mirrored on both sides.
+  const [studentCanDraw, setStudentCanDraw] = useState(false);
   // Floating screen-share annotation toolbar (teacher) + remote drawings (student sees teacher's annotations)
   const [screenToolbarOpen, setScreenToolbarOpen] = useState(false);
   const [screenAnnotations, setScreenAnnotations] = useState<any[]>([]);
