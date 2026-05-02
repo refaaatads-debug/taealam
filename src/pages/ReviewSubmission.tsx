@@ -182,8 +182,9 @@ const ReviewSubmission = () => {
                   ))}
                 </div>
               )}
-              <Button size="sm" variant="outline" onClick={() => setScore(String(sub.ai_score))}>
-                استخدام درجة AI
+              <Button size="sm" variant="outline" onClick={sendAIGradeToStudent} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                استخدام درجة AI وإرسالها للطالب
               </Button>
             </CardContent>
           </Card>
