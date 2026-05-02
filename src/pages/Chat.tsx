@@ -255,6 +255,31 @@ const Chat = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // Fetch via blob to bypass ad-blockers (ERR_BLOCKED_BY_CLIENT) that block direct storage URLs
+  const openFileSafely = async (url: string, fileName?: string | null, download = false) => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      if (download) {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName || "file";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (e) {
+      // Fallback to direct link
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.error("تعذّر فتح الملف. قد يكون مانع الإعلانات يحجبه — جرّب تعطيله.");
+    }
+  };
+
   const renderFileMessage = (msg: ChatMessage) => {
     if (!msg.file_url) return null;
     const isAudio = msg.file_type?.startsWith("audio/");
