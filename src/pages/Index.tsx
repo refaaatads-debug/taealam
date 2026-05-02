@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,12 +49,13 @@ const stats = [
   { value: "4.9", label: "متوسط التقييم", icon: Star },
 ];
 
-const teachers = [
+const fallbackTeachers = [
   { name: "أ. سارة المحمدي", subject: "رياضيات", rating: 4.9, students: 320, price: 80, img: teacher1, badge: "الأكثر حجزاً", sessions: 1200 },
   { name: "أ. خالد العتيبي", subject: "فيزياء", rating: 4.8, students: 280, price: 90, img: teacher2, badge: "مدرس مميز", sessions: 980 },
   { name: "أ. نورة الشهري", subject: "إنجليزي", rating: 4.9, students: 410, price: 70, img: teacher3, badge: "الأعلى تقييماً", sessions: 1450 },
   { name: "أ. أحمد الحربي", subject: "كيمياء", rating: 4.7, students: 195, price: 85, img: teacher4, badge: "خبير", sessions: 760 },
 ];
+const fallbackImgs = [teacher1, teacher2, teacher3, teacher4];
 
 const testimonials = [
   { name: "محمد السالم", text: "المنصة غيرت مستوى ابني تماماً في الرياضيات. المدرسين محترفين والحجز سهل جداً. من أفضل القرارات اللي اتخذتها.", role: "ولي أمر", rating: 5, img: testimonial1 },
