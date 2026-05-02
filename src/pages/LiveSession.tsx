@@ -1267,6 +1267,12 @@ const LiveSession = () => {
       }
       console.log("[uploadRecording] Saved successfully:", saveData);
 
+      // Clear local backup once final upload is confirmed
+      try {
+        const { clearRecordingBackup } = await import("@/lib/recordingBackup");
+        if (bookingId) await clearRecordingBackup(bookingId);
+      } catch {}
+
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
       console.error("[uploadRecording] Failed:", error);
