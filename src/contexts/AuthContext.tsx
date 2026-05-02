@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const primaryRole = getPrimaryRole(list);
     const target = primaryRole === "admin" ? "/admin" : primaryRole === "teacher" ? "/teacher" : "/student";
 
-    if (path !== target) {
+    if (window.location.pathname !== target) {
       window.location.replace(target);
     }
   };
