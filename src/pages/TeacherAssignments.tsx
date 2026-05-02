@@ -57,6 +57,7 @@ const TeacherAssignments = () => {
   const [qExplanation, setQExplanation] = useState("");
   const [qStage, setQStage] = useState("");
   const [qSubject, setQSubject] = useState("");
+  const [extracting, setExtracting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -260,6 +261,41 @@ const TeacherAssignments = () => {
     await supabase.from("question_bank" as any).delete().eq("id", id);
     toast.success("تم الحذف");
     fetchAll();
+  };
+
+  const extractFromFile = async (file: File) => {
+    if (!user) return;
+    setExtracting(true);
+    try {
+      const path = `${user.id}/bank-imports/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage.from("assignment-files").createSignedUrl(path, 60 * 60);
+      if (!signed?.signedUrl) throw new Error("تعذر إنشاء رابط الملف");
+
+      toast.info("جاري استخراج الأسئلة بـ AI...");
+      const { data, error } = await supabase.functions.invoke("extract-questions-from-file", {
+        body: {
+          file_url: signed.signedUrl,
+          file_type: file.type,
+          subject_id: qSubject || null,
+          teaching_stage: qStage || null,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const count = (data as any)?.count || 0;
+      if (count === 0) {
+        toast.warning("لم يتم العثور على أسئلة في الملف");
+      } else {
+        toast.success(`تم استخراج ${count} سؤال وإضافتها للبنك`);
+      }
+      fetchAll();
+    } catch (e: any) {
+      toast.error("خطأ: " + (e.message || "تعذر استخراج الأسئلة"));
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const reviewSubmission = (id: string) => {
