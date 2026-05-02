@@ -83,17 +83,17 @@ const SupportTicketsTab = () => {
     try {
       const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, email, phone_number, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
-        supabase.from("user_subscriptions").select("remaining_minutes, status, subscription_plans(name)").eq("user_id", uid).order("created_at", { ascending: false }),
+        supabase.from("user_subscriptions").select("remaining_minutes, is_active, subscription_plans(name)").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("support_tickets").select("id, status").eq("user_id", uid),
         supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
       ]);
       const subs = subsRes.data || [];
       const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
-      const activePlan = subs.find((s: any) => s.status === "active")?.subscription_plans?.name || "—";
+      const activePlan = subs.find((s: any) => s.is_active)?.subscription_plans?.name || "—";
       const openTickets = (ticketsRes.data || []).filter((t: any) => t.status !== "closed").length;
       setPeekData({
         user_id: uid,
-        ...profileRes.data,
+        ...(profileRes.data || {}),
         totalMins,
         activePlan,
         openTickets,
