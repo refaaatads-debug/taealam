@@ -124,6 +124,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .upsert({ user_id: userId, session_token: token, device_info: deviceInfo, last_seen: new Date().toISOString() });
   };
 
+  // Threshold for considering an "other" session truly active.
+  // Heartbeat is every 30s; we allow 1 missed beat + buffer = 75s before we treat it as stale.
+  const STALE_THRESHOLD_MS = 75_000;
+
   const checkSessionStillActive = async (userId: string) => {
     const token = getSessionToken();
     const { data } = await supabase
@@ -137,17 +141,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await claimActiveSession(userId);
       return true;
     }
-    // Different token — only treat as conflict if the other session is recent (<2 min)
+    // Different token — only show conflict if the OTHER session has a fresh heartbeat
     const lastSeen = data.last_seen ? new Date(data.last_seen).getTime() : 0;
     const ageMs = Date.now() - lastSeen;
-    if (ageMs > 120000) {
-      // Stale — silently take over
+    if (ageMs > STALE_THRESHOLD_MS) {
+      // Stale (other device hasn't heartbeated recently) — silently take over
       await claimActiveSession(userId);
       return true;
     }
     // Cooldown after a manual take-over (avoid loop with realtime echo)
     const takeoverAt = (window as any).__sessionTakeoverAt || 0;
     if (Date.now() - takeoverAt < 15000) {
+      await claimActiveSession(userId);
+      return true;
+    }
+    // Re-verify once after a short delay to avoid false positives from
+    // racing heartbeats / realtime echoes (the other tab may be us mid-refresh).
+    await new Promise((r) => setTimeout(r, 1500));
+    const { data: recheck } = await supabase
+      .from("user_active_session")
+      .select("session_token, last_seen")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!recheck || recheck.session_token === token) {
+      await claimActiveSession(userId);
+      return true;
+    }
+    const recheckAge = recheck.last_seen
+      ? Date.now() - new Date(recheck.last_seen).getTime()
+      : Infinity;
+    if (recheckAge > STALE_THRESHOLD_MS) {
       await claimActiveSession(userId);
       return true;
     }
