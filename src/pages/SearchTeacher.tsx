@@ -574,8 +574,25 @@ const SearchTeacher = () => {
                   );
                 })()}
 
-                {/* Row 1: Subject + Stage */}
+                {/* Row 1: Stage first, then Subject */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <motion.div whileHover={{ y: -2 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                      🎓 المرحلة الدراسية
+                    </p>
+                    <Select value={selectedStage} onValueChange={setSelectedStage}>
+                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
+                        <SelectValue placeholder="اختر المرحلة" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_stages">جميع المراحل</SelectItem>
+                        {teachingStagesOptions.map(stage => (
+                          <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </motion.div>
+
                   <motion.div whileHover={{ y: -2 }} className="group">
                     <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-primary" /> اختر المادة
@@ -596,23 +613,6 @@ const SearchTeacher = () => {
                         <CheckCircle className="h-3 w-3" /> {teacherCount} معلم متخصص جاهز
                       </motion.p>
                     )}
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="group">
-                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                      🎓 المرحلة الدراسية
-                    </p>
-                    <Select value={selectedStage} onValueChange={setSelectedStage}>
-                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
-                        <SelectValue placeholder="اختر المرحلة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all_stages">جميع المراحل</SelectItem>
-                        {teachingStagesOptions.map(stage => (
-                          <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </motion.div>
                 </div>
 
