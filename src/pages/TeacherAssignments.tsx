@@ -312,6 +312,46 @@ const TeacherAssignments = () => {
                     </div>
                   </div>
 
+                  {/* Attachments */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <Label className="text-base">مرفقات الواجب (PDF / صور)</Label>
+                      <Button size="sm" variant="outline" asChild disabled={uploadingFile}>
+                        <label className="cursor-pointer">
+                          {uploadingFile ? <Loader2 className="h-3 w-3 animate-spin ml-1" /> : <Plus className="h-3 w-3 ml-1" />}
+                          إضافة ملف
+                          <input
+                            type="file"
+                            multiple
+                            accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+                            className="hidden"
+                            onChange={handleFileUpload}
+                          />
+                        </label>
+                      </Button>
+                    </div>
+                    {attachments.length > 0 ? (
+                      <div className="space-y-2">
+                        {attachments.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between bg-muted/40 rounded-lg p-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 text-secondary shrink-0" />
+                              <span className="text-sm truncate">{f.name}</span>
+                              <Badge variant="outline" className="text-[10px]">
+                                {f.type.includes("pdf") ? "PDF" : "صورة"}
+                              </Badge>
+                            </div>
+                            <Button size="icon" variant="ghost" onClick={() => removeAttachment(i)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">PDF أو JPG/PNG — حتى 10MB لكل ملف</p>
+                    )}
+                  </div>
+
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <Label className="text-base">الأسئلة</Label>
