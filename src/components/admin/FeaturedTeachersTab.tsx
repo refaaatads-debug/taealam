@@ -214,6 +214,7 @@ export default function FeaturedTeachersTab() {
 function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<Partial<FeaturedRow>>({});
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (row) {
