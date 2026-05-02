@@ -93,7 +93,19 @@ const HomeworkSolver = () => {
           </div>
           <h1 className="text-2xl md:text-3xl font-black">مساعد الواجبات البصري</h1>
           <p className="text-sm text-muted-foreground mt-1">صوّر واجبك (حتى بخط اليد) واحصل على الحل خطوة بخطوة</p>
+          <p className="text-xs text-primary font-bold mt-2">✨ متاح للباقات المتقدمة والاحترافية فقط</p>
         </div>
+
+        {tierBlocked && (
+          <Card className="mb-4 border-destructive/40 bg-destructive/5">
+            <CardContent className="p-4 text-center space-y-3">
+              <p className="text-sm font-bold text-destructive">{tierBlocked.msg}</p>
+              <Button onClick={() => navigate("/pricing")} size="sm" className="rounded-full">
+                عرض الباقات
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Image upload */}
         {!imageBase64 ? (
