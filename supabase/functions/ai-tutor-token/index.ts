@@ -54,21 +54,22 @@ serve(async (req) => {
       });
     }
 
+    // Get signed URL for WebSocket connection (more reliable than WebRTC token)
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${agentId}`,
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
       { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
     );
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("ElevenLabs token error:", response.status, errText);
-      return new Response(JSON.stringify({ error: "تعذر الحصول على رمز المحادثة" }), {
+      console.error("ElevenLabs signed-url error:", response.status, errText);
+      return new Response(JSON.stringify({ error: "تعذر الحصول على رابط المحادثة", detail: errText }), {
         status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { token } = await response.json();
-    return new Response(JSON.stringify({ token }), {
+    const { signed_url } = await response.json();
+    return new Response(JSON.stringify({ signedUrl: signed_url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
