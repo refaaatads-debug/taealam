@@ -106,24 +106,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
     // Apply pending role after OAuth redirect (e.g. teacher signup via Google)
-  const applyPendingRole = async (userId: string) => {
+  const applyPendingRole = async (userId: string): Promise<AppRole[] | null> => {
     const pendingRole = localStorage.getItem("pending_role");
-    if (!pendingRole) return;
+    if (!pendingRole) return null;
     localStorage.removeItem("pending_role");
 
-    if (pendingRole === "teacher") {
-      try {
-        const { error } = await supabase.rpc("set_new_user_role", { _role: "teacher" });
-        if (!error) {
-          // Re-fetch roles after update
-          await fetchRoles(userId);
-          window.location.replace("/teacher");
-          return;
-        }
+    if (pendingRole !== "teacher") return null;
+
+    try {
+      const { error } = await supabase.rpc("set_new_user_role", { _role: "teacher" });
+      if (error) {
         console.log("Role update skipped:", error.message);
-      } catch (e) {
-        console.error("Error setting role:", e);
+        return null;
       }
+
+      return await fetchRoles(userId);
+    } catch (e) {
+      console.error("Error setting role:", e);
+      return null;
     }
   };
 
@@ -259,8 +259,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ]);
 
         const resolvedRoles = rolesResult.status === "fulfilled" ? rolesResult.value : [];
-        await applyPendingRole(userId).catch(() => {});
-        redirectAuthenticatedUser(resolvedRoles);
+        const updatedRoles = await applyPendingRole(userId).catch(() => null);
+        redirectAuthenticatedUser(updatedRoles ?? resolvedRoles);
         cleanupSingleSession();
         setupSingleSession(userId);
       } catch (e) {

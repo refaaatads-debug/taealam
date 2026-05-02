@@ -58,26 +58,14 @@ const Login = () => {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (authLoading || !user) return;
-    const pendingRole = localStorage.getItem("pending_role");
-    if (pendingRole) {
-      const t = setTimeout(() => {
-        localStorage.removeItem("pending_role");
-        goToDashboard(pendingRole === "teacher" ? "teacher" : undefined);
-      }, 2500);
-      return () => clearTimeout(t);
-    }
-    // If roles loaded → use highest privilege; else fall back to student after short wait
+    // Let AuthContext own post-auth redirects to avoid race conditions and wrong fallbacks.
     if (userRoles.length > 0) {
       const r = userRoles.includes("admin") ? "admin"
         : userRoles.includes("teacher") ? "teacher"
         : userRoles.includes("parent") ? "parent"
         : "student";
       goToDashboard(r);
-      return;
     }
-    // No roles yet — wait briefly then default to student
-    const t = setTimeout(() => goToDashboard("student"), 1500);
-    return () => clearTimeout(t);
   }, [user, userRoles, authLoading]);
 
   // Pick the highest-privileged role among all user_roles rows
