@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
+import { playJoinSound, playLeaveSound, playHandRaiseSound } from "@/lib/sessionSounds";
+import { PreJoinCheck } from "@/components/session/PreJoinCheck";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
@@ -38,6 +40,8 @@ const LiveSession = () => {
   const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
+  const [remoteHandRaised, setRemoteHandRaised] = useState(false);
+  const [showPreJoin, setShowPreJoin] = useState(true);
   const [showReport, setShowReport] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef(0);
@@ -235,6 +239,12 @@ const LiveSession = () => {
       if (isTeacher) {
         sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
       }
+    } else if (msg.type === "hand-raise") {
+      setRemoteHandRaised(!!msg.raised);
+      if (msg.raised) {
+        playHandRaiseSound();
+        toast.info(isTeacher ? "✋ الطالب رفع يده" : "✋ المعلم رفع يده", { id: "hand-raise" });
+      }
     }
   }, [isTeacher, pushDebugEvent]);
 
@@ -303,6 +313,7 @@ const LiveSession = () => {
     },
     onRemoteJoin: () => {
       setRemoteConnected(true);
+      try { playJoinSound(); } catch {}
       if (meetingStarted) {
         setBothJoined(true);
         toast.success("انضم المشارك الآخر! بدأ العداد 🎉");
@@ -312,6 +323,7 @@ const LiveSession = () => {
     },
     onRemoteLeave: () => {
       setRemoteConnected(false);
+      try { playLeaveSound(); } catch {}
       toast.info("غادر المشارك الآخر الجلسة");
     },
     onConnectionState: (state) => {
@@ -1521,6 +1533,33 @@ const LiveSession = () => {
   }, [sendDataMessage]);
 
 
+  // Pre-join screen: show before user clicks "join the session" so they can verify mic.
+  // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
+  if (showPreJoin && !meetingStarted && bookingId) {
+    const studentJoinDisabled = !isTeacher && !teacherStarted;
+    const lowBalance = hasSubscription && subscriptionRemainingMinutes < 5;
+    const canJoin = !studentJoinDisabled && !lowBalance;
+    const reason = lowBalance
+      ? "رصيد الدقائق غير كافٍ"
+      : studentJoinDisabled
+        ? "بانتظار بدء المعلم..."
+        : undefined;
+    return (
+      <PreJoinCheck
+        otherName={otherName}
+        isTeacher={isTeacher}
+        canJoin={canJoin}
+        joinDisabledReason={reason}
+        onJoin={() => {
+          setShowPreJoin(false);
+          // Defer the actual start by one tick so state updates flush before getUserMedia runs again
+          setTimeout(() => { startMeeting(); }, 50);
+        }}
+        onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
+      />
+    );
+  }
+
   return (
     <div className="h-screen bg-foreground flex flex-col">
       <audio ref={remoteAudioRef} autoPlay playsInline />
@@ -1934,9 +1973,9 @@ const LiveSession = () => {
             </div>
           )}
 
-          {handRaised && (
+          {(handRaised || remoteHandRaised) && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-gold text-gold-foreground px-4 py-2 rounded-xl font-bold text-sm shadow-lg z-20">
-              <Hand className="h-4 w-4 inline ml-1" /> {isTeacher ? "الطالب رفع يده" : "رفعت يدك"}
+              <Hand className="h-4 w-4 inline ml-1" /> {remoteHandRaised ? (isTeacher ? "الطالب رفع يده" : "المعلم رفع يده") : "رفعت يدك"}
             </motion.div>
           )}
         </div>
@@ -2090,7 +2129,7 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => setHandRaised(!handRaised)} title="رفع اليد">
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !handRaised; setHandRaised(next); try { sendDataMessage({ type: "hand-raise", raised: next }); } catch {} }} title="رفع اليد">
               <Hand className="h-5 w-5" />
             </Button>
           </>
