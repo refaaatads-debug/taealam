@@ -194,7 +194,12 @@ const SupportTicketsTab = () => {
 
     if (error) {
       setNewMessage(content);
-      toast.error("فشل في إرسال الرسالة");
+      if ((error.message || "").includes("TICKET_LOCKED")) {
+        toast.error("التذكرة مقفلة على موظف آخر — لا يمكنك الرد", { duration: 5000 });
+        await fetchTickets();
+      } else {
+        toast.error("فشل في إرسال الرسالة");
+      }
     } else {
       await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
       const ticket = tickets.find(t => t.id === selectedTicket);
@@ -219,7 +224,12 @@ const SupportTicketsTab = () => {
       ticket_id: selectedTicket, sender_id: user.id, content: "🎤 رسالة صوتية", is_admin: true,
       file_url: fileData.url, file_name: fileData.name, file_type: fileData.type,
     });
-    if (error) toast.error("فشل في إرسال الرسالة الصوتية");
+    if (error) {
+      if ((error.message || "").includes("TICKET_LOCKED")) {
+        toast.error("التذكرة مقفلة على موظف آخر — لا يمكنك الرد");
+        await fetchTickets();
+      } else toast.error("فشل في إرسال الرسالة الصوتية");
+    }
     else {
       await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", selectedTicket);
       const ticket = tickets.find(t => t.id === selectedTicket);
@@ -479,17 +489,29 @@ const SupportTicketsTab = () => {
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedFile(null)}><X className="h-3 w-3" /></Button>
               </div>
             )}
-            <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="flex gap-2">
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileSelect} />
-              <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={() => fileInputRef.current?.click()}>
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
-              <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="اكتب ردك..." className="rounded-xl flex-1" dir="rtl" />
-              <Button type="submit" size="icon" className="rounded-xl" disabled={(!newMessage.trim() && !selectedFile) || sending}>
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </form>
+            {claimedByOther ? (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="text-amber-700 dark:text-amber-300 flex-1">
+                  🔒 التذكرة مقفلة — يتابعها <b>{ticket?.assigned_name}</b>. لا يمكنك الرد إلا بعد استلامها.
+                </span>
+                <Button size="sm" variant="outline" className="rounded-lg h-7 text-[11px] shrink-0" onClick={reassignToMe}>
+                  <UserCheck className="h-3.5 w-3.5 ml-1" />استلامها
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={e => { e.preventDefault(); handleSend(); }} className="flex gap-2">
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileSelect} />
+                <Button type="button" variant="ghost" size="icon" className="rounded-xl" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <VoiceRecorder onRecorded={sendVoiceMessage} disabled={sending} />
+                <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="اكتب ردك..." className="rounded-xl flex-1" dir="rtl" />
+                <Button type="submit" size="icon" className="rounded-xl" disabled={(!newMessage.trim() && !selectedFile) || sending}>
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
