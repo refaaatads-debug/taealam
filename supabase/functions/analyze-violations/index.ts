@@ -77,12 +77,19 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
-    let userId: string | null = null;
-    if (token) {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
+    const { data: { user } } = await supabase.auth.getUser(token);
+    const userId: string | null = user?.id || null;
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const { messages, booking_id, source = "chat" } = await req.json();
@@ -93,6 +100,20 @@ serve(async (req) => {
     }
 
     const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // Authorize: caller must be a participant of the booking (or admin)
+    if (booking_id) {
+      const { data: booking } = await adminClient
+        .from("bookings").select("student_id, teacher_id").eq("id", booking_id).maybeSingle();
+      const { data: adminRole } = await adminClient
+        .from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
+      const isParticipant = booking && (booking.student_id === userId || booking.teacher_id === userId);
+      if (!isParticipant && !adminRole) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const results: Array<{
       index: number; text: string; is_violation: boolean;
