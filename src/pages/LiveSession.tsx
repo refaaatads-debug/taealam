@@ -16,6 +16,7 @@ import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
