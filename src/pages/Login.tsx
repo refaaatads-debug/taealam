@@ -56,14 +56,20 @@ const Login = () => {
 
   // Auto-redirect if already logged in
   useEffect(() => {
-    if (!authLoading && user && userRoles.length > 0) {
-      if (localStorage.getItem("pending_role")) return;
+    if (authLoading || !user) return;
+    if (localStorage.getItem("pending_role")) return;
+    // If roles loaded → use highest privilege; else fall back to student after short wait
+    if (userRoles.length > 0) {
       const r = userRoles.includes("admin") ? "admin"
         : userRoles.includes("teacher") ? "teacher"
         : userRoles.includes("parent") ? "parent"
         : "student";
       goToDashboard(r);
+      return;
     }
+    // No roles yet — wait briefly then default to student
+    const t = setTimeout(() => goToDashboard("student"), 1500);
+    return () => clearTimeout(t);
   }, [user, userRoles, authLoading]);
 
   // Pick the highest-privileged role among all user_roles rows
@@ -89,10 +95,17 @@ const Login = () => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Fetch role to redirect correctly (highest privilege wins)
-        const primaryRole = await pickPrimaryRole(data.user.id);
         toast.success("تم تسجيل الدخول بنجاح!");
-        redirectByRole(primaryRole);
+        // Fetch role with timeout fallback to prevent hanging
+        try {
+          const primaryRole = await Promise.race([
+            pickPrimaryRole(data.user.id),
+            new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 3000)),
+          ]);
+          redirectByRole(primaryRole);
+        } catch {
+          redirectByRole();
+        }
       } else {
         if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
         if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
