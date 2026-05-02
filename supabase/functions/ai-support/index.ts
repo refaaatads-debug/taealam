@@ -349,6 +349,8 @@ Deno.serve(async (req) => {
       ...messages,
     ];
 
+    let createdTicket: { id: string; subject: string; category: string } | null = null;
+
     for (let hop = 0; hop < 5; hop++) {
       const aiResp = await fetch(LOVABLE_AI_URL, {
         method: "POST",
@@ -375,6 +377,7 @@ Deno.serve(async (req) => {
         return json({
           role: "assistant",
           content: msg.content || "",
+          ticket: createdTicket,
         });
       }
 
@@ -390,6 +393,13 @@ Deno.serve(async (req) => {
           userId,
           role,
         });
+        if (tc.function.name === "create_support_ticket" && result?.success) {
+          createdTicket = {
+            id: result.ticket_id,
+            subject: result.subject,
+            category: result.category,
+          };
+        }
         convo.push({
           role: "tool",
           tool_call_id: tc.id,
