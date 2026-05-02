@@ -684,14 +684,26 @@ export default function WhiteboardCanvas({
         </TooltipProvider>
       )}
 
-      {/* Student view-only label */}
-      {!canDraw && !overlay && (
-        <div className="flex items-center gap-2 p-2 border-b bg-muted/30 text-sm text-muted-foreground">
+      {/* Student status label (view-only or permission granted) */}
+      {!isTeacher && !overlay && (
+        <div className={`flex items-center gap-2 p-2 border-b text-sm ${
+          studentCanDraw ? "bg-secondary/15 text-secondary border-secondary/30" : "bg-muted/30 text-muted-foreground"
+        }`}>
           <Pen className="h-4 w-4" />
-          <span>السبورة - عرض فقط</span>
+          <span className="font-bold">
+            {studentCanDraw ? "✏️ يمكنك الرسم الآن — منحك المعلم الإذن" : "السبورة - عرض فقط"}
+          </span>
           <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground mr-auto" onClick={handleDownload} title="تحميل">
             <Download className="h-4 w-4" />
           </Button>
+        </div>
+      )}
+
+      {/* Floating "permission granted" badge for student in overlay mode */}
+      {!isTeacher && overlay && studentCanDraw && (
+        <div className="absolute top-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-xs font-bold shadow-lg animate-pulse">
+          <UserCheck className="h-3.5 w-3.5" />
+          <span>يمكنك الرسم</span>
         </div>
       )}
 
