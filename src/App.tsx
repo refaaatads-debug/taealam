@@ -43,6 +43,7 @@ const TeacherAssignments = lazy(() => import("./pages/TeacherAssignments"));
 const StudentAssignments = lazy(() => import("./pages/StudentAssignments"));
 const ReviewSubmission = lazy(() => import("./pages/ReviewSubmission"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
+const HomeworkSolver = lazy(() => import("./pages/HomeworkSolver"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/rating" element={<ProtectedRoute><Rating /></ProtectedRoute>} />
               <Route path="/ai-tutor" element={<ProtectedRoute><AITutor /></ProtectedRoute>} />
+              <Route path="/homework-solver" element={<ProtectedRoute><HomeworkSolver /></ProtectedRoute>} />
               <Route path="/teacher/assignments" element={<ProtectedRoute><TeacherAssignments /></ProtectedRoute>} />
               <Route path="/teacher/assignments/review/:id" element={<ProtectedRoute><ReviewSubmission /></ProtectedRoute>} />
               <Route path="/student/assignments" element={<ProtectedRoute><StudentAssignments /></ProtectedRoute>} />

@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone } from "lucide-react";
+import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { LiveVoiceTutor } from "@/components/ai/LiveVoiceTutor";
 
@@ -74,6 +74,19 @@ const AITutor = () => {
           <h1 className="text-2xl md:text-3xl font-black">مساعد التعلّم الذكي</h1>
           <p className="text-sm text-muted-foreground mt-1">اطرح سؤالاً واسمع الإجابة بصوت طبيعي</p>
         </div>
+
+        <Card className="mb-4 border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5 cursor-pointer hover:shadow-lg transition" onClick={() => navigate("/homework-solver")}>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
+              <Camera className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-black text-sm">مساعد الواجبات البصري ✨</h3>
+              <p className="text-xs text-muted-foreground">صوّر واجبك (حتى بخط اليد) واحصل على الحل خطوة بخطوة</p>
+            </div>
+            <ArrowRight className="h-5 w-5 text-primary rotate-180" />
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="text" className="mb-4">
           <TabsList className="w-full grid grid-cols-2">
