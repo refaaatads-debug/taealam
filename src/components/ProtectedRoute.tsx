@@ -25,6 +25,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       .then(({ data }) => {
         setIsBanned((data ?? []).length > 0);
         setBanChecked(true);
+      })
+      .catch(() => {
+        setIsBanned(false);
+        setBanChecked(true);
       });
   }, [user, roles]);
 
