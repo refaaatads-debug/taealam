@@ -8,18 +8,29 @@ import { supabase } from "@/integrations/supabase/client";
 const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
   const [studentName, setStudentName] = useState<string>("");
+  const [hasPremium, setHasPremium] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
+      if (!user) { setHasPremium(false); return; }
+      const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("id", user.id)
         .maybeSingle();
-      const name = (data?.full_name || user.user_metadata?.full_name || "").toString().trim();
+      const name = (profile?.full_name || user.user_metadata?.full_name || "").toString().trim();
       if (name) setStudentName(name);
+
+      const { data: subs } = await supabase
+        .from("user_subscriptions")
+        .select("ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("remaining_minutes", 0)
+        .gt("ends_at", new Date().toISOString());
+      const ok = (subs || []).some((s: any) => s.subscription_plans?.tier === "premium");
+      setHasPremium(ok);
     })();
   }, []);
 
@@ -103,8 +114,19 @@ const VoiceTutorInner = () => {
           : "تحدث مع المعلم الذكي بصوتك مباشرة"}
       </p>
 
+      {hasPremium === false && !isActive && (
+        <div className="mb-4 p-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground max-w-md mx-auto">
+          🔒 المحادثة الصوتية الحية متاحة فقط لمشتركي <strong className="text-foreground">الباقة الاحترافية</strong> مع رصيد دقائق متبقي.
+          <div className="mt-3">
+            <Button size="sm" variant="default" onClick={() => window.location.href = "/pricing"} className="rounded-full">
+              ترقية الباقة
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!isActive ? (
-        <Button onClick={start} disabled={connecting} size="lg" className="gap-2 rounded-full px-8">
+        <Button onClick={start} disabled={connecting || hasPremium !== true} size="lg" className="gap-2 rounded-full px-8">
           {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
           {connecting ? "جاري الاتصال..." : "ابدأ المحادثة"}
         </Button>
