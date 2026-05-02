@@ -506,6 +506,77 @@ const SupportTicketsTab = () => {
                   <SelectItem value="closed">مغلقة</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Quick access to student profile */}
+              {ticket?.user_id && (
+                <Popover onOpenChange={(open) => { if (open) loadStudentPeek(ticket.user_id); }}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="outline" className="rounded-xl gap-1.5 border-primary/30 hover:bg-primary/10">
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      <span className="hidden sm:inline">ملف الطالب</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80 p-0 overflow-hidden" dir="rtl">
+                    {peekLoading || !peekData ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="bg-gradient-to-l from-primary/10 to-transparent p-4 border-b">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-12 w-12 ring-2 ring-primary/30">
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                                {initials(peekData.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold truncate">{peekData.full_name || "بدون اسم"}</p>
+                              <p className="text-xs text-muted-foreground truncate">{peekData.email}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-3 space-y-2 text-xs">
+                          {peekData.phone_number && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5" />
+                              <span dir="ltr">{peekData.phone_number}</span>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">الباقة الحالية</div>
+                              <div className="font-bold truncate">{peekData.activePlan}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">الدقائق المتبقية</div>
+                              <div className="font-bold">{peekData.totalMins}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px] flex items-center gap-1"><Wallet className="h-3 w-3" /> الرصيد</div>
+                              <div className="font-bold">{Number(peekData.balance).toFixed(2)}</div>
+                            </div>
+                            <div className="rounded-lg border p-2">
+                              <div className="text-muted-foreground text-[10px]">التذاكر</div>
+                              <div className="font-bold">
+                                {peekData.openTickets} / {peekData.totalTickets}
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full mt-2 rounded-lg gap-1.5"
+                            onClick={() => window.open(`/admin/students/${peekData.user_id}`, "_blank")}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            فتح الملف الكامل
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {/* Conflict / takeover banner */}
