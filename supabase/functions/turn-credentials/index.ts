@@ -64,10 +64,13 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      console.error("turn-credentials auth failed:", claimsErr?.message);
       return json({ error: "Unauthorized" }, 401);
     }
+    const userId = claimsData.claims.sub;
 
     // ---- Generate HMAC credentials ------------------------------------------
     const TURN_SECRET = Deno.env.get("TURN_SECRET");
