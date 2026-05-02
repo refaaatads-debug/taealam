@@ -300,20 +300,10 @@ export default function WhiteboardCanvas({
     }
 
     if (tool === "text") {
-      const text = prompt("اكتب النص:");
-      if (text) {
-        const action: DrawAction = { type: "text", text, x: pt.x, y: pt.y, fontSize: lineWidth * 6, color };
-        actionsRef.current.push(action);
-        undoneRef.current = [];
-        broadcastAction(action);
-        const canvas = canvasRef.current;
-        const container = containerRef.current;
-        if (canvas && container) {
-          const ctx = canvas.getContext("2d");
-          const rect = container.getBoundingClientRect();
-          if (ctx) redrawAll(ctx, rect.width, rect.height);
-        }
-      }
+      // Open inline floating text editor at click position; no native prompt() interruption.
+      setTextEditor({ x: pt.x, y: pt.y, value: "" });
+      // Focus the input on next tick after it mounts
+      setTimeout(() => textInputRef.current?.focus(), 50);
       return;
     }
 
