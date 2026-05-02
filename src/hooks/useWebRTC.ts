@@ -59,6 +59,7 @@ export function useWebRTC({
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const reconnectAttemptsRef = useRef(0);
   const onDataMessageRef = useRef(onDataMessage);
   onDataMessageRef.current = onDataMessage;
 
