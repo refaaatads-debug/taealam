@@ -34,6 +34,7 @@ const Chat = () => {
   const dashboardPath = roles?.includes("teacher") ? "/teacher" : "/student";
   const { play: playNotificationSound } = useNotificationSound();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const bookingId = searchParams.get("booking");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
