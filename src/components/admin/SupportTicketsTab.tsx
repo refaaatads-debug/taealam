@@ -104,9 +104,13 @@ const SupportTicketsTab = () => {
         ]);
         const tp: any = tpRes.data || {};
         const bookings = (bookingsRes.data || []) as any[];
+        const now = new Date();
+        // مطابقة دقيقة لحالات قاعدة البيانات: pending | confirmed | completed | cancelled
         const completed = bookings.filter(b => b.status === "completed").length;
         const cancelled = bookings.filter(b => b.status === "cancelled").length;
-        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        // قادمة = مؤكدة فقط ولم يحن وقتها بعد (pending = بانتظار القبول، يُعرض منفصلًا)
+        const upcoming = bookings.filter(b => b.status === "confirmed" && new Date(b.scheduled_at) > now).length;
+        const pending = bookings.filter(b => b.status === "pending").length;
         const earnings = (earningsRes.data || []) as any[];
         const paidTotal = earnings.filter(e => e.status === "paid").reduce((s, e) => s + Number(e.amount || 0), 0);
         const lastBooking = bookings[0]?.scheduled_at || null;
@@ -123,7 +127,7 @@ const SupportTicketsTab = () => {
           balance: walletRes.data?.balance ?? 0,
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
-          completed, cancelled, upcoming, paidTotal, lastBooking,
+          completed, cancelled, upcoming, pending, paidTotal, lastBooking,
         });
       } else {
         const [subsRes, walletRes, bookingsRes, paymentsRes] = await Promise.all([
@@ -140,9 +144,12 @@ const SupportTicketsTab = () => {
         const activePlan = activeSub?.subscription_plans?.name_ar || "—";
         const planExpiry = activeSub?.ends_at || null;
         const bookings = (bookingsRes.data || []) as any[];
+        const now = new Date();
+        // مطابقة دقيقة لحالات قاعدة البيانات
         const completed = bookings.filter(b => b.status === "completed").length;
         const cancelled = bookings.filter(b => b.status === "cancelled").length;
-        const upcoming = bookings.filter(b => ["pending","confirmed"].includes(b.status) && new Date(b.scheduled_at) > new Date()).length;
+        const upcoming = bookings.filter(b => b.status === "confirmed" && new Date(b.scheduled_at) > now).length;
+        const pending = bookings.filter(b => b.status === "pending").length;
         const lastBooking = bookings[0]?.scheduled_at || null;
         const payments = (paymentsRes.data || []) as any[];
         const totalSpent = payments.filter(p => p.status === "completed" || p.status === "paid" || p.status === "succeeded").reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -156,7 +163,7 @@ const SupportTicketsTab = () => {
           openTickets,
           totalTickets: (ticketsRes.data || []).length,
           balance: walletRes.data?.balance ?? 0,
-          completed, cancelled, upcoming, lastBooking, totalSpent,
+          completed, cancelled, upcoming, pending, lastBooking, totalSpent,
         });
       }
     } finally {
@@ -709,8 +716,13 @@ const SupportTicketsTab = () => {
                                 <div className="font-bold text-emerald-600">{peekData.completed}</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">قادمة</div>
-                                <div className="font-bold text-blue-600">{peekData.upcoming}</div>
+                                <div className="text-muted-foreground text-[10px]">قادمة (مؤكدة)</div>
+                                <div className="font-bold text-blue-600">
+                                  {peekData.upcoming}
+                                  {peekData.pending > 0 && (
+                                    <span className="text-[9px] text-amber-600 font-medium ms-1">+{peekData.pending} بانتظار</span>
+                                  )}
+                                </div>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px]">ملغاة</div>
@@ -765,8 +777,13 @@ const SupportTicketsTab = () => {
                                 <div className="font-bold text-emerald-600">{peekData.completed}</div>
                               </div>
                               <div className="rounded-lg border p-2">
-                                <div className="text-muted-foreground text-[10px]">قادمة</div>
-                                <div className="font-bold text-blue-600">{peekData.upcoming}</div>
+                                <div className="text-muted-foreground text-[10px]">قادمة (مؤكدة)</div>
+                                <div className="font-bold text-blue-600">
+                                  {peekData.upcoming}
+                                  {peekData.pending > 0 && (
+                                    <span className="text-[9px] text-amber-600 font-medium ms-1">+{peekData.pending} بانتظار</span>
+                                  )}
+                                </div>
                               </div>
                               <div className="rounded-lg border p-2">
                                 <div className="text-muted-foreground text-[10px]">ملغاة</div>
