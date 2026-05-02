@@ -26,6 +26,7 @@ const Install = lazy(() => import("./pages/Install"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminStudentProfile = lazy(() => import("./pages/AdminStudentProfile"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
