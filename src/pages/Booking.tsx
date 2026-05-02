@@ -295,6 +295,13 @@ const Booking = () => {
       return;
     }
 
+    // Block if total selected duration exceeds remaining balance
+    const totalRequestedMinutes = selectedSlots.length * SESSION_MINUTES;
+    if (totalRequestedMinutes > remainingMinutes) {
+      toast.error(`لا يمكن حجز ${formatMinutes(totalRequestedMinutes)} - رصيدك المتاح ${formatMinutes(remainingMinutes)} فقط.`);
+      return;
+    }
+
     setLoading(true);
     try {
       // Allow booking shorter sessions if remaining < SESSION_MINUTES (min 10 min)
