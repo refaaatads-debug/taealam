@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog,
@@ -244,9 +245,7 @@ export default function StudentScheduleTable() {
 
     await supabase.from("notifications").insert({
       user_id: teacherId,
-      title: "📞 طلب جلسة من طالب",
-      body: `طالب يريد بدء جلسة فورية معك. انضم الآن!`,
-      type: "session_request",
+      ...notificationTemplates.instantSessionFromStudent(),
     });
 
     // First-impression reminder for the teacher (first time this student books with them)
@@ -329,9 +328,7 @@ export default function StudentScheduleTable() {
                   if (booking?.teacher_id) {
                     await supabase.from("notifications").insert({
                       user_id: booking.teacher_id,
-                      title: "✅ الطالب قبل الجلسة",
-                      body: "الطالب قبل طلب الجلسة الفورية. يمكنك بدء الجلسة الآن!",
-                      type: "session_request",
+                      ...notificationTemplates.instantSessionAccepted(),
                     });
                   }
                   setJoinRequest(null);
@@ -353,9 +350,7 @@ export default function StudentScheduleTable() {
                   if (booking?.teacher_id) {
                     await supabase.from("notifications").insert({
                       user_id: booking.teacher_id,
-                      title: "❌ الطالب رفض الجلسة",
-                      body: "الطالب رفض طلب الجلسة الفورية.",
-                      type: "session_request",
+                      ...notificationTemplates.instantSessionRejected(),
                     });
                   }
                 }
