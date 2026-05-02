@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download, ClipboardList } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
@@ -34,6 +34,7 @@ const Chat = () => {
   const dashboardPath = roles?.includes("teacher") ? "/teacher" : "/student";
   const { play: playNotificationSound } = useNotificationSound();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const bookingId = searchParams.get("booking");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -359,6 +360,39 @@ const Chat = () => {
         ) : (
           messages.map(msg => {
             const isMe = msg.sender_id === user?.id;
+            // Detect assignment marker [[ASSIGNMENT:/path]]
+            const assignMatch = !msg.is_filtered && msg.content?.match(/^\[\[ASSIGNMENT:([^\]]+)\]\]\s*([\s\S]*)$/);
+            if (assignMatch) {
+              const target = assignMatch[1];
+              const body = assignMatch[2].trim();
+              const lines = body.split("\n");
+              return (
+                <div key={msg.id} className={`flex ${isMe ? "justify-start" : "justify-end"}`}>
+                  <button
+                    onClick={() => navigate(target)}
+                    className={`max-w-[75%] text-right rounded-2xl p-3 border-2 transition hover:scale-[1.02] active:scale-[0.99] ${
+                      isMe
+                        ? "bg-primary/10 border-primary/40 hover:bg-primary/15"
+                        : "bg-secondary/10 border-secondary/40 hover:bg-secondary/15"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <ClipboardList className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-bold text-primary">واجب جديد</span>
+                    </div>
+                    {lines.map((l, i) => (
+                      <p key={i} className={`text-sm leading-relaxed ${i === 0 ? "font-bold" : "text-muted-foreground"}`}>{l}</p>
+                    ))}
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary">
+                      اضغط لفتح الواجب <ArrowRight className="h-3 w-3 rotate-180" />
+                    </div>
+                    <p className={`text-[10px] mt-1 ${isMe ? "text-muted-foreground" : "text-muted-foreground"}`}>
+                      {new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </button>
+                </div>
+              );
+            }
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-start" : "justify-end"}`}>
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${

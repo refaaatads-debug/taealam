@@ -35,6 +35,10 @@ const TeacherAssignments = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
 
+  // Submissions filters
+  const [subFilter, setSubFilter] = useState<"all" | "submitted" | "ai_graded" | "reviewed">("all");
+  const [subSearch, setSubSearch] = useState("");
+
   // New assignment form
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -204,18 +208,40 @@ const TeacherAssignments = () => {
     setSaving(false);
     if (error) { toast.error("خطأ: " + error.message); return; }
 
-    // إرسال إشعار للطالب/الطلاب
+    // إرسال إشعار + رسالة محادثة تلقائية
     try {
-      const assignmentId = (created as any)?.id;
       const link = `/student/assignments`;
+      const chatLink = (a_studentId: string, a_link: string) => `[[ASSIGNMENT:${a_link}]]\n📝 واجب جديد: ${title}${description ? "\n" + description : ""}\n${(questions || []).length} أسئلة • ${total} درجة${dueDate ? " • حتى " + new Date(dueDate).toLocaleDateString("ar") : ""}`;
+
+      const sendChatToStudent = async (sId: string) => {
+        // ابحث عن أي حجز بين المعلم والطالب لربط الرسالة
+        const { data: bk } = await supabase.from("bookings")
+          .select("id")
+          .eq("teacher_id", user.id)
+          .eq("student_id", sId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (bk?.id) {
+          await supabase.from("chat_messages").insert({
+            booking_id: bk.id,
+            sender_id: user.id,
+            content: chatLink(sId, link),
+          });
+        }
+      };
+
       if (studentId) {
-        await supabase.from("notifications").insert({
-          user_id: studentId,
-          title: "📝 واجب جديد",
-          body: `تم إسناد واجب: ${title}`,
-          type: "assignment",
-          link,
-        });
+        await Promise.all([
+          supabase.from("notifications").insert({
+            user_id: studentId,
+            title: "📝 واجب جديد",
+            body: `تم إسناد واجب: ${title}`,
+            type: "assignment",
+            link,
+          }),
+          sendChatToStudent(studentId),
+        ]);
       } else {
         // واجب عام: أرسل لجميع الطلاب الذين لديهم حصص فعلية مع المعلم
         const { data: bks } = await supabase.from("bookings")
@@ -236,9 +262,12 @@ const TeacherAssignments = () => {
           ids = ids.filter(id => activeIds.has(id));
         }
         if (ids.length > 0) {
-          await supabase.from("notifications").insert(
-            ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
-          );
+          await Promise.all([
+            supabase.from("notifications").insert(
+              ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
+            ),
+            ...ids.map(uid => sendChatToStudent(uid)),
+          ]);
         }
       }
     } catch (e) { console.warn("notif failed", e); }
@@ -504,28 +533,73 @@ const TeacherAssignments = () => {
 
           {/* Submissions */}
           <TabsContent value="submissions" className="space-y-3">
-            {submissions.length === 0 && (
-              <Card className="p-8 text-center text-muted-foreground">لا توجد حلول واردة</Card>
-            )}
-            {submissions.map(s => (
-              <Card key={s.id} className="cursor-pointer hover:shadow-md transition" onClick={() => reviewSubmission(s.id)}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold">{s.assignment?.title}</h4>
-                    <p className="text-sm text-muted-foreground">{s.profiles?.full_name || "طالب"} • {new Date(s.submitted_at).toLocaleDateString("ar")}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {s.ai_score != null && <Badge variant="secondary"><Sparkles className="h-3 w-3 ml-1" /> AI: {s.ai_score}</Badge>}
-                    {s.final_score != null ? (
-                      <Badge>{s.final_score} درجة</Badge>
-                    ) : (
-                      <Badge variant="outline">قيد المراجعة</Badge>
-                    )}
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {/* Filters */}
+            <Card className="p-3">
+              <div className="flex flex-col md:flex-row gap-2 md:items-center">
+                <Input
+                  placeholder="ابحث باسم الطالب أو عنوان الواجب..."
+                  value={subSearch}
+                  onChange={(e) => setSubSearch(e.target.value)}
+                  className="md:max-w-xs"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { v: "all", label: "الكل", count: submissions.length },
+                    { v: "submitted", label: "🆕 جديدة", count: submissions.filter(s => s.status === "submitted").length },
+                    { v: "ai_graded", label: "🤖 صحّحها AI", count: submissions.filter(s => s.status === "ai_graded").length },
+                    { v: "reviewed", label: "✅ مراجَعة", count: submissions.filter(s => s.status === "reviewed").length },
+                  ] as const).map(f => (
+                    <Button
+                      key={f.v}
+                      type="button"
+                      size="sm"
+                      variant={subFilter === f.v ? "default" : "outline"}
+                      onClick={() => setSubFilter(f.v as any)}
+                      className="h-8"
+                    >
+                      {f.label} {f.count > 0 && <span className="mr-1 opacity-70">({f.count})</span>}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            {(() => {
+              const filtered = submissions.filter(s => {
+                if (subFilter !== "all" && s.status !== subFilter) return false;
+                if (subSearch.trim()) {
+                  const q = subSearch.trim().toLowerCase();
+                  const hay = `${s.assignment?.title || ""} ${s.profiles?.full_name || ""}`.toLowerCase();
+                  if (!hay.includes(q)) return false;
+                }
+                return true;
+              });
+              if (filtered.length === 0) {
+                return <Card className="p-8 text-center text-muted-foreground">لا توجد حلول مطابقة</Card>;
+              }
+              return filtered.map(s => {
+                const statusBadge =
+                  s.status === "reviewed" ? { label: "✅ تمت المراجعة", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" } :
+                  s.status === "ai_graded" ? { label: "🤖 صحّحه AI", className: "bg-secondary/15 text-secondary border-secondary/30" } :
+                  { label: "🆕 بانتظار المراجعة", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" };
+                return (
+                  <Card key={s.id} className="cursor-pointer hover:shadow-md transition" onClick={() => reviewSubmission(s.id)}>
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold truncate">{s.assignment?.title}</h4>
+                        <p className="text-sm text-muted-foreground truncate">{s.profiles?.full_name || "طالب"} • {new Date(s.submitted_at).toLocaleDateString("ar")}</p>
+                        <Badge className={`mt-2 ${statusBadge.className}`} variant="outline">{statusBadge.label}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {s.ai_score != null && <Badge variant="secondary"><Sparkles className="h-3 w-3 ml-1" /> AI: {s.ai_score}</Badge>}
+                        {s.final_score != null && <Badge>{s.final_score} درجة</Badge>}
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              });
+            })()}
           </TabsContent>
 
           {/* Question bank */}
