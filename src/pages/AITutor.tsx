@@ -1,225 +1,159 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Brain, Send, Sparkles, BookOpen, Calculator, FlaskConical, Lock } from "lucide-react";
-import { motion } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone } from "lucide-react";
 import { toast } from "sonner";
-import { checkRateLimit } from "@/lib/api";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 
-type Msg = { role: "user" | "assistant"; content: string };
-
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`;
-
-const quickPrompts = [
-  { icon: Calculator, label: "حل معادلة", prompt: "ساعدني في حل المعادلة التربيعية: x² - 5x + 6 = 0" },
-  { icon: FlaskConical, label: "شرح مفهوم", prompt: "اشرح لي قانون نيوتن الثاني بأسلوب مبسط" },
-  { icon: BookOpen, label: "تلخيص درس", prompt: "لخص لي درس الخلية في الأحياء" },
-];
+interface Msg { role: "user" | "assistant"; content: string; audio?: string }
 
 const AITutor = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [agentId, setAgentId] = useState<string>("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const checkAccess = async () => {
-      if (!user) { setHasAccess(false); return; }
-      const { data } = await supabase
-        .from("user_subscriptions")
-        .select("is_active, ends_at, plan:subscription_plans(has_ai_tutor, tier)")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .gt("ends_at", new Date().toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const plan = (data as any)?.plan;
-      const ok = !!plan && plan.tier !== "free" && plan.has_ai_tutor === true;
-      setHasAccess(ok);
-    };
-    checkAccess();
-  }, [user]);
+    supabase.from("site_settings").select("value").eq("key", "ai_tutor_agent_id").maybeSingle()
+      .then(({ data }) => setAgentId(data?.value?.trim() || ""));
+  }, []);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const send = async (text: string) => {
-    if (!text.trim() || isLoading) return;
-    if (!hasAccess) {
-      toast.error("المدرس الذكي متاح فقط لمشتركي الباقات المدفوعة");
-      return;
-    }
-    if (!checkRateLimit("ai-tutor", 15, 60000)) {
-      toast.error("تم تجاوز حد الطلبات، انتظر قليلاً");
-      return;
-    }
-    const userMsg: Msg = { role: "user", content: text.trim() };
-    const allMessages = [...messages, userMsg];
-    setMessages(allMessages);
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading || !user) return;
     setInput("");
-    setIsLoading(true);
+    const newMsgs: Msg[] = [...messages, { role: "user", content: text }];
+    setMessages(newMsgs);
+    setLoading(true);
 
-    let assistantSoFar = "";
-
-    try {
-      const resp = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: allMessages }),
-      });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || "فشل الاتصال");
-      }
-
-      const reader = resp.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let idx: number;
-        while ((idx = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(json);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantSoFar += content;
-              setMessages((prev) => {
-                const last = prev[prev.length - 1];
-                if (last?.role === "assistant") {
-                  return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
-                }
-                return [...prev, { role: "assistant", content: assistantSoFar }];
-              });
-            }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
-          }
-        }
-      }
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
-      setMessages((prev) => [...prev, { role: "assistant", content: "عذراً، حدث خطأ. حاول مرة أخرى." }]);
-    } finally {
-      setIsLoading(false);
+    const { data, error } = await supabase.functions.invoke("ai-tutor-chat", {
+      body: { messages: newMsgs.map(m => ({ role: m.role, content: m.content })), speak: true },
+    });
+    setLoading(false);
+    if (error || data?.error) {
+      toast.error(data?.error || "خطأ في الاتصال");
+      return;
     }
+    const reply: Msg = { role: "assistant", content: data.text, audio: data.audio };
+    setMessages(prev => [...prev, reply]);
+    if (data.audio) playAudio(data.audio);
+  };
+
+  const playAudio = (base64: string) => {
+    if (audioRef.current) audioRef.current.pause();
+    const audio = new Audio(`data:audio/mpeg;base64,${base64}`);
+    audioRef.current = audio;
+    audio.play().catch(() => {});
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30 pb-16 md:pb-0">
+    <div className="min-h-screen bg-background pb-32">
       <Navbar />
-      <div className="container flex-1 flex flex-col py-4 max-w-3xl">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
-            <Brain className="h-5 w-5 text-secondary-foreground" />
+      <main className="container mx-auto px-4 py-6 max-w-3xl">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4 gap-2">
+          <ArrowRight className="h-4 w-4" /> رجوع
+        </Button>
+
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-primary to-secondary mb-3 shadow-lg">
+            <Sparkles className="h-8 w-8 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="text-lg font-black text-foreground">المدرس الذكي</h1>
-            <p className="text-xs text-muted-foreground">مدعوم بالذكاء الاصطناعي</p>
-          </div>
+          <h1 className="text-2xl md:text-3xl font-black">مساعد التعلّم الذكي</h1>
+          <p className="text-sm text-muted-foreground mt-1">اطرح سؤالاً واسمع الإجابة بصوت طبيعي</p>
         </div>
 
-        {hasAccess === false ? (
-          <Card className="flex-1 flex flex-col items-center justify-center text-center p-8 border-0 shadow-card">
-            <div className="w-20 h-20 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4">
-              <Lock className="h-10 w-10 text-secondary" />
+        <Tabs defaultValue="text" className="mb-4">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="text" className="gap-2"><MessageSquare className="h-4 w-4" /> نص + نطق</TabsTrigger>
+            <TabsTrigger value="voice" className="gap-2"><Phone className="h-4 w-4" /> محادثة صوتية حية</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="text" className="space-y-3 mt-4">
+            <Card className="min-h-[400px]">
+              <CardContent className="p-4 space-y-3">
+                {messages.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Sparkles className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p>ابدأ بطرح سؤال... سأشرح لك بالعربية وأنطق الإجابة بصوت 🎙️</p>
+                  </div>
+                )}
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                      m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                    }`}>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                      {m.audio && m.role === "assistant" && (
+                        <button onClick={() => playAudio(m.audio!)} className="mt-2 inline-flex items-center gap-1 text-xs opacity-70 hover:opacity-100">
+                          <Volume2 className="h-3 w-3" /> تشغيل الصوت
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {loading && (
+                  <div className="flex justify-end">
+                    <div className="bg-muted rounded-2xl px-4 py-2.5 inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> <span className="text-sm">يفكر...</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={bottomRef} />
+              </CardContent>
+            </Card>
+
+            <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card border-t p-3 z-40">
+              <div className="container mx-auto max-w-3xl flex gap-2">
+                <Input
+                  placeholder="اكتب سؤالك هنا..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && send()}
+                  disabled={loading}
+                />
+                <Button onClick={send} disabled={loading || !input.trim()} size="icon">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <h2 className="text-xl font-black text-foreground mb-2">المدرس الذكي للمشتركين فقط</h2>
-            <p className="text-sm text-muted-foreground mb-6 max-w-md">
-              ميزة المدرس الذكي متاحة فقط لمشتركي الباقات المدفوعة، ولا تُخصم من رصيد دقائق الباقة.
-              اشترك الآن للاستمتاع بالمساعدة الذكية في جميع المواد.
-            </p>
-            <Button onClick={() => navigate("/pricing")} className="gradient-cta text-secondary-foreground rounded-xl px-8">
-              عرض الباقات
-            </Button>
-          </Card>
-        ) : (
-          <Card className="flex-1 flex flex-col border-0 shadow-card overflow-hidden">
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[400px]">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="w-16 h-16 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4">
-                  <Sparkles className="h-8 w-8 text-secondary" />
-                </div>
-                <h3 className="font-bold text-foreground mb-2">كيف أقدر أساعدك؟</h3>
-                <p className="text-sm text-muted-foreground mb-6">اسألني أي سؤال في أي مادة</p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {quickPrompts.map((q, i) => (
-                    <Button key={i} variant="outline" size="sm" className="rounded-xl gap-2" onClick={() => send(q.prompt)}>
-                      <q.icon className="h-4 w-4" />
-                      {q.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
+          </TabsContent>
 
-            {messages.map((m, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className={`max-w-[85%] ${m.role === "user" ? "mr-auto" : "ml-auto"}`}>
-                <div className={`p-3 rounded-2xl text-sm whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-secondary/10 text-foreground rounded-br-sm"
-                    : "bg-muted text-foreground rounded-bl-sm"
-                }`}>
-                  {m.content}
-                </div>
-              </motion.div>
-            ))}
-
-            {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-              <div className="ml-auto max-w-[85%]">
-                <div className="bg-muted p-3 rounded-2xl rounded-bl-sm flex gap-1">
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-3 border-t flex gap-2">
-            <Input
-              placeholder="اكتب سؤالك..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send(input)}
-              className="text-right h-11 rounded-xl bg-muted/30 border-0"
-              disabled={isLoading}
-            />
-            <Button onClick={() => send(input)} disabled={isLoading || !input.trim()} size="icon" className="gradient-cta text-secondary-foreground h-11 w-11 rounded-xl shrink-0">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          </Card>
-        )}
-      </div>
+          <TabsContent value="voice" className="mt-4">
+            <Card>
+              <CardContent className="p-8 text-center">
+                {!agentId ? (
+                  <>
+                    <Mic className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                    <h3 className="text-lg font-bold mb-2">المحادثة الصوتية الحية قريباً</h3>
+                    <p className="text-sm text-muted-foreground">
+                      نعمل على تفعيل المحادثة الصوتية المباشرة مع الذكاء الاصطناعي.<br />
+                      في الوقت الحالي، استخدم وضع "نص + نطق" للتفاعل الكامل.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      المحادثة الصوتية الحية متاحة. سيتم تفعيلها قريباً في تحديث قادم.
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
       <BottomNav />
     </div>
   );
