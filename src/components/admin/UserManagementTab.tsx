@@ -80,9 +80,80 @@ export default function UserManagementTab() {
 
   useEffect(() => {
     fetchUsers();
+    fetchPlans();
   }, []);
 
   const [bannedUsers, setBannedUsers] = useState<Set<string>>(new Set());
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [grantPlanId, setGrantPlanId] = useState<string>("");
+  const [grantDurationDays, setGrantDurationDays] = useState<number>(30);
+  const [granting, setGranting] = useState(false);
+
+  const fetchPlans = async () => {
+    const { data } = await supabase
+      .from("subscription_plans")
+      .select("id, name_ar, tier, sessions_count, session_duration_minutes, price")
+      .eq("is_active", true)
+      .is("assigned_user_id", null)
+      .order("price", { ascending: true });
+    setAvailablePlans(data ?? []);
+  };
+
+  const grantPlanToUser = async () => {
+    if (!selectedUser || !grantPlanId) {
+      toast.error("اختر باقة أولاً");
+      return;
+    }
+    const plan = availablePlans.find((p) => p.id === grantPlanId);
+    if (!plan) return;
+
+    setGranting(true);
+    try {
+      const totalMinutes = (plan.sessions_count || 0) * (plan.session_duration_minutes || 45);
+      const endsAt = new Date();
+      endsAt.setDate(endsAt.getDate() + (grantDurationDays || 30));
+
+      const { error } = await supabase.from("user_subscriptions").insert({
+        user_id: selectedUser.user_id,
+        plan_id: plan.id,
+        sessions_remaining: plan.sessions_count || 0,
+        remaining_minutes: totalMinutes,
+        total_hours: totalMinutes / 60,
+        is_active: true,
+        starts_at: new Date().toISOString(),
+        ends_at: endsAt.toISOString(),
+        auto_renew: false,
+      });
+      if (error) throw error;
+
+      // Notify the student
+      await supabase.from("notifications").insert({
+        user_id: selectedUser.user_id,
+        title: "🎁 تم منحك باقة جديدة",
+        body: `قام الإدارة بمنحك باقة "${plan.name_ar}" بإجمالي ${plan.sessions_count} حصة.`,
+        type: "subscription",
+      });
+
+      // Audit log
+      await (supabase as any).rpc("log_admin_action", {
+        _action: "grant_subscription",
+        _category: "subscriptions",
+        _description: `منح باقة "${plan.name_ar}" للمستخدم ${selectedUser.full_name}`,
+        _target_table: "user_subscriptions",
+        _target_id: selectedUser.user_id,
+        _metadata: { plan_id: plan.id, sessions: plan.sessions_count, duration_days: grantDurationDays },
+      });
+
+      toast.success(`تم منح باقة "${plan.name_ar}" بنجاح`);
+      setGrantPlanId("");
+      // Refresh user detail
+      await fetchUserDetail(selectedUser);
+    } catch (e: any) {
+      toast.error(e.message || "فشل منح الباقة");
+    } finally {
+      setGranting(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -652,30 +723,75 @@ export default function UserManagementTab() {
                 </div>
 
                 {/* Subscriptions */}
-                {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 && (
+                {selectedUser.role === "student" && (
                   <div className="bg-muted/30 rounded-xl p-4">
                     <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
                       <Package className="h-4 w-4 text-primary" /> الاشتراكات
                     </h3>
-                    <div className="space-y-2">
-                      {selectedUser.subscriptions.map((sub, i) => (
-                        <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
-                            </p>
+                    {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 ? (
+                      <div className="space-y-2 mb-4">
+                        {selectedUser.subscriptions.map((sub, i) => (
+                          <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
+                                {sub.is_active ? "نشط" : "منتهي"}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {sub.sessions_remaining} حصة متبقية
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
-                              {sub.is_active ? "نشط" : "منتهي"}
-                            </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              {sub.sessions_remaining} حصة متبقية
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mb-4">لا توجد اشتراكات حالية</p>
+                    )}
+
+                    {/* Grant a Plan */}
+                    <div className="border-t border-border/50 pt-3 mt-2">
+                      <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1">
+                        <Plus className="h-3 w-3" /> منح باقة جديدة
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Select value={grantPlanId} onValueChange={setGrantPlanId}>
+                          <SelectTrigger className="text-xs">
+                            <SelectValue placeholder="اختر الباقة" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availablePlans.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.name_ar} ({p.tier}) — {p.sessions_count} حصة
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={grantDurationDays}
+                          onChange={(e) => setGrantDurationDays(parseInt(e.target.value) || 30)}
+                          placeholder="عدد الأيام"
+                          className="text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={grantPlanToUser}
+                          disabled={!grantPlanId || granting}
+                          className="text-xs"
+                        >
+                          {granting ? "جارٍ..." : "منح الباقة"}
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        سيتم إنشاء اشتراك نشط فوري مع إشعار للطالب.
+                      </p>
                     </div>
                   </div>
                 )}
