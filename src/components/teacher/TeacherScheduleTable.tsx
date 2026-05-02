@@ -186,9 +186,9 @@ export default function TeacherScheduleTable() {
 
     await supabase.from("notifications").insert({
       user_id: studentId,
-      title: "📞 طلب جلسة فورية",
-      body: `المعلم يريد بدء جلسة فورية معك. انضم الآن!`,
-      type: "session_request",
+      ...notificationTemplates.instantSessionFromTeacher({
+        teacherName: studentName ? "" : "معلمك",
+      }),
     });
 
     toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}. في انتظار قبول الطالب...`);
