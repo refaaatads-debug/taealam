@@ -1,11 +1,11 @@
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export const LiveVoiceTutor = () => {
+const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
 
   const conversation = useConversation({
@@ -89,5 +89,11 @@ export const LiveVoiceTutor = () => {
     </div>
   );
 };
+
+export const LiveVoiceTutor = () => (
+  <ConversationProvider>
+    <VoiceTutorInner />
+  </ConversationProvider>
+);
 
 export default LiveVoiceTutor;
