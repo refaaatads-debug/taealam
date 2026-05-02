@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
@@ -183,11 +184,17 @@ export default function TeacherScheduleTable() {
       return;
     }
 
+    const { data: teacherProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     await supabase.from("notifications").insert({
       user_id: studentId,
-      title: "📞 طلب جلسة فورية",
-      body: `المعلم يريد بدء جلسة فورية معك. انضم الآن!`,
-      type: "session_request",
+      ...notificationTemplates.instantSessionFromTeacher({
+        teacherName: teacherProfile?.full_name || "معلمك",
+      }),
     });
 
     toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}. في انتظار قبول الطالب...`);

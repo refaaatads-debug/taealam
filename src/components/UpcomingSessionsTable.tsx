@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 interface UpcomingRow {
@@ -157,9 +158,11 @@ export default function UpcomingSessionsTable({ role }: Props) {
         try {
           await supabase.from("notifications").insert({
             user_id: user.id,
-            title: "⏰ تذكير: حصتك بعد ساعة",
-            body: `حصة ${r.subject_name} مع ${r.other_name} في ${formatDateAr(r.scheduled_at)}`,
-            type: "session_reminder",
+            ...notificationTemplates.sessionReminder({
+              subjectName: r.subject_name,
+              otherName: r.other_name,
+              scheduledAt: r.scheduled_at,
+            }),
           });
         } catch {}
       }

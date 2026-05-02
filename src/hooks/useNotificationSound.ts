@@ -11,7 +11,12 @@ const SOUND_MAP: Record<string, { url: string; volume: number }> = {
   session_rejected: { url: "https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3", volume: 0.5 },
   session_cancelled: { url: "https://assets.mixkit.co/active_storage/sfx/2964/2964-preview.mp3", volume: 0.6 },
   booking: { url: "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3", volume: 0.6 },
+  booking_request: { url: "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3", volume: 0.7 },
   booking_confirmed: { url: "https://assets.mixkit.co/active_storage/sfx/1822/1822-preview.mp3", volume: 0.6 },
+  booking_rejected: { url: "https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3", volume: 0.55 },
+  booking_cancelled: { url: "https://assets.mixkit.co/active_storage/sfx/2964/2964-preview.mp3", volume: 0.6 },
+  session_completed: { url: "https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3", volume: 0.6 },
+  session_reminder: { url: "https://assets.mixkit.co/active_storage/sfx/2870/2870-preview.mp3", volume: 0.7 },
 
   // Payments / financial
   payment: { url: "https://assets.mixkit.co/active_storage/sfx/888/888-preview.mp3", volume: 0.7 },
