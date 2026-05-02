@@ -11,10 +11,7 @@ type SignInOptions = {
 
 export const lovable = {
   auth: {
-    signInWithOAuth: async (
-      provider: Parameters<typeof lovableAuth.signInWithOAuth>[0],
-      opts?: SignInOptions,
-    ) => {
+    signInWithOAuth: async (provider: Parameters<typeof lovableAuth.signInWithOAuth>[0], opts?: SignInOptions) => {
       const result = await lovableAuth.signInWithOAuth(provider, {
         redirect_uri: opts?.redirect_uri,
         extraParams: {
