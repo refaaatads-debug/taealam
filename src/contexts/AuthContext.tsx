@@ -249,21 +249,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Remember last user for cache hydration on next visit
       try { localStorage.setItem(lastUserKey, userId); } catch { /* ignore */ }
 
-      // Release loading immediately — UI shouldn't block on background work
-      setLoading(false);
+      setLoading(true);
 
       try {
-        // Run all background tasks in parallel; don't let any one block the UI
-        await Promise.allSettled([
+        const [, , rolesResult] = await Promise.allSettled([
           claimActiveSession(userId),
           fetchProfile(userId),
           fetchRoles(userId),
         ]);
+
+        const resolvedRoles = rolesResult.status === "fulfilled" ? rolesResult.value : [];
         await applyPendingRole(userId).catch(() => {});
+        redirectAuthenticatedUser(resolvedRoles);
         cleanupSingleSession();
         setupSingleSession(userId);
       } catch (e) {
         console.error("Error loading user data:", e);
+      } finally {
+        setLoading(false);
       }
     };
 
