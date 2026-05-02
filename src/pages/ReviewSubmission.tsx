@@ -30,14 +30,24 @@ const ReviewSubmission = () => {
 
   const fetch = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data: subData, error } = await supabase
       .from("assignment_submissions" as any)
-      .select("*, assignment:assignments(*), profiles:profiles!assignment_submissions_student_id_fkey(full_name)")
+      .select("*")
       .eq("id", id)
-      .single();
-    setSub(data);
-    if ((data as any)?.teacher_score != null) setScore(String((data as any).teacher_score));
-    if ((data as any)?.teacher_feedback) setFeedback((data as any).teacher_feedback);
+      .maybeSingle();
+    if (error || !subData) {
+      toast.error("تعذر تحميل الحل");
+      setLoading(false);
+      return;
+    }
+    const s: any = subData;
+    const [{ data: aData }, { data: pData }] = await Promise.all([
+      supabase.from("assignments" as any).select("*").eq("id", s.assignment_id).maybeSingle(),
+      supabase.from("profiles").select("full_name").eq("user_id", s.student_id).maybeSingle(),
+    ]);
+    setSub({ ...s, assignment: aData || null, profiles: pData || null });
+    if (s.teacher_score != null) setScore(String(s.teacher_score));
+    if (s.teacher_feedback) setFeedback(s.teacher_feedback);
     setLoading(false);
   };
 
