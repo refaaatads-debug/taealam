@@ -44,6 +44,8 @@ const TeacherAssignments = () => {
   const [stage, setStage] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [attachments, setAttachments] = useState<{ name: string; url: string; type: string }[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Question bank
