@@ -49,6 +49,7 @@ const Chat = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [allBookingIds, setAllBookingIds] = useState<string[]>([]);
+  const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!bookingId || !user) return;
