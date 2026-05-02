@@ -82,7 +82,7 @@ const SupportTicketsTab = () => {
     setPeekLoading(true);
     try {
       const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, email, phone_number, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
+        supabase.from("profiles").select("user_id, full_name, phone, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
         supabase.from("user_subscriptions").select("remaining_minutes, is_active, subscription_plans(name_ar)").eq("user_id", uid).order("created_at", { ascending: false }),
         supabase.from("support_tickets").select("id, status").eq("user_id", uid),
         supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
