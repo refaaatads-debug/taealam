@@ -274,11 +274,11 @@ Deno.serve(async (req) => {
     );
 
     // Verify user
-    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(
+    const { data: userData, error: userErr } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", ""),
     );
-    if (claimsErr || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
-    const userId = claimsData.claims.sub as string;
+    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401);
+    const userId = userData.user.id;
 
     // Get role + name
     const [{ data: roleRow }, { data: profileRow }] = await Promise.all([
