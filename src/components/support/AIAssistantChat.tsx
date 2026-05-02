@@ -108,9 +108,35 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
       if (error) throw error;
 
       const reply = (data?.content as string) || (data?.reply as string) || "عذرًا، لم أتمكن من الرد. حاول مرة أخرى.";
+      const ticket = data?.ticket as { id: string; subject: string; category: string } | null;
+
+      // If AI created a ticket, seed conversation log into it (best effort) and surface CTA
+      if (ticket?.id && user) {
+        const log = newMessages
+          .map((m) => `${m.role === "user" ? "👤 المستخدم" : "🤖 المساعد"}: ${m.content}`)
+          .join("\n\n");
+        try {
+          await supabase.from("support_messages").insert({
+            ticket_id: ticket.id,
+            sender_id: user.id,
+            content: `📋 **سجل المحادثة الكامل مع المساعد الذكي:**\n\n${log}`,
+            is_admin: false,
+          });
+        } catch (err) {
+          console.error("Failed to seed conversation log:", err);
+        }
+        toast.success("تم تحويلك لفريق الدعم");
+        onTicketCreated?.(ticket.id);
+      }
+
       setMessages([
         ...newMessages,
-        { role: "assistant", content: reply, ts: Date.now() },
+        {
+          role: "assistant",
+          content: reply,
+          ts: Date.now(),
+          ticketId: ticket?.id,
+        } as ChatMessage,
       ]);
     } catch (e: any) {
       console.error("AI support error:", e);
