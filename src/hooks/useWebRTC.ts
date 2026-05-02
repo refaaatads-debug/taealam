@@ -453,6 +453,8 @@ export function useWebRTC({
       }
     });
   }, []);
+
+  const toggleMic = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
       t.enabled = !t.enabled;
       setMicEnabled(t.enabled);
