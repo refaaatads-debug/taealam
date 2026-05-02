@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon,
-  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter
+  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter, ArrowLeftRight
 } from "lucide-react";
 import { toast } from "sonner";
 import VoiceRecorder from "@/components/VoiceRecorder";
