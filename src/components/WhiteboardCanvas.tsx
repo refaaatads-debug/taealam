@@ -505,7 +505,7 @@ export default function WhiteboardCanvas({
   const activeLaser = canDraw ? laserPos : remoteLaserPos;
 
   return (
-    <div className={`flex flex-col h-full ${overlay ? "bg-transparent" : "bg-card"}`}>
+    <div className={`flex flex-col h-full ${overlay ? (whiteBg ? "bg-white" : "bg-transparent") : "bg-card"}`}>
       {/* Floating Toolbar - teacher only, auto-hide */}
       {canDraw && (
         <TooltipProvider delayDuration={200}>
