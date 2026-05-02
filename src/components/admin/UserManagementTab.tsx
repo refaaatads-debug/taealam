@@ -508,9 +508,21 @@ export default function UserManagementTab() {
                             variant="ghost"
                             className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10"
                             onClick={() => fetchUserDetail(u)}
+                            title="عرض سريع"
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {(userRolesMap.get(u.user_id) || "student") === "student" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-secondary hover:text-secondary hover:bg-secondary/10"
+                              onClick={() => navigate(`/admin/students/${u.user_id}`)}
+                              title="ملف الطالب الكامل"
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {!isCurrentUser && (
                             <>
                               <Button
