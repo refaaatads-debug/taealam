@@ -222,7 +222,19 @@ const TeacherAssignments = () => {
           .select("student_id")
           .eq("teacher_id", user.id)
           .in("status", ["confirmed", "completed"]);
-        const ids = Array.from(new Set((bks || []).map((b: any) => b.student_id).filter(Boolean)));
+        let ids = Array.from(new Set((bks || []).map((b: any) => b.student_id).filter(Boolean)));
+        // فلترة: فقط الطلاب الذين لديهم اشتراك نشط
+        if (ids.length > 0) {
+          const { data: activeSubs } = await supabase
+            .from("user_subscriptions")
+            .select("user_id")
+            .in("user_id", ids)
+            .eq("is_active", true)
+            .gt("remaining_minutes", 0)
+            .gte("ends_at", new Date().toISOString());
+          const activeIds = new Set((activeSubs || []).map((s: any) => s.user_id));
+          ids = ids.filter(id => activeIds.has(id));
+        }
         if (ids.length > 0) {
           await supabase.from("notifications").insert(
             ids.map(uid => ({ user_id: uid, title: "📝 واجب جديد", body: `واجب جديد: ${title}`, type: "assignment", link }))
