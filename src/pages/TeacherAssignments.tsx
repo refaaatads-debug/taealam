@@ -70,23 +70,48 @@ const TeacherAssignments = () => {
       { data: qb },
       { data: subj },
       { data: bookings },
+      { data: chats },
     ] = await Promise.all([
       supabase.from("assignments" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("assignment_submissions" as any).select("*, assignment:assignments(title), profiles:profiles!assignment_submissions_student_id_fkey(full_name)").order("submitted_at", { ascending: false }),
       supabase.from("question_bank" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("subjects").select("*"),
-      supabase.from("bookings").select("student_id, profiles!bookings_student_id_fkey(user_id, full_name)").eq("teacher_id", user.id),
+      // كل الحجوزات (مهما كانت الحالة) لجمع الطلاب الذين تواصلوا مع المعلم
+      supabase.from("bookings").select("student_id").eq("teacher_id", user.id),
+      // المحادثات: الطلاب الذين راسلوا المعلم
+      supabase.from("chat_messages").select("sender_id, receiver_id").or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`),
     ]);
     setAssignments((a as any[]) || []);
     setSubmissions((subs as any[]) || []);
     setBank((qb as any[]) || []);
     setSubjects(subj || []);
-    // unique students
-    const uniq = new Map<string, any>();
-    (bookings || []).forEach((b: any) => {
-      if (b.student_id && b.profiles) uniq.set(b.student_id, { id: b.student_id, name: b.profiles.full_name });
+
+    // اجمع كل معرّفات الطلاب من المصادر المختلفة
+    const studentIds = new Set<string>();
+    (bookings || []).forEach((b: any) => { if (b.student_id) studentIds.add(b.student_id); });
+    (chats || []).forEach((m: any) => {
+      const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+      if (otherId && otherId !== user.id) studentIds.add(otherId);
     });
-    setStudents([...uniq.values()]);
+
+    if (studentIds.size > 0) {
+      const ids = [...studentIds];
+      // اجلب الأسماء + تحقق من أنهم طلاب فعلاً
+      const [{ data: profs }, { data: roles }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", ids),
+        supabase.from("user_roles").select("user_id, role").in("user_id", ids),
+      ]);
+      const studentRoleSet = new Set(
+        (roles || []).filter((r: any) => r.role === "student").map((r: any) => r.user_id)
+      );
+      const list = (profs || [])
+        .filter((p: any) => studentRoleSet.has(p.user_id))
+        .map((p: any) => ({ id: p.user_id, name: p.full_name || "طالب" }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+      setStudents(list);
+    } else {
+      setStudents([]);
+    }
     setLoading(false);
   };
 
