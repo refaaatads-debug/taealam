@@ -1048,5 +1048,7 @@ export function useWebRTC({
     getRecordingBlob,
     restartConnection,
     sendDataMessage,
+    setVideoQuality,
+    pcRef,
   };
 }
