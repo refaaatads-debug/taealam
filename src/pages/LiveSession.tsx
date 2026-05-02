@@ -342,7 +342,29 @@ const LiveSession = () => {
     },
   });
 
-  // ─── Anti-Cheat System ───
+  // ─── Connection Quality Monitoring + Adaptive Bitrate ───
+  const lastQualityLevelRef = useRef<ConnectionQuality["level"]>("good");
+  const connectionQuality = useConnectionQuality(pcRef.current, {
+    intervalMs: 3000,
+    disconnectThresholdMs: 30000,
+    onQualityChange: (q) => {
+      // Adaptive bitrate: downgrade/upgrade video sender based on quality
+      if (q.level === lastQualityLevelRef.current) return;
+      lastQualityLevelRef.current = q.level;
+      if (q.level === "poor") {
+        setVideoQuality("low");
+        toast.warning("جودة الاتصال ضعيفة — تم تخفيض جودة الفيديو تلقائياً", { id: "net-quality" });
+      } else if (q.level === "fair") {
+        setVideoQuality("medium");
+      } else if (q.level === "good" || q.level === "excellent") {
+        setVideoQuality("high");
+      }
+    },
+    onSustainedDisconnect: (ms) => {
+      toast.error(`انقطع الاتصال لأكثر من ${Math.round(ms / 1000)} ثانية. جاري المحاولة...`, { id: "net-down" });
+    },
+  });
+
   const {
     isTabLocked,
     peerDisconnected,
