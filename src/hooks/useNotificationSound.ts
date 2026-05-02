@@ -40,6 +40,13 @@ const SOUND_MAP: Record<string, { url: string; volume: number }> = {
   instant_session: { url: "https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3", volume: 0.85 },
   first_impression: { url: "https://assets.mixkit.co/active_storage/sfx/1813/1813-preview.mp3", volume: 0.6 },
 
+  // Assignments / homework
+  assignment: { url: "https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3", volume: 0.7 },
+  assignment_new: { url: "https://assets.mixkit.co/active_storage/sfx/1862/1862-preview.mp3", volume: 0.75 },
+  assignment_submitted: { url: "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3", volume: 0.7 },
+  submission: { url: "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3", volume: 0.7 },
+  assignment_graded: { url: "https://assets.mixkit.co/active_storage/sfx/270/270-preview.mp3", volume: 0.7 },
+
   // Info / general
   info: { url: "https://assets.mixkit.co/active_storage/sfx/235/235-preview.mp3", volume: 0.5 },
   general: { url: "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3", volume: 0.55 },
