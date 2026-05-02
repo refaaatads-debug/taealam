@@ -106,7 +106,7 @@ const AIAssistantChat = ({ onCreateTicket }: Props) => {
 
       if (error) throw error;
 
-      const reply = (data?.reply as string) || "عذرًا، لم أتمكن من الرد. حاول مرة أخرى.";
+      const reply = (data?.content as string) || (data?.reply as string) || "عذرًا، لم أتمكن من الرد. حاول مرة أخرى.";
       setMessages([
         ...newMessages,
         { role: "assistant", content: reply, ts: Date.now() },
