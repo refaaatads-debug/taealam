@@ -57,6 +57,7 @@ const TeacherAssignments = () => {
   const [qExplanation, setQExplanation] = useState("");
   const [qStage, setQStage] = useState("");
   const [qSubject, setQSubject] = useState("");
+  const [extracting, setExtracting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -260,6 +261,41 @@ const TeacherAssignments = () => {
     await supabase.from("question_bank" as any).delete().eq("id", id);
     toast.success("تم الحذف");
     fetchAll();
+  };
+
+  const extractFromFile = async (file: File) => {
+    if (!user) return;
+    setExtracting(true);
+    try {
+      const path = `${user.id}/bank-imports/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage.from("assignment-files").createSignedUrl(path, 60 * 60);
+      if (!signed?.signedUrl) throw new Error("تعذر إنشاء رابط الملف");
+
+      toast.info("جاري استخراج الأسئلة بـ AI...");
+      const { data, error } = await supabase.functions.invoke("extract-questions-from-file", {
+        body: {
+          file_url: signed.signedUrl,
+          file_type: file.type,
+          subject_id: qSubject || null,
+          teaching_stage: qStage || null,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const count = (data as any)?.count || 0;
+      if (count === 0) {
+        toast.warning("لم يتم العثور على أسئلة في الملف");
+      } else {
+        toast.success(`تم استخراج ${count} سؤال وإضافتها للبنك`);
+      }
+      fetchAll();
+    } catch (e: any) {
+      toast.error("خطأ: " + (e.message || "تعذر استخراج الأسئلة"));
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const reviewSubmission = (id: string) => {
@@ -482,6 +518,40 @@ const TeacherAssignments = () => {
 
           {/* Question bank */}
           <TabsContent value="bank" className="space-y-3">
+            {/* استيراد أسئلة من ملف */}
+            <Card className="border-dashed border-2 border-secondary/40 bg-secondary/5">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-secondary shrink-0 mt-1" />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-sm">استيراد أسئلة من ملف بالذكاء الاصطناعي</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ارفع ملف PDF / Word / صورة وسيقوم AI باستخراج الأسئلة وتنسيقها وإضافتها للبنك تلقائياً.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Input
+                        type="file"
+                        accept=".pdf,.doc,.docx,image/*"
+                        disabled={extracting}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) extractFromFile(f);
+                          e.target.value = "";
+                        }}
+                        className="max-w-xs"
+                      />
+                      {extracting && (
+                        <span className="flex items-center gap-2 text-xs text-secondary">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          جارٍ الاستخراج...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Dialog open={qOpen} onOpenChange={setQOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2"><Plus className="h-4 w-4" /> إضافة سؤال</Button>

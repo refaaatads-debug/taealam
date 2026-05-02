@@ -52,14 +52,21 @@ const StudentAssignments = () => {
     setAssignments((a as any[]) || []);
     setLoading(false);
 
-    // الحلول لاحقاً في الخلفية
+    // الحلول لاحقاً في الخلفية - مع التفاصيل الكاملة
     const { data: subs } = await supabase
       .from("assignment_submissions" as any)
-      .select("id, assignment_id, status, ai_score, teacher_score, final_score, submitted_at")
+      .select("id, assignment_id, status, ai_score, ai_feedback, ai_breakdown, teacher_score, teacher_feedback, final_score, submitted_at, reviewed_at")
       .eq("student_id", user.id)
       .order("submitted_at", { ascending: false })
       .limit(200);
-    setSubmissions((subs as any[]) || []);
+    const subsList = (subs as any[]) || [];
+    // اربط بيانات الواجب
+    const titleMap: Record<string, any> = {};
+    ((a as any[]) || []).forEach((x: any) => { titleMap[x.id] = x; });
+    setSubmissions(subsList.map((s: any) => ({
+      ...s,
+      assignment: titleMap[s.assignment_id] || null,
+    })));
   };
 
   const submittedIds = new Set(submissions.map(s => s.assignment_id));
@@ -198,33 +205,114 @@ const StudentAssignments = () => {
 
           <TabsContent value="completed" className="space-y-3 mt-4">
             {submissions.length === 0 && <Card className="p-8 text-center text-muted-foreground">لم تُسلِّم أي واجب بعد</Card>}
-            {submissions.map(s => (
-              <Card key={s.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="font-bold">{s.assignment?.title}</h4>
-                      <p className="text-xs text-muted-foreground mt-1">سُلِّم {new Date(s.submitted_at).toLocaleDateString("ar")}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {s.final_score != null ? (
-                        <Badge className="text-base"><CheckCircle2 className="h-3 w-3 ml-1" /> {s.final_score} / {s.assignment?.total_points}</Badge>
-                      ) : s.ai_score != null ? (
-                        <Badge variant="secondary"><Sparkles className="h-3 w-3 ml-1" /> AI: {s.ai_score} (انتظار المعلم)</Badge>
-                      ) : (
-                        <Badge variant="outline">قيد التصحيح</Badge>
+            {submissions.map(s => {
+              const isFinal = s.final_score != null;
+              const totalPts = s.assignment?.total_points || 100;
+              const score = s.final_score ?? s.ai_score;
+              const pct = score != null ? Math.round((Number(score) / totalPts) * 100) : 0;
+              return (
+                <Card key={s.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    {/* Header */}
+                    <div className={`p-4 ${isFinal ? "bg-primary/5" : "bg-muted/30"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold truncate">{s.assignment?.title || "واجب"}</h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            سُلِّم {new Date(s.submitted_at).toLocaleDateString("ar")}
+                            {s.reviewed_at && ` • صُحِّح ${new Date(s.reviewed_at).toLocaleDateString("ar")}`}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {isFinal ? (
+                            <Badge className="text-base"><CheckCircle2 className="h-3 w-3 ml-1" /> {s.final_score} / {totalPts}</Badge>
+                          ) : s.ai_score != null ? (
+                            <Badge variant="secondary"><Sparkles className="h-3 w-3 ml-1" /> AI: {s.ai_score} / {totalPts}</Badge>
+                          ) : (
+                            <Badge variant="outline">قيد التصحيح</Badge>
+                          )}
+                          {score != null && (
+                            <span className="text-xs text-muted-foreground">{pct}%</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      {score != null && (
+                        <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${pct >= 75 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-destructive"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       )}
                     </div>
-                  </div>
-                  {s.teacher_feedback && (
-                    <div className="mt-3 p-2 bg-muted/50 rounded text-sm">
-                      <Label className="text-xs">ملاحظات المعلم:</Label>
-                      <p className="mt-1 whitespace-pre-wrap">{s.teacher_feedback}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+
+                    {/* Teacher feedback */}
+                    {s.teacher_feedback && (
+                      <div className="p-4 border-t bg-primary/5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          <Label className="text-sm font-bold">ملاحظات المعلم</Label>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{s.teacher_feedback}</p>
+                      </div>
+                    )}
+
+                    {/* AI feedback */}
+                    {!isFinal && s.ai_feedback && (
+                      <div className="p-4 border-t">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="h-4 w-4 text-secondary" />
+                          <Label className="text-sm font-bold">تقييم AI الأولي</Label>
+                          <Badge variant="outline" className="text-[10px]">قبل مراجعة المعلم</Badge>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">{s.ai_feedback}</p>
+                      </div>
+                    )}
+
+                    {/* Per-question breakdown */}
+                    {Array.isArray(s.ai_breakdown) && s.ai_breakdown.length > 0 && (
+                      <details className="border-t">
+                        <summary className="p-4 cursor-pointer hover:bg-muted/50 text-sm font-semibold flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          تفاصيل التصحيح ({s.ai_breakdown.length} سؤال)
+                        </summary>
+                        <div className="px-4 pb-4 space-y-2">
+                          {s.ai_breakdown.map((b: any, i: number) => {
+                            const qPct = b.max_points ? (Number(b.points || 0) / Number(b.max_points)) * 100 : 0;
+                            return (
+                              <div key={i} className="border rounded-lg p-3 bg-card">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <p className="text-sm font-semibold flex-1">{i + 1}. {b.question}</p>
+                                  <Badge variant={qPct >= 75 ? "default" : qPct >= 50 ? "secondary" : "destructive"} className="shrink-0">
+                                    {b.points ?? 0} / {b.max_points ?? "?"}
+                                  </Badge>
+                                </div>
+                                {b.student_answer && (
+                                  <div className="text-xs mb-1">
+                                    <span className="text-muted-foreground">إجابتك: </span>
+                                    <span>{b.student_answer}</span>
+                                  </div>
+                                )}
+                                {b.correct_answer && (
+                                  <div className="text-xs mb-1">
+                                    <span className="text-muted-foreground">الإجابة الصحيحة: </span>
+                                    <span className="text-primary font-semibold">{b.correct_answer}</span>
+                                  </div>
+                                )}
+                                {b.comment && (
+                                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">{b.comment}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </TabsContent>
         </Tabs>
 
