@@ -266,7 +266,12 @@ const Chat = () => {
     try {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("fetch failed");
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      // Force correct MIME type — Supabase storage sometimes returns octet-stream which iframes can't render
+      const isPdfFile = fileName?.toLowerCase().endsWith(".pdf") || rawBlob.type === "application/pdf";
+      const blob = isPdfFile && rawBlob.type !== "application/pdf"
+        ? new Blob([rawBlob], { type: "application/pdf" })
+        : rawBlob;
       const blobUrl = URL.createObjectURL(blob);
       if (mode === "download") {
         const a = document.createElement("a");
