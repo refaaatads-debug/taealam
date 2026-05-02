@@ -38,6 +38,7 @@ import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
 import ViolationsTab from "@/components/admin/ViolationsTab";
 import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
+import AdvancedAnalyticsTab from "@/components/admin/AdvancedAnalyticsTab";
 import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
 import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
 import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
