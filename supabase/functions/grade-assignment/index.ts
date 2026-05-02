@@ -66,12 +66,13 @@ Deno.serve(async (req) => {
       .eq("id", (sub as any).assignment_id)
       .maybeSingle();
 
-    // Authorization: caller must be the assignment teacher or an admin
+    // Authorization: caller must be the submission's student, the assignment teacher, or an admin
     const { data: adminRole } = await supabase
       .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
     const isAdmin = !!adminRole;
     const isTeacher = assignment?.teacher_id && assignment.teacher_id === user.id;
-    if (!isAdmin && !isTeacher) {
+    const isOwnerStudent = (sub as any).student_id && (sub as any).student_id === user.id;
+    if (!isAdmin && !isTeacher && !isOwnerStudent) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
