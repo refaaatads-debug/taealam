@@ -350,6 +350,7 @@ const AdminDashboard = () => {
   const TAB_PERMISSIONS: Record<string, string> = {
     overview: "view_overview",
     users: "manage_users",
+    student_profiles: "manage_users",
     teachers: "manage_teachers",
     teacher_performance: "view_teacher_performance",
     bookings: "manage_bookings",
