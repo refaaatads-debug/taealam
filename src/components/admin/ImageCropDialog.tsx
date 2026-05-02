@@ -13,7 +13,23 @@ interface Props {
   aspect?: number;
 }
 
-async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
+// Output size targets per aspect to keep all cards visually consistent
+const OUTPUT_SIZES: { ratio: number; w: number; h: number }[] = [
+  { ratio: 1, w: 800, h: 800 },
+  { ratio: 3 / 4, w: 720, h: 960 },
+  { ratio: 4 / 3, w: 960, h: 720 },
+  { ratio: 16 / 9, w: 1280, h: 720 },
+];
+
+function targetSize(aspect: number) {
+  const match = OUTPUT_SIZES.find((o) => Math.abs(o.ratio - aspect) < 0.01);
+  if (match) return { w: match.w, h: match.h };
+  // Fallback: normalize longest side to 1024
+  if (aspect >= 1) return { w: 1024, h: Math.round(1024 / aspect) };
+  return { w: Math.round(1024 * aspect), h: 1024 };
+}
+
+async function getCroppedBlob(imageSrc: string, area: Area, aspect: number): Promise<Blob> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.crossOrigin = "anonymous";
@@ -21,12 +37,16 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
     i.onerror = reject;
     i.src = imageSrc;
   });
+  const { w, h } = targetSize(aspect);
   const canvas = document.createElement("canvas");
-  canvas.width = area.width;
-  canvas.height = area.height;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.92));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  // Draw cropped region scaled to fixed output dimensions
+  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, w, h);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9));
 }
 
 export default function ImageCropDialog({ open, imageSrc, onCancel, onCropped, aspect = 1 }: Props) {
@@ -39,7 +59,7 @@ export default function ImageCropDialog({ open, imageSrc, onCancel, onCropped, a
 
   const handleSave = async () => {
     if (!imageSrc || !areaPx) return;
-    const blob = await getCroppedBlob(imageSrc, areaPx);
+    const blob = await getCroppedBlob(imageSrc, areaPx, aspectRatio);
     onCropped(blob);
   };
 
