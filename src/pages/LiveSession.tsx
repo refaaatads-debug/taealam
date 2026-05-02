@@ -203,6 +203,15 @@ const LiveSession = () => {
     } else if (msg.type === "whiteboard-toggle") {
       // Sync board open/close state from teacher to student instantly
       if (!isTeacher) setBoardOpen(!!msg.open);
+    } else if (msg.type === "whiteboard-permission") {
+      // Teacher granted/revoked draw permission for the student
+      if (!isTeacher) {
+        const allow = !!msg.allow;
+        setStudentCanDraw(allow);
+        toast.info(allow ? "✏️ منحك المعلم إذن الرسم على السبورة" : "تم سحب إذن الرسم من السبورة", {
+          id: "wb-permission",
+        });
+      }
     } else if (msg.type === "screen-share-status") {
       setRemoteScreenSharing(msg.active);
     } else if (msg.type === "screen-annotation") {
