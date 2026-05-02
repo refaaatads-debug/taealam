@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Pen, Eraser, Type, Square, Circle, Minus, Undo2, Redo2, Trash2, Download,
-  Highlighter, Crosshair
+  Highlighter, Crosshair, PaintBucket
 } from "lucide-react";
 import {
   Tooltip,
