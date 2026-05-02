@@ -68,6 +68,7 @@ interface UserDetail extends UserProfile {
 
 export default function UserManagementTab() {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
