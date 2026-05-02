@@ -226,22 +226,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Remember last user for cache hydration on next visit
       try { localStorage.setItem(lastUserKey, userId); } catch { /* ignore */ }
 
-      // If we have cached data for this user → release loading immediately,
-      // then refresh in background. Otherwise wait for the network.
-      const hasCache =
-        !!readCache(profileCacheKey(userId)) && !!readCache(rolesCacheKey(userId));
-      if (hasCache) setLoading(false);
+      // Release loading immediately — UI shouldn't block on background work
+      setLoading(false);
 
       try {
-        await claimActiveSession(userId);
-        await Promise.all([fetchProfile(userId), fetchRoles(userId)]);
-        await applyPendingRole(userId);
+        // Run all background tasks in parallel; don't let any one block the UI
+        await Promise.allSettled([
+          claimActiveSession(userId),
+          fetchProfile(userId),
+          fetchRoles(userId),
+        ]);
+        await applyPendingRole(userId).catch(() => {});
         cleanupSingleSession();
         setupSingleSession(userId);
       } catch (e) {
         console.error("Error loading user data:", e);
-      } finally {
-        setLoading(false);
       }
     };
 
