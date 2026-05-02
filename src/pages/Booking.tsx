@@ -64,7 +64,7 @@ const Booking = () => {
   const [remainingMinutes, setRemainingMinutes] = useState(0);
     const SESSION_MINUTES = 30;
   const MIN_SESSION_MINUTES = 10;
-  const maxBookableSlots = Math.max(1, Math.floor(remainingMinutes / SESSION_MINUTES));
+  const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
   const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
@@ -267,7 +267,12 @@ const Booking = () => {
         return prev;
       }
       if (remainingMinutes < MIN_SESSION_MINUTES) {
-        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - الحد الأدنى للحجز ${MIN_SESSION_MINUTES} د.`);
+        toast.error(`رصيدك ${formatMinutes(remainingMinutes)} - لا يمكن الحجز. يرجى تجديد الباقة.`, { duration: 4000 });
+        return prev;
+      }
+      const nextTotalMinutes = (prev.length + 1) * SESSION_MINUTES;
+      if (nextTotalMinutes > remainingMinutes) {
+        toast.error(`لا يمكن حجز حصص أكثر من رصيدك (${formatMinutes(remainingMinutes)}). الحد الأقصى ${maxBookableSlots} حصة.`, { duration: 4000 });
         return prev;
       }
       toast.success("✨ تم اختيار الموعد", { duration: 1500 });
@@ -287,6 +292,13 @@ const Booking = () => {
     if (!canBook) {
       toast.error(`رصيد باقتك أقل من ${MIN_SESSION_MINUTES} دقائق. اشترك أو جدّد الباقة لحجز الحصص.`);
       navigate("/pricing");
+      return;
+    }
+
+    // Block if total selected duration exceeds remaining balance
+    const totalRequestedMinutes = selectedSlots.length * SESSION_MINUTES;
+    if (totalRequestedMinutes > remainingMinutes) {
+      toast.error(`لا يمكن حجز ${formatMinutes(totalRequestedMinutes)} - رصيدك المتاح ${formatMinutes(remainingMinutes)} فقط.`);
       return;
     }
 
@@ -640,13 +652,15 @@ const Booking = () => {
                             const hasConflict = selectedDay !== null && isConflict(selectedDay, t);
                             const slotKey = `${selectedDay}-${t}`;
                             const isShaking = conflictKey === slotKey;
+                            const reachedMax = !isSelected && selectedSlots.length >= maxBookableSlots;
+                            const slotDisabled = isPast || reachedMax;
                             return (
                               <motion.button
                                 key={t}
-                                onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
-                                disabled={isPast}
-                                whileHover={!isPast && !isSelected ? { y: -2, scale: 1.04 } : {}}
-                                whileTap={!isPast ? { scale: 0.94 } : {}}
+                                onClick={() => !slotDisabled && selectedDay !== null && toggleSlot(selectedDay, t)}
+                                disabled={slotDisabled}
+                                whileHover={!slotDisabled && !isSelected ? { y: -2, scale: 1.04 } : {}}
+                                whileTap={!slotDisabled ? { scale: 0.94 } : {}}
                                 animate={
                                   isShaking
                                     ? { x: [0, -6, 6, -4, 4, 0] }
@@ -712,7 +726,7 @@ const Booking = () => {
                           اشترك في باقة للحجز
                         </Button>
                       ) : (
-                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
+                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject || !canBook || selectedSlots.length * SESSION_MINUTES > remainingMinutes} onClick={() => setStep(2)}>
                           متابعة للتأكيد ({selectedSlots.length} حصة)
                           <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                         </Button>
