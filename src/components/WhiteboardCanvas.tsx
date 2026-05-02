@@ -600,6 +600,28 @@ export default function WhiteboardCanvas({
               <TooltipContent side="bottom" className="text-xs">مسح الكل</TooltipContent>
             </Tooltip>
 
+            {overlay && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-9 w-9 rounded-xl transition-all duration-150 ${
+                      whiteBg
+                        ? "bg-primary text-primary-foreground shadow-md scale-110"
+                        : "text-card/70 hover:text-card hover:bg-card/10"
+                    }`}
+                    onClick={() => { setWhiteBg(v => !v); resetHideTimer(); }}
+                  >
+                    <PaintBucket className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {whiteBg ? "إخفاء الخلفية البيضاء" : "خلفية بيضاء (تخفي مشاركة الشاشة)"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleDownload}>
