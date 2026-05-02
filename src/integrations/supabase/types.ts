@@ -682,6 +682,36 @@ export type Database = {
         }
         Relationships: []
       }
+      featured_teachers: {
+        Row: {
+          badge_label: string | null
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          badge_label?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          badge_label?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_months: {
         Row: {
           closed_at: string | null
