@@ -1932,15 +1932,7 @@ const LiveSession = () => {
             >
               <Brain className="h-5 w-5" />
             </Button>
-            <Button
-              size="icon"
-              className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isRecording ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40 animate-pulse-soft" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={!meetingStarted}
-              title={isRecording ? "إيقاف التسجيل" : "بدء التسجيل"}
-            >
-              {isRecording ? <Square className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-            </Button>
+            {/* تم إلغاء زر التسجيل اليدوي بناءً على طلب المستخدم */}
           </>
         )}
 
