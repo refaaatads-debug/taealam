@@ -710,6 +710,46 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
+  // Recover any stranded local backups from previous failed sessions (teacher only)
+  const backupRecoveryAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!isTeacher || !user || backupRecoveryAttemptedRef.current) return;
+    backupRecoveryAttemptedRef.current = true;
+    (async () => {
+      try {
+        const { listAllBackups, clearRecordingBackup } = await import("@/lib/recordingBackup");
+        const backups = await listAllBackups();
+        const mine = backups.filter((b) => b.userId === user.id);
+        if (mine.length === 0) return;
+        console.log(`[recording-backup] found ${mine.length} pending backup(s), retrying upload...`);
+        for (const b of mine) {
+          try {
+            const { error } = await supabase.storage
+              .from("session-recordings")
+              .upload(b.fileName, b.blob, { contentType: "video/webm", upsert: true });
+            if (error) {
+              console.warn("[recording-backup] retry failed for", b.bookingId, error.message);
+              continue;
+            }
+            const { data: signedData } = await supabase.storage
+              .from("session-recordings")
+              .createSignedUrl(b.fileName, 60 * 60 * 24 * 7);
+            const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(b.fileName);
+            await supabase.functions.invoke("save-session-recording", {
+              body: { booking_id: b.bookingId, recording_url: signedData?.signedUrl || urlData.publicUrl },
+            });
+            await clearRecordingBackup(b.bookingId);
+            toast.success("تم استرداد ورفع تسجيل سابق محفوظ محلياً ✅");
+          } catch (e) {
+            console.warn("[recording-backup] recovery exception:", e);
+          }
+        }
+      } catch (e) {
+        console.warn("[recording-backup] recovery init failed:", e);
+      }
+    })();
+  }, [isTeacher, user]);
+
   // NOTE: Recording is NOT tied to screen sharing. The auto-recorder (canvas pipeline)
   // captures audio + whiteboard + remote video as soon as both parties join.
   // No nagging toast is needed — teachers may share the screen optionally.
@@ -738,6 +778,10 @@ const LiveSession = () => {
     }
   }, [isRecording, bookingId, user]);
 
+  const uploadFailureCountRef = useRef(0);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "synced" | "failed" | "queued">("idle");
+  const [lastUploadAt, setLastUploadAt] = useState<number | null>(null);
+
   const uploadCumulativeChunk = useCallback(async () => {
     if (!isTeacher) return; // only teacher uploads to avoid duplicate writes
     if (chunkUploadInFlightRef.current) return;
@@ -749,38 +793,73 @@ const LiveSession = () => {
     if (blob.size === lastUploadedSizeRef.current) return; // nothing new
 
     chunkUploadInFlightRef.current = true;
-    try {
-      const { error } = await supabase.storage
-        .from("session-recordings")
-        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
-      if (error) {
-        console.warn("[chunked-upload] failed:", error.message);
-        return;
-      }
-      lastUploadedSizeRef.current = blob.size;
-      console.log("[chunked-upload] uploaded", blob.size, "bytes");
+    setUploadStatus("uploading");
 
-      // Persist URL on first successful chunk so the material card
-      // shows the partial recording even before endSession runs.
-      if (lastUploadedSizeRef.current === blob.size) {
-        const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-        const { data: signedData } = await supabase.storage
+    // Always save a local backup BEFORE upload — guarantees recovery even if upload fails forever
+    try {
+      const { saveRecordingBackup } = await import("@/lib/recordingBackup");
+      await saveRecordingBackup({
+        bookingId,
+        userId: user.id,
+        fileName,
+        blob,
+        size: blob.size,
+        savedAt: Date.now(),
+      });
+    } catch {}
+
+    // Retry with exponential backoff: 0s, 2s, 6s
+    const delays = [0, 2000, 6000];
+    let uploaded = false;
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      if (delays[attempt] > 0) await new Promise(r => setTimeout(r, delays[attempt]));
+      try {
+        const { error } = await supabase.storage
           .from("session-recordings")
-          .createSignedUrl(fileName, 60 * 60 * 24 * 7);
-        const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
-        try {
-          await supabase.functions.invoke("save-session-recording", {
-            body: { booking_id: bookingId, recording_url: recordingUrl },
-          });
-        } catch (e) {
-          console.warn("[chunked-upload] save-session-recording skipped:", e);
+          .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+        if (!error) {
+          uploaded = true;
+          break;
         }
+        console.warn(`[chunked-upload] attempt ${attempt + 1} failed:`, error.message);
+      } catch (e) {
+        console.warn(`[chunked-upload] attempt ${attempt + 1} exception:`, e);
       }
-    } catch (e) {
-      console.warn("[chunked-upload] exception:", e);
-    } finally {
-      chunkUploadInFlightRef.current = false;
     }
+
+    if (!uploaded) {
+      uploadFailureCountRef.current += 1;
+      setUploadStatus("queued");
+      console.warn(`[chunked-upload] all retries failed (total failures: ${uploadFailureCountRef.current}). Saved to local backup.`);
+      if (uploadFailureCountRef.current === 1) {
+        toast.warning("تعذر رفع التسجيل — تم الحفظ محلياً وسيُعاد رفعه تلقائياً", { id: "rec-upload-fail" });
+      }
+      chunkUploadInFlightRef.current = false;
+      return;
+    }
+
+    // Success
+    uploadFailureCountRef.current = 0;
+    lastUploadedSizeRef.current = blob.size;
+    setUploadStatus("synced");
+    setLastUploadAt(Date.now());
+    console.log("[chunked-upload] uploaded", blob.size, "bytes");
+
+    // Persist URL on first successful upload of this session
+    try {
+      const { data: signedData } = await supabase.storage
+        .from("session-recordings")
+        .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+      const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
+      const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
+      await supabase.functions.invoke("save-session-recording", {
+        body: { booking_id: bookingId, recording_url: recordingUrl },
+      });
+    } catch (e) {
+      console.warn("[chunked-upload] save-session-recording skipped:", e);
+    }
+
+    chunkUploadInFlightRef.current = false;
   }, [isTeacher, bookingId, user, getRecordingBlob]);
 
   // Run periodic uploads while recording.
@@ -1228,6 +1307,12 @@ const LiveSession = () => {
       }
       console.log("[uploadRecording] Saved successfully:", saveData);
 
+      // Clear local backup once final upload is confirmed
+      try {
+        const { clearRecordingBackup } = await import("@/lib/recordingBackup");
+        if (bookingId) await clearRecordingBackup(bookingId);
+      } catch {}
+
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
       console.error("[uploadRecording] Failed:", error);
@@ -1525,13 +1610,32 @@ const LiveSession = () => {
         {/* Left section - Status badges & actions */}
         <div className="flex items-center gap-1.5">
           {isRecording && (
-            <span className="flex items-center gap-1.5 text-[11px] bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg font-bold animate-pulse-soft border border-destructive/20">
-              <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" /> REC
+            <span
+              title={
+                uploadStatus === "synced" && lastUploadAt
+                  ? `آخر رفع: ${new Date(lastUploadAt).toLocaleTimeString("ar")}`
+                  : uploadStatus === "queued"
+                    ? "تعذر الرفع — محفوظ محلياً للمحاولة لاحقاً"
+                    : uploadStatus === "uploading"
+                      ? "جاري الرفع..."
+                      : "التسجيل نشط"
+              }
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-bold border ${
+                uploadStatus === "queued"
+                  ? "bg-orange-500/15 text-orange-400 border-orange-500/30 animate-pulse-soft"
+                  : "bg-destructive/15 text-destructive border-destructive/20 animate-pulse-soft"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full animate-pulse ${uploadStatus === "queued" ? "bg-orange-400" : "bg-destructive"}`} />
+              REC
+              {uploadStatus === "uploading" && <Loader2 className="h-3 w-3 animate-spin" />}
+              {uploadStatus === "synced" && <span className="text-[9px] opacity-70">✓</span>}
+              {uploadStatus === "queued" && <span className="text-[9px]">⏳</span>}
             </span>
           )}
           {recordingUploading && (
             <span className="flex items-center gap-1.5 text-[11px] bg-secondary/15 text-secondary px-2.5 py-1 rounded-lg font-bold border border-secondary/20">
-              <Loader2 className="h-3 w-3 animate-spin" /> جاري الرفع
+              <Loader2 className="h-3 w-3 animate-spin" /> جاري الرفع النهائي
             </span>
           )}
           {violationCount > 0 && (
