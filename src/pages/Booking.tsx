@@ -267,7 +267,12 @@ const Booking = () => {
         return prev;
       }
       if (remainingMinutes < MIN_SESSION_MINUTES) {
-        toast.error(`المتبقي في باقتك ${formatMinutes(remainingMinutes)} فقط - الحد الأدنى للحجز ${MIN_SESSION_MINUTES} د.`);
+        toast.error(`رصيدك ${formatMinutes(remainingMinutes)} - لا يمكن الحجز. يرجى تجديد الباقة.`, { duration: 4000 });
+        return prev;
+      }
+      const nextTotalMinutes = (prev.length + 1) * SESSION_MINUTES;
+      if (nextTotalMinutes > remainingMinutes) {
+        toast.error(`لا يمكن حجز حصص أكثر من رصيدك (${formatMinutes(remainingMinutes)}). الحد الأقصى ${maxBookableSlots} حصة.`, { duration: 4000 });
         return prev;
       }
       toast.success("✨ تم اختيار الموعد", { duration: 1500 });
