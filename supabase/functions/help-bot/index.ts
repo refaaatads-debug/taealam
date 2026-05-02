@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `أنت مساعد دعم ذكي لمنصة "تعلم المستقبل" (Future Learn) - منصة تعليمية عربية للحصص الخصوصية أونلاين.
+const SYSTEM_PROMPT = `أنت مساعد دعم ذكي لـ"منصة أجيال المعرفة" - منصة تعليمية عربية للحصص الخصوصية أونلاين.
 
 معلومات عن المنصة:
 - المنصة توفر حصص خصوصية مباشرة بين الطلاب والمعلمين عبر فيديو/صوت + سبورة تفاعلية
