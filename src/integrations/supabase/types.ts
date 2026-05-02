@@ -185,6 +185,140 @@ export type Database = {
         }
         Relationships: []
       }
+      assignment_submissions: {
+        Row: {
+          ai_breakdown: Json | null
+          ai_feedback: string | null
+          ai_score: number | null
+          answers: Json | null
+          assignment_id: string
+          audio_url: string | null
+          created_at: string
+          final_score: number | null
+          graded_at: string | null
+          id: string
+          image_urls: Json | null
+          reviewed_at: string | null
+          status: string
+          student_id: string
+          submitted_at: string
+          teacher_feedback: string | null
+          teacher_score: number | null
+          text_answer: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_breakdown?: Json | null
+          ai_feedback?: string | null
+          ai_score?: number | null
+          answers?: Json | null
+          assignment_id: string
+          audio_url?: string | null
+          created_at?: string
+          final_score?: number | null
+          graded_at?: string | null
+          id?: string
+          image_urls?: Json | null
+          reviewed_at?: string | null
+          status?: string
+          student_id: string
+          submitted_at?: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+          text_answer?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_breakdown?: Json | null
+          ai_feedback?: string | null
+          ai_score?: number | null
+          answers?: Json | null
+          assignment_id?: string
+          audio_url?: string | null
+          created_at?: string
+          final_score?: number | null
+          graded_at?: string | null
+          id?: string
+          image_urls?: Json | null
+          reviewed_at?: string | null
+          status?: string
+          student_id?: string
+          submitted_at?: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+          text_answer?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignments: {
+        Row: {
+          allow_audio: boolean | null
+          allow_image: boolean | null
+          allow_text: boolean | null
+          booking_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          questions: Json
+          status: string
+          student_id: string | null
+          subject_id: string | null
+          teacher_id: string
+          teaching_stage: string | null
+          title: string
+          total_points: number
+          updated_at: string
+        }
+        Insert: {
+          allow_audio?: boolean | null
+          allow_image?: boolean | null
+          allow_text?: boolean | null
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          questions?: Json
+          status?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id: string
+          teaching_stage?: string | null
+          title: string
+          total_points?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_audio?: boolean | null
+          allow_image?: boolean | null
+          allow_text?: boolean | null
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          questions?: Json
+          status?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id?: string
+          teaching_stage?: string | null
+          title?: string
+          total_points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           created_at: string
@@ -743,6 +877,57 @@ export type Database = {
           teaching_stage?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      question_bank: {
+        Row: {
+          correct_answer: string | null
+          created_at: string
+          difficulty: string | null
+          explanation: string | null
+          id: string
+          is_public: boolean | null
+          options: Json | null
+          points: number | null
+          question_text: string
+          question_type: string
+          subject_id: string | null
+          teacher_id: string
+          teaching_stage: string | null
+          updated_at: string
+        }
+        Insert: {
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          is_public?: boolean | null
+          options?: Json | null
+          points?: number | null
+          question_text: string
+          question_type?: string
+          subject_id?: string | null
+          teacher_id: string
+          teaching_stage?: string | null
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          is_public?: boolean | null
+          options?: Json | null
+          points?: number | null
+          question_text?: string
+          question_type?: string
+          subject_id?: string | null
+          teacher_id?: string
+          teaching_stage?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

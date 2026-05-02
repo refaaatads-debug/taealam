@@ -38,6 +38,9 @@ const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const TeacherWallet = lazy(() => import("./pages/TeacherWallet"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
 const TeachWithUs = lazy(() => import("./pages/TeachWithUs"));
+const TeacherAssignments = lazy(() => import("./pages/TeacherAssignments"));
+const StudentAssignments = lazy(() => import("./pages/StudentAssignments"));
+const ReviewSubmission = lazy(() => import("./pages/ReviewSubmission"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -89,6 +92,9 @@ const App = () => (
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/rating" element={<ProtectedRoute><Rating /></ProtectedRoute>} />
               <Route path="/ai-tutor" element={<ProtectedRoute><AITutor /></ProtectedRoute>} />
+              <Route path="/teacher/assignments" element={<ProtectedRoute><TeacherAssignments /></ProtectedRoute>} />
+              <Route path="/teacher/assignments/review/:id" element={<ProtectedRoute><ReviewSubmission /></ProtectedRoute>} />
+              <Route path="/student/assignments" element={<ProtectedRoute><StudentAssignments /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
               <Route path="/faq" element={<FAQ />} />
