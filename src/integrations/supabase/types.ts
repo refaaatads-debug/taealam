@@ -1488,51 +1488,6 @@ export type Database = {
         }
         Relationships: []
       }
-      subscription_plans_backup_20260423: {
-        Row: {
-          assigned_user_id: string | null
-          created_at: string | null
-          features: Json | null
-          has_ai_tutor: boolean | null
-          has_priority_booking: boolean | null
-          has_recording: boolean | null
-          id: string | null
-          name_ar: string | null
-          price: number | null
-          session_duration_minutes: number | null
-          sessions_count: number | null
-          tier: Database["public"]["Enums"]["subscription_tier"] | null
-        }
-        Insert: {
-          assigned_user_id?: string | null
-          created_at?: string | null
-          features?: Json | null
-          has_ai_tutor?: boolean | null
-          has_priority_booking?: boolean | null
-          has_recording?: boolean | null
-          id?: string | null
-          name_ar?: string | null
-          price?: number | null
-          session_duration_minutes?: number | null
-          sessions_count?: number | null
-          tier?: Database["public"]["Enums"]["subscription_tier"] | null
-        }
-        Update: {
-          assigned_user_id?: string | null
-          created_at?: string | null
-          features?: Json | null
-          has_ai_tutor?: boolean | null
-          has_priority_booking?: boolean | null
-          has_recording?: boolean | null
-          id?: string | null
-          name_ar?: string | null
-          price?: number | null
-          session_duration_minutes?: number | null
-          sessions_count?: number | null
-          tier?: Database["public"]["Enums"]["subscription_tier"] | null
-        }
-        Relationships: []
-      }
       support_messages: {
         Row: {
           content: string
@@ -1895,6 +1850,13 @@ export type Database = {
             foreignKeyName: "teacher_subjects_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
+            referencedRelation: "my_teacher_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
             referencedRelation: "public_teacher_profiles"
             referencedColumns: ["id"]
           },
@@ -2249,6 +2211,129 @@ export type Database = {
       }
     }
     Views: {
+      my_profile: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          free_trial_used: boolean | null
+          full_name: string | null
+          id: string | null
+          level: string | null
+          notify_after_session: boolean | null
+          notify_before_session: boolean | null
+          notify_subscription_expiry: boolean | null
+          phone: string | null
+          referral_code: string | null
+          teaching_stage: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          free_trial_used?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          free_trial_used?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      my_teacher_profile: {
+        Row: {
+          account_holder_name: string | null
+          available_days: string[] | null
+          available_from: string | null
+          available_to: string | null
+          avg_rating: number | null
+          balance: number | null
+          bank_name: string | null
+          bio: string | null
+          created_at: string | null
+          hourly_rate: number | null
+          iban: string | null
+          id: string | null
+          is_approved: boolean | null
+          is_verified: boolean | null
+          nationality: string | null
+          teaching_stages: string[] | null
+          total_reviews: number | null
+          total_sessions: number | null
+          updated_at: string | null
+          user_id: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number | null
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          iban?: string | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number | null
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          iban?: string | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
       public_profiles: {
         Row: {
           avatar_url: string | null
@@ -2388,6 +2473,16 @@ export type Database = {
           _user_id: string
         }
         Returns: number
+      }
+      get_profile_phone: { Args: { _user_id: string }; Returns: string }
+      get_teacher_financials: {
+        Args: { _teacher_id: string }
+        Returns: {
+          account_holder_name: string
+          balance: number
+          bank_name: string
+          iban: string
+        }[]
       }
       has_permission: {
         Args: {

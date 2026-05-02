@@ -25,29 +25,35 @@ serve(async (req) => {
   try {
     const { messages, conversation_id } = await req.json();
     const authHeader = req.headers.get("authorization") ?? "";
-    let userId: string | null = null;
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { authorization: authHeader } } }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId: string | null = user?.id ?? null;
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    if (authHeader) {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { authorization: authHeader } } }
-      );
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id ?? null;
+    if (!checkRate(userId)) {
+      return new Response(JSON.stringify({ error: "تم تجاوز حد الطلبات، حاول بعد دقيقة" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-      if (userId && !checkRate(userId)) {
-        return new Response(JSON.stringify({ error: "تم تجاوز حد الطلبات، حاول بعد دقيقة" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (userId && conversation_id) {
-        const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-        await adminClient.from("ai_conversations").upsert({
-          id: conversation_id, user_id: userId, messages, updated_at: new Date().toISOString(),
-        }, { onConflict: "id" });
-      }
+    if (conversation_id) {
+      const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await adminClient.from("ai_conversations").upsert({
+        id: conversation_id, user_id: userId, messages, updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
