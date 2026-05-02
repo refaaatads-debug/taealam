@@ -306,16 +306,22 @@ const Chat = () => {
     if (isPdf) {
       return (
         <div className="mt-2 space-y-2">
-          <iframe src={msg.file_url} className="w-full h-48 rounded-lg border border-border/30 bg-background" title={msg.file_name || "PDF"} />
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 shrink-0" />
+          <div className="flex items-center gap-2 rounded-xl bg-background/50 px-3 py-3 border border-border/30">
+            <FileText className="h-5 w-5 shrink-0 text-primary" />
             <span className="text-xs truncate flex-1">{msg.file_name || "ملف PDF"}</span>
-            <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
-              className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>فتح</a>
-            <a href={msg.file_url} download={msg.file_name || "file.pdf"} target="_blank" rel="noopener noreferrer"
-              className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+            <button
+              type="button"
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+              className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+            >فتح</button>
+            <button
+              type="button"
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", true)}
+              className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+              aria-label="تحميل"
+            >
               <Download className="h-3.5 w-3.5" />
-            </a>
+            </button>
           </div>
         </div>
       );
@@ -325,12 +331,19 @@ const Chat = () => {
       <div className={`mt-2 flex items-center gap-2 rounded-xl px-3 py-2 ${isMe ? "bg-primary-foreground/10" : "bg-background/50"}`}>
         <FileText className="h-5 w-5 shrink-0" />
         <span className="text-xs truncate flex-1">{msg.file_name || "ملف"}</span>
-        <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
-          className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>فتح</a>
-        <a href={msg.file_url} download={msg.file_name || "file"} target="_blank" rel="noopener noreferrer"
-          className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+        <button
+          type="button"
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+          className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+        >فتح</button>
+        <button
+          type="button"
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", true)}
+          className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+          aria-label="تحميل"
+        >
           <Download className="h-3.5 w-3.5" />
-        </a>
+        </button>
       </div>
     );
   };
