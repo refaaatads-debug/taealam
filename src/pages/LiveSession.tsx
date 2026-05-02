@@ -18,6 +18,7 @@ import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
 import { playJoinSound, playLeaveSound, playHandRaiseSound } from "@/lib/sessionSounds";
+import { PreJoinCheck } from "@/components/session/PreJoinCheck";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
 import WhiteboardCanvas from "@/components/WhiteboardCanvas";
