@@ -114,6 +114,7 @@ const App = () => (
               <Route path="/teacher/assignments/review/:id" element={<ProtectedRoute><ReviewSubmission /></ProtectedRoute>} />
               <Route path="/student/assignments" element={<ProtectedRoute><StudentAssignments /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/students/:id" element={<ProtectedRoute><AdminStudentProfile /></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/help" element={<HelpCenter />} />
