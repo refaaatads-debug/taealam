@@ -23,6 +23,7 @@ import CallStudentButton from "@/components/teacher/CallStudentButton";
 import ScreenShareToolbar from "@/components/teacher/ScreenShareToolbar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
+import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
