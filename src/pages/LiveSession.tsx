@@ -2098,7 +2098,7 @@ const LiveSession = () => {
             <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => setHandRaised(!handRaised)} title="رفع اليد">
+            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !handRaised; setHandRaised(next); try { sendDataMessage({ type: "hand-raise", raised: next }); } catch {} }} title="رفع اليد">
               <Hand className="h-5 w-5" />
             </Button>
           </>
