@@ -30,6 +30,7 @@ import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
 import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
 import UserManagementTab from "@/components/admin/UserManagementTab";
 import StudentProfilesTab from "@/components/admin/StudentProfilesTab";
+import TeacherProfilesTab from "@/components/admin/TeacherProfilesTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
@@ -54,6 +55,8 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accen
 const TAB_TITLES: Record<string, string> = {
   overview: "نظرة عامة",
   users: "إدارة المستخدمين",
+  student_profiles: "ملفات الطلاب",
+  teacher_profiles: "ملفات المعلمين",
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",
   bookings: "إدارة الحجوزات",
@@ -351,6 +354,7 @@ const AdminDashboard = () => {
     overview: "view_overview",
     users: "manage_users",
     student_profiles: "manage_users",
+    teacher_profiles: "manage_teachers",
     teachers: "manage_teachers",
     teacher_performance: "view_teacher_performance",
     bookings: "manage_bookings",
@@ -389,6 +393,7 @@ const AdminDashboard = () => {
       case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} />;
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
+      case "teacher_profiles": return <TeacherProfilesTab />;
       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
       case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
       case "sessions_status": return <SessionsStatusTab />;
