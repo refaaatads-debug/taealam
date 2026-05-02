@@ -68,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(data);
       writeCache(profileCacheKey(userId), data);
     }
+    return data ?? null;
   };
 
   const fetchRoles = async (userId: string) => {
@@ -75,14 +76,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
+    const list = (data ?? []).map((r) => r.role);
     if (data) {
-      const list = data.map((r) => r.role);
       setRoles(list);
       writeCache(rolesCacheKey(userId), list);
     }
+    return list;
   };
 
-  // Apply pending role after OAuth redirect (e.g. teacher signup via Google)
+  const getPrimaryRole = (list: AppRole[]) => {
+    if (list.includes("admin" as AppRole)) return "admin";
+    if (list.includes("teacher" as AppRole)) return "teacher";
+    return "student";
+  };
+
+  const redirectAuthenticatedUser = (list: AppRole[]) => {
+    const path = window.location.pathname;
+    if (path !== "/" && path !== "/login") return;
+
+    const pendingRole = localStorage.getItem("pending_role");
+    if (pendingRole === "teacher") return;
+
+    const primaryRole = getPrimaryRole(list);
+    const target = primaryRole === "admin" ? "/admin" : primaryRole === "teacher" ? "/teacher" : "/student";
+
+    if (path !== target) {
+      window.location.replace(target);
+    }
+  };
+
+    // Apply pending role after OAuth redirect (e.g. teacher signup via Google)
   const applyPendingRole = async (userId: string) => {
     const pendingRole = localStorage.getItem("pending_role");
     if (!pendingRole) return;
@@ -94,7 +117,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!error) {
           // Re-fetch roles after update
           await fetchRoles(userId);
-          window.location.href = "/teacher";
+          window.location.replace("/teacher");
           return;
         }
         console.log("Role update skipped:", error.message);
