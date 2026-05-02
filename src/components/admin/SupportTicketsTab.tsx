@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MessageSquare, Send, Loader2, ArrowRight, Clock, User, Paperclip, FileText, Image as ImageIcon,
-  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter
+  X, Download, Plus, Search, Headphones, UserCheck, AlertCircle, CheckCircle2, Hourglass, Users, Sparkles, Filter, ArrowLeftRight
 } from "lucide-react";
 import { toast } from "sonner";
 import VoiceRecorder from "@/components/VoiceRecorder";
@@ -63,6 +63,14 @@ const SupportTicketsTab = () => {
   const [initiateUser, setInitiateUser] = useState<{ user_id: string; full_name: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [profileNameMap, setProfileNameMap] = useState<Map<string, string>>(new Map());
+
+  // Transfer ticket dialog
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferSearch, setTransferSearch] = useState("");
+  const [transferResults, setTransferResults] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [transferTarget, setTransferTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [transferNote, setTransferNote] = useState("");
+  const [transferring, setTransferring] = useState(false);
 
   useEffect(() => { fetchTickets(); }, []);
 
@@ -159,6 +167,67 @@ const SupportTicketsTab = () => {
       .eq("id", selectedTicket);
     if (error) toast.error("فشل تحرير التذكرة");
     else toast.success("تم تحرير التذكرة");
+  };
+
+  const searchAdmins = async (q: string) => {
+    setTransferSearch(q);
+    if (q.trim().length < 2) { setTransferResults([]); return; }
+    // Get admin user_ids first
+    const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+    const adminIds = (admins || []).map(a => a.user_id).filter(id => id !== user?.id);
+    if (adminIds.length === 0) { setTransferResults([]); return; }
+    const { data } = await supabase.from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", adminIds)
+      .ilike("full_name", `%${q}%`)
+      .limit(10);
+    setTransferResults((data ?? []) as any);
+  };
+
+  const performTransfer = async () => {
+    if (!user || !selectedTicket || !transferTarget) return;
+    setTransferring(true);
+    const fromName = profileNameMap.get(user.id) || "أنت";
+    const toName = transferTarget.full_name || "موظف الدعم";
+
+    // 1) Update assignment
+    const { error: updErr } = await supabase.from("support_tickets")
+      .update({ assigned_to: transferTarget.user_id, assigned_at: new Date().toISOString(), status: "in_progress" })
+      .eq("id", selectedTicket);
+    if (updErr) { toast.error("فشل تحويل التذكرة"); setTransferring(false); return; }
+
+    // 2) Post a system-style admin note in the conversation (visible to admins + user)
+    const noteText = transferNote.trim()
+      ? `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.\n📝 ملاحظة: ${transferNote.trim()}`
+      : `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.`;
+    await supabase.from("support_messages").insert({
+      ticket_id: selectedTicket, sender_id: transferTarget.user_id, content: noteText, is_admin: true,
+    });
+
+    // 3) Notify the new agent
+    await supabase.from("notifications").insert({
+      user_id: transferTarget.user_id,
+      title: "📨 تذكرة جديدة محوّلة إليك",
+      body: `حوّل ${fromName} تذكرة دعم إليك للمتابعة`,
+      type: "support_reply",
+      link: `/admin?tab=support&ticket=${selectedTicket}`,
+    } as any);
+
+    // 4) Audit log
+    await supabase.rpc("log_admin_action", {
+      _action: "transfer_support_ticket",
+      _category: "support",
+      _description: `تحويل تذكرة دعم من ${fromName} إلى ${toName}`,
+      _target_table: "support_tickets",
+      _target_id: selectedTicket,
+      _metadata: { note: transferNote.trim() || null, to_user: transferTarget.user_id } as any,
+    } as any);
+
+    toast.success(`تم تحويل التذكرة إلى ${toName}`);
+    setTransferOpen(false);
+    setTransferTarget(null); setTransferNote(""); setTransferSearch(""); setTransferResults([]);
+    setTransferring(false);
+    fetchTickets();
   };
 
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
@@ -429,7 +498,10 @@ const SupportTicketsTab = () => {
               </div>
             )}
             {isMine && (
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg gap-1" onClick={() => setTransferOpen(true)}>
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> تحويل لموظف آخر
+                </Button>
                 <Button size="sm" variant="ghost" className="text-xs h-7" onClick={releaseTicket}>
                   تحرير التذكرة
                 </Button>
@@ -514,6 +586,72 @@ const SupportTicketsTab = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Transfer Ticket Dialog */}
+        <Dialog open={transferOpen} onOpenChange={(o) => { setTransferOpen(o); if (!o) { setTransferTarget(null); setTransferNote(""); setTransferSearch(""); setTransferResults([]); } }}>
+          <DialogContent dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5 text-primary" /> تحويل المحادثة لموظف آخر
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              {!transferTarget ? (
+                <>
+                  <p className="text-xs text-muted-foreground">ابحث عن موظف دعم آخر لنقل المتابعة إليه. سيتم إخطاره وتسجيل العملية في سجلّ الإدارة.</p>
+                  <div className="relative">
+                    <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input className="pr-8 rounded-xl" placeholder="ابحث باسم الموظف..." value={transferSearch}
+                      onChange={(e) => searchAdmins(e.target.value)} />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-1">
+                    {transferResults.map(u => (
+                      <button key={u.user_id} onClick={() => setTransferTarget(u)}
+                        className="w-full text-right px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-2">
+                        <Avatar className="h-7 w-7"><AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">{initials(u.full_name)}</AvatarFallback></Avatar>
+                        <span className="text-sm font-medium">{u.full_name || "بدون اسم"}</span>
+                      </button>
+                    ))}
+                    {transferSearch.length >= 2 && transferResults.length === 0 && (
+                      <p className="text-center text-xs text-muted-foreground py-3">لا يوجد موظفون مطابقون</p>
+                    )}
+                    {transferSearch.length < 2 && (
+                      <p className="text-center text-xs text-muted-foreground py-3">اكتب حرفين على الأقل للبحث</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5">
+                    <Avatar className="h-9 w-9"><AvatarFallback className="bg-primary/15 text-primary font-bold">{initials(transferTarget.full_name)}</AvatarFallback></Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground">سيستلمها</p>
+                      <p className="font-bold text-sm truncate">{transferTarget.full_name}</p>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setTransferTarget(null)}><X className="h-3.5 w-3.5" /></Button>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-foreground mb-1 block">ملاحظة للموظف الجديد (اختياري)</label>
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px]"
+                      placeholder="مثال: العميل يحتاج متابعة استرداد المبلغ، تواصلت معه مسبقاً..."
+                      value={transferNote}
+                      onChange={(e) => setTransferNote(e.target.value)}
+                      maxLength={500}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">{transferNote.length}/500 — ستظهر هذه الملاحظة كرسالة داخل المحادثة.</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setTransferOpen(false)}>إلغاء</Button>
+              <Button disabled={!transferTarget || transferring} onClick={performTransfer} className="gap-1">
+                {transferring ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ArrowLeftRight className="h-4 w-4" /> تأكيد التحويل</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
