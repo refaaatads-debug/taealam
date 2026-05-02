@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone } from "lucide-react";
+import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { LiveVoiceTutor } from "@/components/ai/LiveVoiceTutor";
 
