@@ -1610,13 +1610,32 @@ const LiveSession = () => {
         {/* Left section - Status badges & actions */}
         <div className="flex items-center gap-1.5">
           {isRecording && (
-            <span className="flex items-center gap-1.5 text-[11px] bg-destructive/15 text-destructive px-2.5 py-1 rounded-lg font-bold animate-pulse-soft border border-destructive/20">
-              <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" /> REC
+            <span
+              title={
+                uploadStatus === "synced" && lastUploadAt
+                  ? `آخر رفع: ${new Date(lastUploadAt).toLocaleTimeString("ar")}`
+                  : uploadStatus === "queued"
+                    ? "تعذر الرفع — محفوظ محلياً للمحاولة لاحقاً"
+                    : uploadStatus === "uploading"
+                      ? "جاري الرفع..."
+                      : "التسجيل نشط"
+              }
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-bold border ${
+                uploadStatus === "queued"
+                  ? "bg-orange-500/15 text-orange-400 border-orange-500/30 animate-pulse-soft"
+                  : "bg-destructive/15 text-destructive border-destructive/20 animate-pulse-soft"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full animate-pulse ${uploadStatus === "queued" ? "bg-orange-400" : "bg-destructive"}`} />
+              REC
+              {uploadStatus === "uploading" && <Loader2 className="h-3 w-3 animate-spin" />}
+              {uploadStatus === "synced" && <span className="text-[9px] opacity-70">✓</span>}
+              {uploadStatus === "queued" && <span className="text-[9px]">⏳</span>}
             </span>
           )}
           {recordingUploading && (
             <span className="flex items-center gap-1.5 text-[11px] bg-secondary/15 text-secondary px-2.5 py-1 rounded-lg font-bold border border-secondary/20">
-              <Loader2 className="h-3 w-3 animate-spin" /> جاري الرفع
+              <Loader2 className="h-3 w-3 animate-spin" /> جاري الرفع النهائي
             </span>
           )}
           {violationCount > 0 && (
