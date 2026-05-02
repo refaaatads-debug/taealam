@@ -38,14 +38,6 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
 
-  const isInIframe = () => {
-    try {
-      return window.self !== window.top;
-    } catch {
-      return true;
-    }
-  };
-
   // Role application after OAuth is handled in AuthContext
 
   const goToDashboard = (userRole?: string) => {
@@ -75,17 +67,6 @@ const Login = () => {
       goToDashboard(r);
     }
   }, [user, userRoles, authLoading]);
-
-  useEffect(() => {
-    const oauthProvider = searchParams.get("oauth");
-    if (oauthProvider !== "google" && oauthProvider !== "apple") return;
-
-    const url = new URL(window.location.href);
-    url.searchParams.delete("oauth");
-    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
-
-    void handleSocialLogin(oauthProvider, true);
-  }, []);
 
   // Pick the highest-privileged role among all user_roles rows
   const pickPrimaryRole = async (userId: string): Promise<string | undefined> => {
@@ -174,34 +155,15 @@ const Login = () => {
     }
   };
 
-  const handleSocialLogin = async (provider: "google" | "apple", skipIframeFallback = false) => {
+  const handleSocialLogin = async (provider: "google" | "apple") => {
     setLoading(true);
     try {
       // Save selected role before OAuth redirect (for new users)
       if (!isLogin) {
         localStorage.setItem("pending_role", role);
       }
-
-      if (!skipIframeFallback && isInIframe()) {
-        const oauthUrl = new URL(`${window.location.origin}/login`);
-        oauthUrl.searchParams.set("oauth", provider);
-        if (!isLogin) oauthUrl.searchParams.set("signup", "1");
-        if (role === "teacher") oauthUrl.searchParams.set("role", "teacher");
-
-        const redirectTo = searchParams.get("redirect");
-        if (redirectTo && redirectTo.startsWith("/")) {
-          oauthUrl.searchParams.set("redirect", redirectTo);
-        }
-
-        const authTab = window.open(oauthUrl.toString(), "_blank", "noopener,noreferrer");
-        if (!authTab) throw new Error("Popup was blocked");
-        setLoading(false);
-        return;
-      }
-
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
-        extraParams: provider === "google" ? { prompt: "select_account" } : undefined,
       });
       if (result.error) throw result.error;
       if (!result.redirected && user) {
