@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
