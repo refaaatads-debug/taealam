@@ -18,6 +18,7 @@ import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface Ticket {
   id: string; user_id: string; subject: string; status: string; category: string; created_at: string; updated_at?: string;
