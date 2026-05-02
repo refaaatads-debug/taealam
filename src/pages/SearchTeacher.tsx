@@ -502,14 +502,30 @@ const SearchTeacher = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">اختر المادة والموعد، وسنرسل طلبك لكل المعلمين المتخصصين</p>
                     </div>
                   </div>
-                  {remainingMinutes > 0 && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-bold px-3 py-1.5 rounded-full">
-                        <Package className="h-3 w-3 ml-1" />
-                        {remainingMinutes} دقيقة متاحة
-                      </Badge>
-                    </motion.div>
-                  )}
+                  {remainingMinutes > 0 && (() => {
+                    const projectedAfter = Math.max(0, remainingMinutes - selectedSlots.length * QUICK_SESSION_MINUTES);
+                    const isReducing = selectedSlots.length > 0;
+                    return (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex flex-col items-end gap-1">
+                        <Badge className={`border-0 text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isReducing ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary"}`}>
+                          <Package className="h-3 w-3 ml-1" />
+                          {isReducing ? (
+                            <span className="flex items-center gap-1">
+                              <span className="line-through opacity-60">{remainingMinutes}</span>
+                              <span>← {projectedAfter} د المتبقية</span>
+                            </span>
+                          ) : (
+                            <>{remainingMinutes} دقيقة متاحة</>
+                          )}
+                        </Badge>
+                        {isReducing && (
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            بعد حجز {selectedSlots.length} حصة ({selectedSlots.length * QUICK_SESSION_MINUTES} د)
+                          </span>
+                        )}
+                      </motion.div>
+                    );
+                  })()}
                 </div>
               </CardHeader>
 
@@ -558,8 +574,25 @@ const SearchTeacher = () => {
                   );
                 })()}
 
-                {/* Row 1: Subject + Stage */}
+                {/* Row 1: Stage first, then Subject */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <motion.div whileHover={{ y: -2 }} className="group">
+                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                      🎓 المرحلة الدراسية
+                    </p>
+                    <Select value={selectedStage} onValueChange={setSelectedStage}>
+                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
+                        <SelectValue placeholder="اختر المرحلة" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all_stages">جميع المراحل</SelectItem>
+                        {teachingStagesOptions.map(stage => (
+                          <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </motion.div>
+
                   <motion.div whileHover={{ y: -2 }} className="group">
                     <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <BookOpen className="h-3.5 w-3.5 text-primary" /> اختر المادة
@@ -580,23 +613,6 @@ const SearchTeacher = () => {
                         <CheckCircle className="h-3 w-3" /> {teacherCount} معلم متخصص جاهز
                       </motion.p>
                     )}
-                  </motion.div>
-
-                  <motion.div whileHover={{ y: -2 }} className="group">
-                    <p className="text-xs font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                      🎓 المرحلة الدراسية
-                    </p>
-                    <Select value={selectedStage} onValueChange={setSelectedStage}>
-                      <SelectTrigger className={`h-11 rounded-xl border-2 transition-all duration-200 ${selectedStage && selectedStage !== "all_stages" ? "border-secondary/50 bg-secondary/5 shadow-sm shadow-secondary/10" : "border-border hover:border-primary/40"}`}>
-                        <SelectValue placeholder="اختر المرحلة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all_stages">جميع المراحل</SelectItem>
-                        {teachingStagesOptions.map(stage => (
-                          <SelectItem key={stage} value={stage}>{stage}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </motion.div>
                 </div>
 
