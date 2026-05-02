@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
