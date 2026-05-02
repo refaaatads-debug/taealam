@@ -33,6 +33,7 @@ const QUICK_REPLIES_TEACHER = [
 
 interface Props {
   onCreateTicket?: (subject: string, conversationLog: string) => void;
+  onTicketCreated?: (ticketId: string) => void;
 }
 
 const AIAssistantChat = ({ onCreateTicket }: Props) => {
