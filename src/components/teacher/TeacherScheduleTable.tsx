@@ -184,10 +184,16 @@ export default function TeacherScheduleTable() {
       return;
     }
 
+    const { data: teacherProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
     await supabase.from("notifications").insert({
       user_id: studentId,
       ...notificationTemplates.instantSessionFromTeacher({
-        teacherName: studentName ? "" : "معلمك",
+        teacherName: teacherProfile?.full_name || "معلمك",
       }),
     });
 
