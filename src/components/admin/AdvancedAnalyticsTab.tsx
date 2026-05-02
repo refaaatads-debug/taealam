@@ -76,7 +76,7 @@ const AdvancedAnalyticsTab = () => {
 
       // Revenue history (last 6 months)
       const { data: payments } = await supabase
-        .from("payments")
+        .from("payment_records")
         .select("amount, created_at, status")
         .eq("status", "succeeded")
         .gte("created_at", new Date(now.getTime() - 180 * 86400000).toISOString());
