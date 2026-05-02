@@ -2573,6 +2573,15 @@ export type Database = {
         | "manage_ai_audit"
         | "manage_notifications"
         | "manage_admins"
+        | "view_advanced_analytics"
+        | "manage_featured_teachers"
+        | "manage_student_profiles"
+        | "manage_teacher_profiles"
+        | "manage_pending_teachers"
+        | "manage_sessions_status"
+        | "view_call_transcripts"
+        | "manage_domain_ssl"
+        | "manage_audit_log"
       app_role: "student" | "teacher" | "parent" | "admin"
       booking_status: "pending" | "confirmed" | "completed" | "cancelled"
       subscription_tier: "basic" | "standard" | "premium" | "free"
@@ -2726,6 +2735,15 @@ export const Constants = {
         "manage_ai_audit",
         "manage_notifications",
         "manage_admins",
+        "view_advanced_analytics",
+        "manage_featured_teachers",
+        "manage_student_profiles",
+        "manage_teacher_profiles",
+        "manage_pending_teachers",
+        "manage_sessions_status",
+        "view_call_transcripts",
+        "manage_domain_ssl",
+        "manage_audit_log",
       ],
       app_role: ["student", "teacher", "parent", "admin"],
       booking_status: ["pending", "confirmed", "completed", "cancelled"],
