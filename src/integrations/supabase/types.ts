@@ -2461,6 +2461,13 @@ export type Database = {
         Args: { _request_id: string; _teacher_id: string }
         Returns: boolean
       }
+      auto_expire_stale_bookings: {
+        Args: never
+        Returns: {
+          details: Json
+          expired_count: number
+        }[]
+      }
       cleanup_old_chat_messages: { Args: never; Returns: number }
       credit_wallet_balance: {
         Args: {
