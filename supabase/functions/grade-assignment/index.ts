@@ -23,16 +23,40 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Fetch submission + assignment + subject
+    // Fetch submission (no embed — there's no FK declared)
     const { data: sub, error: subErr } = await supabase
       .from("assignment_submissions")
-      .select("*, assignment:assignments(*, subject:subjects(name))")
+      .select("*")
       .eq("id", submission_id)
-      .single();
-    if (subErr || !sub) throw new Error("Submission not found");
+      .maybeSingle();
+    if (subErr) {
+      console.error("Submission query error:", subErr);
+      throw new Error(`DB error: ${subErr.message}`);
+    }
+    if (!sub) {
+      console.error("Submission not found for id:", submission_id);
+      return new Response(JSON.stringify({ error: "Submission not found", submission_id }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const assignment: any = (sub as any).assignment;
-    const subjectName = assignment?.subject?.name || "غير محدد";
+    // Fetch assignment separately
+    const { data: assignment } = await supabase
+      .from("assignments")
+      .select("*")
+      .eq("id", (sub as any).assignment_id)
+      .maybeSingle();
+
+    let subjectName = "غير محدد";
+    if (assignment?.subject_id) {
+      const { data: subj } = await supabase
+        .from("subjects")
+        .select("name")
+        .eq("id", assignment.subject_id)
+        .maybeSingle();
+      subjectName = subj?.name || "غير محدد";
+    }
+
     const stage = assignment?.teaching_stage || "غير محدد";
     const totalPoints = Number(assignment?.total_points || 100);
     const questions: any[] = Array.isArray(assignment?.questions) ? assignment.questions : [];
