@@ -38,6 +38,10 @@ interface WhiteboardCanvasProps {
   overlay?: boolean;
   remoteActions?: DrawAction[];
   remoteLaserPos?: { x: number; y: number } | null;
+  /** When true, student is allowed to draw (granted by teacher) */
+  studentCanDraw?: boolean;
+  /** Teacher-only: toggle student draw permission. Called when teacher clicks the grant button */
+  onToggleStudentDraw?: (allow: boolean) => void;
 }
 
 const COLORS = [
