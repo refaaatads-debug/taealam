@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import BrandLoader from "@/components/BrandLoader";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,10 +60,7 @@ const queryClient = new QueryClient({
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-muted-foreground">جاري التحميل...</p>
-    </div>
+    <BrandLoader />
   </div>
 );
 
