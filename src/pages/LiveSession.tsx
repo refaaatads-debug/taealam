@@ -1887,6 +1887,8 @@ const LiveSession = () => {
                     onSendData={handleWhiteboardSend}
                     overlay={false}
                     remoteActions={whiteboardRemoteActions}
+                    studentCanDraw={studentCanDraw}
+                    onToggleStudentDraw={handleToggleStudentDraw}
                   />
                   <div className="absolute top-2 right-2 z-30 bg-primary/80 rounded-md px-3 py-1.5">
                     <p className="text-xs text-primary-foreground font-bold flex items-center gap-1">
