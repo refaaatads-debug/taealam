@@ -258,26 +258,29 @@ const Chat = () => {
   };
 
   // Fetch via blob to bypass ad-blockers (ERR_BLOCKED_BY_CLIENT) that block direct storage URLs
-  const openFileSafely = async (url: string, fileName?: string | null, download = false) => {
+  const openFileSafely = async (
+    url: string,
+    fileName?: string | null,
+    mode: "download" | "preview" = "preview",
+  ) => {
     try {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) throw new Error("fetch failed");
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
-      if (download) {
+      if (mode === "download") {
         const a = document.createElement("a");
         a.href = blobUrl;
         a.download = fileName || "file";
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       } else {
-        window.open(blobUrl, "_blank", "noopener,noreferrer");
+        // Open inside the app instead of new tab — avoids ad-blockers blocking blob: navigation
+        setPdfViewer({ url: blobUrl, name: fileName || "ملف" });
       }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (e) {
-      // Fallback to direct link
-      window.open(url, "_blank", "noopener,noreferrer");
       toast.error("تعذّر فتح الملف. قد يكون مانع الإعلانات يحجبه — جرّب تعطيله.");
     }
   };
