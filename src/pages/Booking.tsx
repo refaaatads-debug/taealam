@@ -652,13 +652,15 @@ const Booking = () => {
                             const hasConflict = selectedDay !== null && isConflict(selectedDay, t);
                             const slotKey = `${selectedDay}-${t}`;
                             const isShaking = conflictKey === slotKey;
+                            const reachedMax = !isSelected && selectedSlots.length >= maxBookableSlots;
+                            const slotDisabled = isPast || reachedMax;
                             return (
                               <motion.button
                                 key={t}
-                                onClick={() => !isPast && selectedDay !== null && toggleSlot(selectedDay, t)}
-                                disabled={isPast}
-                                whileHover={!isPast && !isSelected ? { y: -2, scale: 1.04 } : {}}
-                                whileTap={!isPast ? { scale: 0.94 } : {}}
+                                onClick={() => !slotDisabled && selectedDay !== null && toggleSlot(selectedDay, t)}
+                                disabled={slotDisabled}
+                                whileHover={!slotDisabled && !isSelected ? { y: -2, scale: 1.04 } : {}}
+                                whileTap={!slotDisabled ? { scale: 0.94 } : {}}
                                 animate={
                                   isShaking
                                     ? { x: [0, -6, 6, -4, 4, 0] }
