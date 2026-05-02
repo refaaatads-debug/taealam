@@ -47,10 +47,18 @@ const HomeworkSolver = () => {
     if (!imageBase64) { toast.error("الرجاء رفع صورة الواجب أولاً"); return; }
     setLoading(true);
     setSolution(null);
+    setTierBlocked(null);
     try {
       const { data, error } = await supabase.functions.invoke("solve-homework", {
         body: { imageBase64, extraQuestion },
       });
+      // Tier/subscription block (403 from edge function)
+      const reasonCode = (data as any)?.reason_code;
+      if (reasonCode && (data as any)?.error) {
+        setTierBlocked({ msg: (data as any).error, code: reasonCode });
+        toast.error((data as any).error);
+        return;
+      }
       if (error) throw error;
       if (data?.error && !data?.final_answer) {
         toast.error(data.error);
