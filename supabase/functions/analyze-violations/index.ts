@@ -126,7 +126,8 @@ serve(async (req) => {
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       const text = typeof msg === "string" ? msg : msg.text || msg.content || "";
-      const senderId = typeof msg === "object" ? msg.sender_id || msg.user_id : null;
+      // Always attribute violations to the authenticated caller — never trust sender_id from the body
+      const senderId = userId;
       if (!text.trim()) continue;
 
       const { suspicious, matches } = regexPreCheck(text);
