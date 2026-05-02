@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 
 interface Row {
   id: string;
@@ -163,9 +164,10 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
         try {
           await supabase.from("notifications").insert({
             user_id: user.id,
-            title: "⏰ تذكير: حصتك بعد ساعة",
-            body: `حصة ${r.subject_name} مع ${r.other_name}`,
-            type: "session_reminder",
+            ...notificationTemplates.sessionReminder({
+              subjectName: r.subject_name,
+              otherName: r.other_name,
+            }),
           });
         } catch {}
       }
