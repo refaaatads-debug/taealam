@@ -255,6 +255,31 @@ const Chat = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // Fetch via blob to bypass ad-blockers (ERR_BLOCKED_BY_CLIENT) that block direct storage URLs
+  const openFileSafely = async (url: string, fileName?: string | null, download = false) => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      if (download) {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName || "file";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (e) {
+      // Fallback to direct link
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.error("تعذّر فتح الملف. قد يكون مانع الإعلانات يحجبه — جرّب تعطيله.");
+    }
+  };
+
   const renderFileMessage = (msg: ChatMessage) => {
     if (!msg.file_url) return null;
     const isAudio = msg.file_type?.startsWith("audio/");
@@ -270,10 +295,12 @@ const Chat = () => {
           <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
             <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
           </a>
-          <a href={msg.file_url} download={msg.file_name || "image"} target="_blank" rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", true)}
             className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Download className="h-3 w-3" /> تحميل الصورة
-          </a>
+          </button>
         </div>
       );
     }
@@ -281,16 +308,22 @@ const Chat = () => {
     if (isPdf) {
       return (
         <div className="mt-2 space-y-2">
-          <iframe src={msg.file_url} className="w-full h-48 rounded-lg border border-border/30 bg-background" title={msg.file_name || "PDF"} />
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 shrink-0" />
+          <div className="flex items-center gap-2 rounded-xl bg-background/50 px-3 py-3 border border-border/30">
+            <FileText className="h-5 w-5 shrink-0 text-primary" />
             <span className="text-xs truncate flex-1">{msg.file_name || "ملف PDF"}</span>
-            <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
-              className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>فتح</a>
-            <a href={msg.file_url} download={msg.file_name || "file.pdf"} target="_blank" rel="noopener noreferrer"
-              className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+            <button
+              type="button"
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+              className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+            >فتح</button>
+            <button
+              type="button"
+              onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file.pdf", true)}
+              className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+              aria-label="تحميل"
+            >
               <Download className="h-3.5 w-3.5" />
-            </a>
+            </button>
           </div>
         </div>
       );
@@ -300,12 +333,19 @@ const Chat = () => {
       <div className={`mt-2 flex items-center gap-2 rounded-xl px-3 py-2 ${isMe ? "bg-primary-foreground/10" : "bg-background/50"}`}>
         <FileText className="h-5 w-5 shrink-0" />
         <span className="text-xs truncate flex-1">{msg.file_name || "ملف"}</span>
-        <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
-          className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>فتح</a>
-        <a href={msg.file_url} download={msg.file_name || "file"} target="_blank" rel="noopener noreferrer"
-          className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}>
+        <button
+          type="button"
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name, false)}
+          className={`text-[11px] underline shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+        >فتح</button>
+        <button
+          type="button"
+          onClick={() => openFileSafely(msg.file_url!, msg.file_name || "file", true)}
+          className={`shrink-0 ${isMe ? "text-primary-foreground/80" : "text-primary"}`}
+          aria-label="تحميل"
+        >
           <Download className="h-3.5 w-3.5" />
-        </a>
+        </button>
       </div>
     );
   };
