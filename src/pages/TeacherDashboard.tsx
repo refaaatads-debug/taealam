@@ -267,19 +267,19 @@ const TeacherDashboard = () => {
                   const isToday = new Date(s.scheduled_at).toDateString() === new Date().toDateString();
                   return (
                     <motion.div key={s.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }}
-                      className={`flex items-center justify-between p-4 rounded-2xl ${isToday ? "bg-accent border border-secondary/20" : "bg-muted/50"}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isToday ? "gradient-cta text-secondary-foreground" : "bg-card border"}`}>
+                      className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-2xl ${isToday ? "bg-accent border border-secondary/20" : "bg-muted/50"}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isToday ? "gradient-cta text-secondary-foreground" : "bg-card border"}`}>
                           <Users className={`h-5 w-5 ${!isToday ? "text-primary" : ""}`} />
                         </div>
-                        <div>
-                          <p className="font-bold text-sm text-foreground">{s.student_profile?.full_name || "طالب"} - {s.subjects?.name || ""}</p>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-foreground truncate">{s.student_profile?.full_name || "طالب"} - {s.subjects?.name || ""}</p>
                           <p className="text-xs text-muted-foreground">
                             {isToday ? "اليوم" : new Date(s.scheduled_at).toLocaleDateString("ar-SA", { weekday: "long" })} • {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })} • {s.duration_minutes} دقيقة
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3 relative" asChild>
                           <Link to={`/chat?booking=${s.id}`}>
                             <MessageSquare className="h-5 w-5" />
