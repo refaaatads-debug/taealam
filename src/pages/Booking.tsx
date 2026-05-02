@@ -64,7 +64,7 @@ const Booking = () => {
   const [remainingMinutes, setRemainingMinutes] = useState(0);
     const SESSION_MINUTES = 30;
   const MIN_SESSION_MINUTES = 10;
-  const maxBookableSlots = Math.max(1, Math.floor(remainingMinutes / SESSION_MINUTES));
+  const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
   const canBook = remainingMinutes >= MIN_SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
