@@ -723,30 +723,75 @@ export default function UserManagementTab() {
                 </div>
 
                 {/* Subscriptions */}
-                {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 && (
+                {selectedUser.role === "student" && (
                   <div className="bg-muted/30 rounded-xl p-4">
                     <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
                       <Package className="h-4 w-4 text-primary" /> الاشتراكات
                     </h3>
-                    <div className="space-y-2">
-                      {selectedUser.subscriptions.map((sub, i) => (
-                        <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
-                            </p>
+                    {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 ? (
+                      <div className="space-y-2 mb-4">
+                        {selectedUser.subscriptions.map((sub, i) => (
+                          <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
+                                {sub.is_active ? "نشط" : "منتهي"}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {sub.sessions_remaining} حصة متبقية
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
-                              {sub.is_active ? "نشط" : "منتهي"}
-                            </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              {sub.sessions_remaining} حصة متبقية
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mb-4">لا توجد اشتراكات حالية</p>
+                    )}
+
+                    {/* Grant a Plan */}
+                    <div className="border-t border-border/50 pt-3 mt-2">
+                      <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1">
+                        <Plus className="h-3 w-3" /> منح باقة جديدة
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Select value={grantPlanId} onValueChange={setGrantPlanId}>
+                          <SelectTrigger className="text-xs">
+                            <SelectValue placeholder="اختر الباقة" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availablePlans.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.name_ar} ({p.tier}) — {p.sessions_count} حصة
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={grantDurationDays}
+                          onChange={(e) => setGrantDurationDays(parseInt(e.target.value) || 30)}
+                          placeholder="عدد الأيام"
+                          className="text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={grantPlanToUser}
+                          disabled={!grantPlanId || granting}
+                          className="text-xs"
+                        >
+                          {granting ? "جارٍ..." : "منح الباقة"}
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        سيتم إنشاء اشتراك نشط فوري مع إشعار للطالب.
+                      </p>
                     </div>
                   </div>
                 )}
