@@ -169,6 +169,67 @@ const SupportTicketsTab = () => {
     else toast.success("تم تحرير التذكرة");
   };
 
+  const searchAdmins = async (q: string) => {
+    setTransferSearch(q);
+    if (q.trim().length < 2) { setTransferResults([]); return; }
+    // Get admin user_ids first
+    const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+    const adminIds = (admins || []).map(a => a.user_id).filter(id => id !== user?.id);
+    if (adminIds.length === 0) { setTransferResults([]); return; }
+    const { data } = await supabase.from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", adminIds)
+      .ilike("full_name", `%${q}%`)
+      .limit(10);
+    setTransferResults((data ?? []) as any);
+  };
+
+  const performTransfer = async () => {
+    if (!user || !selectedTicket || !transferTarget) return;
+    setTransferring(true);
+    const fromName = profileNameMap.get(user.id) || "أنت";
+    const toName = transferTarget.full_name || "موظف الدعم";
+
+    // 1) Update assignment
+    const { error: updErr } = await supabase.from("support_tickets")
+      .update({ assigned_to: transferTarget.user_id, assigned_at: new Date().toISOString(), status: "in_progress" })
+      .eq("id", selectedTicket);
+    if (updErr) { toast.error("فشل تحويل التذكرة"); setTransferring(false); return; }
+
+    // 2) Post a system-style admin note in the conversation (visible to admins + user)
+    const noteText = transferNote.trim()
+      ? `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.\n📝 ملاحظة: ${transferNote.trim()}`
+      : `🔄 تم تحويل المحادثة من ${fromName} إلى ${toName}.`;
+    await supabase.from("support_messages").insert({
+      ticket_id: selectedTicket, sender_id: transferTarget.user_id, content: noteText, is_admin: true,
+    });
+
+    // 3) Notify the new agent
+    await supabase.from("notifications").insert({
+      user_id: transferTarget.user_id,
+      title: "📨 تذكرة جديدة محوّلة إليك",
+      body: `حوّل ${fromName} تذكرة دعم إليك للمتابعة`,
+      type: "support_reply",
+      link: `/admin?tab=support&ticket=${selectedTicket}`,
+    } as any);
+
+    // 4) Audit log
+    await supabase.rpc("log_admin_action", {
+      _action: "transfer_support_ticket",
+      _category: "support",
+      _description: `تحويل تذكرة دعم من ${fromName} إلى ${toName}`,
+      _target_table: "support_tickets",
+      _target_id: selectedTicket,
+      _metadata: { note: transferNote.trim() || null, to_user: transferTarget.user_id } as any,
+    } as any);
+
+    toast.success(`تم تحويل التذكرة إلى ${toName}`);
+    setTransferOpen(false);
+    setTransferTarget(null); setTransferNote(""); setTransferSearch(""); setTransferResults([]);
+    setTransferring(false);
+    fetchTickets();
+  };
+
   const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
     const ext = file.name.split('.').pop();
     const path = `${selectedTicket}/${Date.now()}.${ext}`;
