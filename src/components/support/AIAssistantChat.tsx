@@ -36,7 +36,7 @@ interface Props {
   onTicketCreated?: (ticketId: string) => void;
 }
 
-const AIAssistantChat = ({ onCreateTicket }: Props) => {
+const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
   const { user, roles } = useAuth();
   const isTeacher = roles.includes("teacher");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
