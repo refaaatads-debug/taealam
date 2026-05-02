@@ -621,6 +621,29 @@ export default function WhiteboardCanvas({
               </Tooltip>
             )}
 
+            {/* Teacher-only: grant/revoke student drawing permission */}
+            {isTeacher && onToggleStudentDraw && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={`h-9 w-9 rounded-xl transition-all duration-150 ${
+                      studentCanDraw
+                        ? "bg-secondary text-secondary-foreground shadow-md scale-110"
+                        : "text-card/70 hover:text-card hover:bg-card/10"
+                    }`}
+                    onClick={() => { onToggleStudentDraw(!studentCanDraw); resetHideTimer(); }}
+                  >
+                    {studentCanDraw ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {studentCanDraw ? "سحب إذن الرسم من الطالب" : "السماح للطالب بالرسم"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-card/70 hover:text-card hover:bg-card/10" onClick={handleDownload}>
