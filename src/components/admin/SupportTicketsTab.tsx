@@ -64,6 +64,14 @@ const SupportTicketsTab = () => {
   const [creating, setCreating] = useState(false);
   const [profileNameMap, setProfileNameMap] = useState<Map<string, string>>(new Map());
 
+  // Transfer ticket dialog
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferSearch, setTransferSearch] = useState("");
+  const [transferResults, setTransferResults] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [transferTarget, setTransferTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [transferNote, setTransferNote] = useState("");
+  const [transferring, setTransferring] = useState(false);
+
   useEffect(() => { fetchTickets(); }, []);
 
   // Realtime: refresh ticket list on any change (new tickets / status / assignment)
