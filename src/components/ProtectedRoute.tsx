@@ -15,21 +15,23 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     if (!user) { setBanChecked(true); return; }
     // Admins are never banned
     if (roles.includes("admin")) { setBanChecked(true); return; }
-    
-    supabase
-      .from("user_warnings")
-      .select("is_banned")
-      .eq("user_id", user.id)
-      .eq("is_banned", true)
-      .limit(1)
-      .then(({ data }) => {
+
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_warnings")
+          .select("is_banned")
+          .eq("user_id", user.id)
+          .eq("is_banned", true)
+          .limit(1);
+
         setIsBanned((data ?? []).length > 0);
-        setBanChecked(true);
-      })
-      .catch(() => {
+      } catch {
         setIsBanned(false);
+      } finally {
         setBanChecked(true);
-      });
+      }
+    })();
   }, [user, roles]);
 
   if (loading || !banChecked) {
