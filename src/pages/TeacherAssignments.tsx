@@ -215,12 +215,16 @@ const TeacherAssignments = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>الطالب</Label>
-                      <Select value={studentId} onValueChange={setStudentId}>
+                      <Select value={studentId || "__all__"} onValueChange={(v) => setStudentId(v === "__all__" ? "" : v)}>
                         <SelectTrigger><SelectValue placeholder="عام لجميع الطلاب" /></SelectTrigger>
                         <SelectContent>
-                          {students.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          <SelectItem value="__all__">📢 عام — لجميع الطلاب</SelectItem>
+                          {students.map(s => <SelectItem key={s.id} value={s.id}>👤 {s.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      {students.length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">لا يوجد طلاب لديك حجوزات معهم بعد</p>
+                      )}
                     </div>
                     <div>
                       <Label>المادة</Label>
@@ -297,6 +301,13 @@ const TeacherAssignments = () => {
                           <Badge variant="secondary">{a.questions?.length || 0} أسئلة</Badge>
                           <Badge variant="outline">{a.total_points} درجة</Badge>
                           {a.teaching_stage && <Badge variant="outline">{a.teaching_stage}</Badge>}
+                          {a.student_id ? (
+                            <Badge className="bg-secondary/15 text-secondary border-secondary/30">
+                              👤 {students.find(s => s.id === a.student_id)?.name || "طالب محدد"}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-primary/10 text-primary border-primary/30">📢 عام</Badge>
+                          )}
                         </div>
                       </div>
                     </div>
