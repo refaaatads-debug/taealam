@@ -301,6 +301,13 @@ const TeacherAssignments = () => {
                           <Badge variant="secondary">{a.questions?.length || 0} أسئلة</Badge>
                           <Badge variant="outline">{a.total_points} درجة</Badge>
                           {a.teaching_stage && <Badge variant="outline">{a.teaching_stage}</Badge>}
+                          {a.student_id ? (
+                            <Badge className="bg-secondary/15 text-secondary border-secondary/30">
+                              👤 {students.find(s => s.id === a.student_id)?.name || "طالب محدد"}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-primary/10 text-primary border-primary/30">📢 عام</Badge>
+                          )}
                         </div>
                       </div>
                     </div>
