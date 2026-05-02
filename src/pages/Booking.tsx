@@ -726,7 +726,7 @@ const Booking = () => {
                           اشترك في باقة للحجز
                         </Button>
                       ) : (
-                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject} onClick={() => setStep(2)}>
+                        <Button className="w-full h-12 gradient-cta shadow-button text-secondary-foreground rounded-xl font-bold text-base" disabled={selectedSlots.length === 0 || !selectedSubject || !canBook || selectedSlots.length * SESSION_MINUTES > remainingMinutes} onClick={() => setStep(2)}>
                           متابعة للتأكيد ({selectedSlots.length} حصة)
                           <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
                         </Button>
