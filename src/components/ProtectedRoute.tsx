@@ -1,4 +1,5 @@
 import { Navigate } from "react-router-dom";
+import BrandLoader from "@/components/BrandLoader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";

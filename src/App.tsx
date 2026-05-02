@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import BrandLoader from "@/components/BrandLoader";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
