@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSessionProtection } from "@/hooks/useSessionProtection";
 import { useSessionAntiCheat } from "@/hooks/useSessionAntiCheat";
@@ -971,9 +972,9 @@ const LiveSession = () => {
         if (bookingData && user) {
           supabase.from("notifications").insert({
             user_id: bookingData.student_id,
-            title: "الحصة بدأت! 🎓",
-            body: `بدأ المعلم ${profile?.full_name || "معلمك"} الحصة الآن. انضم فوراً!`,
-            type: "session",
+            ...notificationTemplates.sessionStarted({
+              teacherName: profile?.full_name || "معلمك",
+            }),
           });
         }
       } else if (persistedElapsed !== null) {
@@ -1276,9 +1277,10 @@ const LiveSession = () => {
             supabase.from("bookings").update({ price: teacherEarning }).eq("id", currentBookingId),
             supabase.from("notifications").insert({
               user_id: currentBookingData.teacher_id,
-              title: "تم إضافة أرباح حصة ✅",
-              body: `تمت إضافة ${teacherEarning.toFixed(1)} ر.س لرصيدك عن حصة مكتملة (${durationMinutes} دقيقة).`,
-              type: "payment",
+              ...notificationTemplates.sessionCompletedTeacher({
+                durationMinutes,
+                earning: teacherEarning,
+              }),
             }),
           ]);
 
