@@ -5,14 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, Paperclip, FileText, Image as ImageIcon, X, Download } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Plus, Clock, Paperclip, FileText, Image as ImageIcon, X, Download, Sparkles, Headphones } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
+import AIAssistantChat from "@/components/support/AIAssistantChat";
 
 interface Ticket {
   id: string;
