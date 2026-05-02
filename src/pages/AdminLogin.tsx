@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,7 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
       if (error) throw error;
 
       // Verify admin role from database
@@ -39,8 +40,8 @@ const AdminLogin = () => {
 
       toast.success("مرحباً بك في لوحة التحكم!");
       window.location.replace("/admin");
-    } catch (e: any) {
-      toast.error(e.message || "بيانات الدخول غير صحيحة");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
     }

@@ -9,6 +9,7 @@ import brandLogo from "@/assets/logo.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
+import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { toast } from "sonner";
 import loginHero from "@/assets/login-hero.jpg";
 
@@ -92,7 +93,7 @@ const Login = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
         if (error) throw error;
 
         toast.success("تم تسجيل الدخول بنجاح!");
@@ -110,14 +111,14 @@ const Login = () => {
         if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
         if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
 
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await withAuthTimeout(supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: fullName, role },
             emailRedirectTo: window.location.origin,
           },
-        });
+        }));
         if (error) throw error;
 
         // Role is assigned automatically by DB trigger from metadata
@@ -127,8 +128,8 @@ const Login = () => {
           toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
         }
       }
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -139,12 +140,12 @@ const Login = () => {
     try {
       const formattedPhone = phone.startsWith("+") ? phone : `+966${phone.replace(/^0/, "")}`;
       if (!otpSent) {
-        const { error } = await supabase.auth.signInWithOtp({ phone: formattedPhone });
+        const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ phone: formattedPhone }));
         if (error) throw error;
         setOtpSent(true);
         toast.success("تم إرسال رمز التحقق!");
       } else {
-        const { data, error } = await supabase.auth.verifyOtp({ phone: formattedPhone, token: otp, type: "sms" });
+        const { data, error } = await withAuthTimeout(supabase.auth.verifyOtp({ phone: formattedPhone, token: otp, type: "sms" }));
         if (error) throw error;
         toast.success("تم التحقق بنجاح!");
         if (data.user) {
@@ -152,8 +153,8 @@ const Login = () => {
           redirectByRole(primaryRole);
         }
       }
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -166,12 +167,12 @@ const Login = () => {
       if (!isLogin) {
         localStorage.setItem("pending_role", role);
       }
-      const result = await lovable.auth.signInWithOAuth(provider, {
+      const result = await withAuthTimeout(lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
-      });
+      }));
       if (result.error) throw result.error;
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
     }

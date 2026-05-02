@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,14 +18,14 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
-      });
+      }));
       if (error) throw error;
       setSent(true);
       toast.success("تم إرسال رابط إعادة التعيين!");
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
     }
