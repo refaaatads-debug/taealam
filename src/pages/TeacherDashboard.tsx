@@ -47,9 +47,14 @@ const TeacherDashboard = () => {
         schema: "public",
         table: "bookings",
         filter: `teacher_id=eq.${user.id}`,
-      }, () => {
+      }, (payload) => {
         fetchData();
-        toast.info("لديك طلب حجز جديد! 📚");
+        // Only toast on INSERT (truly new booking).
+        // Cancellations / status updates come through the notifications table with proper Arabic text,
+        // so we avoid a generic "booking updated" message here.
+        if (payload.eventType === "INSERT") {
+          toast.info("لديك حجز جديد! 📚");
+        }
       })
       .subscribe();
 

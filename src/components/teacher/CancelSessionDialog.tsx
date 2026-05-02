@@ -88,7 +88,7 @@ export default function CancelSessionDialog({
           user_id: studentId,
           title: "تم إلغاء حصتك ❌",
           body: `قام المعلم ${profile?.full_name || ""} بإلغاء حصتك. السبب: ${trimmedReason}`,
-          type: "booking",
+          type: "booking_cancelled",
         });
       }
 
