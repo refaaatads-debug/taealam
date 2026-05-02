@@ -73,7 +73,7 @@ const SupportTicketsTab = () => {
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
 
-  // Student quick-peek
+  // User quick-peek (student or teacher)
   const [peekLoading, setPeekLoading] = useState(false);
   const [peekData, setPeekData] = useState<any>(null);
 
@@ -81,25 +81,61 @@ const SupportTicketsTab = () => {
     if (peekData?.user_id === uid) return;
     setPeekLoading(true);
     try {
-      const [profileRes, subsRes, ticketsRes, walletRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, phone, avatar_url, created_at").eq("user_id", uid).maybeSingle(),
-        supabase.from("user_subscriptions").select("remaining_minutes, is_active, subscription_plans(name_ar)").eq("user_id", uid).order("created_at", { ascending: false }),
-        supabase.from("support_tickets").select("id, status").eq("user_id", uid),
-        supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
-      ]);
-      const subs = (subsRes.data || []) as any[];
-      const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
-      const activePlan = subs.find((s: any) => s.is_active)?.subscription_plans?.name_ar || "—";
+      // 1) Detect role
+      const { data: roleRow } = await supabase
+        .from("user_roles").select("role").eq("user_id", uid).maybeSingle();
+      const role = (roleRow?.role as string) || "student";
+
+      const profileRes = await supabase
+        .from("profiles").select("user_id, full_name, phone, avatar_url, created_at")
+        .eq("user_id", uid).maybeSingle();
+      const ticketsRes = await supabase
+        .from("support_tickets").select("id, status").eq("user_id", uid);
       const openTickets = (ticketsRes.data || []).filter((t: any) => t.status !== "closed").length;
-      setPeekData({
-        user_id: uid,
-        ...((profileRes.data as any) || {}),
-        totalMins,
-        activePlan,
-        openTickets,
-        totalTickets: (ticketsRes.data || []).length,
-        balance: walletRes.data?.balance ?? 0,
-      });
+
+      if (role === "teacher") {
+        const [tpRes, walletRes] = await Promise.all([
+          supabase.from("teacher_profiles")
+            .select("hourly_rate, avg_rating, total_reviews, total_sessions, balance, is_approved")
+            .eq("user_id", uid).maybeSingle(),
+          supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+        ]);
+        const tp: any = tpRes.data || {};
+        setPeekData({
+          user_id: uid,
+          role,
+          ...((profileRes.data as any) || {}),
+          hourlyRate: Number(tp.hourly_rate || 0),
+          avgRating: Number(tp.avg_rating || 0),
+          totalReviews: Number(tp.total_reviews || 0),
+          totalSessions: Number(tp.total_sessions || 0),
+          tpBalance: Number(tp.balance || 0),
+          isApproved: !!tp.is_approved,
+          balance: walletRes.data?.balance ?? 0,
+          openTickets,
+          totalTickets: (ticketsRes.data || []).length,
+        });
+      } else {
+        const [subsRes, walletRes] = await Promise.all([
+          supabase.from("user_subscriptions")
+            .select("remaining_minutes, is_active, subscription_plans(name_ar)")
+            .eq("user_id", uid).order("created_at", { ascending: false }),
+          supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+        ]);
+        const subs = (subsRes.data || []) as any[];
+        const totalMins = subs.reduce((s: number, x: any) => s + Number(x.remaining_minutes || 0), 0);
+        const activePlan = subs.find((s: any) => s.is_active)?.subscription_plans?.name_ar || "—";
+        setPeekData({
+          user_id: uid,
+          role,
+          ...((profileRes.data as any) || {}),
+          totalMins,
+          activePlan,
+          openTickets,
+          totalTickets: (ticketsRes.data || []).length,
+          balance: walletRes.data?.balance ?? 0,
+        });
+      }
     } finally {
       setPeekLoading(false);
     }
