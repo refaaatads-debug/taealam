@@ -66,6 +66,20 @@ const Login = () => {
     }
   }, [user, userRoles, authLoading]);
 
+  // Pick the highest-privileged role among all user_roles rows
+  const pickPrimaryRole = async (userId: string): Promise<string | undefined> => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const list = (data || []).map((r: any) => r.role);
+    if (list.includes("admin")) return "admin";
+    if (list.includes("teacher")) return "teacher";
+    if (list.includes("parent")) return "parent";
+    if (list.includes("student")) return "student";
+    return list[0];
+  };
+
   const redirectByRole = (userRole?: string) => goToDashboard(userRole);
 
   const handleEmailAuth = async () => {
@@ -75,10 +89,10 @@ const Login = () => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Fetch role to redirect correctly
-        const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).limit(1).single();
+        // Fetch role to redirect correctly (highest privilege wins)
+        const primaryRole = await pickPrimaryRole(data.user.id);
         toast.success("تم تسجيل الدخول بنجاح!");
-        redirectByRole(roleData?.role);
+        redirectByRole(primaryRole);
       } else {
         if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
         if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
@@ -121,8 +135,8 @@ const Login = () => {
         if (error) throw error;
         toast.success("تم التحقق بنجاح!");
         if (data.user) {
-          const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).limit(1).single();
-          redirectByRole(roleData?.role);
+          const primaryRole = await pickPrimaryRole(data.user.id);
+          redirectByRole(primaryRole);
         }
       }
     } catch (e: any) {
