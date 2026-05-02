@@ -222,11 +222,41 @@ const SupportTicketsTab = () => {
 
   const reassignToMe = async () => {
     if (!user || !selectedTicket) return;
+    const prev = tickets.find(t => t.id === selectedTicket);
+    const previousAssignee = prev?.assigned_to;
     const { error } = await supabase.from("support_tickets")
-      .update({ assigned_to: user.id, assigned_at: new Date().toISOString() })
+      .update({ assigned_to: user.id, assigned_at: new Date().toISOString(), status: "in_progress" })
       .eq("id", selectedTicket);
-    if (error) toast.error("فشل تعيين التذكرة");
-    else toast.success("تم تعيين التذكرة لك");
+    if (error) { toast.error("فشل تعيين التذكرة"); return; }
+
+    const myName = profileNameMap.get(user.id) || (await fetchProfileName(user.id));
+    const isTransfer = previousAssignee && previousAssignee !== user.id;
+    const prevName = previousAssignee ? (profileNameMap.get(previousAssignee) || prev?.assigned_name || "موظف سابق") : null;
+
+    const welcomeText = isTransfer
+      ? `👋 مرحباً، تم تحويل المحادثة من ${prevName} إلى ${myName} وسأكون معك من الآن لمتابعة طلبك.`
+      : `👋 مرحباً، تم استلام المحادثة من قبل الموظف ${myName} وسأكون معك لمتابعة طلبك.`;
+
+    await supabase.from("support_messages").insert({
+      ticket_id: selectedTicket, sender_id: user.id, content: welcomeText, is_admin: true,
+    });
+
+    // Notify the user (student/teacher) that an agent took the ticket
+    const ticket = tickets.find(t => t.id === selectedTicket);
+    if (ticket) {
+      await supabase.from("notifications").insert({
+        user_id: ticket.user_id,
+        title: "تم استلام محادثتك ✅",
+        body: isTransfer
+          ? `تم تحويل محادثتك إلى ${myName} وسيتابع طلبك.`
+          : `تم استلام محادثتك من قبل ${myName}.`,
+        type: "support_reply",
+        link: `/support?ticket=${selectedTicket}`,
+      } as any);
+    }
+
+    toast.success("تم استلام التذكرة");
+    fetchTickets();
   };
 
   const releaseTicket = async () => {
