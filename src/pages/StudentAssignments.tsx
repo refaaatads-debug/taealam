@@ -42,6 +42,19 @@ const StudentAssignments = () => {
   const fetchAll = async () => {
     if (!user) return;
     setLoading(true);
+
+    // تحقق من وجود اشتراك نشط (بدون خصم من الرصيد - فقط للتفعيل)
+    const { data: sub } = await supabase
+      .from("user_subscriptions")
+      .select("id, is_active, remaining_minutes, end_date")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("remaining_minutes", 0)
+      .gte("end_date", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+    setHasActiveSubscription(!!sub);
+
     // الواجبات أولاً (الأهم) — استعلام مبسط بدون joins ثقيلة
     const { data: a } = await supabase
       .from("assignments" as any)
