@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ role: "assistant", content: "تعذّر إنهاء المعالجة. يرجى المحاولة مجددًا." });
+    return json({ role: "assistant", content: "تعذّر إنهاء المعالجة. يرجى المحاولة مجددًا.", ticket: createdTicket });
   } catch (e: any) {
     console.error("ai-support fatal:", e);
     return json({ error: e?.message || "Unknown error" }, 500);
