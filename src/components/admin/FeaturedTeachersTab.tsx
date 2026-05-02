@@ -233,12 +233,20 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
 
   if (!row) return null;
 
-  const handleUpload = async (file: File) => {
+  const openCropper = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleCroppedUpload = async (blob: Blob) => {
+    setCropSrc(null);
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${row.teacher_id}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("featured-teachers").upload(path, file, { upsert: true });
+      const path = `${row.teacher_id}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from("featured-teachers")
+        .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
       if (error) throw error;
       const { data } = supabase.storage.from("featured-teachers").getPublicUrl(path);
       setForm((f) => ({ ...f, image_url: data.publicUrl }));
