@@ -35,6 +35,10 @@ const TeacherAssignments = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
 
+  // Submissions filters
+  const [subFilter, setSubFilter] = useState<"all" | "submitted" | "ai_graded" | "reviewed">("all");
+  const [subSearch, setSubSearch] = useState("");
+
   // New assignment form
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
