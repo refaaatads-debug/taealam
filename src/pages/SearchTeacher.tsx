@@ -502,14 +502,30 @@ const SearchTeacher = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">اختر المادة والموعد، وسنرسل طلبك لكل المعلمين المتخصصين</p>
                     </div>
                   </div>
-                  {remainingMinutes > 0 && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <Badge className="bg-primary/10 text-primary border-0 text-xs font-bold px-3 py-1.5 rounded-full">
-                        <Package className="h-3 w-3 ml-1" />
-                        {remainingMinutes} دقيقة متاحة
-                      </Badge>
-                    </motion.div>
-                  )}
+                  {remainingMinutes > 0 && (() => {
+                    const projectedAfter = Math.max(0, remainingMinutes - selectedSlots.length * QUICK_SESSION_MINUTES);
+                    const isReducing = selectedSlots.length > 0;
+                    return (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex flex-col items-end gap-1">
+                        <Badge className={`border-0 text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${isReducing ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary"}`}>
+                          <Package className="h-3 w-3 ml-1" />
+                          {isReducing ? (
+                            <span className="flex items-center gap-1">
+                              <span className="line-through opacity-60">{remainingMinutes}</span>
+                              <span>← {projectedAfter} د المتبقية</span>
+                            </span>
+                          ) : (
+                            <>{remainingMinutes} دقيقة متاحة</>
+                          )}
+                        </Badge>
+                        {isReducing && (
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            بعد حجز {selectedSlots.length} حصة ({selectedSlots.length * QUICK_SESSION_MINUTES} د)
+                          </span>
+                        )}
+                      </motion.div>
+                    );
+                  })()}
                 </div>
               </CardHeader>
 
