@@ -80,9 +80,80 @@ export default function UserManagementTab() {
 
   useEffect(() => {
     fetchUsers();
+    fetchPlans();
   }, []);
 
   const [bannedUsers, setBannedUsers] = useState<Set<string>>(new Set());
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [grantPlanId, setGrantPlanId] = useState<string>("");
+  const [grantDurationDays, setGrantDurationDays] = useState<number>(30);
+  const [granting, setGranting] = useState(false);
+
+  const fetchPlans = async () => {
+    const { data } = await supabase
+      .from("subscription_plans")
+      .select("id, name_ar, tier, sessions_count, session_duration_minutes, price")
+      .eq("is_active", true)
+      .is("assigned_user_id", null)
+      .order("price", { ascending: true });
+    setAvailablePlans(data ?? []);
+  };
+
+  const grantPlanToUser = async () => {
+    if (!selectedUser || !grantPlanId) {
+      toast.error("اختر باقة أولاً");
+      return;
+    }
+    const plan = availablePlans.find((p) => p.id === grantPlanId);
+    if (!plan) return;
+
+    setGranting(true);
+    try {
+      const totalMinutes = (plan.sessions_count || 0) * (plan.session_duration_minutes || 45);
+      const endsAt = new Date();
+      endsAt.setDate(endsAt.getDate() + (grantDurationDays || 30));
+
+      const { error } = await supabase.from("user_subscriptions").insert({
+        user_id: selectedUser.user_id,
+        plan_id: plan.id,
+        sessions_remaining: plan.sessions_count || 0,
+        remaining_minutes: totalMinutes,
+        total_hours: totalMinutes / 60,
+        is_active: true,
+        starts_at: new Date().toISOString(),
+        ends_at: endsAt.toISOString(),
+        auto_renew: false,
+      });
+      if (error) throw error;
+
+      // Notify the student
+      await supabase.from("notifications").insert({
+        user_id: selectedUser.user_id,
+        title: "🎁 تم منحك باقة جديدة",
+        body: `قام الإدارة بمنحك باقة "${plan.name_ar}" بإجمالي ${plan.sessions_count} حصة.`,
+        type: "subscription",
+      });
+
+      // Audit log
+      await (supabase as any).rpc("log_admin_action", {
+        _action: "grant_subscription",
+        _category: "subscriptions",
+        _description: `منح باقة "${plan.name_ar}" للمستخدم ${selectedUser.full_name}`,
+        _target_table: "user_subscriptions",
+        _target_id: selectedUser.user_id,
+        _metadata: { plan_id: plan.id, sessions: plan.sessions_count, duration_days: grantDurationDays },
+      });
+
+      toast.success(`تم منح باقة "${plan.name_ar}" بنجاح`);
+      setGrantPlanId("");
+      // Refresh user detail
+      await fetchUserDetail(selectedUser);
+    } catch (e: any) {
+      toast.error(e.message || "فشل منح الباقة");
+    } finally {
+      setGranting(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
