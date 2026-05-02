@@ -1942,9 +1942,9 @@ const LiveSession = () => {
             </div>
           )}
 
-          {handRaised && (
+          {(handRaised || remoteHandRaised) && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-4 right-4 bg-gold text-gold-foreground px-4 py-2 rounded-xl font-bold text-sm shadow-lg z-20">
-              <Hand className="h-4 w-4 inline ml-1" /> {isTeacher ? "الطالب رفع يده" : "رفعت يدك"}
+              <Hand className="h-4 w-4 inline ml-1" /> {remoteHandRaised ? (isTeacher ? "الطالب رفع يده" : "المعلم رفع يده") : "رفعت يدك"}
             </motion.div>
           )}
         </div>
