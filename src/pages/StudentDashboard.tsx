@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 
 const formatDuration = (totalSeconds: number) => {
@@ -99,9 +100,10 @@ const StudentDashboard = () => {
 
       await supabase.from("notifications").insert({
         user_id: booking.teacher_id,
-        title: "تم إلغاء حصة",
-        body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
-        type: "booking_cancelled",
+        ...notificationTemplates.bookingCancelledByStudent({
+          subjectName: booking.subjects?.name || "حصة",
+          scheduledAt: booking.scheduled_at,
+        }),
       });
 
       toast.success("تم إلغاء الحصة بنجاح");

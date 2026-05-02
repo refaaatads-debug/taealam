@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -44,9 +45,10 @@ export default function UpcomingSchedule({ upcomingClasses, onRefresh }: Props) 
       if (booking) {
         await supabase.from("notifications").insert({
           user_id: booking.teacher_id,
-          title: "تم إلغاء حصة",
-          body: `قام الطالب بإلغاء حصة ${booking.subjects?.name || "حصة"} المقررة في ${new Date(booking.scheduled_at).toLocaleDateString("ar-SA")}`,
-          type: "booking_cancelled",
+          ...notificationTemplates.bookingCancelledByStudent({
+            subjectName: booking.subjects?.name || "حصة",
+            scheduledAt: booking.scheduled_at,
+          }),
         });
       }
 
