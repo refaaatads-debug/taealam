@@ -256,65 +256,86 @@ const SupportChat = () => {
     return <Badge variant={s.variant}>{s.label}</Badge>;
   };
 
-  // Ticket list view
+  // Ticket list view + AI Assistant tabs
   if (!ticketId) {
     return (
       <div className="min-h-screen bg-background" dir="rtl">
         <Navbar />
         <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="rounded-xl" asChild>
-                <Link to={backPath}><ArrowRight className="h-5 w-5" /></Link>
-              </Button>
-              <h1 className="text-xl font-bold text-foreground">خدمة العملاء</h1>
-            </div>
-            <Button onClick={() => setShowNewTicket(true)} size="sm" className="rounded-xl gap-1">
-              <Plus className="h-4 w-4" /> تذكرة جديدة
+          <div className="flex items-center gap-3 mb-5">
+            <Button variant="ghost" size="icon" className="rounded-xl" asChild>
+              <Link to={backPath}><ArrowRight className="h-5 w-5" /></Link>
             </Button>
+            <h1 className="text-xl font-bold text-foreground">مركز الدعم</h1>
           </div>
 
-          {showNewTicket && (
-            <Card className="mb-4">
-              <CardContent className="pt-4">
-                <div className="flex gap-2">
-                  <Input value={newSubject} onChange={e => setNewSubject(e.target.value)}
-                    placeholder="عنوان المشكلة أو الاستفسار..." className="rounded-xl flex-1"
-                    onKeyDown={e => e.key === "Enter" && createTicket()} />
-                  <Button onClick={createTicket} className="rounded-xl">إنشاء</Button>
-                  <Button variant="ghost" onClick={() => setShowNewTicket(false)} className="rounded-xl">إلغاء</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Tabs defaultValue="ai" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4 rounded-xl">
+              <TabsTrigger value="ai" className="rounded-lg gap-1.5">
+                <Sparkles className="h-4 w-4" /> مساعد ذكي
+              </TabsTrigger>
+              <TabsTrigger value="human" className="rounded-lg gap-1.5">
+                <Headphones className="h-4 w-4" /> فريق الدعم
+              </TabsTrigger>
+            </TabsList>
 
-          {loading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-12">
-              <MessageSquare className="h-16 w-16 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground">لا توجد تذاكر دعم</p>
-              <p className="text-sm text-muted-foreground mt-1">أنشئ تذكرة جديدة للتواصل مع فريق الدعم</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {tickets.map(t => (
-                <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setSearchParams({ ticket: t.id })}>
-                  <CardContent className="py-4 flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-foreground">{t.subject}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <Clock className="h-3 w-3 inline ml-1" />
-                        {new Date(t.created_at).toLocaleDateString("ar-SA")}
-                      </p>
+            <TabsContent value="ai" className="mt-0">
+              <Card className="overflow-hidden">
+                <AIAssistantChat onCreateTicket={createTicketFromAI} />
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="human" className="mt-0 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">تذاكرك مع فريق الدعم</p>
+                <Button onClick={() => setShowNewTicket(true)} size="sm" className="rounded-xl gap-1">
+                  <Plus className="h-4 w-4" /> تذكرة جديدة
+                </Button>
+              </div>
+
+              {showNewTicket && (
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex gap-2">
+                      <Input value={newSubject} onChange={e => setNewSubject(e.target.value)}
+                        placeholder="عنوان المشكلة أو الاستفسار..." className="rounded-xl flex-1"
+                        onKeyDown={e => e.key === "Enter" && createTicket()} />
+                      <Button onClick={createTicket} className="rounded-xl">إنشاء</Button>
+                      <Button variant="ghost" onClick={() => setShowNewTicket(false)} className="rounded-xl">إلغاء</Button>
                     </div>
-                    {statusBadge(t.status)}
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+              )}
+
+              {loading ? (
+                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+              ) : tickets.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-16 w-16 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground">لا توجد تذاكر دعم</p>
+                  <p className="text-sm text-muted-foreground mt-1">أنشئ تذكرة جديدة للتواصل مع فريق الدعم</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tickets.map(t => (
+                    <Card key={t.id} className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSearchParams({ ticket: t.id })}>
+                      <CardContent className="py-4 flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm text-foreground">{t.subject}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <Clock className="h-3 w-3 inline ml-1" />
+                            {new Date(t.created_at).toLocaleDateString("ar-SA")}
+                          </p>
+                        </div>
+                        {statusBadge(t.status)}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
         <BottomNav />
       </div>
