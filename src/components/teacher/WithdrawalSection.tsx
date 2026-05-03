@@ -54,6 +54,10 @@ export default function WithdrawalSection() {
       toast.error("لا يوجد رصيد كافٍ للسحب");
       return;
     }
+    if (balance < minWithdrawal) {
+      toast.error(`الحد الأدنى للسحب هو ${minWithdrawal} ر.س`);
+      return;
+    }
     setLoading(true);
     try {
       let attachmentUrl = null;
