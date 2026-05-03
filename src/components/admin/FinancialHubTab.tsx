@@ -423,14 +423,42 @@ export default function FinancialHubTab() {
         {/* Reconciliation */}
         <TabsContent value="reconciliation">
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>سجل المطابقة المالية</CardTitle>
-              <Button onClick={runReconciliation} disabled={running} size="sm">
-                {running ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <TrendingUp className="h-4 w-4 ml-2" />}
-                تشغيل مطابقة الآن
-              </Button>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>سجل المطابقة المالية ({filteredReconciliations.length})</CardTitle>
+              <div className="flex gap-2">
+                <FinancialExportButton
+                  title="Financial Reconciliation"
+                  filename="financial_reconciliation"
+                  headers={[
+                    { key: "created_at", label: "التاريخ" },
+                    { key: "expected_total", label: "متوقع" },
+                    { key: "actual_total", label: "فعلي" },
+                    { key: "difference", label: "الفرق" },
+                    { key: "sessions_count", label: "عدد الحصص" },
+                    { key: "status", label: "الحالة" },
+                  ]}
+                  rows={recExportRows}
+                />
+                <Button onClick={runReconciliation} disabled={running} size="sm">
+                  {running ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <TrendingUp className="h-4 w-4 ml-2" />}
+                  تشغيل مطابقة الآن
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-3 gap-2">
+                <Input type="date" value={recFrom} onChange={(e) => setRecFrom(e.target.value)} />
+                <Input type="date" value={recTo} onChange={(e) => setRecTo(e.target.value)} />
+                <Select value={recStatus} onValueChange={setRecStatus}>
+                  <SelectTrigger><SelectValue placeholder="الحالة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات</SelectItem>
+                    <SelectItem value="ok">متطابق</SelectItem>
+                    <SelectItem value="minor_drift">فرق بسيط</SelectItem>
+                    <SelectItem value="mismatch">تباين</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -443,14 +471,14 @@ export default function FinancialHubTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reconciliations.length === 0 ? (
+                  {filteredReconciliations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
-                        لا توجد سجلات مطابقة بعد
+                        لا توجد سجلات
                       </TableCell>
                     </TableRow>
                   ) : (
-                    reconciliations.map((r) => (
+                    filteredReconciliations.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>{new Date(r.created_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell>{Number(r.expected_total).toFixed(2)}</TableCell>
