@@ -48,6 +48,7 @@ const StudentAssignments = lazy(() => import("./pages/StudentAssignments"));
 const ReviewSubmission = lazy(() => import("./pages/ReviewSubmission"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const HomeworkSolver = lazy(() => import("./pages/HomeworkSolver"));
+const StudentInvoices = lazy(() => import("./pages/StudentInvoices"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
