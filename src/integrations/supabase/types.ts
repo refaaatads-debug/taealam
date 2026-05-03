@@ -2798,6 +2798,19 @@ export type Database = {
         }
         Returns: number
       }
+      get_call_wallet_summary: {
+        Args: { _month?: string }
+        Returns: {
+          call_usage_count: number
+          current_wallet_balance: number
+          inflow_total: number
+          net_balance: number
+          outflow_total: number
+          refund_count: number
+          refunds_total: number
+          topup_count: number
+        }[]
+      }
       get_platform_revenue_summary: {
         Args: { _month?: string }
         Returns: {
@@ -2871,6 +2884,21 @@ export type Database = {
         Returns: {
           full_name: string
           user_id: string
+        }[]
+      }
+      list_call_wallet_transactions: {
+        Args: { _month?: string }
+        Returns: {
+          amount: number
+          balance_after: number
+          category: string
+          created_at: string
+          description: string
+          id: string
+          reference_id: string
+          stripe_session_id: string
+          user_id: string
+          user_name: string
         }[]
       }
       log_admin_action:
