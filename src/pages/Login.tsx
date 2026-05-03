@@ -182,23 +182,6 @@ const Login = () => {
         localStorage.setItem("pending_role", role);
       }
 
-      if (!skipIframeFallback && isInIframe()) {
-        const oauthUrl = new URL(`${window.location.origin}/login`);
-        oauthUrl.searchParams.set("oauth", provider);
-        if (!isLogin) oauthUrl.searchParams.set("signup", "1");
-        if (role === "teacher") oauthUrl.searchParams.set("role", "teacher");
-
-        const redirectTo = searchParams.get("redirect");
-        if (redirectTo && redirectTo.startsWith("/")) {
-          oauthUrl.searchParams.set("redirect", redirectTo);
-        }
-
-        const authTab = window.open(oauthUrl.toString(), "_blank", "noopener,noreferrer");
-        if (!authTab) throw new Error("Popup was blocked");
-        setLoading(false);
-        return;
-      }
-
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
         extraParams: provider === "google" ? { prompt: "select_account" } : undefined,
