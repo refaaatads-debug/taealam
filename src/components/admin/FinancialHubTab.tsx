@@ -507,10 +507,21 @@ export default function FinancialHubTab() {
             <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle>سجل التدقيق المالي ({filteredAudit.length} من {auditLog.length})</CardTitle>
               <div className="flex gap-2">
-                <Button onClick={exportAuditCSV} size="sm" variant="outline" disabled={filteredAudit.length === 0}>
-                  <Download className="h-4 w-4 ml-2" />
-                  تصدير CSV
-                </Button>
+                <FinancialExportButton
+                  title="Financial Audit Log"
+                  filename="financial_audit"
+                  headers={[
+                    { key: "created_at", label: "التاريخ" },
+                    { key: "action", label: "الإجراء" },
+                    { key: "entity_type", label: "الجهة" },
+                    { key: "entity_id", label: "المعرف" },
+                    { key: "amount", label: "المبلغ" },
+                    { key: "actor_role", label: "دور المنفذ" },
+                    { key: "actor_id", label: "المنفذ" },
+                    { key: "ip_address", label: "IP" },
+                  ]}
+                  rows={auditExportRows}
+                />
                 <Button onClick={clearFilters} size="sm" variant="ghost">
                   <X className="h-4 w-4 ml-2" />
                   مسح الفلاتر
