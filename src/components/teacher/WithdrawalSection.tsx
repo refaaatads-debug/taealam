@@ -38,7 +38,7 @@ export default function WithdrawalSection() {
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
       supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
-      supabase.rpc("get_teacher_financial_breakdown" as any, { _teacher_id: user.id, _month: currentMonth }),
+      supabase.rpc("get_teacher_net_summary" as any, { _teacher_id: user.id, _month: currentMonth }),
     ]);
 
     const bd = (breakdownRes.data as any[])?.[0] || {};
