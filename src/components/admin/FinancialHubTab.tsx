@@ -165,30 +165,51 @@ export default function FinancialHubTab() {
     });
   }, [auditLog, auditAction, auditEntity, auditFrom, auditTo, auditSearch]);
 
-  const exportAuditCSV = () => {
-    if (filteredAudit.length === 0) {
-      toast.info("لا توجد بيانات للتصدير");
-      return;
-    }
-    const headers = ["created_at", "action", "entity_type", "entity_id", "amount", "actor_id", "actor_role", "ip_address"];
-    const rows = filteredAudit.map((a) =>
-      headers.map((h) => {
-        const v = (a as any)[h];
-        if (v == null) return "";
-        const s = String(v).replace(/"/g, '""');
-        return `"${s}"`;
-      }).join(",")
-    );
-    const csv = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `financial_audit_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success(`تم تصدير ${filteredAudit.length} سجل`);
-  };
+  const filteredReconciliations = useMemo(() => reconciliations.filter((r) => {
+    if (recStatus !== "all" && r.status !== recStatus) return false;
+    return inDateRange(r.created_at, recFrom, recTo);
+  }), [reconciliations, recFrom, recTo, recStatus]);
+
+  const filteredHistory = useMemo(() => withdrawalHistory.filter((h) => {
+    if (histStatus !== "all" && h.to_status !== histStatus) return false;
+    return inDateRange(h.created_at, histFrom, histTo);
+  }), [withdrawalHistory, histFrom, histTo, histStatus]);
+
+  const auditExportRows = useMemo(() => filteredAudit.map((a) => ({
+    created_at: new Date(a.created_at).toLocaleString("ar-SA"),
+    action: a.action, entity_type: a.entity_type, entity_id: a.entity_id,
+    amount: a.amount ? Number(a.amount).toFixed(2) : "",
+    actor_role: a.actor_role || "", actor_id: a.actor_id || "", ip_address: a.ip_address || "",
+  })), [filteredAudit]);
+
+  const recExportRows = useMemo(() => filteredReconciliations.map((r) => ({
+    created_at: new Date(r.created_at).toLocaleString("ar-SA"),
+    expected_total: Number(r.expected_total).toFixed(2),
+    actual_total: Number(r.actual_total).toFixed(2),
+    difference: Number(r.difference).toFixed(2),
+    sessions_count: r.sessions_count,
+    status: r.status,
+  })), [filteredReconciliations]);
+
+  const historyExportRows = useMemo(() => filteredHistory.map((h) => ({
+    created_at: new Date(h.created_at).toLocaleString("ar-SA"),
+    from_status: h.from_status || "—", to_status: h.to_status, notes: h.notes || "",
+  })), [filteredHistory]);
+
+  const platformExportRows = useMemo(() => {
+    if (!platformSummary) return [];
+    return [{
+      month: platformMonth || "الكل",
+      total_revenue: Number(platformSummary.total_revenue || 0).toFixed(2),
+      total_vat: Number(platformSummary.total_vat || 0).toFixed(2),
+      total_platform_earnings: Number(platformSummary.total_platform_earnings || 0).toFixed(2),
+      total_teacher_payouts: Number(platformSummary.total_teacher_payouts || 0).toFixed(2),
+      net_profit: Number(platformSummary.net_profit || 0).toFixed(2),
+      invoices_count: platformSummary.invoices_count || 0,
+      sessions_count: platformSummary.sessions_count || 0,
+      minutes_total: platformSummary.minutes_total || 0,
+    }];
+  }, [platformSummary, platformMonth]);
 
   const clearFilters = () => {
     setAuditSearch("");
