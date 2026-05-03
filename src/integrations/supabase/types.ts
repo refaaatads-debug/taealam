@@ -877,6 +877,100 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          created_at: string
+          currency: string
+          hours_purchased: number
+          id: string
+          invoice_number: string | null
+          issued_at: string
+          metadata: Json
+          net_amount: number
+          payment_record_id: string | null
+          plan_id: string | null
+          qr_code: string | null
+          stripe_session_id: string | null
+          student_id: string
+          subscription_id: string | null
+          total_amount: number
+          updated_at: string
+          vat_amount: number
+          vat_rate: number
+          zatca_hash: string | null
+          zatca_status: string
+          zatca_uuid: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          hours_purchased?: number
+          id?: string
+          invoice_number?: string | null
+          issued_at?: string
+          metadata?: Json
+          net_amount?: number
+          payment_record_id?: string | null
+          plan_id?: string | null
+          qr_code?: string | null
+          stripe_session_id?: string | null
+          student_id: string
+          subscription_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          zatca_hash?: string | null
+          zatca_status?: string
+          zatca_uuid?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          hours_purchased?: number
+          id?: string
+          invoice_number?: string | null
+          issued_at?: string
+          metadata?: Json
+          net_amount?: number
+          payment_record_id?: string | null
+          plan_id?: string | null
+          qr_code?: string | null
+          stripe_session_id?: string | null
+          student_id?: string
+          subscription_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          zatca_hash?: string | null
+          zatca_status?: string
+          zatca_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_payment_record_id_fkey"
+            columns: ["payment_record_id"]
+            isOneToOne: false
+            referencedRelation: "payment_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -2707,6 +2801,7 @@ export type Database = {
       get_platform_revenue_summary: {
         Args: { _month?: string }
         Returns: {
+          invoices_count: number
           minutes_total: number
           net_profit: number
           sessions_count: number
