@@ -281,6 +281,22 @@ export default function FinancialHubTab() {
                     مسح
                   </Button>
                 )}
+                <FinancialExportButton
+                  title={`Platform Revenue ${platformMonth || "All"}`}
+                  filename="platform_revenue"
+                  headers={[
+                    { key: "month", label: "الشهر" },
+                    { key: "total_revenue", label: "إجمالي الإيرادات" },
+                    { key: "total_vat", label: "ضريبة محصلة" },
+                    { key: "total_platform_earnings", label: "أرباح المنصة" },
+                    { key: "total_teacher_payouts", label: "مدفوعات المعلمين" },
+                    { key: "net_profit", label: "صافي الربح" },
+                    { key: "invoices_count", label: "عدد الفواتير" },
+                    { key: "sessions_count", label: "عدد الحصص" },
+                    { key: "minutes_total", label: "إجمالي الدقائق" },
+                  ]}
+                  rows={platformExportRows}
+                />
               </div>
             </CardHeader>
             <CardContent>
