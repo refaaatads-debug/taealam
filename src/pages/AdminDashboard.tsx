@@ -409,6 +409,7 @@ const AdminDashboard = () => {
       case "withdrawals": return <WithdrawalRequestsTab />;
       case "teacher_payments": return <TeacherPaymentsTab />;
       case "teacher_earnings": return <TeacherEarningsTab />;
+      case "financial_hub": return <FinancialHubTab />;
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
       case "support": return <SupportTicketsTab />;
