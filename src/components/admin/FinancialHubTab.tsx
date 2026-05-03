@@ -397,6 +397,164 @@ export default function FinancialHubTab() {
           </Card>
         </TabsContent>
 
+        {/* Call Wallet (Pass-through) */}
+        <TabsContent value="call-wallet">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <div>
+                <CardTitle>محفظة المكالمات (محفظة وسيطة)</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ⚠️ هذه ليست إيرادات للمنصة — حركة وسيطة بين المستخدم ومزود الخدمة الخارجي. لا تدخل في VAT أو الفواتير الضريبية (ZATCA).
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="month"
+                  value={callWalletMonth}
+                  onChange={(e) => setCallWalletMonth(e.target.value)}
+                  className="w-40"
+                />
+                <Button size="sm" onClick={() => loadCallWallet(callWalletMonth)}>
+                  <RefreshCw className="h-4 w-4 ml-2" />
+                  تحديث
+                </Button>
+                {callWalletMonth && (
+                  <Button size="sm" variant="ghost" onClick={() => { setCallWalletMonth(""); loadCallWallet(""); }}>
+                    <X className="h-4 w-4 ml-1" />مسح
+                  </Button>
+                )}
+                <FinancialExportButton
+                  title={`Call Wallet Summary ${callWalletMonth || "All"}`}
+                  filename="call_wallet_summary"
+                  headers={[
+                    { key: "month", label: "الشهر" },
+                    { key: "inflow_total", label: "إجمالي الإيداعات (Cash In)" },
+                    { key: "outflow_total", label: "تحويلات للمزود (Cash Out)" },
+                    { key: "refunds_total", label: "الاستردادات" },
+                    { key: "net_balance", label: "صافي الحركة" },
+                    { key: "current_wallet_balance", label: "رصيد المحفظة الحالي" },
+                    { key: "topup_count", label: "عدد الإيداعات" },
+                    { key: "call_usage_count", label: "عدد الاستخدامات" },
+                    { key: "refund_count", label: "عدد الاستردادات" },
+                  ]}
+                  rows={callWalletExportSummary}
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!callWalletSummary ? (
+                <div className="text-center text-muted-foreground py-8">جاري التحميل...</div>
+              ) : (
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="rounded-lg border p-4 bg-emerald-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي الإيداعات (Cash In)</p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {Number(callWalletSummary.inflow_total || 0).toFixed(2)} ر.س
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{callWalletSummary.topup_count || 0} عملية شحن</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-rose-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">تحويلات للمزود (Cash Out)</p>
+                    <p className="text-2xl font-bold text-rose-600">
+                      {Number(callWalletSummary.outflow_total || 0).toFixed(2)} ر.س
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{callWalletSummary.call_usage_count || 0} مكالمة</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-amber-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">استردادات</p>
+                    <p className="text-2xl font-bold text-amber-600">
+                      {Number(callWalletSummary.refunds_total || 0).toFixed(2)} ر.س
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{callWalletSummary.refund_count || 0} استرداد</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">صافي الحركة (Inflow - Outflow + Refunds)</p>
+                    <p className="text-2xl font-bold">{Number(callWalletSummary.net_balance || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">رصيد المحفظة الحالي</p>
+                    <p className="text-2xl font-bold text-primary">
+                      {Number(callWalletSummary.current_wallet_balance || 0).toFixed(2)} ر.س
+                    </p>
+                  </div>
+                  <div className="rounded-lg border-2 border-dashed border-muted p-4 bg-muted/30">
+                    <p className="text-xs text-muted-foreground mb-1">المحاسبة</p>
+                    <p className="text-sm font-bold">❌ غير مدرج كإيراد</p>
+                    <p className="text-[10px] text-muted-foreground">لا VAT · لا فواتير ZATCA</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Transactions list */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-4 border-t">
+                <h3 className="font-bold text-sm">حركات المحفظة ({filteredCallWalletTxs.length})</h3>
+                <div className="flex items-center gap-2">
+                  <Select value={callWalletCategory} onValueChange={setCallWalletCategory}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">كل الحركات</SelectItem>
+                      <SelectItem value="topup">إيداع (Cash In)</SelectItem>
+                      <SelectItem value="call_usage">استخدام مكالمة (Cash Out)</SelectItem>
+                      <SelectItem value="refund">استرداد</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FinancialExportButton
+                    title="Call Wallet Transactions"
+                    filename="call_wallet_transactions"
+                    headers={[
+                      { key: "created_at", label: "التاريخ" },
+                      { key: "user_name", label: "المستخدم" },
+                      { key: "category", label: "النوع" },
+                      { key: "amount", label: "المبلغ" },
+                      { key: "balance_after", label: "الرصيد بعد" },
+                      { key: "description", label: "الوصف" },
+                    ]}
+                    rows={callWalletExportRows}
+                  />
+                </div>
+              </div>
+              <div className="rounded-md border max-h-[500px] overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>المستخدم</TableHead>
+                      <TableHead>النوع</TableHead>
+                      <TableHead>المبلغ</TableHead>
+                      <TableHead>الرصيد بعد</TableHead>
+                      <TableHead>الوصف</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCallWalletTxs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                          لا توجد حركات
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredCallWalletTxs.map((t: any) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="text-xs whitespace-nowrap">{new Date(t.created_at).toLocaleString("ar-SA")}</TableCell>
+                          <TableCell className="text-xs">{t.user_name}</TableCell>
+                          <TableCell>
+                            {t.category === "topup" && <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30" variant="outline">Cash In</Badge>}
+                            {t.category === "call_usage" && <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/30" variant="outline">Cash Out</Badge>}
+                            {t.category === "refund" && <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30" variant="outline">استرداد</Badge>}
+                          </TableCell>
+                          <TableCell className="font-mono">{Number(t.amount).toFixed(2)}</TableCell>
+                          <TableCell className="font-mono text-xs">{Number(t.balance_after).toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[260px] truncate">{t.description || "-"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Settings */}
         <TabsContent value="settings">
           <Card>
