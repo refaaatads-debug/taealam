@@ -848,6 +848,7 @@ export type Database = {
           id: string
           large_withdrawal_threshold: number
           min_withdrawal_amount: number
+          platform_fee_rate: number
           updated_at: string
           updated_by: string | null
           vat_rate: number
@@ -858,6 +859,7 @@ export type Database = {
           id?: string
           large_withdrawal_threshold?: number
           min_withdrawal_amount?: number
+          platform_fee_rate?: number
           updated_at?: string
           updated_by?: string | null
           vat_rate?: number
@@ -868,6 +870,7 @@ export type Database = {
           id?: string
           large_withdrawal_threshold?: number
           min_withdrawal_amount?: number
+          platform_fee_rate?: number
           updated_at?: string
           updated_by?: string | null
           vat_rate?: number
@@ -1345,12 +1348,19 @@ export type Database = {
           deducted_minutes: number | null
           duration_minutes: number | null
           ended_at: string | null
+          gross_amount: number | null
           id: string
+          net_amount: number | null
+          platform_fee: number | null
+          platform_fee_rate_snapshot: number | null
           recording_url: string | null
           room_id: string | null
           short_session: boolean | null
           started_at: string | null
+          teacher_base_amount: number | null
           teacher_earning: number | null
+          vat_amount: number | null
+          vat_rate_snapshot: number | null
         }
         Insert: {
           ai_report?: string | null
@@ -1359,12 +1369,19 @@ export type Database = {
           deducted_minutes?: number | null
           duration_minutes?: number | null
           ended_at?: string | null
+          gross_amount?: number | null
           id?: string
+          net_amount?: number | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
           recording_url?: string | null
           room_id?: string | null
           short_session?: boolean | null
           started_at?: string | null
+          teacher_base_amount?: number | null
           teacher_earning?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
         }
         Update: {
           ai_report?: string | null
@@ -1373,12 +1390,19 @@ export type Database = {
           deducted_minutes?: number | null
           duration_minutes?: number | null
           ended_at?: string | null
+          gross_amount?: number | null
           id?: string
+          net_amount?: number | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
           recording_url?: string | null
           room_id?: string | null
           short_session?: boolean | null
           started_at?: string | null
+          teacher_base_amount?: number | null
           teacher_earning?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
         }
         Relationships: [
           {
@@ -1771,6 +1795,7 @@ export type Database = {
           added_by_admin: string
           amount: number
           created_at: string
+          gross_amount: number | null
           hours: number | null
           id: string
           invoice_id: string | null
@@ -1778,7 +1803,10 @@ export type Database = {
           month: string
           net_amount: number | null
           notes: string | null
+          platform_fee: number | null
+          platform_fee_rate_snapshot: number | null
           status: string
+          teacher_base_amount: number | null
           teacher_id: string
           total_sessions_snapshot: number | null
           vat_amount: number | null
@@ -1788,6 +1816,7 @@ export type Database = {
           added_by_admin: string
           amount: number
           created_at?: string
+          gross_amount?: number | null
           hours?: number | null
           id?: string
           invoice_id?: string | null
@@ -1795,7 +1824,10 @@ export type Database = {
           month: string
           net_amount?: number | null
           notes?: string | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
           status?: string
+          teacher_base_amount?: number | null
           teacher_id: string
           total_sessions_snapshot?: number | null
           vat_amount?: number | null
@@ -1805,6 +1837,7 @@ export type Database = {
           added_by_admin?: string
           amount?: number
           created_at?: string
+          gross_amount?: number | null
           hours?: number | null
           id?: string
           invoice_id?: string | null
@@ -1812,7 +1845,10 @@ export type Database = {
           month?: string
           net_amount?: number | null
           notes?: string | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
           status?: string
+          teacher_base_amount?: number | null
           teacher_id?: string
           total_sessions_snapshot?: number | null
           vat_amount?: number | null
@@ -2678,6 +2714,18 @@ export type Database = {
           pending_total: number
           total_minutes: number
           total_sessions: number
+        }[]
+      }
+      get_teacher_financial_breakdown: {
+        Args: { _month?: string; _teacher_id: string }
+        Returns: {
+          gross_total: number
+          minutes_total: number
+          net_total: number
+          platform_fee_total: number
+          sessions_count: number
+          teacher_base_total: number
+          vat_total: number
         }[]
       }
       get_teacher_financials: {

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface FinancialSettings {
   id: string;
   vat_rate: number;
+  platform_fee_rate: number;
   min_withdrawal_amount: number;
   auto_close_months_after_days: number;
   large_withdrawal_threshold: number;
@@ -67,6 +68,7 @@ export default function FinancialHubTab() {
         .from("financial_settings" as any)
         .update({
           vat_rate: settings.vat_rate,
+          platform_fee_rate: settings.platform_fee_rate,
           min_withdrawal_amount: settings.min_withdrawal_amount,
           auto_close_months_after_days: settings.auto_close_months_after_days,
           large_withdrawal_threshold: settings.large_withdrawal_threshold,
@@ -225,6 +227,16 @@ export default function FinancialHubTab() {
                         value={settings.vat_rate}
                         onChange={(e) => setSettings({ ...settings, vat_rate: Number(e.target.value) })}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>نسبة عمولة المنصة (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={Number(settings.platform_fee_rate ?? 0) * 100}
+                        onChange={(e) => setSettings({ ...settings, platform_fee_rate: Number(e.target.value) / 100 })}
+                      />
+                      <p className="text-xs text-muted-foreground">النسبة المخصومة من إجمالي قيمة الحصة قبل احتساب الضريبة</p>
                     </div>
                     <div className="space-y-2">
                       <Label>الحد الأدنى للسحب (ريال)</Label>

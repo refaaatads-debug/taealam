@@ -20,6 +20,7 @@ export default function WithdrawalSection() {
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [manualEarnings, setManualEarnings] = useState<any[]>([]);
+  const [breakdown, setBreakdown] = useState<{ gross: number; fee: number; base: number; vat: number; net: number }>({ gross: 0, fee: 0, base: 0, vat: 0, net: 0 });
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,11 +33,12 @@ export default function WithdrawalSection() {
     if (!user) return;
 
     // Use new breakdown function + min withdrawal setting
-    const [breakdownRes, settingsRes, earningsRes, wData] = await Promise.all([
+    const [breakdownRes, settingsRes, earningsRes, wData, finBreakdown] = await Promise.all([
       supabase.rpc("get_teacher_earnings_breakdown" as any, { _teacher_id: user.id }),
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
       supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
+      supabase.rpc("get_teacher_financial_breakdown" as any, { _teacher_id: user.id, _month: null }),
     ]);
 
     const bd = (breakdownRes.data as any[])?.[0] || {};
@@ -47,6 +49,14 @@ export default function WithdrawalSection() {
     setMinWithdrawal(Number((settingsRes.data as any)?.min_withdrawal_amount) || 100);
     setManualEarnings((earningsRes.data as any[]) || []);
     setWithdrawals((wData.data as any[]) || []);
+    const fb = (finBreakdown.data as any[])?.[0] || {};
+    setBreakdown({
+      gross: Number(fb.gross_total) || 0,
+      fee: Number(fb.platform_fee_total) || 0,
+      base: Number(fb.teacher_base_total) || 0,
+      vat: Number(fb.vat_total) || 0,
+      net: Number(fb.net_total) || 0,
+    });
   };
 
   const requestWithdrawal = async () => {
@@ -141,6 +151,18 @@ export default function WithdrawalSection() {
           <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
             <p className="text-sm text-muted-foreground">إجمالي الأرباح المقررة</p>
             <p className="text-2xl font-black text-primary">{totalEarnings.toLocaleString()} ر.س</p>
+          </div>
+        </div>
+
+        {/* Financial Breakdown */}
+        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 space-y-2">
+          <p className="text-sm font-bold text-foreground">التفصيل المحاسبي (إجمالي الحصص)</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between"><span className="text-muted-foreground">إجمالي قيمة الحصص</span><strong>{breakdown.gross.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">عمولة المنصة</span><strong className="text-rose-600">- {breakdown.fee.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">نصيبك قبل الضريبة</span><strong>{breakdown.base.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ضريبة القيمة المضافة</span><strong className="text-rose-600">- {breakdown.vat.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between col-span-2 border-t pt-2 mt-1"><span className="font-bold text-foreground">صافي المعلم النهائي</span><strong className="text-emerald-600">{breakdown.net.toLocaleString()} ر.س</strong></div>
           </div>
         </div>
 
