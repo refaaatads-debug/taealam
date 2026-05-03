@@ -280,6 +280,10 @@ export default function FinancialHubTab() {
                     <p className="text-2xl font-bold text-emerald-600">{Number(platformSummary.net_profit || 0).toFixed(2)} ر.س</p>
                   </div>
                   <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">عدد الفواتير الصادرة</p>
+                    <p className="text-2xl font-bold">{platformSummary.invoices_count || 0}</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
                     <p className="text-xs text-muted-foreground mb-1">عدد الحصص / إجمالي الدقائق</p>
                     <p className="text-2xl font-bold">{platformSummary.sessions_count || 0} / {platformSummary.minutes_total || 0}</p>
                   </div>
