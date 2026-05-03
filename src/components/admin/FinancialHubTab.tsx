@@ -1098,6 +1098,12 @@ export default function FinancialHubTab() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <InvoiceDetailDialog
+        invoice={selectedInvoice}
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+      />
     </div>
   );
 }
