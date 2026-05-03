@@ -563,17 +563,22 @@ export default function FinancialHubTab() {
                       <TableHead>VAT</TableHead>
                       <TableHead>الإجمالي</TableHead>
                       <TableHead>الحالة</TableHead>
+                      <TableHead className="text-left">إجراءات</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           لا توجد فواتير
                         </TableCell>
                       </TableRow>
                     ) : filteredInvoices.slice(0, 500).map((i) => (
-                      <TableRow key={i.id}>
+                      <TableRow
+                        key={i.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => { setSelectedInvoice(i as InvoiceLike); setInvoiceDialogOpen(true); }}
+                      >
                         <TableCell className="font-mono text-xs">{i.invoice_number}</TableCell>
                         <TableCell className="text-xs">{new Date(i.issued_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell>
@@ -592,6 +597,16 @@ export default function FinancialHubTab() {
                           }>
                             {i.zatca_status === "cleared" ? "معتمدة" : i.zatca_status === "rejected" ? "مرفوضة" : "قيد المعالجة"}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-left" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setSelectedInvoice(i as InvoiceLike); setInvoiceDialogOpen(true); }}
+                          >
+                            <Download className="h-3.5 w-3.5 ml-1" />
+                            PDF
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
