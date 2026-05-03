@@ -90,17 +90,6 @@ export default function StudentInvoices() {
     }
   };
 
-  useEffect(() => {
-      const { data } = await (supabase as any)
-        .from("invoices")
-        .select("*")
-        .eq("student_id", user.id)
-        .order("issued_at", { ascending: false });
-      setInvoices((data as Invoice[]) || []);
-      setLoading(false);
-    })();
-  }, [user?.id]);
-
   const qrUrl = (payload: string) =>
     `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload)}`;
 
