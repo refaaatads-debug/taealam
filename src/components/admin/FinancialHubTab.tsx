@@ -232,6 +232,37 @@ export default function FinancialHubTab() {
     }];
   }, [platformSummary, platformMonth]);
 
+  const filteredCallWalletTxs = useMemo(() => callWalletTxs.filter((t: any) =>
+    callWalletCategory === "all" ? true : t.category === callWalletCategory
+  ), [callWalletTxs, callWalletCategory]);
+
+  const callWalletExportSummary = useMemo(() => {
+    if (!callWalletSummary) return [];
+    return [{
+      month: callWalletMonth || "الكل",
+      inflow_total: Number(callWalletSummary.inflow_total || 0).toFixed(2),
+      outflow_total: Number(callWalletSummary.outflow_total || 0).toFixed(2),
+      refunds_total: Number(callWalletSummary.refunds_total || 0).toFixed(2),
+      net_balance: Number(callWalletSummary.net_balance || 0).toFixed(2),
+      current_wallet_balance: Number(callWalletSummary.current_wallet_balance || 0).toFixed(2),
+      topup_count: callWalletSummary.topup_count || 0,
+      call_usage_count: callWalletSummary.call_usage_count || 0,
+      refund_count: callWalletSummary.refund_count || 0,
+    }];
+  }, [callWalletSummary, callWalletMonth]);
+
+  const callWalletExportRows = useMemo(() => filteredCallWalletTxs.map((t: any) => ({
+    created_at: new Date(t.created_at).toLocaleString("ar-SA"),
+    user_name: t.user_name,
+    category: t.category === "topup" ? "إيداع (Cash In)"
+            : t.category === "call_usage" ? "استخدام مكالمة (Cash Out)"
+            : t.category === "refund" ? "استرداد"
+            : t.category,
+    amount: Number(t.amount).toFixed(2),
+    balance_after: Number(t.balance_after).toFixed(2),
+    description: t.description || "",
+  })), [filteredCallWalletTxs]);
+
   const clearFilters = () => {
     setAuditSearch("");
     setAuditAction("all");
