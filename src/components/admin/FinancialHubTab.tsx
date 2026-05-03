@@ -40,7 +40,21 @@ export default function FinancialHubTab() {
 
   useEffect(() => {
     void loadAll();
+    void loadPlatformSummary();
   }, []);
+
+  const loadPlatformSummary = async (month?: string) => {
+    try {
+      const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, {
+        _month: month && month.length > 0 ? month : null,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      setPlatformSummary(row || null);
+    } catch (e: any) {
+      toast.error("فشل تحميل أرباح المنصة: " + e.message);
+    }
+  };
 
   const loadAll = async () => {
     setLoading(true);
