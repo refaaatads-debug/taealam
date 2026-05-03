@@ -49,12 +49,50 @@ export default function FinancialHubTab() {
   const [callWalletTxs, setCallWalletTxs] = useState<any[]>([]);
   const [callWalletMonth, setCallWalletMonth] = useState<string>("");
   const [callWalletCategory, setCallWalletCategory] = useState<string>("all");
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invFrom, setInvFrom] = useState<string>("");
+  const [invTo, setInvTo] = useState<string>("");
+  const [invStatus, setInvStatus] = useState<string>("all");
+  const [invSearch, setInvSearch] = useState<string>("");
+  const [invLoading, setInvLoading] = useState(false);
 
   useEffect(() => {
     void loadAll();
     void loadPlatformSummary();
     void loadCallWallet();
+    void loadInvoices();
   }, []);
+
+  const loadInvoices = async () => {
+    setInvLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("invoices" as any)
+        .select("id, invoice_number, student_id, hours_purchased, total_amount, vat_amount, net_amount, currency, zatca_status, issued_at, qr_code, stripe_session_id")
+        .order("issued_at", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      const list = (data as any[]) || [];
+      const ids = Array.from(new Set(list.map((i) => i.student_id).filter(Boolean)));
+      let map: Record<string, any> = {};
+      if (ids.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles" as any)
+          .select("id, full_name, email")
+          .in("id", ids);
+        (profs as any[] || []).forEach((p) => { map[p.id] = p; });
+      }
+      setInvoices(list.map((i) => ({
+        ...i,
+        student_name: map[i.student_id]?.full_name || "—",
+        student_email: map[i.student_id]?.email || "—",
+      })));
+    } catch (e: any) {
+      toast.error("فشل تحميل الفواتير: " + e.message);
+    } finally {
+      setInvLoading(false);
+    }
+  };
 
   const loadCallWallet = async (month?: string) => {
     try {
@@ -263,6 +301,30 @@ export default function FinancialHubTab() {
     description: t.description || "",
   })), [filteredCallWalletTxs]);
 
+  const filteredInvoices = useMemo(() => invoices.filter((i) => {
+    if (invStatus !== "all" && i.zatca_status !== invStatus) return false;
+    if (!inDateRange(i.issued_at, invFrom, invTo)) return false;
+    if (invSearch) {
+      const q = invSearch.toLowerCase();
+      const hay = `${i.invoice_number || ""} ${i.student_name || ""} ${i.student_email || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }), [invoices, invStatus, invFrom, invTo, invSearch]);
+
+  const invoicesExportRows = useMemo(() => filteredInvoices.map((i) => ({
+    invoice_number: i.invoice_number,
+    issued_at: new Date(i.issued_at).toLocaleString("ar-SA"),
+    student_name: i.student_name,
+    student_email: i.student_email,
+    hours_purchased: Number(i.hours_purchased || 0).toFixed(2),
+    net_amount: Number(i.net_amount || 0).toFixed(2),
+    vat_amount: Number(i.vat_amount || 0).toFixed(2),
+    total_amount: Number(i.total_amount || 0).toFixed(2),
+    currency: i.currency,
+    zatca_status: i.zatca_status,
+  })), [filteredInvoices]);
+
   const clearFilters = () => {
     setAuditSearch("");
     setAuditAction("all");
@@ -288,10 +350,14 @@ export default function FinancialHubTab() {
       </div>
 
       <Tabs defaultValue="platform" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="platform">
             <TrendingUp className="h-4 w-4 ml-1" />
             أرباح المنصة
+          </TabsTrigger>
+          <TabsTrigger value="invoices">
+            <FileText className="h-4 w-4 ml-1" />
+            الفواتير
           </TabsTrigger>
           <TabsTrigger value="call-wallet">
             <RefreshCw className="h-4 w-4 ml-1" />
@@ -393,6 +459,145 @@ export default function FinancialHubTab() {
               <p className="text-xs text-muted-foreground mt-4">
                 * يتم احتساب أرباح المنصة تلقائياً من حصص مكتملة (مدتها ≥ 5 دقائق). الضريبة تُخصم من الإجمالي أولاً، ثم تُقسّم بقية الإيرادات بين المنصة والمعلم وفق نسبة العمولة.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Invoices (Admin view of all student invoices) */}
+        <TabsContent value="invoices">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <div>
+                <CardTitle>فواتير الطلاب</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  جميع الفواتير الصادرة عند شراء/تجديد الباقات (تتضمن VAT 15%). الجلسات لا تُصدر فواتير.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  placeholder="بحث برقم الفاتورة أو الطالب"
+                  value={invSearch}
+                  onChange={(e) => setInvSearch(e.target.value)}
+                  className="w-56"
+                />
+                <Select value={invStatus} onValueChange={setInvStatus}>
+                  <SelectTrigger className="w-40"><SelectValue placeholder="الحالة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات</SelectItem>
+                    <SelectItem value="pending">قيد المعالجة</SelectItem>
+                    <SelectItem value="cleared">معتمدة</SelectItem>
+                    <SelectItem value="rejected">مرفوضة</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input type="date" value={invFrom} onChange={(e) => setInvFrom(e.target.value)} className="w-40" />
+                <Input type="date" value={invTo} onChange={(e) => setInvTo(e.target.value)} className="w-40" />
+                <Button size="sm" variant="outline" onClick={loadInvoices} disabled={invLoading}>
+                  <RefreshCw className={`h-4 w-4 ml-2 ${invLoading ? "animate-spin" : ""}`} />
+                  تحديث
+                </Button>
+                <FinancialExportButton
+                  title="Student Invoices"
+                  filename="student_invoices"
+                  headers={[
+                    { key: "invoice_number", label: "رقم الفاتورة" },
+                    { key: "issued_at", label: "التاريخ" },
+                    { key: "student_name", label: "الطالب" },
+                    { key: "student_email", label: "البريد" },
+                    { key: "hours_purchased", label: "الساعات" },
+                    { key: "net_amount", label: "الصافي" },
+                    { key: "vat_amount", label: "VAT" },
+                    { key: "total_amount", label: "الإجمالي" },
+                    { key: "currency", label: "العملة" },
+                    { key: "zatca_status", label: "حالة ZATCA" },
+                  ]}
+                  rows={invoicesExportRows}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const totals = filteredInvoices.reduce((acc, i) => {
+                  acc.net += Number(i.net_amount || 0);
+                  acc.vat += Number(i.vat_amount || 0);
+                  acc.total += Number(i.total_amount || 0);
+                  acc.hours += Number(i.hours_purchased || 0);
+                  return acc;
+                }, { net: 0, vat: 0, total: 0, hours: 0 });
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                    <div className="rounded-lg border p-3 bg-card">
+                      <p className="text-xs text-muted-foreground">عدد الفواتير</p>
+                      <p className="text-xl font-bold">{filteredInvoices.length}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-card">
+                      <p className="text-xs text-muted-foreground">إجمالي الساعات</p>
+                      <p className="text-xl font-bold">{totals.hours.toFixed(1)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-card">
+                      <p className="text-xs text-muted-foreground">الصافي</p>
+                      <p className="text-xl font-bold">{totals.net.toFixed(2)} ر.س</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-card">
+                      <p className="text-xs text-muted-foreground">VAT 15%</p>
+                      <p className="text-xl font-bold text-amber-600">{totals.vat.toFixed(2)} ر.س</p>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-emerald-500/5">
+                      <p className="text-xs text-muted-foreground">الإجمالي المحصّل</p>
+                      <p className="text-xl font-bold text-emerald-600">{totals.total.toFixed(2)} ر.س</p>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div className="rounded-lg border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>رقم الفاتورة</TableHead>
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>الطالب</TableHead>
+                      <TableHead>الساعات</TableHead>
+                      <TableHead>الصافي</TableHead>
+                      <TableHead>VAT</TableHead>
+                      <TableHead>الإجمالي</TableHead>
+                      <TableHead>الحالة</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInvoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          لا توجد فواتير
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredInvoices.slice(0, 500).map((i) => (
+                      <TableRow key={i.id}>
+                        <TableCell className="font-mono text-xs">{i.invoice_number}</TableCell>
+                        <TableCell className="text-xs">{new Date(i.issued_at).toLocaleString("ar-SA")}</TableCell>
+                        <TableCell>
+                          <div className="text-sm font-medium">{i.student_name}</div>
+                          <div className="text-xs text-muted-foreground">{i.student_email}</div>
+                        </TableCell>
+                        <TableCell>{Number(i.hours_purchased || 0).toFixed(1)}</TableCell>
+                        <TableCell>{Number(i.net_amount || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-amber-600">{Number(i.vat_amount || 0).toFixed(2)}</TableCell>
+                        <TableCell className="font-bold">{Number(i.total_amount || 0).toFixed(2)} {i.currency}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            i.zatca_status === "cleared" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                            : i.zatca_status === "rejected" ? "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                            : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                          }>
+                            {i.zatca_status === "cleared" ? "معتمدة" : i.zatca_status === "rejected" ? "مرفوضة" : "قيد المعالجة"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {filteredInvoices.length > 500 && (
+                <p className="text-xs text-muted-foreground mt-2">يظهر أول 500 فاتورة. استخدم الفلاتر أو التصدير لعرض الباقي.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
