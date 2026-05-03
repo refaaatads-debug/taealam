@@ -101,6 +101,7 @@ const App = () => (
               <Route path="/install" element={<Install />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
+              <Route path="/invoices" element={<ProtectedRoute><StudentInvoices /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
               <Route path="/teacher/wallet" element={<ProtectedRoute><TeacherWallet /></ProtectedRoute>} />
               <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
