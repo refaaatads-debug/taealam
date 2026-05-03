@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp, Download, Search, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import FinancialExportButton from "./FinancialExportButton";
+import { inDateRange } from "@/lib/financialExports";
 
 
 interface FinancialSettings {
@@ -37,6 +39,12 @@ export default function FinancialHubTab() {
   const [auditEntity, setAuditEntity] = useState<string>("all");
   const [auditFrom, setAuditFrom] = useState<string>("");
   const [auditTo, setAuditTo] = useState<string>("");
+  const [recFrom, setRecFrom] = useState<string>("");
+  const [recTo, setRecTo] = useState<string>("");
+  const [recStatus, setRecStatus] = useState<string>("all");
+  const [histFrom, setHistFrom] = useState<string>("");
+  const [histTo, setHistTo] = useState<string>("");
+  const [histStatus, setHistStatus] = useState<string>("all");
 
   useEffect(() => {
     void loadAll();
@@ -157,30 +165,51 @@ export default function FinancialHubTab() {
     });
   }, [auditLog, auditAction, auditEntity, auditFrom, auditTo, auditSearch]);
 
-  const exportAuditCSV = () => {
-    if (filteredAudit.length === 0) {
-      toast.info("لا توجد بيانات للتصدير");
-      return;
-    }
-    const headers = ["created_at", "action", "entity_type", "entity_id", "amount", "actor_id", "actor_role", "ip_address"];
-    const rows = filteredAudit.map((a) =>
-      headers.map((h) => {
-        const v = (a as any)[h];
-        if (v == null) return "";
-        const s = String(v).replace(/"/g, '""');
-        return `"${s}"`;
-      }).join(",")
-    );
-    const csv = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `financial_audit_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success(`تم تصدير ${filteredAudit.length} سجل`);
-  };
+  const filteredReconciliations = useMemo(() => reconciliations.filter((r) => {
+    if (recStatus !== "all" && r.status !== recStatus) return false;
+    return inDateRange(r.created_at, recFrom, recTo);
+  }), [reconciliations, recFrom, recTo, recStatus]);
+
+  const filteredHistory = useMemo(() => withdrawalHistory.filter((h) => {
+    if (histStatus !== "all" && h.to_status !== histStatus) return false;
+    return inDateRange(h.created_at, histFrom, histTo);
+  }), [withdrawalHistory, histFrom, histTo, histStatus]);
+
+  const auditExportRows = useMemo(() => filteredAudit.map((a) => ({
+    created_at: new Date(a.created_at).toLocaleString("ar-SA"),
+    action: a.action, entity_type: a.entity_type, entity_id: a.entity_id,
+    amount: a.amount ? Number(a.amount).toFixed(2) : "",
+    actor_role: a.actor_role || "", actor_id: a.actor_id || "", ip_address: a.ip_address || "",
+  })), [filteredAudit]);
+
+  const recExportRows = useMemo(() => filteredReconciliations.map((r) => ({
+    created_at: new Date(r.created_at).toLocaleString("ar-SA"),
+    expected_total: Number(r.expected_total).toFixed(2),
+    actual_total: Number(r.actual_total).toFixed(2),
+    difference: Number(r.difference).toFixed(2),
+    sessions_count: r.sessions_count,
+    status: r.status,
+  })), [filteredReconciliations]);
+
+  const historyExportRows = useMemo(() => filteredHistory.map((h) => ({
+    created_at: new Date(h.created_at).toLocaleString("ar-SA"),
+    from_status: h.from_status || "—", to_status: h.to_status, notes: h.notes || "",
+  })), [filteredHistory]);
+
+  const platformExportRows = useMemo(() => {
+    if (!platformSummary) return [];
+    return [{
+      month: platformMonth || "الكل",
+      total_revenue: Number(platformSummary.total_revenue || 0).toFixed(2),
+      total_vat: Number(platformSummary.total_vat || 0).toFixed(2),
+      total_platform_earnings: Number(platformSummary.total_platform_earnings || 0).toFixed(2),
+      total_teacher_payouts: Number(platformSummary.total_teacher_payouts || 0).toFixed(2),
+      net_profit: Number(platformSummary.net_profit || 0).toFixed(2),
+      invoices_count: platformSummary.invoices_count || 0,
+      sessions_count: platformSummary.sessions_count || 0,
+      minutes_total: platformSummary.minutes_total || 0,
+    }];
+  }, [platformSummary, platformMonth]);
 
   const clearFilters = () => {
     setAuditSearch("");
@@ -252,6 +281,22 @@ export default function FinancialHubTab() {
                     مسح
                   </Button>
                 )}
+                <FinancialExportButton
+                  title={`Platform Revenue ${platformMonth || "All"}`}
+                  filename="platform_revenue"
+                  headers={[
+                    { key: "month", label: "الشهر" },
+                    { key: "total_revenue", label: "إجمالي الإيرادات" },
+                    { key: "total_vat", label: "ضريبة محصلة" },
+                    { key: "total_platform_earnings", label: "أرباح المنصة" },
+                    { key: "total_teacher_payouts", label: "مدفوعات المعلمين" },
+                    { key: "net_profit", label: "صافي الربح" },
+                    { key: "invoices_count", label: "عدد الفواتير" },
+                    { key: "sessions_count", label: "عدد الحصص" },
+                    { key: "minutes_total", label: "إجمالي الدقائق" },
+                  ]}
+                  rows={platformExportRows}
+                />
               </div>
             </CardHeader>
             <CardContent>
@@ -378,14 +423,42 @@ export default function FinancialHubTab() {
         {/* Reconciliation */}
         <TabsContent value="reconciliation">
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>سجل المطابقة المالية</CardTitle>
-              <Button onClick={runReconciliation} disabled={running} size="sm">
-                {running ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <TrendingUp className="h-4 w-4 ml-2" />}
-                تشغيل مطابقة الآن
-              </Button>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>سجل المطابقة المالية ({filteredReconciliations.length})</CardTitle>
+              <div className="flex gap-2">
+                <FinancialExportButton
+                  title="Financial Reconciliation"
+                  filename="financial_reconciliation"
+                  headers={[
+                    { key: "created_at", label: "التاريخ" },
+                    { key: "expected_total", label: "متوقع" },
+                    { key: "actual_total", label: "فعلي" },
+                    { key: "difference", label: "الفرق" },
+                    { key: "sessions_count", label: "عدد الحصص" },
+                    { key: "status", label: "الحالة" },
+                  ]}
+                  rows={recExportRows}
+                />
+                <Button onClick={runReconciliation} disabled={running} size="sm">
+                  {running ? <Loader2 className="h-4 w-4 ml-2 animate-spin" /> : <TrendingUp className="h-4 w-4 ml-2" />}
+                  تشغيل مطابقة الآن
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-3 gap-2">
+                <Input type="date" value={recFrom} onChange={(e) => setRecFrom(e.target.value)} />
+                <Input type="date" value={recTo} onChange={(e) => setRecTo(e.target.value)} />
+                <Select value={recStatus} onValueChange={setRecStatus}>
+                  <SelectTrigger><SelectValue placeholder="الحالة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات</SelectItem>
+                    <SelectItem value="ok">متطابق</SelectItem>
+                    <SelectItem value="minor_drift">فرق بسيط</SelectItem>
+                    <SelectItem value="mismatch">تباين</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -398,14 +471,14 @@ export default function FinancialHubTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reconciliations.length === 0 ? (
+                  {filteredReconciliations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
-                        لا توجد سجلات مطابقة بعد
+                        لا توجد سجلات
                       </TableCell>
                     </TableRow>
                   ) : (
-                    reconciliations.map((r) => (
+                    filteredReconciliations.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>{new Date(r.created_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell>{Number(r.expected_total).toFixed(2)}</TableCell>
@@ -434,10 +507,21 @@ export default function FinancialHubTab() {
             <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle>سجل التدقيق المالي ({filteredAudit.length} من {auditLog.length})</CardTitle>
               <div className="flex gap-2">
-                <Button onClick={exportAuditCSV} size="sm" variant="outline" disabled={filteredAudit.length === 0}>
-                  <Download className="h-4 w-4 ml-2" />
-                  تصدير CSV
-                </Button>
+                <FinancialExportButton
+                  title="Financial Audit Log"
+                  filename="financial_audit"
+                  headers={[
+                    { key: "created_at", label: "التاريخ" },
+                    { key: "action", label: "الإجراء" },
+                    { key: "entity_type", label: "الجهة" },
+                    { key: "entity_id", label: "المعرف" },
+                    { key: "amount", label: "المبلغ" },
+                    { key: "actor_role", label: "دور المنفذ" },
+                    { key: "actor_id", label: "المنفذ" },
+                    { key: "ip_address", label: "IP" },
+                  ]}
+                  rows={auditExportRows}
+                />
                 <Button onClick={clearFilters} size="sm" variant="ghost">
                   <X className="h-4 w-4 ml-2" />
                   مسح الفلاتر
@@ -517,10 +601,34 @@ export default function FinancialHubTab() {
         {/* Withdrawal History */}
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle>تتبع تغييرات حالات السحب</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>تتبع تغييرات حالات السحب ({filteredHistory.length})</CardTitle>
+              <FinancialExportButton
+                title="Withdrawal Status History"
+                filename="withdrawal_history"
+                headers={[
+                  { key: "created_at", label: "التاريخ" },
+                  { key: "from_status", label: "من" },
+                  { key: "to_status", label: "إلى" },
+                  { key: "notes", label: "ملاحظات" },
+                ]}
+                rows={historyExportRows}
+              />
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-3 gap-2">
+                <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} />
+                <Input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)} />
+                <Select value={histStatus} onValueChange={setHistStatus}>
+                  <SelectTrigger><SelectValue placeholder="الحالة الجديدة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات</SelectItem>
+                    {Array.from(new Set(withdrawalHistory.map(h => h.to_status).filter(Boolean))).map((s: any) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -531,14 +639,14 @@ export default function FinancialHubTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {withdrawalHistory.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
                         لا يوجد سجل
                       </TableCell>
                     </TableRow>
                   ) : (
-                    withdrawalHistory.map((h) => (
+                    filteredHistory.map((h) => (
                       <TableRow key={h.id}>
                         <TableCell className="text-xs">{new Date(h.created_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell><Badge variant="outline">{h.from_status || "—"}</Badge></TableCell>
