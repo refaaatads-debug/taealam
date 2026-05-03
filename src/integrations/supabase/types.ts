@@ -2704,6 +2704,18 @@ export type Database = {
         }
         Returns: number
       }
+      get_platform_revenue_summary: {
+        Args: { _month?: string }
+        Returns: {
+          minutes_total: number
+          net_profit: number
+          sessions_count: number
+          total_platform_earnings: number
+          total_revenue: number
+          total_teacher_payouts: number
+          total_vat: number
+        }[]
+      }
       get_profile_phone: { Args: { _user_id: string }; Returns: string }
       get_teacher_earnings_breakdown: {
         Args: { _teacher_id: string }
