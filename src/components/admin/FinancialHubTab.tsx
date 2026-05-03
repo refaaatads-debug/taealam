@@ -45,11 +45,32 @@ export default function FinancialHubTab() {
   const [histFrom, setHistFrom] = useState<string>("");
   const [histTo, setHistTo] = useState<string>("");
   const [histStatus, setHistStatus] = useState<string>("all");
+  const [callWalletSummary, setCallWalletSummary] = useState<any | null>(null);
+  const [callWalletTxs, setCallWalletTxs] = useState<any[]>([]);
+  const [callWalletMonth, setCallWalletMonth] = useState<string>("");
+  const [callWalletCategory, setCallWalletCategory] = useState<string>("all");
 
   useEffect(() => {
     void loadAll();
     void loadPlatformSummary();
+    void loadCallWallet();
   }, []);
+
+  const loadCallWallet = async (month?: string) => {
+    try {
+      const m = month && month.length > 0 ? month : null;
+      const [{ data: sum, error: e1 }, { data: txs, error: e2 }] = await Promise.all([
+        supabase.rpc("get_call_wallet_summary" as any, { _month: m }),
+        supabase.rpc("list_call_wallet_transactions" as any, { _month: m }),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      setCallWalletSummary(Array.isArray(sum) ? sum[0] : sum);
+      setCallWalletTxs((txs as any[]) || []);
+    } catch (e: any) {
+      toast.error("فشل تحميل محفظة المكالمات: " + e.message);
+    }
+  };
 
   const loadPlatformSummary = async (month?: string) => {
     try {
