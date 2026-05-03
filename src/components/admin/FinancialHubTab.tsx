@@ -333,41 +333,86 @@ export default function FinancialHubTab() {
         {/* Audit Log */}
         <TabsContent value="audit">
           <Card>
-            <CardHeader>
-              <CardTitle>سجل التدقيق المالي ({auditLog.length})</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>سجل التدقيق المالي ({filteredAudit.length} من {auditLog.length})</CardTitle>
+              <div className="flex gap-2">
+                <Button onClick={exportAuditCSV} size="sm" variant="outline" disabled={filteredAudit.length === 0}>
+                  <Download className="h-4 w-4 ml-2" />
+                  تصدير CSV
+                </Button>
+                <Button onClick={clearFilters} size="sm" variant="ghost">
+                  <X className="h-4 w-4 ml-2" />
+                  مسح الفلاتر
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>التاريخ</TableHead>
-                    <TableHead>الإجراء</TableHead>
-                    <TableHead>النوع</TableHead>
-                    <TableHead>المبلغ</TableHead>
-                    <TableHead>المعرف</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {auditLog.length === 0 ? (
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-5 gap-2">
+                <div className="md:col-span-2 relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="بحث في الإجراء، المعرف، الجهة..."
+                    value={auditSearch}
+                    onChange={(e) => setAuditSearch(e.target.value)}
+                    className="pr-9"
+                  />
+                </div>
+                <Select value={auditAction} onValueChange={setAuditAction}>
+                  <SelectTrigger><SelectValue placeholder="نوع الإجراء" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الإجراءات</SelectItem>
+                    {uniqueActions.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={auditEntity} onValueChange={setAuditEntity}>
+                  <SelectTrigger><SelectValue placeholder="الجهة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الجهات</SelectItem>
+                    {uniqueEntities.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-1">
+                  <Input type="date" value={auditFrom} onChange={(e) => setAuditFrom(e.target.value)} title="من" />
+                  <Input type="date" value={auditTo} onChange={(e) => setAuditTo(e.target.value)} title="إلى" />
+                </div>
+              </div>
+
+              <div className="rounded-md border max-h-[600px] overflow-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                        لا توجد سجلات
-                      </TableCell>
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>الإجراء</TableHead>
+                      <TableHead>الجهة</TableHead>
+                      <TableHead>المبلغ</TableHead>
+                      <TableHead>المنفذ</TableHead>
+                      <TableHead>المعرف</TableHead>
                     </TableRow>
-                  ) : (
-                    auditLog.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell className="text-xs">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
-                        <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
-                        <TableCell className="text-xs">{a.entity_type}</TableCell>
-                        <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
-                        <TableCell className="text-xs font-mono truncate max-w-[150px]">{a.entity_id}</TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAudit.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                          لا توجد سجلات مطابقة
+                        </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filteredAudit.map((a) => (
+                        <TableRow key={a.id}>
+                          <TableCell className="text-xs whitespace-nowrap">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
+                          <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
+                          <TableCell className="text-xs">{a.entity_type}</TableCell>
+                          <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
+                          <TableCell className="text-xs">{a.actor_role || "-"}</TableCell>
+                          <TableCell className="text-xs font-mono truncate max-w-[150px]">{a.entity_id}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
+
           </Card>
         </TabsContent>
 
