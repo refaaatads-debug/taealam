@@ -164,10 +164,23 @@ export default function StudentInvoices() {
                       <p className="font-bold text-primary">{Number(inv.total_amount).toFixed(2)} {inv.currency}</p>
                     </div>
                   </div>
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadPdf(inv)}
+                      disabled={downloadingId === inv.id}
+                    >
+                      {downloadingId === inv.id ? (
+                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 ml-2" />
+                      )}
+                      تحميل PDF
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => setSelected(inv)}>
                       <QrCode className="h-4 w-4 ml-2" />
-                      عرض الفاتورة
+                      عرض
                     </Button>
                   </div>
                 </CardContent>
