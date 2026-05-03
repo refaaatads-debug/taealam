@@ -39,6 +39,12 @@ export default function FinancialHubTab() {
   const [auditEntity, setAuditEntity] = useState<string>("all");
   const [auditFrom, setAuditFrom] = useState<string>("");
   const [auditTo, setAuditTo] = useState<string>("");
+  const [recFrom, setRecFrom] = useState<string>("");
+  const [recTo, setRecTo] = useState<string>("");
+  const [recStatus, setRecStatus] = useState<string>("all");
+  const [histFrom, setHistFrom] = useState<string>("");
+  const [histTo, setHistTo] = useState<string>("");
+  const [histStatus, setHistStatus] = useState<string>("all");
 
   useEffect(() => {
     void loadAll();
