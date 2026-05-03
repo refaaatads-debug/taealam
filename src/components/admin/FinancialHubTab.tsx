@@ -56,6 +56,8 @@ export default function FinancialHubTab() {
   const [invStatus, setInvStatus] = useState<string>("all");
   const [invSearch, setInvSearch] = useState<string>("");
   const [invLoading, setInvLoading] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceLike | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   useEffect(() => {
     void loadAll();
