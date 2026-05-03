@@ -877,6 +877,48 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_zatca_log: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          invoice_id: string
+          metadata: Json
+          reason: string | null
+          to_status: string
+          zatca_hash: string | null
+          zatca_uuid: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          invoice_id: string
+          metadata?: Json
+          reason?: string | null
+          to_status: string
+          zatca_hash?: string | null
+          zatca_uuid?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          invoice_id?: string
+          metadata?: Json
+          reason?: string | null
+          to_status?: string
+          zatca_hash?: string | null
+          zatca_uuid?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           created_at: string
