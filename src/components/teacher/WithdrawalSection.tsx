@@ -12,6 +12,9 @@ export default function WithdrawalSection() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [paidTotal, setPaidTotal] = useState(0);
+  const [minWithdrawal, setMinWithdrawal] = useState(100);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
@@ -28,30 +31,31 @@ export default function WithdrawalSection() {
   const fetchData = async () => {
     if (!user) return;
 
-    // Get all confirmed earnings (total from admin)
-    const [earningsRes, paymentsRes, pendingWRes, wData] = await Promise.all([
+    // Use new breakdown function + min withdrawal setting
+    const [breakdownRes, settingsRes, earningsRes, wData] = await Promise.all([
+      supabase.rpc("get_teacher_earnings_breakdown" as any, { _teacher_id: user.id }),
+      supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
       supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("teacher_payments" as any).select("amount").eq("teacher_id", user.id),
-      supabase.from("withdrawal_requests" as any).select("amount").eq("teacher_id", user.id).eq("status", "pending"),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
     ]);
 
-    const allEarnings = earningsRes.data as any[] ?? [];
-    const confirmedEarnings = allEarnings.filter((e: any) => e.status === "confirmed" || e.status === "paid");
-    const totalConfirmed = confirmedEarnings.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
-    
-    const totalPaid = (paymentsRes.data as any[] ?? []).reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
-    const pendingAmount = (pendingWRes.data as any[] ?? []).reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
-
-    setTotalEarnings(totalConfirmed);
-    setBalance(Math.max(0, totalConfirmed - totalPaid - pendingAmount));
-    setManualEarnings(allEarnings);
-    setWithdrawals(wData.data as any[] || []);
+    const bd = (breakdownRes.data as any[])?.[0] || {};
+    setTotalEarnings(Number(bd.confirmed_total) || 0);
+    setPendingTotal(Number(bd.pending_total) || 0);
+    setPaidTotal(Number(bd.paid_total) || 0);
+    setBalance(Number(bd.available_for_withdrawal) || 0);
+    setMinWithdrawal(Number((settingsRes.data as any)?.min_withdrawal_amount) || 100);
+    setManualEarnings((earningsRes.data as any[]) || []);
+    setWithdrawals((wData.data as any[]) || []);
   };
 
   const requestWithdrawal = async () => {
     if (!user || balance <= 0) {
       toast.error("لا يوجد رصيد كافٍ للسحب");
+      return;
+    }
+    if (balance < minWithdrawal) {
+      toast.error(`الحد الأدنى للسحب هو ${minWithdrawal} ر.س`);
       return;
     }
     setLoading(true);

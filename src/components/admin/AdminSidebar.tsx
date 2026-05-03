@@ -93,6 +93,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "teacher_payments", title: "المدفوعات", icon: DollarSign, permission: "manage_teacher_payments" },
         { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign, permission: "manage_teacher_earnings" },
         { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet, permission: "manage_wallets" },
+        { id: "financial_hub", title: "المركز المالي", icon: ShieldCheck, permission: "manage_teacher_earnings" },
       ],
     },
     {

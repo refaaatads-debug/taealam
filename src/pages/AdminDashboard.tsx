@@ -34,6 +34,7 @@ import TeacherProfilesTab from "@/components/admin/TeacherProfilesTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
+import FinancialHubTab from "@/components/admin/FinancialHubTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
@@ -408,6 +409,7 @@ const AdminDashboard = () => {
       case "withdrawals": return <WithdrawalRequestsTab />;
       case "teacher_payments": return <TeacherPaymentsTab />;
       case "teacher_earnings": return <TeacherEarningsTab />;
+      case "financial_hub": return <FinancialHubTab />;
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
       case "support": return <SupportTicketsTab />;

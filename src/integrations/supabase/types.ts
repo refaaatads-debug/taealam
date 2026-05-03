@@ -733,6 +733,51 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string | null
+          after_data: Json | null
+          amount: number | null
+          before_data: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          amount?: number | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          amount?: number | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       financial_months: {
         Row: {
           closed_at: string | null
@@ -757,6 +802,75 @@ export type Database = {
           id?: string
           month?: string
           status?: string
+        }
+        Relationships: []
+      }
+      financial_reconciliation: {
+        Row: {
+          actual_total: number
+          created_at: string
+          details: Json | null
+          difference: number
+          expected_total: number
+          id: string
+          run_date: string
+          sessions_count: number
+          status: string
+        }
+        Insert: {
+          actual_total?: number
+          created_at?: string
+          details?: Json | null
+          difference?: number
+          expected_total?: number
+          id?: string
+          run_date?: string
+          sessions_count?: number
+          status?: string
+        }
+        Update: {
+          actual_total?: number
+          created_at?: string
+          details?: Json | null
+          difference?: number
+          expected_total?: number
+          id?: string
+          run_date?: string
+          sessions_count?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      financial_settings: {
+        Row: {
+          auto_close_months_after_days: number
+          enable_auto_reconciliation: boolean
+          id: string
+          large_withdrawal_threshold: number
+          min_withdrawal_amount: number
+          updated_at: string
+          updated_by: string | null
+          vat_rate: number
+        }
+        Insert: {
+          auto_close_months_after_days?: number
+          enable_auto_reconciliation?: boolean
+          id?: string
+          large_withdrawal_threshold?: number
+          min_withdrawal_amount?: number
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
+        }
+        Update: {
+          auto_close_months_after_days?: number
+          enable_auto_reconciliation?: boolean
+          id?: string
+          large_withdrawal_threshold?: number
+          min_withdrawal_amount?: number
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
         }
         Relationships: []
       }
@@ -1662,10 +1776,13 @@ export type Database = {
           invoice_id: string | null
           minutes_snapshot: number | null
           month: string
+          net_amount: number | null
           notes: string | null
           status: string
           teacher_id: string
           total_sessions_snapshot: number | null
+          vat_amount: number | null
+          vat_rate_snapshot: number | null
         }
         Insert: {
           added_by_admin: string
@@ -1676,10 +1793,13 @@ export type Database = {
           invoice_id?: string | null
           minutes_snapshot?: number | null
           month: string
+          net_amount?: number | null
           notes?: string | null
           status?: string
           teacher_id: string
           total_sessions_snapshot?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
         }
         Update: {
           added_by_admin?: string
@@ -1690,10 +1810,13 @@ export type Database = {
           invoice_id?: string | null
           minutes_snapshot?: number | null
           month?: string
+          net_amount?: number | null
           notes?: string | null
           status?: string
           teacher_id?: string
           total_sessions_snapshot?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
         }
         Relationships: []
       }
@@ -1773,11 +1896,13 @@ export type Database = {
           is_approved: boolean | null
           is_verified: boolean | null
           nationality: string | null
+          tax_id: string | null
           teaching_stages: string[] | null
           total_reviews: number | null
           total_sessions: number | null
           updated_at: string
           user_id: string
+          vat_enabled: boolean
           years_experience: number | null
         }
         Insert: {
@@ -1796,11 +1921,13 @@ export type Database = {
           is_approved?: boolean | null
           is_verified?: boolean | null
           nationality?: string | null
+          tax_id?: string | null
           teaching_stages?: string[] | null
           total_reviews?: number | null
           total_sessions?: number | null
           updated_at?: string
           user_id: string
+          vat_enabled?: boolean
           years_experience?: number | null
         }
         Update: {
@@ -1819,11 +1946,13 @@ export type Database = {
           is_approved?: boolean | null
           is_verified?: boolean | null
           nationality?: string | null
+          tax_id?: string | null
           teaching_stages?: string[] | null
           total_reviews?: number | null
           total_sessions?: number | null
           updated_at?: string
           user_id?: string
+          vat_enabled?: boolean
           years_experience?: number | null
         }
         Relationships: []
@@ -2180,38 +2309,89 @@ export type Database = {
         Row: {
           admin_notes: string | null
           amount: number
+          approved_at: string | null
+          approved_by: string | null
           attachment_name: string | null
           attachment_url: string | null
           created_at: string
           id: string
+          net_amount: number | null
+          paid_at: string | null
+          paid_by: string | null
+          processing_at: string | null
           status: string
           teacher_id: string
           teacher_notes: string | null
           updated_at: string
+          vat_amount: number | null
         }
         Insert: {
           admin_notes?: string | null
           amount: number
+          approved_at?: string | null
+          approved_by?: string | null
           attachment_name?: string | null
           attachment_url?: string | null
           created_at?: string
           id?: string
+          net_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          processing_at?: string | null
           status?: string
           teacher_id: string
           teacher_notes?: string | null
           updated_at?: string
+          vat_amount?: number | null
         }
         Update: {
           admin_notes?: string | null
           amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
           attachment_name?: string | null
           attachment_url?: string | null
           created_at?: string
           id?: string
+          net_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          processing_at?: string | null
           status?: string
           teacher_id?: string
           teacher_notes?: string | null
           updated_at?: string
+          vat_amount?: number | null
+        }
+        Relationships: []
+      }
+      withdrawal_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          notes: string | null
+          to_status: string
+          withdrawal_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          to_status: string
+          withdrawal_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          to_status?: string
+          withdrawal_id?: string
         }
         Relationships: []
       }
@@ -2461,6 +2641,7 @@ export type Database = {
         Args: { _request_id: string; _teacher_id: string }
         Returns: boolean
       }
+      auto_close_old_financial_months: { Args: never; Returns: number }
       auto_expire_stale_bookings: {
         Args: never
         Returns: {
@@ -2488,6 +2669,17 @@ export type Database = {
         Returns: number
       }
       get_profile_phone: { Args: { _user_id: string }; Returns: string }
+      get_teacher_earnings_breakdown: {
+        Args: { _teacher_id: string }
+        Returns: {
+          available_for_withdrawal: number
+          confirmed_total: number
+          paid_total: number
+          pending_total: number
+          total_minutes: number
+          total_sessions: number
+        }[]
+      }
       get_teacher_financials: {
         Args: { _teacher_id: string }
         Returns: {
@@ -2547,6 +2739,7 @@ export type Database = {
             }
             Returns: string
           }
+      run_financial_reconciliation: { Args: never; Returns: string }
       set_new_user_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: undefined
