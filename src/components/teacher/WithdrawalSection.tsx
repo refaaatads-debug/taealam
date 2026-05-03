@@ -154,6 +154,18 @@ export default function WithdrawalSection() {
           </div>
         </div>
 
+        {/* Financial Breakdown */}
+        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 space-y-2">
+          <p className="text-sm font-bold text-foreground">التفصيل المحاسبي (إجمالي الحصص)</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between"><span className="text-muted-foreground">إجمالي قيمة الحصص</span><strong>{breakdown.gross.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">عمولة المنصة</span><strong className="text-rose-600">- {breakdown.fee.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">نصيبك قبل الضريبة</span><strong>{breakdown.base.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ضريبة القيمة المضافة</span><strong className="text-rose-600">- {breakdown.vat.toLocaleString()} ر.س</strong></div>
+            <div className="flex justify-between col-span-2 border-t pt-2 mt-1"><span className="font-bold text-foreground">صافي المعلم النهائي</span><strong className="text-emerald-600">{breakdown.net.toLocaleString()} ر.س</strong></div>
+          </div>
+        </div>
+
         {/* Notes & Attachment */}
         <div className="space-y-3">
           <Textarea
