@@ -20,7 +20,7 @@ export default function WithdrawalSection() {
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [manualEarnings, setManualEarnings] = useState<any[]>([]);
-  const [breakdown, setBreakdown] = useState<{ gross: number; fee: number; base: number; vat: number; net: number }>({ gross: 0, fee: 0, base: 0, vat: 0, net: 0 });
+  const [currentMonthNet, setCurrentMonthNet] = useState(0);
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
