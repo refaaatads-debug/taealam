@@ -229,6 +229,16 @@ export default function FinancialHubTab() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>نسبة عمولة المنصة (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={Number(settings.platform_fee_rate ?? 0) * 100}
+                        onChange={(e) => setSettings({ ...settings, platform_fee_rate: Number(e.target.value) / 100 })}
+                      />
+                      <p className="text-xs text-muted-foreground">النسبة المخصومة من إجمالي قيمة الحصة قبل احتساب الضريبة</p>
+                    </div>
+                    <div className="space-y-2">
                       <Label>الحد الأدنى للسحب (ريال)</Label>
                       <Input
                         type="number"
