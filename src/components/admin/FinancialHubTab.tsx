@@ -28,6 +28,8 @@ export default function FinancialHubTab() {
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [reconciliations, setReconciliations] = useState<any[]>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
+  const [platformSummary, setPlatformSummary] = useState<any | null>(null);
+  const [platformMonth, setPlatformMonth] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
