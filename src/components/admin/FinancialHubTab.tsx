@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp, Download, Search, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import FinancialExportButton from "./FinancialExportButton";
+import InvoiceDetailDialog, { type InvoiceLike } from "./InvoiceDetailDialog";
 import { inDateRange } from "@/lib/financialExports";
 
 
