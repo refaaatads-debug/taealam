@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, ArrowRight, Zap, Calendar, User, BookOpen, Timer, MinusCircle, CheckCircle } from "lucide-react";
+import { Clock, ArrowRight, Zap, Calendar, User, BookOpen, Timer, MinusCircle, CheckCircle, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -201,6 +201,26 @@ const SubscriptionDetails = () => {
                       <Link to="/pricing">تجديد الباقة <Zap className="mr-1 h-4 w-4" /></Link>
                     </Button>
                   )}
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Invoices Quick Access */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+              <Card className="border-0 shadow-card">
+                <CardContent className="p-4">
+                  <Link to="/invoices" className="flex items-center justify-between gap-3 group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">الفواتير الضريبية</p>
+                        <p className="text-xs text-muted-foreground">عرض وتحميل فواتير الباقات (PDF + QR)</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground rtl:rotate-180 group-hover:translate-x-[-2px] transition-transform" />
+                  </Link>
                 </CardContent>
               </Card>
             </motion.div>
