@@ -33,10 +33,64 @@ export default function StudentInvoices() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selected, setSelected] = useState<Invoice | null>(null);
+  const [studentName, setStudentName] = useState<string>("");
+  const [studentEmail, setStudentEmail] = useState<string>("");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const pdfTemplateRef = useRef<HTMLDivElement>(null);
+  const [pdfData, setPdfData] = useState<Invoice | null>(null);
+  const [pdfQrDataUrl, setPdfQrDataUrl] = useState<string>("");
 
   useEffect(() => {
     if (!user) return;
     (async () => {
+      const [{ data: inv }, { data: prof }] = await Promise.all([
+        (supabase as any)
+          .from("invoices")
+          .select("*")
+          .eq("student_id", user.id)
+          .order("issued_at", { ascending: false }),
+        supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle(),
+      ]);
+      setInvoices((inv as Invoice[]) || []);
+      setStudentName((prof as any)?.full_name || "طالب");
+      setStudentEmail(user.email || "");
+      setLoading(false);
+    })();
+  }, [user?.id]);
+
+  const downloadPdf = async (inv: Invoice) => {
+    try {
+      setDownloadingId(inv.id);
+      const qrPayload = inv.qr_code || inv.invoice_number;
+      const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 320, margin: 1 });
+      setPdfQrDataUrl(qrDataUrl);
+      setPdfData(inv);
+      // Wait for template render
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await new Promise((r) => setTimeout(r, 60));
+      const node = pdfTemplateRef.current;
+      if (!node) throw new Error("template missing");
+      const canvas = await html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+      const w = canvas.width * ratio;
+      const h = canvas.height * ratio;
+      pdf.addImage(imgData, "PNG", (pageW - w) / 2, 20, w, h);
+      pdf.save(`${inv.invoice_number}.pdf`);
+      toast.success("تم تحميل الفاتورة");
+    } catch (e: any) {
+      toast.error("فشل توليد PDF: " + (e?.message || "حدث خطأ"));
+    } finally {
+      setDownloadingId(null);
+      setPdfData(null);
+      setPdfQrDataUrl("");
+    }
+  };
+
+  useEffect(() => {
       const { data } = await (supabase as any)
         .from("invoices")
         .select("*")
