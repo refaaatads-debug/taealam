@@ -68,6 +68,7 @@ export default function FinancialHubTab() {
         .from("financial_settings" as any)
         .update({
           vat_rate: settings.vat_rate,
+          platform_fee_rate: settings.platform_fee_rate,
           min_withdrawal_amount: settings.min_withdrawal_amount,
           auto_close_months_after_days: settings.auto_close_months_after_days,
           large_withdrawal_threshold: settings.large_withdrawal_threshold,
