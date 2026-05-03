@@ -12,6 +12,9 @@ export default function WithdrawalSection() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [paidTotal, setPaidTotal] = useState(0);
+  const [minWithdrawal, setMinWithdrawal] = useState(100);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState("");
