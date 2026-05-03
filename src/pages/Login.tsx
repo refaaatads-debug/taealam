@@ -182,15 +182,10 @@ const Login = () => {
         localStorage.setItem("pending_role", role);
       }
 
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
-        extraParams: provider === "google" ? { prompt: "select_account" } : undefined,
-      });
-      if (result.error) throw result.error;
-      if (!result.redirected && user) {
-        const primaryRole = await pickPrimaryRole(user.id);
-        redirectByRole(primaryRole);
-      }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const redirectTo = window.location.origin;
+      const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTo)}`;
+      window.location.href = authUrl;
     } catch (e) {
       toast.error(getAuthErrorMessage(e));
     } finally {
