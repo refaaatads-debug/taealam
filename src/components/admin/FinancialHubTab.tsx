@@ -601,10 +601,34 @@ export default function FinancialHubTab() {
         {/* Withdrawal History */}
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle>تتبع تغييرات حالات السحب</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>تتبع تغييرات حالات السحب ({filteredHistory.length})</CardTitle>
+              <FinancialExportButton
+                title="Withdrawal Status History"
+                filename="withdrawal_history"
+                headers={[
+                  { key: "created_at", label: "التاريخ" },
+                  { key: "from_status", label: "من" },
+                  { key: "to_status", label: "إلى" },
+                  { key: "notes", label: "ملاحظات" },
+                ]}
+                rows={historyExportRows}
+              />
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-3 gap-2">
+                <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} />
+                <Input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)} />
+                <Select value={histStatus} onValueChange={setHistStatus}>
+                  <SelectTrigger><SelectValue placeholder="الحالة الجديدة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات</SelectItem>
+                    {Array.from(new Set(withdrawalHistory.map(h => h.to_status).filter(Boolean))).map((s: any) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -615,14 +639,14 @@ export default function FinancialHubTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {withdrawalHistory.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
                         لا يوجد سجل
                       </TableCell>
                     </TableRow>
                   ) : (
-                    withdrawalHistory.map((h) => (
+                    filteredHistory.map((h) => (
                       <TableRow key={h.id}>
                         <TableCell className="text-xs">{new Date(h.created_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell><Badge variant="outline">{h.from_status || "—"}</Badge></TableCell>
