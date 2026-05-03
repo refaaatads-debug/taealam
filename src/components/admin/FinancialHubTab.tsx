@@ -288,10 +288,14 @@ export default function FinancialHubTab() {
       </div>
 
       <Tabs defaultValue="platform" className="space-y-4">
-        <TabsList className="grid grid-cols-5 w-full">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="platform">
             <TrendingUp className="h-4 w-4 ml-1" />
             أرباح المنصة
+          </TabsTrigger>
+          <TabsTrigger value="call-wallet">
+            <RefreshCw className="h-4 w-4 ml-1" />
+            محفظة المكالمات
           </TabsTrigger>
           <TabsTrigger value="settings">
             <ShieldCheck className="h-4 w-4 ml-1" />
