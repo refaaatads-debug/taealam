@@ -49,12 +49,50 @@ export default function FinancialHubTab() {
   const [callWalletTxs, setCallWalletTxs] = useState<any[]>([]);
   const [callWalletMonth, setCallWalletMonth] = useState<string>("");
   const [callWalletCategory, setCallWalletCategory] = useState<string>("all");
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invFrom, setInvFrom] = useState<string>("");
+  const [invTo, setInvTo] = useState<string>("");
+  const [invStatus, setInvStatus] = useState<string>("all");
+  const [invSearch, setInvSearch] = useState<string>("");
+  const [invLoading, setInvLoading] = useState(false);
 
   useEffect(() => {
     void loadAll();
     void loadPlatformSummary();
     void loadCallWallet();
+    void loadInvoices();
   }, []);
+
+  const loadInvoices = async () => {
+    setInvLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("invoices" as any)
+        .select("id, invoice_number, student_id, hours_purchased, total_amount, vat_amount, net_amount, currency, zatca_status, issued_at, qr_code, stripe_session_id")
+        .order("issued_at", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      const list = (data as any[]) || [];
+      const ids = Array.from(new Set(list.map((i) => i.student_id).filter(Boolean)));
+      let map: Record<string, any> = {};
+      if (ids.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles" as any)
+          .select("id, full_name, email")
+          .in("id", ids);
+        (profs as any[] || []).forEach((p) => { map[p.id] = p; });
+      }
+      setInvoices(list.map((i) => ({
+        ...i,
+        student_name: map[i.student_id]?.full_name || "—",
+        student_email: map[i.student_id]?.email || "—",
+      })));
+    } catch (e: any) {
+      toast.error("فشل تحميل الفواتير: " + e.message);
+    } finally {
+      setInvLoading(false);
+    }
+  };
 
   const loadCallWallet = async (month?: string) => {
     try {
