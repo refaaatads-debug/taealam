@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, ArrowRight, Zap, Calendar, User, BookOpen, Timer, MinusCircle, CheckCircle } from "lucide-react";
+import { Clock, ArrowRight, Zap, Calendar, User, BookOpen, Timer, MinusCircle, CheckCircle, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
