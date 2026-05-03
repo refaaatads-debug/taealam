@@ -33,11 +33,12 @@ export default function WithdrawalSection() {
     if (!user) return;
 
     // Use new breakdown function + min withdrawal setting
-    const [breakdownRes, settingsRes, earningsRes, wData] = await Promise.all([
+    const [breakdownRes, settingsRes, earningsRes, wData, finBreakdown] = await Promise.all([
       supabase.rpc("get_teacher_earnings_breakdown" as any, { _teacher_id: user.id }),
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
       supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
+      supabase.rpc("get_teacher_financial_breakdown" as any, { _teacher_id: user.id, _month: null }),
     ]);
 
     const bd = (breakdownRes.data as any[])?.[0] || {};
@@ -48,6 +49,14 @@ export default function WithdrawalSection() {
     setMinWithdrawal(Number((settingsRes.data as any)?.min_withdrawal_amount) || 100);
     setManualEarnings((earningsRes.data as any[]) || []);
     setWithdrawals((wData.data as any[]) || []);
+    const fb = (finBreakdown.data as any[])?.[0] || {};
+    setBreakdown({
+      gross: Number(fb.gross_total) || 0,
+      fee: Number(fb.platform_fee_total) || 0,
+      base: Number(fb.teacher_base_total) || 0,
+      vat: Number(fb.vat_total) || 0,
+      net: Number(fb.net_total) || 0,
+    });
   };
 
   const requestWithdrawal = async () => {
