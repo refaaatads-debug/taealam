@@ -301,6 +301,30 @@ export default function FinancialHubTab() {
     description: t.description || "",
   })), [filteredCallWalletTxs]);
 
+  const filteredInvoices = useMemo(() => invoices.filter((i) => {
+    if (invStatus !== "all" && i.zatca_status !== invStatus) return false;
+    if (!inDateRange(i.issued_at, invFrom, invTo)) return false;
+    if (invSearch) {
+      const q = invSearch.toLowerCase();
+      const hay = `${i.invoice_number || ""} ${i.student_name || ""} ${i.student_email || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }), [invoices, invStatus, invFrom, invTo, invSearch]);
+
+  const invoicesExportRows = useMemo(() => filteredInvoices.map((i) => ({
+    invoice_number: i.invoice_number,
+    issued_at: new Date(i.issued_at).toLocaleString("ar-SA"),
+    student_name: i.student_name,
+    student_email: i.student_email,
+    hours_purchased: Number(i.hours_purchased || 0).toFixed(2),
+    net_amount: Number(i.net_amount || 0).toFixed(2),
+    vat_amount: Number(i.vat_amount || 0).toFixed(2),
+    total_amount: Number(i.total_amount || 0).toFixed(2),
+    currency: i.currency,
+    zatca_status: i.zatca_status,
+  })), [filteredInvoices]);
+
   const clearFilters = () => {
     setAuditSearch("");
     setAuditAction("all");
