@@ -2737,6 +2737,14 @@ export type Database = {
           iban: string
         }[]
       }
+      get_teacher_net_summary: {
+        Args: { _month?: string; _teacher_id: string }
+        Returns: {
+          minutes_total: number
+          net_total: number
+          sessions_count: number
+        }[]
+      }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]
