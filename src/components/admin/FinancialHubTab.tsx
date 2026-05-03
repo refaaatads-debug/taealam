@@ -44,7 +44,7 @@ export default function FinancialHubTab() {
     try {
       const [s, a, r, h] = await Promise.all([
         supabase.from("financial_settings" as any).select("*").maybeSingle(),
-        supabase.from("financial_audit_log" as any).select("*").order("created_at", { ascending: false }).limit(50),
+        supabase.from("financial_audit_log" as any).select("*").order("created_at", { ascending: false }).limit(2000),
         supabase.from("financial_reconciliation" as any).select("*").order("created_at", { ascending: false }).limit(20),
         supabase.from("withdrawal_status_history" as any).select("*").order("created_at", { ascending: false }).limit(30),
       ]);
