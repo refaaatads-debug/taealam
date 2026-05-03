@@ -149,15 +149,19 @@ export default function WithdrawalSection() {
           </div>
         </div>
 
-        {/* Financial Breakdown */}
-        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 space-y-2">
-          <p className="text-sm font-bold text-foreground">التفصيل المحاسبي (إجمالي الحصص)</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex justify-between"><span className="text-muted-foreground">إجمالي قيمة الحصص</span><strong>{breakdown.gross.toLocaleString()} ر.س</strong></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">عمولة المنصة</span><strong className="text-rose-600">- {breakdown.fee.toLocaleString()} ر.س</strong></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">نصيبك قبل الضريبة</span><strong>{breakdown.base.toLocaleString()} ر.س</strong></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">ضريبة القيمة المضافة</span><strong className="text-rose-600">- {breakdown.vat.toLocaleString()} ر.س</strong></div>
-            <div className="flex justify-between col-span-2 border-t pt-2 mt-1"><span className="font-bold text-foreground">صافي المعلم النهائي</span><strong className="text-emerald-600">{breakdown.net.toLocaleString()} ر.س</strong></div>
+        {/* Teacher-only summary (no internal accounting details) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl border bg-card p-4">
+            <p className="text-xs text-muted-foreground mb-1">الأرباح الحالية</p>
+            <p className="text-xl font-black text-foreground">{totalEarnings.toLocaleString()} ر.س</p>
+          </div>
+          <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
+            <p className="text-xs text-muted-foreground mb-1">الرصيد المتاح للسحب</p>
+            <p className="text-xl font-black text-secondary">{balance.toLocaleString()} ر.س</p>
+          </div>
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح هذا الشهر</p>
+            <p className="text-xl font-black text-primary">{currentMonthNet.toLocaleString()} ر.س</p>
           </div>
         </div>
 
