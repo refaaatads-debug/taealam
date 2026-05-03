@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface FinancialSettings {
   id: string;
   vat_rate: number;
+  platform_fee_rate: number;
   min_withdrawal_amount: number;
   auto_close_months_after_days: number;
   large_withdrawal_threshold: number;
