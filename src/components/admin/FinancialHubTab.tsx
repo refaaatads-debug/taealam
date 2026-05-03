@@ -206,8 +206,12 @@ export default function FinancialHubTab() {
         </Button>
       </div>
 
-      <Tabs defaultValue="settings" className="space-y-4">
-        <TabsList className="grid grid-cols-4 w-full">
+      <Tabs defaultValue="platform" className="space-y-4">
+        <TabsList className="grid grid-cols-5 w-full">
+          <TabsTrigger value="platform">
+            <TrendingUp className="h-4 w-4 ml-1" />
+            أرباح المنصة
+          </TabsTrigger>
           <TabsTrigger value="settings">
             <ShieldCheck className="h-4 w-4 ml-1" />
             الإعدادات
@@ -225,6 +229,68 @@ export default function FinancialHubTab() {
             تتبع السحوبات
           </TabsTrigger>
         </TabsList>
+
+        {/* Platform Revenue */}
+        <TabsContent value="platform">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>أرباح المنصة المالية</CardTitle>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="month"
+                  value={platformMonth}
+                  onChange={(e) => setPlatformMonth(e.target.value)}
+                  className="w-40"
+                />
+                <Button size="sm" onClick={() => loadPlatformSummary(platformMonth)}>
+                  <RefreshCw className="h-4 w-4 ml-2" />
+                  تحديث
+                </Button>
+                {platformMonth && (
+                  <Button size="sm" variant="ghost" onClick={() => { setPlatformMonth(""); loadPlatformSummary(""); }}>
+                    <X className="h-4 w-4 ml-1" />
+                    مسح
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!platformSummary ? (
+                <div className="text-center text-muted-foreground py-8">جاري التحميل...</div>
+              ) : (
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي الإيرادات</p>
+                    <p className="text-2xl font-bold">{Number(platformSummary.total_revenue || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي الضريبة المحصلة (VAT)</p>
+                    <p className="text-2xl font-bold text-amber-600">{Number(platformSummary.total_vat || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح المنصة (عمولات)</p>
+                    <p className="text-2xl font-bold text-primary">{Number(platformSummary.total_platform_earnings || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي مدفوعات المعلمين</p>
+                    <p className="text-2xl font-bold">{Number(platformSummary.total_teacher_payouts || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-emerald-500/5">
+                    <p className="text-xs text-muted-foreground mb-1">صافي الربح</p>
+                    <p className="text-2xl font-bold text-emerald-600">{Number(platformSummary.net_profit || 0).toFixed(2)} ر.س</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-card">
+                    <p className="text-xs text-muted-foreground mb-1">عدد الحصص / إجمالي الدقائق</p>
+                    <p className="text-2xl font-bold">{platformSummary.sessions_count || 0} / {platformSummary.minutes_total || 0}</p>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-4">
+                * يتم احتساب أرباح المنصة تلقائياً من حصص مكتملة (مدتها ≥ 5 دقائق). الضريبة تُخصم من الإجمالي أولاً، ثم تُقسّم بقية الإيرادات بين المنصة والمعلم وفق نسبة العمولة.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Settings */}
         <TabsContent value="settings">
