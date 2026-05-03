@@ -212,7 +212,7 @@ serve(async (req) => {
             .from("subscription_plans").select("session_duration_minutes").eq("id", planId).single();
           const sessionDuration2 = planData2?.session_duration_minutes || 45;
           const totalMinutes2 = sessionsCount * sessionDuration2;
-          await adminClient.from("user_subscriptions").insert({
+          const { data: insertedSub2 } = await adminClient.from("user_subscriptions").insert({
             user_id: userId,
             plan_id: planId,
             sessions_remaining: sessionsCount,
@@ -220,7 +220,45 @@ serve(async (req) => {
             remaining_minutes: totalMinutes2,
             ends_at: endsAt.toISOString(),
             is_active: true,
-          });
+          }).select("id").single();
+
+          // Issue ONE invoice for the renewal cycle
+          try {
+            const totalAmount2 = (invoice.amount_paid || 0) / 100;
+            const vatRate = 0.15;
+            const netAmount2 = +(totalAmount2 / (1 + vatRate)).toFixed(2);
+            const vatAmount2 = +(totalAmount2 - netAmount2).toFixed(2);
+            const hoursPurchased2 = +(totalMinutes2 / 60).toFixed(2);
+
+            const { data: invRow2 } = await adminClient.from("invoices").insert({
+              student_id: userId,
+              plan_id: planId,
+              subscription_id: insertedSub2?.id ?? null,
+              stripe_session_id: invoice.id,
+              hours_purchased: hoursPurchased2,
+              total_amount: totalAmount2,
+              vat_rate: vatRate,
+              vat_amount: vatAmount2,
+              net_amount: netAmount2,
+              currency: (invoice.currency || "sar").toUpperCase(),
+              zatca_status: "pending",
+              metadata: { source: "subscription_renewal", stripe_invoice_id: invoice.id },
+            }).select("id, invoice_number").single();
+
+            if (invRow2?.id) {
+              const qrPayload = JSON.stringify({
+                invoice: invRow2.invoice_number,
+                total: totalAmount2,
+                vat: vatAmount2,
+                issued_at: new Date().toISOString(),
+              });
+              await adminClient.from("invoices")
+                .update({ qr_code: btoa(unescape(encodeURIComponent(qrPayload))) })
+                .eq("id", invRow2.id);
+            }
+          } catch (e) {
+            console.error("Failed to issue renewal invoice:", e);
+          }
 
           await adminClient.from("notifications").insert({
             user_id: userId,
