@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp } from "lucide-react";
+import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp, Download, Search, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 interface FinancialSettings {
   id: string;
@@ -27,6 +29,11 @@ export default function FinancialHubTab() {
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditAction, setAuditAction] = useState<string>("all");
+  const [auditEntity, setAuditEntity] = useState<string>("all");
+  const [auditFrom, setAuditFrom] = useState<string>("");
+  const [auditTo, setAuditTo] = useState<string>("");
 
   useEffect(() => {
     void loadAll();
@@ -37,7 +44,7 @@ export default function FinancialHubTab() {
     try {
       const [s, a, r, h] = await Promise.all([
         supabase.from("financial_settings" as any).select("*").maybeSingle(),
-        supabase.from("financial_audit_log" as any).select("*").order("created_at", { ascending: false }).limit(50),
+        supabase.from("financial_audit_log" as any).select("*").order("created_at", { ascending: false }).limit(2000),
         supabase.from("financial_reconciliation" as any).select("*").order("created_at", { ascending: false }).limit(20),
         supabase.from("withdrawal_status_history" as any).select("*").order("created_at", { ascending: false }).limit(30),
       ]);
@@ -108,6 +115,61 @@ export default function FinancialHubTab() {
     if (status === "ok") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/30";
     if (status === "minor_drift") return "bg-amber-500/10 text-amber-600 border-amber-500/30";
     return "bg-rose-500/10 text-rose-600 border-rose-500/30";
+  };
+
+  const uniqueActions = useMemo(() => Array.from(new Set(auditLog.map((a) => a.action).filter(Boolean))), [auditLog]);
+  const uniqueEntities = useMemo(() => Array.from(new Set(auditLog.map((a) => a.entity_type).filter(Boolean))), [auditLog]);
+
+  const filteredAudit = useMemo(() => {
+    return auditLog.filter((a) => {
+      if (auditAction !== "all" && a.action !== auditAction) return false;
+      if (auditEntity !== "all" && a.entity_type !== auditEntity) return false;
+      if (auditFrom && new Date(a.created_at) < new Date(auditFrom)) return false;
+      if (auditTo) {
+        const to = new Date(auditTo);
+        to.setHours(23, 59, 59, 999);
+        if (new Date(a.created_at) > to) return false;
+      }
+      if (auditSearch) {
+        const q = auditSearch.toLowerCase();
+        const hay = `${a.action || ""} ${a.entity_type || ""} ${a.entity_id || ""} ${a.actor_id || ""} ${a.actor_role || ""} ${JSON.stringify(a.metadata || {})}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [auditLog, auditAction, auditEntity, auditFrom, auditTo, auditSearch]);
+
+  const exportAuditCSV = () => {
+    if (filteredAudit.length === 0) {
+      toast.info("لا توجد بيانات للتصدير");
+      return;
+    }
+    const headers = ["created_at", "action", "entity_type", "entity_id", "amount", "actor_id", "actor_role", "ip_address"];
+    const rows = filteredAudit.map((a) =>
+      headers.map((h) => {
+        const v = (a as any)[h];
+        if (v == null) return "";
+        const s = String(v).replace(/"/g, '""');
+        return `"${s}"`;
+      }).join(",")
+    );
+    const csv = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `financial_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`تم تصدير ${filteredAudit.length} سجل`);
+  };
+
+  const clearFilters = () => {
+    setAuditSearch("");
+    setAuditAction("all");
+    setAuditEntity("all");
+    setAuditFrom("");
+    setAuditTo("");
   };
 
   return (
@@ -271,41 +333,86 @@ export default function FinancialHubTab() {
         {/* Audit Log */}
         <TabsContent value="audit">
           <Card>
-            <CardHeader>
-              <CardTitle>سجل التدقيق المالي ({auditLog.length})</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
+              <CardTitle>سجل التدقيق المالي ({filteredAudit.length} من {auditLog.length})</CardTitle>
+              <div className="flex gap-2">
+                <Button onClick={exportAuditCSV} size="sm" variant="outline" disabled={filteredAudit.length === 0}>
+                  <Download className="h-4 w-4 ml-2" />
+                  تصدير CSV
+                </Button>
+                <Button onClick={clearFilters} size="sm" variant="ghost">
+                  <X className="h-4 w-4 ml-2" />
+                  مسح الفلاتر
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>التاريخ</TableHead>
-                    <TableHead>الإجراء</TableHead>
-                    <TableHead>النوع</TableHead>
-                    <TableHead>المبلغ</TableHead>
-                    <TableHead>المعرف</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {auditLog.length === 0 ? (
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-5 gap-2">
+                <div className="md:col-span-2 relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="بحث في الإجراء، المعرف، الجهة..."
+                    value={auditSearch}
+                    onChange={(e) => setAuditSearch(e.target.value)}
+                    className="pr-9"
+                  />
+                </div>
+                <Select value={auditAction} onValueChange={setAuditAction}>
+                  <SelectTrigger><SelectValue placeholder="نوع الإجراء" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الإجراءات</SelectItem>
+                    {uniqueActions.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={auditEntity} onValueChange={setAuditEntity}>
+                  <SelectTrigger><SelectValue placeholder="الجهة" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الجهات</SelectItem>
+                    {uniqueEntities.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-1">
+                  <Input type="date" value={auditFrom} onChange={(e) => setAuditFrom(e.target.value)} title="من" />
+                  <Input type="date" value={auditTo} onChange={(e) => setAuditTo(e.target.value)} title="إلى" />
+                </div>
+              </div>
+
+              <div className="rounded-md border max-h-[600px] overflow-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                        لا توجد سجلات
-                      </TableCell>
+                      <TableHead>التاريخ</TableHead>
+                      <TableHead>الإجراء</TableHead>
+                      <TableHead>الجهة</TableHead>
+                      <TableHead>المبلغ</TableHead>
+                      <TableHead>المنفذ</TableHead>
+                      <TableHead>المعرف</TableHead>
                     </TableRow>
-                  ) : (
-                    auditLog.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell className="text-xs">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
-                        <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
-                        <TableCell className="text-xs">{a.entity_type}</TableCell>
-                        <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
-                        <TableCell className="text-xs font-mono truncate max-w-[150px]">{a.entity_id}</TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAudit.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                          لا توجد سجلات مطابقة
+                        </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filteredAudit.map((a) => (
+                        <TableRow key={a.id}>
+                          <TableCell className="text-xs whitespace-nowrap">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
+                          <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
+                          <TableCell className="text-xs">{a.entity_type}</TableCell>
+                          <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
+                          <TableCell className="text-xs">{a.actor_role || "-"}</TableCell>
+                          <TableCell className="text-xs font-mono truncate max-w-[150px]">{a.entity_id}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
+
           </Card>
         </TabsContent>
 
