@@ -117,6 +117,61 @@ export default function FinancialHubTab() {
     return "bg-rose-500/10 text-rose-600 border-rose-500/30";
   };
 
+  const uniqueActions = useMemo(() => Array.from(new Set(auditLog.map((a) => a.action).filter(Boolean))), [auditLog]);
+  const uniqueEntities = useMemo(() => Array.from(new Set(auditLog.map((a) => a.entity_type).filter(Boolean))), [auditLog]);
+
+  const filteredAudit = useMemo(() => {
+    return auditLog.filter((a) => {
+      if (auditAction !== "all" && a.action !== auditAction) return false;
+      if (auditEntity !== "all" && a.entity_type !== auditEntity) return false;
+      if (auditFrom && new Date(a.created_at) < new Date(auditFrom)) return false;
+      if (auditTo) {
+        const to = new Date(auditTo);
+        to.setHours(23, 59, 59, 999);
+        if (new Date(a.created_at) > to) return false;
+      }
+      if (auditSearch) {
+        const q = auditSearch.toLowerCase();
+        const hay = `${a.action || ""} ${a.entity_type || ""} ${a.entity_id || ""} ${a.actor_id || ""} ${a.actor_role || ""} ${JSON.stringify(a.metadata || {})}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [auditLog, auditAction, auditEntity, auditFrom, auditTo, auditSearch]);
+
+  const exportAuditCSV = () => {
+    if (filteredAudit.length === 0) {
+      toast.info("لا توجد بيانات للتصدير");
+      return;
+    }
+    const headers = ["created_at", "action", "entity_type", "entity_id", "amount", "actor_id", "actor_role", "ip_address"];
+    const rows = filteredAudit.map((a) =>
+      headers.map((h) => {
+        const v = (a as any)[h];
+        if (v == null) return "";
+        const s = String(v).replace(/"/g, '""');
+        return `"${s}"`;
+      }).join(",")
+    );
+    const csv = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `financial_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`تم تصدير ${filteredAudit.length} سجل`);
+  };
+
+  const clearFilters = () => {
+    setAuditSearch("");
+    setAuditAction("all");
+    setAuditEntity("all");
+    setAuditFrom("");
+    setAuditTo("");
+  };
+
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between">
