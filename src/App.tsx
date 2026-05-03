@@ -48,6 +48,7 @@ const StudentAssignments = lazy(() => import("./pages/StudentAssignments"));
 const ReviewSubmission = lazy(() => import("./pages/ReviewSubmission"));
 const HelpCenter = lazy(() => import("./pages/HelpCenter"));
 const HomeworkSolver = lazy(() => import("./pages/HomeworkSolver"));
+const StudentInvoices = lazy(() => import("./pages/StudentInvoices"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,6 +101,7 @@ const App = () => (
               <Route path="/install" element={<Install />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
+              <Route path="/invoices" element={<ProtectedRoute><StudentInvoices /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
               <Route path="/teacher/wallet" element={<ProtectedRoute><TeacherWallet /></ProtectedRoute>} />
               <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
