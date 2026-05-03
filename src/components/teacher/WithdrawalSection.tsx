@@ -137,18 +137,6 @@ export default function WithdrawalSection() {
       {open && (
       <CardContent className="space-y-4 pt-0">
 
-        {/* Balance Summary */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-2xl bg-accent/50 border border-secondary/20">
-            <p className="text-sm text-muted-foreground">الرصيد المتاح للسحب</p>
-            <p className="text-2xl font-black text-foreground">{balance.toLocaleString()} ر.س</p>
-          </div>
-          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
-            <p className="text-sm text-muted-foreground">إجمالي الأرباح المقررة</p>
-            <p className="text-2xl font-black text-primary">{totalEarnings.toLocaleString()} ر.س</p>
-          </div>
-        </div>
-
         {/* Teacher-only summary (no internal accounting details) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border bg-card p-4">
