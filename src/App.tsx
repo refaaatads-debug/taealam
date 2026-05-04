@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import BrandLoader from "@/components/BrandLoader";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -53,13 +55,24 @@ const StudentInvoices = lazy(() => import("./pages/StudentInvoices"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 min cache
-      gcTime: 10 * 60 * 1000,
+      staleTime: 5 * 60 * 1000, // data fresh for 5 min — no refetch on remount
+      gcTime: 24 * 60 * 60 * 1000, // keep in cache 24h for instant tab-return
       retry: 1,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      placeholderData: (prev: unknown) => prev, // stale-while-revalidate
     },
   },
 });
+
+const persister = typeof window !== "undefined"
+  ? createSyncStoragePersister({
+      storage: window.localStorage,
+      key: "rq-cache-v1",
+      throttleTime: 1000,
+    })
+  : undefined;
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
@@ -76,7 +89,10 @@ const DashboardRedirect = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+    client={queryClient}
+    persistOptions={{ persister: persister as any, maxAge: 24 * 60 * 60 * 1000, buster: "v1" }}
+  >
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -133,7 +149,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;
