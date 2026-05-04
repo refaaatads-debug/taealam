@@ -64,10 +64,7 @@ const StudentDashboard = () => {
         });
     };
     checkProfile();
-    // Re-check when window regains focus (e.g., returning from /complete-profile)
-    const onFocus = () => checkProfile();
-    window.addEventListener("focus", onFocus);
-    // Realtime: react to profile updates
+    // Realtime: react to profile updates (no focus refetch — relies on cache + realtime)
     const ch = supabase
       .channel(`profile-completion-${user.id}`)
       .on("postgres_changes", {
@@ -83,7 +80,6 @@ const StudentDashboard = () => {
       .subscribe();
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
       supabase.removeChannel(ch);
     };
   }, [user]);
