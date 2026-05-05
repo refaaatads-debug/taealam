@@ -182,10 +182,14 @@ const Login = () => {
         localStorage.setItem("pending_role", role);
       }
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const redirectTo = window.location.origin;
-      const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTo)}`;
-      window.location.href = authUrl;
+      const result = await lovable.auth.signInWithOAuth(provider, {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        toast.error(getAuthErrorMessage(result.error));
+        return;
+      }
+      if (result.redirected) return;
     } catch (e) {
       toast.error(getAuthErrorMessage(e));
     } finally {
