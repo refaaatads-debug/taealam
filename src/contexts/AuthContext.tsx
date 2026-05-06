@@ -278,13 +278,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    let lastInitializedUserId: string | null = null;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          void initializeAuthenticatedSession(session.user.id);
+          // Skip noisy events that fire when switching tabs / refreshing tokens.
+          // They cause the whole app to re-render with the loader.
+          if (
+            (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION" || event === "SIGNED_IN") &&
+            lastInitializedUserId === session.user.id
+          ) {
+            return;
+          }
+          lastInitializedUserId = session.user.id;
+          void initializeAuthenticatedSession(session.user.id, {
+            silent: event === "TOKEN_REFRESHED",
+          });
         } else {
+          lastInitializedUserId = null;
           initializingUserRef.current = null;
           cleanupSingleSession();
           setProfile(null);
