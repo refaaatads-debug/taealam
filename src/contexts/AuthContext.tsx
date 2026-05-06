@@ -312,6 +312,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        lastInitializedUserId = session.user.id;
         await initializeAuthenticatedSession(session.user.id);
       } else {
         initializingUserRef.current = null;
