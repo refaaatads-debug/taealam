@@ -246,14 +246,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    const initializeAuthenticatedSession = async (userId: string) => {
+    const initializeAuthenticatedSession = async (userId: string, opts: { silent?: boolean } = {}) => {
       if (initializingUserRef.current === userId) return;
       initializingUserRef.current = userId;
 
       // Remember last user for cache hydration on next visit
       try { localStorage.setItem(lastUserKey, userId); } catch { /* ignore */ }
 
-      setLoading(true);
+      // Don't flash the loader on token refresh / tab refocus when we already have data
+      if (!opts.silent) setLoading(true);
 
       try {
         const [, , rolesResult] = await Promise.allSettled([
