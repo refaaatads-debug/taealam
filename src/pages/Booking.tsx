@@ -174,9 +174,8 @@ const Booking = () => {
           .select("sessions_remaining, remaining_minutes")
           .eq("user_id", user.id)
           .eq("is_active", true)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .gt("remaining_minutes", 0)
+          .gt("ends_at", now),
         supabase
           .from("bookings")
           .select("scheduled_at, duration_minutes")
@@ -192,7 +191,8 @@ const Booking = () => {
           .gte("scheduled_at", now)
           .lte("scheduled_at", future),
       ]).then(([subRes, b, r]) => {
-        const remainMin = (subRes.data as any)?.remaining_minutes ?? (subRes.data?.sessions_remaining || 0) * 45;
+        const subsData = ((subRes.data || []) as any[]);
+        const remainMin = subsData.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
         setBaseRemainingMinutes(Math.max(0, remainMin));
 
         const reservedFromBookings = (b.data || []).reduce(
@@ -795,7 +795,7 @@ const Booking = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">المدة لكل حصة</span>
-                      <span className="text-foreground font-bold">60 دقيقة</span>
+                      <span className="text-foreground font-bold">{SESSION_MINUTES} دقيقة</span>
                     </div>
                     <div className="border-t pt-3 mt-2">
                       <span className="text-muted-foreground text-xs block mb-2">المواعيد المختارة:</span>

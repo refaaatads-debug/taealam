@@ -46,6 +46,7 @@ const SubscriptionDetails = () => {
       .select("*, subscription_plans(name_ar, tier, sessions_count)")
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .gt("ends_at", new Date().toISOString())
       .order("created_at", { ascending: false });
     if (subs && subs.length > 0) {
       const totalRemaining = subs.reduce((s, x: any) => s + (x.remaining_minutes || 0), 0);

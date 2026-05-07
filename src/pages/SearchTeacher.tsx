@@ -92,9 +92,7 @@ const SearchTeacher = () => {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .gt("remaining_minutes", 0)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .gt("ends_at", now),
       supabase
         .from("bookings")
         .select("duration_minutes")
@@ -110,7 +108,8 @@ const SearchTeacher = () => {
         .gte("scheduled_at", now)
         .lte("scheduled_at", future),
     ]).then(([subRes, bookingsRes, requestsRes]) => {
-      setBaseRemainingMinutes(subRes.data?.remaining_minutes || 0);
+      const totalRemaining = ((subRes.data || []) as any[]).reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
+      setBaseRemainingMinutes(totalRemaining);
 
       const reservedFromBookings = (bookingsRes.data || []).reduce(
         (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
@@ -664,7 +663,7 @@ const SearchTeacher = () => {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-primary" /> اختر الساعات
-                      <span className="text-[10px] text-muted-foreground/60 font-medium">(يمكن اختيار أكثر من ساعة)</span>
+                      <span className="text-[10px] text-muted-foreground/60 font-medium">(يمكن اختيار أكثر من حصة)</span>
                     </p>
                     {remainingMinutes <= 0 && (
                       <Badge className="bg-destructive/10 text-destructive border-0 text-[10px] px-2.5 py-1 rounded-full">
