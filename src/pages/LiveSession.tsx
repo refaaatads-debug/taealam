@@ -948,8 +948,9 @@ const LiveSession = () => {
   // On reconnect: resumes from the exact same point. Teacher broadcasts the
   // authoritative elapsed every second so the student stays in sync.
   // Tab switching and screen sharing do NOT pause the timer.
-  const connectionHealthy = isOnline && connectionState === "connected"; // peerDisconnected is informational only — does not pause timer or end session
-  const shouldCount = meetingStarted && bothJoined && connectionHealthy;
+  const connectionHealthy = isOnline && connectionState === "connected";
+  // Spec: timer stops when peer leaves (peerDisconnected) or connection drops
+  const shouldCount = meetingStarted && bothJoined && connectionHealthy && !peerDisconnected;
   shouldCountRef.current = shouldCount;
 
   // On (re)connection: sync timer between peers immediately (teacher = source of truth)
@@ -1401,8 +1402,12 @@ const LiveSession = () => {
             .update({ status: "completed", session_status: "completed" })
             .eq("id", currentBookingId) as any
         );
-        const sessionUpdate: any = { ended_at: new Date().toISOString() };
-        if (isTeacher) sessionUpdate.duration_minutes = durationMinutes;
+        // Per billing spec: always send timer-based duration (never rely on wall-clock in DB)
+        const sessionUpdate: any = {
+          ended_at: new Date().toISOString(),
+          duration_seconds: durationSeconds,    // precise seconds for billing
+          duration_minutes: durationMinutes,    // CEIL(seconds/60) — used by trigger
+        };
         fastTasks.push(
           supabase.from("sessions")
             .update(sessionUpdate)
