@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const HEARTBEAT_INTERVAL = 10_000; // 10 seconds
-const DISCONNECT_TIMEOUT = 60_000; // 60 seconds grace period
+const HEARTBEAT_INTERVAL = 15_000; // 15 seconds
+const PEER_STALE_THRESHOLD = 120_000; // 2 min — handles background-tab throttling
 const TAB_LOCK_KEY = "session_tab_lock_";
 
 function generateDeviceId(): string {
@@ -173,24 +173,42 @@ export function useSessionAntiCheat({
     // Register on start
     registerSession();
 
-    // Send heartbeat every 10s
-    heartbeatRef.current = window.setInterval(async () => {
+    const sendHeartbeat = async () => {
       try {
         await supabase
           .from("active_sessions" as any)
-          .update({
-            last_heartbeat: new Date().toISOString(),
-            is_connected: true,
-          } as any)
+          .update({ last_heartbeat: new Date().toISOString(), is_connected: true } as any)
           .eq("user_id", userId)
           .eq("booking_id", bookingId);
       } catch (e) {
         console.error("Heartbeat failed:", e);
       }
-    }, HEARTBEAT_INTERVAL);
+    };
+
+    // Send heartbeat every 15s
+    heartbeatRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+
+    // Immediately re-send heartbeat when tab becomes visible (handles background throttling)
+    const onVisible = () => { if (!document.hidden) { sendHeartbeat(); } };
+    document.addEventListener("visibilitychange", onVisible);
+
+    // Best-effort: mark disconnected on real page close (not refresh/tab switch)
+    const onPageHide = (e: PageTransitionEvent) => {
+      if (!e.persisted) {
+        supabase
+          .from("active_sessions" as any)
+          .update({ is_connected: false, disconnected_at: new Date().toISOString() } as any)
+          .eq("user_id", userId)
+          .eq("booking_id", bookingId)
+          .then(() => {});
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
 
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, [enabled, userId, bookingId, isTabLocked, registerSession]);
 
@@ -214,30 +232,18 @@ export function useSessionAntiCheat({
         const now = Date.now();
         const elapsed = now - lastBeat;
 
-        if (elapsed > 30_000 && peer.is_connected) {
-          // Peer might be disconnected
+        if (elapsed > PEER_STALE_THRESHOLD && peer.is_connected) {
+          // Peer heartbeat stale (tab throttled, weak network, etc.)
+          // We show an informational banner only — do NOT auto-end the session.
+          // Session ends only on explicit leave or page close.
           if (!peerDisconnected) {
             setPeerDisconnected(true);
-            setReconnectCountdown(60);
-            logEvent("peer_disconnect_detected", { peer_user_id: peer.user_id });
-            toast.warning("⚠️ انقطع اتصال المشارك الآخر. مهلة 60 ثانية لإعادة الاتصال...", { duration: 8000 });
-
-            // Start countdown
-            countdownRef.current = window.setInterval(() => {
-              setReconnectCountdown(prev => {
-                if (prev <= 1) {
-                  clearInterval(countdownRef.current);
-                  toast.error("انتهت مهلة إعادة الاتصال. سيتم إنهاء الجلسة.");
-                  logEvent("session_timeout", { reason: "peer_disconnect_timeout" });
-                  onForceEnd?.();
-                  return 0;
-                }
-                return prev - 1;
-              });
-            }, 1000);
+            setReconnectCountdown(0);
+            logEvent("peer_heartbeat_stale", { peer_user_id: peer.user_id, elapsed_ms: elapsed });
+            toast.warning("⚠️ إشارة المشارك ضعيفة — الجلسة مستمرة...", { duration: 5000 });
           }
-        } else if (elapsed < 15_000 && peerDisconnected) {
-          // Peer reconnected
+        } else if (elapsed < PEER_STALE_THRESHOLD && peerDisconnected) {
+          // Peer heartbeat restored
           setPeerDisconnected(false);
           setReconnectCountdown(0);
           if (countdownRef.current) clearInterval(countdownRef.current);

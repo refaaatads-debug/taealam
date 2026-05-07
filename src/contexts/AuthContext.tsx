@@ -278,7 +278,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // TOKEN_REFRESHED fires silently on tab focus — skip full re-init to prevent dashboard reload
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          return;
+        }
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {

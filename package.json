@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prebuild": "bash scripts/check-env.sh"
   },
   "dependencies": {
     "@elevenlabs/react": "^1.3.0",

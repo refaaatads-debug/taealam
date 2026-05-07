@@ -116,39 +116,54 @@ export default function TeacherScheduleTable() {
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes, deducted_minutes, started_at, ended_at)")
       .eq("teacher_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
 
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
+    // Batch profile/subscription lookups in chunks of 50 to avoid URL length limits (314+ students)
     const studentIds = [...new Set(data.map(b => b.student_id))];
-    const bookingIds = data.map(b => b.id);
-    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
-      supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds),
-      supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", studentIds).eq("is_active", true),
-      supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIds),
+    const CHUNK = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < studentIds.length; i += CHUNK) chunks.push(studentIds.slice(i, i + CHUNK));
+
+    const [profileResults, subResults] = await Promise.all([
+      Promise.all(chunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
+      Promise.all(chunks.map(c => supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", c).eq("is_active", true))),
     ]);
-    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
-    const subSet = new Set((subs ?? []).filter(s => s.sessions_remaining > 0).map(s => s.user_id));
-    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
+    const profiles = profileResults.flatMap(r => r.data ?? []);
+    const subs = subResults.flatMap(r => r.data ?? []);
+    const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
+    const subSet = new Set(subs.filter(s => s.sessions_remaining > 0).map(s => s.user_id));
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
     setLiveSessionIds(new Set(inProgress));
 
-    setBookings(data.map(b => ({
-      id: b.id,
-      scheduled_at: b.scheduled_at,
-      duration_minutes: b.duration_minutes,
-      status: b.status,
-      session_status: b.session_status,
-      student_id: b.student_id,
-      student_name: profileMap.get(b.student_id) || "طالب",
-      subject_name: (b.subjects as any)?.name || "مادة",
-      has_subscription: subSet.has(b.student_id),
-      actual_duration_minutes: sessionMap.get(b.id) ?? null,
-    })));
+    setBookings(data.map(b => {
+      const sess = (b as any).sessions?.[0] ?? null;
+      // Priority: teacher elapsed timer → deducted_minutes → wall-clock
+      let actualMins: number | null = (sess?.duration_minutes != null && sess.duration_minutes > 0) ? sess.duration_minutes : null;
+      if (actualMins == null && sess?.deducted_minutes && sess.deducted_minutes > 0) {
+        actualMins = sess.deducted_minutes;
+      }
+      if (actualMins == null && sess?.started_at && sess?.ended_at) {
+        actualMins = Math.max(1, Math.ceil((new Date(sess.ended_at).getTime() - new Date(sess.started_at).getTime()) / 60000));
+      }
+      return {
+        id: b.id,
+        scheduled_at: b.scheduled_at,
+        duration_minutes: b.duration_minutes,
+        status: b.status,
+        session_status: b.session_status,
+        student_id: b.student_id,
+        student_name: profileMap.get(b.student_id) || "طالب",
+        subject_name: (b.subjects as any)?.name || "مادة",
+        has_subscription: subSet.has(b.student_id),
+        actual_duration_minutes: actualMins,
+      };
+    }));
     setLoading(false);
   };
 
@@ -174,7 +189,7 @@ export default function TeacherScheduleTable() {
       teacher_id: user.id,
       student_id: studentId,
       scheduled_at: new Date().toISOString(),
-      duration_minutes: 60,
+      duration_minutes: 45,
       status: "confirmed" as any,
       session_status: "waiting_acceptance",
     }).select("id").single();
@@ -376,10 +391,12 @@ export default function TeacherScheduleTable() {
                                 <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
                                 <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
                                 <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
-                                <td className="py-2.5 px-3 text-muted-foreground">
-                                  {b.status === "completed" && b.actual_duration_minutes != null
-                                    ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
-                                    : <span className="text-muted-foreground/50">-</span>}
+                                <td className="py-2.5 px-3">
+                                  {b.actual_duration_minutes != null && b.actual_duration_minutes > 0
+                                    ? <span className="font-medium text-foreground">{Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}{b.actual_duration_minutes % 60} د</span>
+                                    : b.status === "completed"
+                                      ? <span className="text-xs text-amber-500/80">جلسة قصيرة</span>
+                                      : <span className="text-muted-foreground/40 text-xs">—</span>}
                                 </td>
                                 <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
                                 <td className="py-2.5 px-3">

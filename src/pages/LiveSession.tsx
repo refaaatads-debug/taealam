@@ -948,7 +948,7 @@ const LiveSession = () => {
   // On reconnect: resumes from the exact same point. Teacher broadcasts the
   // authoritative elapsed every second so the student stays in sync.
   // Tab switching and screen sharing do NOT pause the timer.
-  const connectionHealthy = isOnline && connectionState === "connected" && !peerDisconnected;
+  const connectionHealthy = isOnline && connectionState === "connected"; // peerDisconnected is informational only — does not pause timer or end session
   const shouldCount = meetingStarted && bothJoined && connectionHealthy;
   shouldCountRef.current = shouldCount;
 
@@ -971,7 +971,7 @@ const LiveSession = () => {
       if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: false });
     } else if (!shouldCount && wasCountingRef.current) {
       wasCountingRef.current = false;
-      const reason = !isOnline ? "offline" : peerDisconnected ? "peer_disconnect" : connectionState !== "connected" ? `rtc_${connectionState}` : "other";
+      const reason = !isOnline ? "offline" : connectionState !== "connected" ? 'rtc_' + connectionState : "other";
       logEvent("counter_pause", { elapsed, reason });
       if (isTeacher) sendDataMessage({ type: "timer-sync", elapsed, ts: Date.now(), paused: true });
       if (reason === "offline") toast.warning("⚠️ انقطع الإنترنت — سيستأنف العداد عند العودة", { duration: 4000 });
@@ -1748,10 +1748,10 @@ const LiveSession = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-600 text-card px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm"
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-500/90 text-white px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm backdrop-blur-sm"
           >
-            <WifiOff className="h-4 w-4" />
-            انقطع اتصال المشارك - مهلة إعادة الاتصال: {reconnectCountdown}ث
+            <WifiOff className="h-4 w-4 animate-pulse" />
+            إشارة المشارك ضعيفة — الجلسة مستمرة...
           </motion.div>
         )}
       </AnimatePresence>

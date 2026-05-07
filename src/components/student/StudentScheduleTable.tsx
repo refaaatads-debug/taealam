@@ -124,39 +124,54 @@ export default function StudentScheduleTable() {
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, teacher_id, subject_id, cancellation_reason, subjects(name)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, teacher_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes, deducted_minutes, started_at, ended_at)")
       .eq("student_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
 
     if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
 
+    // Teachers are few — direct lookup (no chunk needed). Student: lookup own sub only.
     const teacherIds = [...new Set(data.map(b => b.teacher_id))];
-    const bookingIdsList = data.map(b => b.id);
-    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
-      supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
-      supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").in("user_id", [user.id]).eq("is_active", true),
-      supabase.from("sessions").select("booking_id, duration_minutes").in("booking_id", bookingIdsList),
+    const CHUNK = 50;
+    const tChunks: string[][] = [];
+    for (let i = 0; i < teacherIds.length; i += CHUNK) tChunks.push(teacherIds.slice(i, i + CHUNK));
+
+    const [profileResults, subResult] = await Promise.all([
+      Promise.all(tChunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
+      supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").eq("user_id", user.id).eq("is_active", true),
     ]);
-    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
-    const hasSub = (subs ?? []).some(s => s.remaining_minutes > 4);
-    const sessionMap = new Map((sessions ?? []).map(s => [s.booking_id, s.duration_minutes]));
+    const profiles = profileResults.flatMap(r => r.data ?? []);
+    const subs = subResult.data ?? [];
+    const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
+    const hasSub = subs.some(s => s.remaining_minutes > 4);
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
     setLiveSessionIds(new Set(inProgress));
 
-    setBookings(data.map(b => ({
-      id: b.id,
-      scheduled_at: b.scheduled_at,
-      duration_minutes: b.duration_minutes,
-      status: b.status,
-      session_status: b.session_status,
-      teacher_id: b.teacher_id,
-      teacher_name: profileMap.get(b.teacher_id) || "معلم",
-      subject_name: (b.subjects as any)?.name || "مادة",
-      has_subscription: hasSub,
-      actual_duration_minutes: sessionMap.get(b.id) ?? null,
-    })));
+    setBookings(data.map(b => {
+      const sess = (b as any).sessions?.[0] ?? null;
+      // Priority: teacher elapsed timer → deducted_minutes → wall-clock
+      let actualMins: number | null = (sess?.duration_minutes != null && sess.duration_minutes > 0) ? sess.duration_minutes : null;
+      if (actualMins == null && sess?.deducted_minutes && sess.deducted_minutes > 0) {
+        actualMins = sess.deducted_minutes;
+      }
+      if (actualMins == null && sess?.started_at && sess?.ended_at) {
+        actualMins = Math.max(1, Math.ceil((new Date(sess.ended_at).getTime() - new Date(sess.started_at).getTime()) / 60000));
+      }
+      return {
+        id: b.id,
+        scheduled_at: b.scheduled_at,
+        duration_minutes: b.duration_minutes,
+        status: b.status,
+        session_status: b.session_status,
+        teacher_id: b.teacher_id,
+        teacher_name: profileMap.get(b.teacher_id) || "معلم",
+        subject_name: (b.subjects as any)?.name || "مادة",
+        has_subscription: hasSub,
+        actual_duration_minutes: actualMins,
+      };
+    }));
     setLoading(false);
   };
 
@@ -233,7 +248,7 @@ export default function StudentScheduleTable() {
       teacher_id: teacherId,
       student_id: user.id,
       scheduled_at: new Date().toISOString(),
-      duration_minutes: 60,
+      duration_minutes: 45,
       status: "confirmed" as any,
       session_status: "waiting_acceptance",
     }).select("id").single();
@@ -485,10 +500,12 @@ export default function StudentScheduleTable() {
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
-                                    <td className="py-2.5 px-3 text-muted-foreground">
-                                      {b.status === "completed" && b.actual_duration_minutes != null
-                                        ? `${Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}${b.actual_duration_minutes % 60} د`
-                                        : <span className="text-muted-foreground/50">-</span>}
+                                    <td className="py-2.5 px-3">
+                                      {b.actual_duration_minutes != null && b.actual_duration_minutes > 0
+                                        ? <span className="font-medium text-foreground">{Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}{b.actual_duration_minutes % 60} د</span>
+                                        : b.status === "completed"
+                                          ? <span className="text-xs text-amber-500/80">جلسة قصيرة</span>
+                                          : <span className="text-muted-foreground/40 text-xs">—</span>}
                                     </td>
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-2">

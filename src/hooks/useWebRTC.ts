@@ -60,6 +60,7 @@ export function useWebRTC({
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
+  const joinRetryIntervalRef = useRef<number | null>(null);
   const onDataMessageRef = useRef(onDataMessage);
   onDataMessageRef.current = onDataMessage;
 
@@ -249,6 +250,8 @@ export function useWebRTC({
       if (state === "connected") {
         detectIceTransportType(pc);
         reconnectAttemptsRef.current = 0;
+        // Stop join retry on connection established
+        if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
       }
       if (state === "disconnected") {
         // Auto-recovery: try ICE restart if still disconnected after 4s
@@ -409,6 +412,20 @@ export function useWebRTC({
     channelRef.current = channel;
     await createPeerConnection();
     await sendSignal("join", { userId });
+
+    // Retry "join" every 3 s until WebRTC connects — fixes race condition where
+    // one peer sends "join" before the other has subscribed to the channel.
+    if (joinRetryIntervalRef.current) clearInterval(joinRetryIntervalRef.current);
+    let _retryCount = 0;
+    joinRetryIntervalRef.current = window.setInterval(async () => {
+      const s = pcRef.current?.connectionState;
+      if (s === "connected" || _retryCount >= 15) {
+        if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+        return;
+      }
+      _retryCount++;
+      await sendSignal("join", { userId, retry: _retryCount });
+    }, 3000);
   }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
 
   const restartConnection = useCallback(async () => {
@@ -1000,6 +1017,7 @@ export function useWebRTC({
 
   const stop = useCallback(async () => {
     await sendSignal("leave", { userId });
+    if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -1019,6 +1037,7 @@ export function useWebRTC({
 
   useEffect(() => {
     return () => {
+      if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
