@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, X, Loader2, FileText } from "lucide-react";
+import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, X, Loader2, FileText, AlertTriangle, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -293,6 +293,11 @@ const StudentDashboard = () => {
   }, [user]);
 
   const displayName = profile?.full_name || "طالب";
+  const remainingMinutes = subscription?.remaining_minutes ?? 0;
+  const SESSION_MINUTES = 45;
+  const canBook = subscription && remainingMinutes >= SESSION_MINUTES;
+  const showLowBalanceBanner = !loading && subscription && remainingMinutes < SESSION_MINUTES && remainingMinutes > 0;
+  const showNoBanner = !loading && subscription && remainingMinutes <= 0;
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
@@ -325,6 +330,52 @@ const StudentDashboard = () => {
                 </div>
                 <Button asChild size="sm" className="rounded-lg shrink-0">
                   <Link to="/complete-profile?redirect=/student">استكمال الآن</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Low Balance Warning Banner */}
+        {showLowBalanceBanner && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <Card className="border-orange-300 dark:border-orange-700 bg-orange-50/80 dark:bg-orange-950/30">
+              <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">رصيدك لا يكفي لحجز حصة</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      رصيدك الحالي {remainingMinutes} دقيقة — الحصة الواحدة تحتاج {SESSION_MINUTES} دقيقة على الأقل
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="rounded-lg shrink-0 gradient-cta text-secondary-foreground shadow-button">
+                  <Link to="/pricing"><Zap className="ml-1 h-3.5 w-3.5" />تجديد الباقة</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* No Balance Warning Banner */}
+        {showNoBanner && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <Card className="border-red-300 dark:border-red-700 bg-red-50/80 dark:bg-red-950/30">
+              <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">انتهى رصيدك!</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">لا يمكنك حجز حصص حتى تجدد باقتك</p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="rounded-lg shrink-0 gradient-cta text-secondary-foreground shadow-button">
+                  <Link to="/pricing"><Zap className="ml-1 h-3.5 w-3.5" />اشترك الآن</Link>
                 </Button>
               </CardContent>
             </Card>

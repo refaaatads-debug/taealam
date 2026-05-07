@@ -90,12 +90,12 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
                   تنتهي الباقة: {new Date(stripeSubscription.subscription_end).toLocaleDateString("ar-SA")}
                 </p>
               )}
-              {remainingMinutes <= 60 && remainingMinutes > 0 && (
+              {remainingMinutes <= 45 && remainingMinutes > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 mb-3">
-                  <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold text-center">⚠️ رصيدك على وشك الانتهاء!</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold text-center">⚠️ رصيدك لا يكفي لحجز حصة — قارب على الانتهاء!</p>
                 </div>
               )}
-              {remainingMinutes <= 60 && (
+              {remainingMinutes <= 45 && (
                 <Button className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
                   <Link to="/pricing">تجديد الباقة <Zap className="mr-1 h-4 w-4" /></Link>
                 </Button>
