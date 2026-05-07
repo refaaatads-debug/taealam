@@ -1402,24 +1402,12 @@ const LiveSession = () => {
             .update({ status: "completed", session_status: "completed" })
             .eq("id", currentBookingId) as any
         );
-<<<<<<< HEAD
         // Per billing spec: always send timer-based duration (never rely on wall-clock in DB)
         const sessionUpdate: any = {
           ended_at: new Date().toISOString(),
           duration_seconds: durationSeconds,    // precise seconds for billing
           duration_minutes: durationMinutes,    // CEIL(seconds/60) — used by trigger
         };
-=======
-        const sessionUpdate: any = { ended_at: new Date().toISOString() };
-        // Teacher is source of truth — always save duration.
-        // Student also saves as fallback in case teacher tab crashed before endSession.
-        if (isTeacher) {
-          sessionUpdate.duration_minutes = durationMinutes > 0 ? durationMinutes : 1;
-        } else if (durationMinutes > 0) {
-          // Only overwrite if not already set by teacher (upsert-safe: teacher wins on conflict)
-          sessionUpdate.duration_minutes = durationMinutes;
-        }
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
         fastTasks.push(
           supabase.from("sessions")
             .update(sessionUpdate)
