@@ -33,7 +33,7 @@ const DomainSSLTab = () => {
       const saved = JSON.parse(localStorage.getItem(DEFAULT_DOMAINS_KEY) || "null");
       if (Array.isArray(saved) && saved.length > 0) return saved;
     } catch { /* ignore */ }
-    return ["ajyalaap.lovable.app"];
+    return ["ajyalalmaerifa.com"];
   });
   const [newDomain, setNewDomain] = useState("");
   const [checking, setChecking] = useState(false);

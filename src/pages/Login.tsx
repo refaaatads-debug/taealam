@@ -8,7 +8,6 @@ import { GraduationCap, Mail, Phone, Eye, EyeOff, ArrowRight, User, BookOpen, Us
 import brandLogo from "@/assets/logo.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { toast } from "sonner";
 import loginHero from "@/assets/login-hero.jpg";
@@ -182,14 +181,14 @@ const Login = () => {
         localStorage.setItem("pending_role", role);
       }
 
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin },
       });
-      if (result.error) {
-        toast.error(getAuthErrorMessage(result.error));
+      if (error) {
+        toast.error(getAuthErrorMessage(error));
         return;
       }
-      if (result.redirected) return;
     } catch (e) {
       toast.error(getAuthErrorMessage(e));
     } finally {
