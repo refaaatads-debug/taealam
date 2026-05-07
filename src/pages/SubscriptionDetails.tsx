@@ -20,6 +20,7 @@ interface DeductionRecord {
   short_session: boolean;
   started_at: string;
   ended_at: string;
+  scheduled_at: string;
   teacher_name: string;
   subject_name: string;
 }
@@ -74,18 +75,42 @@ const SubscriptionDetails = () => {
       const bookingIds = bookings.map(b => b.id);
       const teacherIds = [...new Set(bookings.map(b => b.teacher_id))];
 
-      const [sessionsRes, profilesRes] = await Promise.all([
+      // Get teacher_profiles.id for each teacher (teacher_subjects uses teacher_profiles.id not user_id)
+      const teacherProfilesRes = await supabase
+        .from("teacher_profiles")
+        .select("id, user_id")
+        .in("user_id", teacherIds);
+      const userIdToProfileId = new Map((teacherProfilesRes.data ?? []).map((tp: any) => [tp.user_id, tp.id]));
+      const profileIds = teacherIds.map(uid => userIdToProfileId.get(uid)).filter(Boolean) as string[];
+
+      const [sessionsRes, profilesRes, teacherSubjectsRes] = await Promise.all([
         supabase.from("sessions").select("booking_id, duration_minutes, deducted_minutes, teacher_earning, short_session, started_at, ended_at").in("booking_id", bookingIds),
         supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
+        profileIds.length > 0
+          ? supabase.from("teacher_subjects").select("teacher_id, subjects(name)").in("teacher_id", profileIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const sessionsMap = new Map((sessionsRes.data ?? []).map(s => [s.booking_id, s]));
       const profilesMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p.full_name]));
+      // Map teacher user_id -> first subject name as fallback (via teacher_profiles.id)
+      const teacherSubjectMap = new Map<string, string>();
+      (teacherSubjectsRes.data ?? []).forEach((ts: any) => {
+        // Find which user_id this teacher_profiles.id belongs to
+        for (const [userId, profileId] of userIdToProfileId.entries()) {
+          if (profileId === ts.teacher_id && ts.subjects?.name) {
+            if (!teacherSubjectMap.has(userId)) {
+              teacherSubjectMap.set(userId, ts.subjects.name);
+            }
+          }
+        }
+      });
 
       const records: DeductionRecord[] = bookings
         .map(b => {
           const session = sessionsMap.get(b.id);
           if (!session) return null;
+          const subjectName = (b.subjects as any)?.name || teacherSubjectMap.get(b.teacher_id) || "غير محدد";
           return {
             id: b.id,
             booking_id: b.id,
@@ -95,8 +120,9 @@ const SubscriptionDetails = () => {
             short_session: (session as any).short_session || false,
             started_at: session.started_at || b.scheduled_at,
             ended_at: session.ended_at || "",
+            scheduled_at: b.scheduled_at || session.started_at || "",
             teacher_name: profilesMap.get(b.teacher_id) || "معلم",
-            subject_name: (b.subjects as any)?.name || "مادة",
+            subject_name: subjectName,
           };
         })
         .filter(Boolean) as DeductionRecord[];
@@ -253,6 +279,40 @@ const SubscriptionDetails = () => {
                         <span className="text-sm font-black text-destructive">{totalDeducted} دقيقة</span>
                       </div>
 
+                      {/* Per-subject breakdown */}
+                      {Object.entries(
+                        deductions
+                          .filter(d => !d.short_session && d.deducted_minutes > 0)
+                          .reduce((acc: Record<string, {minutes:number;count:number}>, d) => {
+                            if (!acc[d.subject_name]) acc[d.subject_name] = {minutes:0,count:0};
+                            acc[d.subject_name].minutes += d.deducted_minutes;
+                            acc[d.subject_name].count += 1;
+                            return acc;
+                          }, {})
+                      ).length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground font-medium px-1">الخصومات حسب المادة:</p>
+                          {Object.entries(
+                            deductions
+                              .filter(d => !d.short_session && d.deducted_minutes > 0)
+                              .reduce((acc: Record<string, {minutes:number;count:number}>, d) => {
+                                if (!acc[d.subject_name]) acc[d.subject_name] = {minutes:0,count:0};
+                                acc[d.subject_name].minutes += d.deducted_minutes;
+                                acc[d.subject_name].count += 1;
+                                return acc;
+                              }, {})
+                          ).map(([subject, info]) => (
+                            <div key={subject} className="flex items-center justify-between px-3 py-2 rounded-xl bg-muted/40 border border-border/30">
+                              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                <BookOpen className="h-3 w-3 text-secondary" /> {subject}
+                                <span className="text-[10px] text-muted-foreground">({(info as any).count} جلسة)</span>
+                              </span>
+                              <span className="text-xs font-black text-destructive">-{(info as any).minutes} د</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {deductions.map((d, i) => (
                         <motion.div
                           key={d.id}
@@ -285,17 +345,20 @@ const SubscriptionDetails = () => {
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {d.started_at ? new Date(d.started_at).toLocaleDateString("ar-SA") : "—"}
+                              {d.scheduled_at ? new Date(d.scheduled_at).toLocaleDateString("ar-SA") : "—"}
+                              {d.scheduled_at ? " · " + new Date(d.scheduled_at).toLocaleTimeString("ar-SA", {hour:"2-digit",minute:"2-digit"}) : ""}
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              مدة الجلسة: {d.duration_minutes} دقيقة
+                              {d.short_session
+                                ? "أقل من 5 دقائق"
+                                : `مدة الجلسة: ${d.deducted_minutes} دقيقة`}
                             </span>
                           </div>
 
                           {d.short_session && (
                             <p className="text-[11px] text-muted-foreground bg-muted/30 rounded-lg px-2 py-1">
-                              ⏱️ الجلسة أقل من 5 دقائق - لم يتم الخصم
+                              الجلسة أقل من 5 دقائق - لم يتم الخصم من الباقة
                             </p>
                           )}
                         </motion.div>

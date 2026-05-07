@@ -250,18 +250,28 @@ export function useWebRTC({
       if (state === "connected") {
         detectIceTransportType(pc);
         reconnectAttemptsRef.current = 0;
+<<<<<<< HEAD
         // Stop join retry on connection established
         if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+=======
+        // If DataChannel was closed during reconnect, reopen it (initiator side)
+        const dc = dataChannelRef.current;
+        if (dc && dc.readyState === "closed") {
+          console.log("[webrtc] connection restored, reopening DataChannel");
+          const newDc = pc.createDataChannel("session-data", { ordered: true });
+          setupDataChannel(newDc);
+        }
+>>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
       }
       if (state === "disconnected") {
-        // Auto-recovery: try ICE restart if still disconnected after 4s
+        // Auto-recovery: try ICE restart if still disconnected after 12s (tolerate brief tab switches)
         setTimeout(() => {
           const cur = pcRef.current;
           if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
-            console.log("[webrtc] disconnected >4s — attempting ICE restart");
+            console.log("[webrtc] disconnected >12s — attempting ICE restart");
             restartConnection();
           }
-        }, 4000);
+        }, 12000);
       }
       if (state === "failed") {
         const attempt = reconnectAttemptsRef.current;
@@ -276,6 +286,7 @@ export function useWebRTC({
 
     pc.onnegotiationneeded = async () => {
       try {
+        if (pc.signalingState !== "stable") return;
         makingOfferRef.current = true;
         const offer = await pc.createOffer();
         if (pc.signalingState !== "stable") return;
@@ -341,8 +352,10 @@ export function useWebRTC({
         const offerCollision = makingOfferRef.current || pc.signalingState !== "stable";
         if (offerCollision && !isPolitePeer) return;
 
-        if (pc.signalingState !== "stable") {
+        if (pc.signalingState === "have-local-offer") {
           await pc.setLocalDescription({ type: "rollback" } as any);
+        } else if (pc.signalingState !== "stable") {
+          return;
         }
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         const answer = await pc.createAnswer();
@@ -369,17 +382,13 @@ export function useWebRTC({
         }
       } else if (signalType === "join") {
         onRemoteJoinRef.current?.();
-        // Remote peer (re)joined — rebuild our peer connection from scratch
-        // to ensure a clean ICE/DTLS handshake even if the previous one is stale.
-        const freshPc = await createPeerConnection();
+        // Remote peer (re)joined — rebuild the peer connection from scratch.
+        // Do NOT create an explicit offer here; onnegotiationneeded fires automatically
+        // after tracks are added, avoiding race conditions with concurrent offers
+        // that cause "m-line order mismatch" errors.
         pendingCandidatesRef.current = [];
-        try {
-          const offer = await freshPc.createOffer();
-          await freshPc.setLocalDescription(offer);
-          await sendSignal("offer", { sdp: freshPc.localDescription?.toJSON() });
-        } catch (err) {
-          console.error("Failed to send offer after remote join:", err);
-        }
+        makingOfferRef.current = false;
+        await createPeerConnection();
       } else if (signalType === "leave") {
         onRemoteLeaveRef.current?.();
       }
@@ -432,6 +441,7 @@ export function useWebRTC({
     const pc = pcRef.current;
     if (!pc) return;
     try {
+      if (pc.signalingState !== "stable") return;
       const offer = await pc.createOffer({ iceRestart: true });
       await pc.setLocalDescription(offer);
       await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });

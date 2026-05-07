@@ -133,6 +133,7 @@ export default function StudentScheduleTable() {
 
     // Teachers are few — direct lookup (no chunk needed). Student: lookup own sub only.
     const teacherIds = [...new Set(data.map(b => b.teacher_id))];
+<<<<<<< HEAD
     const CHUNK = 50;
     const tChunks: string[][] = [];
     for (let i = 0; i < teacherIds.length; i += CHUNK) tChunks.push(teacherIds.slice(i, i + CHUNK));
@@ -145,6 +146,25 @@ export default function StudentScheduleTable() {
     const subs = subResult.data ?? [];
     const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
     const hasSub = subs.some(s => s.remaining_minutes > 4);
+=======
+    const bookingIdsList = data.map(b => b.id);
+    const [{ data: profiles }, { data: subs }, { data: sessions }] = await Promise.all([
+      supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
+      supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").in("user_id", [user.id]).eq("is_active", true),
+      supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", bookingIdsList),
+    ]);
+    const profileMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
+    const hasSub = (subs ?? []).some(s => s.remaining_minutes > 4);
+    const sessionMap = new Map((sessions ?? []).map(s => {
+      // Use saved duration_minutes; fallback to computing from timestamps if null
+      let mins = s.duration_minutes;
+      if ((mins === null || mins === undefined) && s.started_at && s.ended_at) {
+        const diffMs = new Date(s.ended_at).getTime() - new Date(s.started_at).getTime();
+        mins = Math.ceil(diffMs / 60000);
+      }
+      return [s.booking_id, mins ?? null];
+    }));
+>>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
     setLiveSessionIds(new Set(inProgress));

@@ -15,7 +15,7 @@ import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterial
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
 
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
@@ -81,7 +82,7 @@ const TeacherDashboard = () => {
 
     const now = new Date().toISOString();
     // Fetch upcoming scheduled sessions + accepted instant sessions (in_progress)
-    const [{ data: upcomingScheduled }, { data: liveSessions }] = await Promise.all([
+    const [{ data: upcomingScheduled }, { data: liveSessions }, { data: waitingAcceptance }] = await Promise.all([
       supabase
         .from("bookings")
         .select("*, subjects(name)")
@@ -98,11 +99,19 @@ const TeacherDashboard = () => {
         .eq("session_status", "in_progress")
         .order("scheduled_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .eq("session_status", "waiting_acceptance")
+        .order("scheduled_at", { ascending: false })
+        .limit(10),
     ]);
     // Merge and deduplicate
     const allIds = new Set<string>();
     const upcoming: typeof upcomingScheduled = [];
-    [...(liveSessions || []), ...(upcomingScheduled || [])].forEach(b => {
+    [...(liveSessions || []), ...(waitingAcceptance || []), ...(upcomingScheduled || [])].forEach(b => {
       if (!allIds.has(b.id)) { allIds.add(b.id); upcoming.push(b); }
     });
 
@@ -254,7 +263,7 @@ const TeacherDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <BookingRequests />
+          <BookingRequests onAccepted={fetchData} />
 
           {/* Upcoming Sessions */}
           <Card className="border-0 shadow-card">
@@ -304,11 +313,17 @@ const TeacherDashboard = () => {
                           className="rounded-xl gap-1.5 px-3 border-secondary/30 text-secondary hover:bg-secondary/10"
                           onClick={async () => {
                             await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", s.id);
-                            toast.success(`تم إرسال طلب الانضمام إلى ${s.student_profile?.full_name || "الطالب"}`);
+                            toast.success(`تم قبول الجلسة — ابدأ الحصة الآن`, {
+                              duration: 8000,
+                              action: {
+                                label: "ابدأ الحصة",
+                                onClick: () => navigate(`/session?booking=${s.id}`),
+                              },
+                            });
                           }}
                         >
                           <Play className="h-4 w-4" />
-                          <span className="text-xs font-medium">أرسل طلب</span>
+                          <span className="text-xs font-medium">قبول وبدء</span>
                         </Button>
                         {isPhone ? (
                           <Button

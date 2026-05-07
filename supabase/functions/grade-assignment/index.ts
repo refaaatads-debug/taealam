@@ -19,8 +19,8 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY missing");
 
     // Require authenticated caller
     const authHeader = req.headers.get("Authorization") || "";
@@ -145,11 +145,13 @@ ${imageUrls.length > 0 ? `**يوجد ${imageUrls.length} صورة مرفقة م�
       }
     }
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://ajyalalmaerifa.com",
+        "X-Title": "Ajyal Al-Maerifa - Grade Assignment",
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-pro",
@@ -199,7 +201,6 @@ ${imageUrls.length > 0 ? `**يوجد ${imageUrls.length} صورة مرفقة م�
           },
         }],
         tool_choice: { type: "function", function: { name: "submit_grade" } },
-        reasoning: { effort: "medium" },
       }),
     });
 

@@ -111,6 +111,7 @@ const Profile = () => {
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
+    console.log("[Profile] Saving... user:", user.id, "isTeacher:", isTeacher, "teacherProfileId:", teacherProfileId);
     try {
       const { error: profileErr } = await supabase.from("profiles").update({
         full_name: fullName,
@@ -120,10 +121,11 @@ const Profile = () => {
         notify_subscription_expiry: notifyExpiry,
         ...(isStudent ? { teaching_stage: studentStage || null } : {}),
       } as any).eq("user_id", user.id);
-      if (profileErr) throw profileErr;
+      if (profileErr) { console.error("[Profile] profiles update error:", profileErr); throw profileErr; }
+      console.log("[Profile] profiles updated OK");
 
       if (isTeacher && teacherProfileId) {
-        const { error: teacherErr } = await supabase.from("teacher_profiles").update({
+        const updatePayload = {
           bio,
           years_experience: Number(yearsExp) || 0,
           available_from: availFrom || null,
@@ -133,20 +135,30 @@ const Profile = () => {
           iban: iban || null,
           account_holder_name: accountHolder || null,
           teaching_stages: teachingStages,
-        } as any).eq("id", teacherProfileId);
-        if (teacherErr) throw teacherErr;
+        };
+        console.log("[Profile] updating teacher_profiles id:", teacherProfileId, updatePayload);
+        const { error: teacherErr, data: teacherData } = await (supabase.from("teacher_profiles").update(updatePayload as any).eq("id", teacherProfileId) as any).select("id");
+        if (teacherErr) { console.error("[Profile] teacher_profiles update error:", teacherErr); throw teacherErr; }
+        console.log("[Profile] teacher_profiles updated, rows:", teacherData);
 
-        await supabase.from("teacher_subjects").delete().eq("teacher_id", teacherProfileId);
+        const { error: delErr } = await supabase.from("teacher_subjects").delete().eq("teacher_id", teacherProfileId);
+        if (delErr) console.error("[Profile] delete subjects error:", delErr);
         if (teacherSubjects.length > 0) {
-          await supabase.from("teacher_subjects").insert(
+          const { error: insErr } = await supabase.from("teacher_subjects").insert(
             teacherSubjects.map(sid => ({ teacher_id: teacherProfileId, subject_id: sid }))
           );
+          if (insErr) console.error("[Profile] insert subjects error:", insErr);
         }
+        console.log("[Profile] subjects updated OK");
+      } else if (isTeacher && !teacherProfileId) {
+        console.error("[Profile] teacherProfileId is NULL - teacher_profiles row not found for user:", user.id);
+        toast.warning("لم يتم العثور على ملف المعلم — تواصل مع الدعم");
       }
 
       toast.success("تم حفظ التغييرات بنجاح");
     } catch (err: any) {
-      toast.error("حدث خطأ: " + (err.message || ""));
+      console.error("[Profile] Save failed:", err);
+      toast.error("حدث خطأ: " + (err.message || JSON.stringify(err)));
     } finally {
       setSaving(false);
     }

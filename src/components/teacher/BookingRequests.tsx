@@ -35,19 +35,25 @@ interface RequestGroup {
   earliest_expires_at: string;
 }
 
-export default function BookingRequests() {
+interface BookingRequestsProps {
+  onAccepted?: () => void;
+}
+
+export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [expiredKeys, setExpiredKeys] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [impressionFor, setImpressionFor] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
   const { play: playSound } = useNotificationSound();
   const prevCountRef = useRef(0);
 
   useEffect(() => {
     if (!user) return;
     fetchRequests();
+    checkBusyStatus();
 
     const channel = supabase
       .channel("teacher-booking-requests")
@@ -58,10 +64,24 @@ export default function BookingRequests() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "booking_requests" }, () => {
         fetchRequests();
       })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` }, () => {
+        checkBusyStatus();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [user]);
+
+  const checkBusyStatus = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("teacher_id", user.id)
+      .eq("session_status", "in_progress")
+      .limit(1);
+    setIsBusy(!!(data && data.length > 0));
+  };
 
   const fetchRequests = async () => {
     if (!user) return;
@@ -194,6 +214,13 @@ export default function BookingRequests() {
       return;
     }
 
+    // ── Guard: Teacher must not be in an active session right now ──
+    await checkBusyStatus();
+    if (isBusy) {
+      toast.error("أنت حالياً في جلسة نشطة. انتهِ منها قبل قبول طلبات جديدة.");
+      return;
+    }
+
     // Conflict check for ALL slots in the group
     for (const r of group.items) {
       if (await hasConflict(r.scheduled_at, r.duration_minutes)) {
@@ -288,6 +315,7 @@ export default function BookingRequests() {
       }
 
       toast.success(count > 1 ? `تم قبول ${count} حصص بنجاح! 🎉` : "تم قبول الطلب بنجاح! 🎉");
+      onAccepted?.();
 
       // First-impression dialog (DB-deduped, only for brand-new platform users)
       const newBookingIds = (createdBookings || []).map((b: any) => b.id);
@@ -307,11 +335,16 @@ export default function BookingRequests() {
   return (
     <Card className="border-0 shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 font-bold">
+        <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <CalendarCheck className="h-4 w-4 text-primary" />
           </div>
           طلبات الحصص المتاحة
+          {isBusy && (
+            <Badge className="bg-amber-500/15 text-amber-600 border-0 text-xs animate-pulse">
+              🔴 مشغول الآن
+            </Badge>
+          )}
           {groups.length > 0 && (
             <Badge className="mr-auto bg-destructive/10 text-destructive border-0 text-xs">
               {groups.length} طلب
@@ -379,7 +412,8 @@ export default function BookingRequests() {
                     size="sm"
                     className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5 shrink-0"
                     onClick={() => handleAcceptGroup(g)}
-                    disabled={accepting === g.key || expiredKeys.has(g.key)}
+                    disabled={accepting === g.key || expiredKeys.has(g.key) || isBusy}
+                    title={isBusy ? "أنت في جلسة نشطة الآن" : undefined}
                   >
                     {accepting === g.key ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

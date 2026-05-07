@@ -33,7 +33,7 @@ export const useProfileComplete = () => {
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        const complete = !!(data?.full_name && data?.phone && (data as any)?.teaching_stage);
+        const complete = !!(data?.full_name);
         setIsComplete(complete);
         setLoading(false);
       });
