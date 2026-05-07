@@ -250,18 +250,8 @@ export function useWebRTC({
       if (state === "connected") {
         detectIceTransportType(pc);
         reconnectAttemptsRef.current = 0;
-<<<<<<< HEAD
         // Stop join retry on connection established
         if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
-=======
-        // If DataChannel was closed during reconnect, reopen it (initiator side)
-        const dc = dataChannelRef.current;
-        if (dc && dc.readyState === "closed") {
-          console.log("[webrtc] connection restored, reopening DataChannel");
-          const newDc = pc.createDataChannel("session-data", { ordered: true });
-          setupDataChannel(newDc);
-        }
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
       }
       if (state === "disconnected") {
         // Auto-recovery: try ICE restart if still disconnected after 12s (tolerate brief tab switches)

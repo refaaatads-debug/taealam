@@ -2,14 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-<<<<<<< HEAD
 const HEARTBEAT_INTERVAL = 15_000; // 15 seconds
 const PEER_STALE_THRESHOLD = 120_000; // 2 min — handles background-tab throttling
-=======
-const HEARTBEAT_INTERVAL = 10_000; // 10 seconds
-const DISCONNECT_TIMEOUT = 60_000; // 60 seconds grace period
-const PEER_DISCONNECT_THRESHOLD = 90_000; // 90s threshold (accounts for background tab throttling)
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
 const TAB_LOCK_KEY = "session_tab_lock_";
 
 function generateDeviceId(): string {
@@ -179,10 +173,6 @@ export function useSessionAntiCheat({
     // Register on start
     registerSession();
 
-<<<<<<< HEAD
-=======
-    // Send immediate heartbeat when tab regains focus (browser throttles background timers)
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
     const sendHeartbeat = async () => {
       try {
         await supabase
@@ -195,7 +185,6 @@ export function useSessionAntiCheat({
       }
     };
 
-<<<<<<< HEAD
     // Send heartbeat every 15s
     heartbeatRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
 
@@ -220,21 +209,6 @@ export function useSessionAntiCheat({
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pagehide", onPageHide);
-=======
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        sendHeartbeat();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    // Send heartbeat every 10s
-    heartbeatRef.current = window.setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
-
-    return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-      document.removeEventListener("visibilitychange", handleVisibility);
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
     };
   }, [enabled, userId, bookingId, isTabLocked, registerSession]);
 
@@ -258,7 +232,6 @@ export function useSessionAntiCheat({
         const now = Date.now();
         const elapsed = now - lastBeat;
 
-<<<<<<< HEAD
         if (elapsed > PEER_STALE_THRESHOLD && peer.is_connected) {
           // Peer heartbeat stale (tab throttled, weak network, etc.)
           // We show an informational banner only — do NOT auto-end the session.
@@ -268,29 +241,6 @@ export function useSessionAntiCheat({
             setReconnectCountdown(0);
             logEvent("peer_heartbeat_stale", { peer_user_id: peer.user_id, elapsed_ms: elapsed });
             toast.warning("⚠️ إشارة المشارك ضعيفة — الجلسة مستمرة...", { duration: 5000 });
-=======
-        if (elapsed > PEER_DISCONNECT_THRESHOLD && peer.is_connected) {
-          // Peer might be disconnected
-          if (!peerDisconnected) {
-            setPeerDisconnected(true);
-            setReconnectCountdown(120);
-            logEvent("peer_disconnect_detected", { peer_user_id: peer.user_id });
-            toast.warning("⚠️ انقطع اتصال المشارك الآخر. مهلة 60 ثانية لإعادة الاتصال...", { duration: 8000 });
-
-            // Start countdown
-            countdownRef.current = window.setInterval(() => {
-              setReconnectCountdown(prev => {
-                if (prev <= 1) {
-                  clearInterval(countdownRef.current);
-                  toast.error("انتهت مهلة إعادة الاتصال. سيتم إنهاء الجلسة.");
-                  logEvent("session_timeout", { reason: "peer_disconnect_timeout" });
-                  onForceEnd?.();
-                  return 0;
-                }
-                return prev - 1;
-              });
-            }, 1000);
->>>>>>> 2bbee1e (fix: update auth, sessions, booking, edge functions)
           }
         } else if (elapsed < PEER_STALE_THRESHOLD && peerDisconnected) {
           // Peer heartbeat restored
