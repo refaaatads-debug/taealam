@@ -150,7 +150,9 @@ export default function StudentScheduleTable() {
     setLiveSessionIds(new Set(inProgress));
 
     setBookings(data.map(b => {
-      const sess = (b as any).sessions?.[0] ?? null;
+      // sessions has UNIQUE constraint on booking_id → Supabase returns object not array
+      const sessRaw = (b as any).sessions;
+      const sess = (Array.isArray(sessRaw) ? sessRaw[0] : sessRaw) ?? null;
       // Priority: teacher elapsed timer → deducted_minutes → wall-clock
       let actualMins: number | null = (sess?.duration_minutes != null && sess.duration_minutes > 0) ? sess.duration_minutes : null;
       if (actualMins == null && sess?.deducted_minutes && sess.deducted_minutes > 0) {
