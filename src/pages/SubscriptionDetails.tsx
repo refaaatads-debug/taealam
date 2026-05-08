@@ -8,7 +8,6 @@ import { Clock, ArrowRight, Zap, Calendar, User, BookOpen, Timer, MinusCircle, C
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { useStudentBalance } from "@/hooks/useStudentBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -28,13 +27,9 @@ interface DeductionRecord {
 
 const SubscriptionDetails = () => {
   const { user } = useAuth();
-  const { subscriptions, aggregated, loading, refetch: refetchBalance } = useStudentBalance();
-  const subscription = aggregated ? {
-    ...aggregated,
-    subscription_plans: subscriptions[0]?.subscription_plans,
-    _aggregated_count: subscriptions.length,
-  } : null;
+  const [subscription, setSubscription] = useState<any>(null);
   const [deductions, setDeductions] = useState<DeductionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -43,6 +38,30 @@ const SubscriptionDetails = () => {
 
   const fetchData = async () => {
     if (!user) return;
+    setLoading(true);
+
+    // Fetch ALL active subscriptions and aggregate
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("*, subscription_plans(name_ar, tier, sessions_count)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("ends_at", new Date().toISOString())
+      .order("created_at", { ascending: false });
+    if (subs && subs.length > 0) {
+      const totalRemaining = subs.reduce((s, x: any) => s + (x.remaining_minutes || 0), 0);
+      const totalHours = subs.reduce((s, x: any) => s + (x.total_hours || 0), 0);
+      const totalSessions = subs.reduce((s, x: any) => s + (x.sessions_remaining || 0), 0);
+      setSubscription({
+        ...subs[0],
+        remaining_minutes: totalRemaining,
+        total_hours: totalHours,
+        sessions_remaining: totalSessions,
+        _aggregated_count: subs.length,
+      });
+    } else {
+      setSubscription(null);
+    }
 
     // Fetch completed sessions with deduction info
     const { data: bookings } = await supabase

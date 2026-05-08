@@ -9,7 +9,6 @@ import { CalendarCheck, Clock, CheckCircle, BookOpen, ArrowRight, ArrowLeft, Loa
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useStudentBalance } from "@/hooks/useStudentBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -62,12 +61,15 @@ const Booking = () => {
     prefilledSubjectParam || prefilledDayParam || draft?.selectedSlots?.length ? 2 : 1
   );
   const [loading, setLoading] = useState(false);
+  const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
+  const [reservedMinutes, setReservedMinutes] = useState(0);
   const SESSION_MINUTES = 45;
-  const { availableMinutes: remainingMinutes, existingBookingDates: existingBookings, loading: balanceLoading, refetch: refetchBalance } = useStudentBalance();
+  const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
   const canBook = remainingMinutes >= SESSION_MINUTES;
   const [teacherCount, setTeacherCount] = useState(0);
   const [directTeacherName, setDirectTeacherName] = useState("");
+  const [existingBookings, setExistingBookings] = useState<Date[]>([]);
   const [conflictKey, setConflictKey] = useState<string | null>(null);
 
   // Teacher availability
@@ -162,6 +164,54 @@ const Booking = () => {
         });
     }
 
+    // Fetch remaining minutes and reserve future booked/requested sessions from available balance
+    if (user) {
+      const now = new Date().toISOString();
+      const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      Promise.all([
+        supabase
+          .from("user_subscriptions")
+          .select("sessions_remaining, remaining_minutes")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .gt("remaining_minutes", 0)
+          .gt("ends_at", now),
+        supabase
+          .from("bookings")
+          .select("scheduled_at, duration_minutes")
+          .eq("student_id", user.id)
+          .in("status", ["pending", "confirmed"])
+          .gte("scheduled_at", now)
+          .lte("scheduled_at", future),
+        supabase
+          .from("booking_requests")
+          .select("scheduled_at, duration_minutes")
+          .eq("student_id", user.id)
+          .in("status", ["open", "accepted"])
+          .gte("scheduled_at", now)
+          .lte("scheduled_at", future),
+      ]).then(([subRes, b, r]) => {
+        const subsData = ((subRes.data || []) as any[]);
+        const remainMin = subsData.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
+        setBaseRemainingMinutes(Math.max(0, remainMin));
+
+        const reservedFromBookings = (b.data || []).reduce(
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          0
+        );
+        const reservedFromRequests = (r.data || []).reduce(
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          0
+        );
+
+        setReservedMinutes(reservedFromBookings + reservedFromRequests);
+
+        const all: Date[] = [];
+        (b.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        (r.data || []).forEach((x: any) => x.scheduled_at && all.push(new Date(x.scheduled_at)));
+        setExistingBookings(all);
+      });
+    }
 
     if (directTeacherId) {
       Promise.all([
@@ -368,7 +418,6 @@ const Booking = () => {
       }
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setStep(3);
-      setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
     } finally {
@@ -538,18 +587,6 @@ const Booking = () => {
                     </div>
                   ) : (
                     <>
-                      {/* رصيد باقتك المتاح */}
-                      {canBook && (
-                        <div className="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-secondary/10 border border-secondary/20">
-                          <div className="flex items-center gap-2">
-                            <Wallet className="h-4 w-4 text-secondary" />
-                            <span className="text-sm text-muted-foreground">رصيدك المتاح:</span>
-                            <span className="text-sm font-black text-secondary">{formatMinutes(remainingMinutes)}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{maxBookableSlots} حصة متاحة</span>
-                        </div>
-                      )}
-
                       {/* Subject Selection */}
                       <div className="mb-5">
                         <p className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
