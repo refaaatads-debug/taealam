@@ -559,9 +559,9 @@ const Booking = () => {
           </motion.div>
         )}
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {step === 1 && (
-            <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+            <motion.div key="step1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               <Card className="border-0 shadow-card">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2 font-bold">
@@ -769,7 +769,7 @@ const Booking = () => {
           )}
 
           {step === 2 && (
-            <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+            <motion.div key="step2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
               <Card className="border-0 shadow-card">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2 font-bold">
