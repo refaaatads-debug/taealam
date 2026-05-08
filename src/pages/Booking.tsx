@@ -268,8 +268,8 @@ const Booking = () => {
   };
 
   const isConflict = (dayIndex: number, time: string): boolean => {
-    if (!days[dayIndex]) return false;
-    const d = new Date(days[dayIndex].fullDate);
+    if (!allDays[dayIndex]) return false;
+    const d = new Date(allDays[dayIndex].fullDate);
     d.setHours(parseTimeHour(time), 0, 0, 0);
     return existingBookings.some(b => Math.abs(b.getTime() - d.getTime()) < 30 * 60 * 1000);
   };
@@ -324,12 +324,13 @@ const Booking = () => {
     setLoading(true);
     try {
       const scheduledDates = selectedSlots.map(slot => {
-        const day = days[slot.dayIndex].fullDate;
+        const day = (allDays[slot.dayIndex] ?? days[slot.dayIndex])?.fullDate;
+        if (!day) return null;
         const hour = parseTimeHour(slot.time);
         const scheduled = new Date(day);
         scheduled.setHours(hour, 0, 0, 0);
         return { ...slot, scheduled };
-      });
+      }).filter(Boolean) as typeof selectedSlots[0] & { scheduled: Date }[];
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = (directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name || "مادة";
@@ -353,7 +354,7 @@ const Booking = () => {
       const { error } = await supabase.from("booking_requests").insert(requests as any);
       if (error) throw error;
 
-      const slotsText = scheduledDates.map(sd => `${days[sd.dayIndex].label} ${sd.time}`).join(" • ");
+      const slotsText = scheduledDates.map(sd => `${(allDays[sd.dayIndex] ?? days[sd.dayIndex])?.label ?? ""} ${sd.time}`).join(" • ");
 
       if (directTeacherId) {
         await supabase.from("notifications").insert({
@@ -615,7 +616,8 @@ const Booking = () => {
                         {days.length === 0 ? (
                           <p className="text-sm text-muted-foreground py-3">لا توجد أيام متاحة</p>
                         ) : (
-                          days.map((d, i) => {
+                          days.map((d) => {
+                            const i = allDays.indexOf(d);
                             const daySlotCount = selectedSlots.filter(s => s.dayIndex === i).length;
                             const dayHasConflict = timeSlots.some(t => isConflict(i, t));
                             const isActive = selectedDay === i;
@@ -739,7 +741,7 @@ const Booking = () => {
                         <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-xl">
                           {selectedSlots.map((s, i) => (
                             <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs gap-1 pl-1.5">
-                              {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                              {allDays[s.dayIndex]?.label ?? "-"} {allDays[s.dayIndex]?.date ?? ""} - {s.time}
                               <button onClick={() => removeSlot(s.dayIndex, s.time)} className="hover:text-destructive">
                                 <X className="h-3 w-3" />
                               </button>
@@ -802,7 +804,7 @@ const Booking = () => {
                       <div className="flex flex-wrap gap-2">
                         {selectedSlots.map((s, i) => (
                           <Badge key={i} className="bg-secondary/10 text-secondary border-0 text-xs">
-                            {days[s.dayIndex].label} {days[s.dayIndex].date} - {s.time}
+                            {allDays[s.dayIndex]?.label ?? "-"} {allDays[s.dayIndex]?.date ?? ""} - {s.time}
                           </Badge>
                         ))}
                       </div>
