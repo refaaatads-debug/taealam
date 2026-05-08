@@ -40,21 +40,48 @@ const SubscriptionDetails = () => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch ALL active subscriptions and aggregate
-    const { data: subs } = await supabase
-      .from("user_subscriptions")
-      .select("*, subscription_plans(name_ar, tier, sessions_count)")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .gt("ends_at", new Date().toISOString())
-      .order("created_at", { ascending: false });
+    // Fetch ALL active subscriptions + reserved pending bookings (consistent with booking pages)
+    const now = new Date().toISOString();
+    const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const [subsRes, pendingBookings, pendingRequests] = await Promise.all([
+      supabase
+        .from("user_subscriptions")
+        .select("*, subscription_plans(name_ar, tier, sessions_count)")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .gt("remaining_minutes", 0)
+        .gt("ends_at", now)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("bookings")
+        .select("duration_minutes")
+        .eq("student_id", user.id)
+        .in("status", ["pending", "confirmed"])
+        .gte("scheduled_at", now)
+        .lte("scheduled_at", future),
+      supabase
+        .from("booking_requests")
+        .select("duration_minutes")
+        .eq("student_id", user.id)
+        .in("status", ["open", "accepted"])
+        .gte("scheduled_at", now)
+        .lte("scheduled_at", future),
+    ]);
+    const subs = subsRes.data;
     if (subs && subs.length > 0) {
-      const totalRemaining = subs.reduce((s, x: any) => s + (x.remaining_minutes || 0), 0);
-      const totalHours = subs.reduce((s, x: any) => s + (x.total_hours || 0), 0);
-      const totalSessions = subs.reduce((s, x: any) => s + (x.sessions_remaining || 0), 0);
+      const totalRemaining = subs.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
+      const totalHours = subs.reduce((s: number, x: any) => s + (x.total_hours || 0), 0);
+      const totalSessions = subs.reduce((s: number, x: any) => s + (x.sessions_remaining || 0), 0);
+      const reservedFromBookings = (pendingBookings.data || []).reduce(
+        (s: number, x: any) => s + Math.max(0, x.duration_minutes || 45), 0
+      );
+      const reservedFromRequests = (pendingRequests.data || []).reduce(
+        (s: number, x: any) => s + Math.max(0, x.duration_minutes || 45), 0
+      );
+      const netRemaining = Math.max(0, totalRemaining - reservedFromBookings - reservedFromRequests);
       setSubscription({
         ...subs[0],
-        remaining_minutes: totalRemaining,
+        remaining_minutes: netRemaining,
         total_hours: totalHours,
         sessions_remaining: totalSessions,
         _aggregated_count: subs.length,
