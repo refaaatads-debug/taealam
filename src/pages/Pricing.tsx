@@ -17,7 +17,7 @@ import { toast } from "sonner";
 const tierIcons: Record<string, typeof Star> = { free: Gift, basic: Star, standard: Sparkles, premium: Crown };
 
 const comparisonFeatures = [
-  { label: "حصص شهرية", key: "sessions" },
+  { label: "حصص شهرية", key: "sessions" }, { label: "مدة الحصة", key: "duration" },
   { label: "مدرس ذكي AI", key: "ai_tutor" },
   { label: "تسجيل الحصص", key: "recording" },
   { label: "أولوية الحجز", key: "priority" },
@@ -128,7 +128,7 @@ const Pricing = () => {
 
   const getFeatureValue = (plan: any, key: string) => {
     switch (key) {
-      case "sessions": return `${plan.sessions_count} حصة`;
+      case "sessions": return `${plan.sessions_count} حصة`; case "duration": return `${plan.session_duration_minutes || 45} دقيقة`;
       case "ai_tutor": return plan.has_ai_tutor;
       case "recording": return plan.has_recording;
       case "priority": return plan.has_priority_booking;

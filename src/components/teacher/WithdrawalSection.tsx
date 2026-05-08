@@ -54,7 +54,16 @@ export default function WithdrawalSection() {
     setCurrentMonthNet(Number(fb.net_total) || 0);
   };
 
+  // Prevent duplicate withdrawal requests while one is pending/approved/processing
+  const hasPendingWithdrawal = withdrawals.some(
+    (w: any) => w.status === "pending" || w.status === "approved" || w.status === "processing"
+  );
+
   const requestWithdrawal = async () => {
+    if (hasPendingWithdrawal) {
+      toast.error("لديك طلب سحب قيد المراجعة — انتظر حتى يتم البت فيه قبل إرسال طلب جديد");
+      return;
+    }
     if (!user || balance <= 0) {
       toast.error("لا يوجد رصيد كافٍ للسحب");
       return;
@@ -191,9 +200,15 @@ export default function WithdrawalSection() {
             )}
           </div>
 
+          {hasPendingWithdrawal && (
+            <div className="rounded-xl bg-orange-500/10 border border-orange-500/30 px-4 py-2.5 text-sm text-orange-700 dark:text-orange-400 flex items-center gap-2">
+              <span className="text-base">⏳</span>
+              <span>لديك طلب سحب قيد المراجعة. سيُتاح الطلب الجديد بعد البت في الطلب الحالي.</span>
+            </div>
+          )}
           <Button
             onClick={requestWithdrawal}
-            disabled={loading || balance <= 0}
+            disabled={loading || balance <= 0 || hasPendingWithdrawal}
             className="w-full gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

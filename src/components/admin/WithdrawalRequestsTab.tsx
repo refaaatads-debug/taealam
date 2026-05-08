@@ -131,6 +131,15 @@ export default function WithdrawalRequestsTab() {
           notes: notes || "دفع عبر تحويل بنكي",
         } as any);
 
+        // Mark all confirmed teacher_earnings as 'paid' so data stays consistent.
+        // The DB balance function now also uses paid withdrawal_requests as source of truth,
+        // but keeping earnings status accurate ensures the monthly table displays correctly.
+        await (supabase as any)
+          .from("teacher_earnings")
+          .update({ status: "paid" })
+          .eq("teacher_id", teacherId)
+          .eq("status", "confirmed");
+
         const [sessionsRes, violationsRes, warningsRes] = await Promise.all([
           supabase.from("bookings").select("scheduled_at, duration_minutes, price, status").eq("teacher_id", teacherId).eq("status", "completed"),
           (supabase as any).from("violations").select("violation_type, created_at, is_false_positive").eq("user_id", teacherId),

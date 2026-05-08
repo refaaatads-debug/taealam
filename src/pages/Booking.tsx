@@ -418,6 +418,7 @@ const Booking = () => {
       }
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setStep(3);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
     } finally {
@@ -587,6 +588,18 @@ const Booking = () => {
                     </div>
                   ) : (
                     <>
+                      {/* رصيد باقتك المتاح */}
+                      {canBook && (
+                        <div className="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-secondary/10 border border-secondary/20">
+                          <div className="flex items-center gap-2">
+                            <Wallet className="h-4 w-4 text-secondary" />
+                            <span className="text-sm text-muted-foreground">رصيدك المتاح:</span>
+                            <span className="text-sm font-black text-secondary">{formatMinutes(remainingMinutes)}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{maxBookableSlots} حصة متاحة</span>
+                        </div>
+                      )}
+
                       {/* Subject Selection */}
                       <div className="mb-5">
                         <p className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
