@@ -11,6 +11,7 @@ import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarChec
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { useStudentBalance } from "@/hooks/useStudentBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -64,8 +65,6 @@ const SearchTeacher = () => {
   const [selectedSlots, setSelectedSlots] = useState<{ dayIndex: number; time: string }[]>([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [teacherCount, setTeacherCount] = useState(0);
-  const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
-  const [reservedMinutes, setReservedMinutes] = useState(0);
   const [bookingSuccess, setBookingSuccess] = useState<{ slots: { dayLabel: string; time: string; date: string }[]; subjectName: string; teacherCount: number } | null>(null);
 
   // Filters for "اختر معلم محدد" section
@@ -75,54 +74,10 @@ const SearchTeacher = () => {
 
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   const QUICK_SESSION_MINUTES = 45;
-  const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
+  const { availableMinutes: remainingMinutes, loading: balanceLoading, refetch: refetchBalance } = useStudentBalance();
   const maxQuickSlots = Math.floor(remainingMinutes / QUICK_SESSION_MINUTES);
   const canQuickBook = remainingMinutes >= QUICK_SESSION_MINUTES;
 
-  // Fetch student's remaining sessions
-  useEffect(() => {
-    if (!user) return;
-    const now = new Date().toISOString();
-    const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-
-    Promise.all([
-      supabase
-        .from("user_subscriptions")
-        .select("sessions_remaining, remaining_minutes")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .gt("remaining_minutes", 0)
-        .gt("ends_at", now),
-      supabase
-        .from("bookings")
-        .select("duration_minutes")
-        .eq("student_id", user.id)
-        .in("status", ["pending", "confirmed"])
-        .gte("scheduled_at", now)
-        .lte("scheduled_at", future),
-      supabase
-        .from("booking_requests")
-        .select("duration_minutes")
-        .eq("student_id", user.id)
-        .in("status", ["open", "accepted"])
-        .gte("scheduled_at", now)
-        .lte("scheduled_at", future),
-    ]).then(([subRes, bookingsRes, requestsRes]) => {
-      const totalRemaining = ((subRes.data || []) as any[]).reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
-      setBaseRemainingMinutes(totalRemaining);
-
-      const reservedFromBookings = (bookingsRes.data || []).reduce(
-        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
-        0
-      );
-      const reservedFromRequests = (requestsRes.data || []).reduce(
-        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
-        0
-      );
-
-      setReservedMinutes(reservedFromBookings + reservedFromRequests);
-    });
-  }, [user]);
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
