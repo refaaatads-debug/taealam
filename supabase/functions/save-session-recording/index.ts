@@ -42,7 +42,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const user = { id: user.id };
 
     const admin = createClient(supabaseUrl, serviceKey);
 
