@@ -393,10 +393,10 @@ export default function TeacherPerformanceTab() {
               calculatedPrice = grossAmount; // gross = full teacher earnings
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5 && hourlyRate > 0) {
               // Old sessions: trigger ran but didn't set net_amount
-              calculatedPrice = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100; // gross direct
+              calculatedPrice = Math.round((session.deducted_minutes / 45) * 60 * 100) / 100; // spec: 60 SAR per 45 min
             } else if (actualSeconds && (actualSeconds / 60) >= 5 && hourlyRate > 0) {
               // Sessions with valid wall-time but no deducted_minutes
-              calculatedPrice = Math.round((actualSeconds / 3600) * hourlyRate * 100) / 100; // gross direct
+              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * 60 * 100) / 100; // spec: 60 SAR per 45 min
             }
           }
 
