@@ -31,7 +31,7 @@
 
   const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
   const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 
   // Regex patterns for personal info (Arabic + English)
   const PHONE_RE = /(\+?\d[\d\s\-]{6,}\d)/g;
@@ -48,13 +48,13 @@
   }
 
   async function aiCheckViolation(text: string): Promise<{ violation: boolean; type?: string; reason?: string }> {
-    if (!LOVABLE_API_KEY) return { violation: false };
+    if (!GEMINI_API_KEY) return { violation: false };
     try {
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: "gemini-2.5-flash",
           messages: [
             { role: "system", content: 'أنت محلل امتثال. حدد إن كان النص يحتوي محاولة تبادل بيانات تواصل خارجية (هاتف، إيميل، حساب سوشيال، رابط) بين معلم وطالب. أجب بـ JSON فقط: {"violation":true|false,"type":"phone_number|email|social_media_attempt|external_link|none","reason":"..."}' },
             { role: "user", content: text },

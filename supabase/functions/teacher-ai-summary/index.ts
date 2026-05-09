@@ -10,16 +10,16 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const { teacher_id, stats } = await req.json();
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) throw new Error("GEMINI_API_KEY missing");
 
     const prompt = `أنت محلل أداء معلمين. أنشئ ملخصاً ذكياً موجزاً (4-6 أسطر) باللغة العربية لمعلم بناءً على هذه الإحصائيات. ركّز على نقاط القوة والضعف وتوصيات للإدارة.\n\nالإحصائيات:\n${JSON.stringify(stats, null, 2)}`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: "أنت محلل بيانات معلمين متخصص. ردودك مختصرة ومفيدة بالعربية." },
           { role: "user", content: prompt },

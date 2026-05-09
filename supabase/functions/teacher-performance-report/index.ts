@@ -25,7 +25,7 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const start = Date.now();
     try {
-      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -51,11 +51,11 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
 
 async function evaluateOutput(apiKey: string, inputCtx: string, output: string) {
   try {
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -99,8 +99,8 @@ serve(async (req) => {
   try {
     const { teacher_name, total_hours, total_sessions, cancelled_sessions, students_count, avg_rating, total_reviews, sessions } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -115,8 +115,8 @@ serve(async (req) => {
     let evaluatorFeedback = "";
 
     try {
-      const aiResult = await callAIWithRetry(LOVABLE_API_KEY, {
-        model: "google/gemini-3-flash-preview",
+      const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -136,15 +136,15 @@ serve(async (req) => {
       const qualityScore = calculateQualityScore(report);
 
       // Evaluate
-      const evaluation = await evaluateOutput(LOVABLE_API_KEY, inputSummary, report);
+      const evaluation = await evaluateOutput(GEMINI_API_KEY, inputSummary, report);
       usefulnessScore = evaluation.usefulness_score;
       evaluatorFeedback = evaluation.feedback;
 
       // Regenerate if weak
       if (usefulnessScore < 6) {
         isRegenerated = true;
-        const regen = await callAIWithRetry(LOVABLE_API_KEY, {
-          model: "google/gemini-3-flash-preview",
+        const regen = await callAIWithRetry(GEMINI_API_KEY, {
+          model: "gemini-2.5-flash",
           messages: [
             {
               role: "system",
@@ -157,7 +157,7 @@ serve(async (req) => {
           ],
         });
         report = regen.result.choices?.[0]?.message?.content || report;
-        const reEval = await evaluateOutput(LOVABLE_API_KEY, inputSummary, report);
+        const reEval = await evaluateOutput(GEMINI_API_KEY, inputSummary, report);
         usefulnessScore = reEval.usefulness_score;
         evaluatorFeedback = reEval.feedback;
       }

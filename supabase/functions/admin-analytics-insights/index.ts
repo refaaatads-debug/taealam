@@ -41,7 +41,7 @@ serve(async (req) => {
     }
 
     const { summary } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 
     const prompt = `أنت محلل بيانات خبير لمنصة تعليمية عربية. حلّل البيانات التالية وقدّم:
 1. **التشخيص**: ما الأرقام تخبرنا بها؟
@@ -54,14 +54,14 @@ ${JSON.stringify(summary, null, 2)}
 
 اكتب التحليل بالعربية الفصحى المبسطة، منظم بعناوين، مختصر ومركّز (لا يتجاوز 400 كلمة). استخدم الأرقام المحددة.`;
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: "أنت محلل بيانات تعليمية محترف، تكتب بالعربية بأسلوب واضح ومباشر." },
           { role: "user", content: prompt },

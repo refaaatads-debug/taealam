@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const domains: string[] = Array.isArray(body.domains) && body.domains.length > 0
       ? body.domains
-      : ["ajyalaap.lovable.app"];
+      : ["ajyalalmaerifa.com"];
 
     const results = await Promise.all(domains.map(checkDomain));
 

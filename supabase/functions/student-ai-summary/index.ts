@@ -10,9 +10,9 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { stats, full } = body || {};
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing LOVABLE_API_KEY" }), {
+      return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -30,11 +30,11 @@ Deno.serve(async (req) => {
 
     const userMsg = `بيانات الطالب:\n${JSON.stringify(stats, null, 2)}`;
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [{ role: "system", content: sys }, { role: "user", content: userMsg }],
         ...(full ? { response_format: { type: "json_object" } } : {}),
       }),

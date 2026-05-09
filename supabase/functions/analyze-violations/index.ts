@@ -48,7 +48,7 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 2) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const start = Date.now();
     try {
-      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -72,8 +72,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -144,8 +144,8 @@ serve(async (req) => {
       // AI analysis with retry
       let analysis = { is_violation: true, confidence: 0.6, reason: "كشف بالأنماط (Regex)", violation_type: "contact_sharing" };
       try {
-        const aiResult = await callAIWithRetry(LOVABLE_API_KEY, {
-          model: "google/gemini-3-flash-preview",
+        const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
+          model: "gemini-2.5-flash",
           messages: [
             {
               role: "system",
