@@ -106,18 +106,24 @@ serve(async (req) => {
       });
     }
 
-    const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!ELEVENLABS_API_KEY) {
+    const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY") || "";
+    const ELEVENLABS_API_KEY_BACKUP = Deno.env.get("ELEVENLABS_API_KEY_BACKUP") || "";
+    if (!ELEVENLABS_API_KEY && !ELEVENLABS_API_KEY_BACKUP) {
       return new Response(JSON.stringify({ error: "ELEVENLABS_API_KEY missing" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get signed URL for WebSocket connection (more reliable than WebRTC token)
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
-      { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
-    );
+    // Get signed URL — primary key first, fallback to backup on quota/auth error
+    const tryGetSignedUrl = (key: string) =>
+      fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+        { headers: { "xi-api-key": key } });
+
+    let response = await tryGetSignedUrl(ELEVENLABS_API_KEY);
+    if ((response.status === 401 || response.status === 402 || response.status === 429) && ELEVENLABS_API_KEY_BACKUP) {
+      console.warn("ElevenLabs primary key exhausted, switching to backup key...");
+      response = await tryGetSignedUrl(ELEVENLABS_API_KEY_BACKUP);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
