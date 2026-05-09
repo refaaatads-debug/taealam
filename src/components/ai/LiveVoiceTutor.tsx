@@ -68,21 +68,23 @@ const VoiceTutorInner = () => {
       }
 
       const firstName = studentName ? studentName.split(" ")[0] : "";
-      const overrides = studentName
-        ? {
-            agent: {
-              firstMessage: `مرحباً ${firstName}! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟`,
-              prompt: {
-                prompt: `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${studentName}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". كن ودوداً وشخصياً وشجّعه على التعلم بالعربية والإنجليزية.`,
-              },
-            },
-          }
-        : undefined;
+      const overrides = {
+        agent: {
+          firstMessage: studentName
+            ? `مرحباً ${firstName}! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟`
+            : "مرحباً! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟",
+          prompt: {
+            prompt: studentName
+              ? `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${studentName}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.`
+              : "أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.",
+          },
+        },
+      };
 
       await conversation.startSession({
         signedUrl: data.signedUrl,
         connectionType: "webrtc",
-        ...(overrides ? { overrides } : {}),
+        overrides,
       } as any);
     } catch (e: any) {
       console.error("startSession error:", e);
@@ -122,8 +124,8 @@ const VoiceTutorInner = () => {
       </h3>
       <p className="text-sm text-muted-foreground mb-6">
         {isActive
-          ? "تحدث بشكل طبيعي - مارس العربية أو الإنجليزية"
-          : "تحدث مع المعلم الذكي بصوتك مباشرة"}
+          ? "تحدث بالعربية — معلمك الذكي يفهمك ويجيبك بالعربية"
+          : "تحدث مع المعلم الذكي بصوتك مباشرة بالعربية"}
       </p>
 
       {hasPremium === false && !isActive && (
@@ -146,7 +148,7 @@ const VoiceTutorInner = () => {
       {!isActive ? (
         <Button onClick={start} disabled={connecting || hasPremium !== true} size="lg" className="gap-2 rounded-full px-8">
           {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-          {connecting ? "جاري الاتصال..." : "ابدأ المحادثة"}
+          {connecting ? "جاري الاتصال..." : "ابدأ المحادثة بالعربية"}
         </Button>
       ) : (
         <Button onClick={stop} size="lg" variant="destructive" className="gap-2 rounded-full px-8">
@@ -155,7 +157,7 @@ const VoiceTutorInner = () => {
       )}
 
       <p className="text-xs text-muted-foreground mt-6">
-        💡 جرّب: "علّمني نطق هذه الكلمة" أو "صحّح جملتي بالإنجليزية"
+        💡 جرّب: "اشرح لي هذه المسألة" أو "صحّح إجابتي" أو "لخّص لي هذا الدرس"
       </p>
     </div>
   );
