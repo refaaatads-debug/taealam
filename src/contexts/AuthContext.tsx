@@ -309,6 +309,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        // Verify the session is still valid on the server (catches orphaned JWTs)
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          const code = (userError as any)?.code ?? '';
+          const status = (userError as any)?.status ?? 0;
+          if (code === 'session_not_found' || code === 'user_not_found' || status === 403 || status === 401) {
+            // Session exists in browser but not on server — force local sign-out
+            await supabase.auth.signOut({ scope: 'local' });
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setRoles([]);
+            setLoading(false);
+            return;
+          }
+        }
+      }
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
