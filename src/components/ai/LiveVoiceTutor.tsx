@@ -83,7 +83,7 @@ const VoiceTutorInner = () => {
 
       await conversation.startSession({
         signedUrl: data.signedUrl,
-        connectionType: "webrtc",
+        connectionType: "websocket",
         overrides,
       } as any);
     } catch (e: any) {
