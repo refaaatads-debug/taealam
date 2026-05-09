@@ -46,6 +46,9 @@ interface SessionDetail {
   actual_seconds: number | null;
   status: string;
   price: number | null;
+  net_amount: number;
+  gross_amount: number;
+  short_session: boolean;
 }
 
 interface FilteredStats {
@@ -228,8 +231,17 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                         ? `${s.duration_minutes} دقيقة`
                         : <span className="text-muted-foreground text-xs">لا توجد بيانات</span>}
                   </td>
-                  <td className="py-2 text-muted-foreground">
-                    {s.price ? `${s.price} ر.س` : "—"}
+                  <td className="py-2">
+                    {s.status === "completed" ? (
+                      s.short_session ? (
+                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">جلسة قصيرة</span>
+                      ) : s.net_amount > 0 ? (
+                        <div className="text-xs leading-tight">
+                          <div className="font-semibold text-green-600">{s.net_amount} ر.س</div>
+                          <div className="text-muted-foreground text-[10px]">إجمالي: {s.gross_amount} ر.س</div>
+                        </div>
+                      ) : "—"
+                    ) : "—"}
                   </td>
                   <td className="py-2">
                     <Badge variant={statusVar(s.status)} className="text-[10px]">
@@ -305,7 +317,7 @@ export default function TeacherPerformanceTab() {
       let allSessions: any[] = [];
       for (let i = 0; i < allBookingIds.length; i += batchSize) {
         const batch = allBookingIds.slice(i, i + batchSize);
-        const { data } = await supabase.from("sessions").select("booking_id, duration_minutes, started_at, ended_at").in("booking_id", batch);
+        const { data } = await supabase.from("sessions").select("booking_id, duration_minutes, duration_seconds, deducted_minutes, started_at, ended_at, net_amount, gross_amount, short_session").in("booking_id", batch);
         if (data) allSessions = allSessions.concat(data);
       }
 
@@ -331,41 +343,43 @@ export default function TeacherPerformanceTab() {
         let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
           const session = sessionMap.get(b.id);
-          const actualDuration = session?.duration_minutes || null;
+          const actualDuration = (session?.duration_minutes && session.duration_minutes > 0)
+            ? session.duration_minutes
+            : (session?.deducted_minutes && session.deducted_minutes > 0)
+              ? session.deducted_minutes
+              : null;
           let actualSeconds: number | null = null;
           
-          if (b.status === "completed" && session?.started_at && session?.ended_at) {
-            actualSeconds = Math.floor(
-              (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
-            );
-            if (actualSeconds > 0) {
-              totalActualSeconds += actualSeconds;
+          if (b.status === "completed" && session) {
+            // Priority: duration_seconds (DB stored) > timestamps diff > deducted_minutes > duration_minutes
+            if (session.duration_seconds && session.duration_seconds > 0) {
+              actualSeconds = session.duration_seconds;
+            } else if (session.started_at && session.ended_at) {
+              const fromTs = Math.floor(
+                (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
+              );
+              if (fromTs > 0) actualSeconds = fromTs;
             }
-          } else if (b.status === "completed" && session?.duration_minutes) {
-            actualSeconds = session.duration_minutes * 60;
-            totalActualSeconds += actualSeconds;
+            if (!actualSeconds || actualSeconds <= 0) {
+              if (session.deducted_minutes && session.deducted_minutes > 0) {
+                actualSeconds = session.deducted_minutes * 60;
+              } else if (session.duration_minutes && session.duration_minutes > 0) {
+                actualSeconds = session.duration_minutes * 60;
+              }
+            }
+            if (actualSeconds && actualSeconds > 0) totalActualSeconds += actualSeconds;
           }
           if (b.status === "completed" && actualDuration) {
             totalActualMinutes += actualDuration;
           }
 
-          // Pricing rules:
-          //  • Sessions shorter than 5 minutes are totally ignored (no earnings)
-          //  • Sessions of 5 minutes or more: charge the FULL duration (seconds-precise)
-          let calculatedPrice: number | null = null;
-          if (b.status === "completed" && hourlyRate > 0) {
-            const durationInMinutes = actualSeconds != null && actualSeconds > 0
-              ? actualSeconds / 60
-              : actualDuration && actualDuration > 0
-                ? actualDuration
-                : b.duration_minutes;
-
-            if (durationInMinutes >= 5) {
-              calculatedPrice = Math.round((hourlyRate / 60) * durationInMinutes * 10) / 10;
-            } else {
-              calculatedPrice = 0;
-            }
-          }
+          // Use net_amount from DB — set by auto_complete_session trigger
+          // Architecture: gross=(deducted_min/60)*hourly_rate, platform_fee=gross*0.60, net=gross*0.40
+          // short_session=true means session < 5 min → no earnings
+          const netAmount = session ? (Number(session.net_amount) || 0) : 0;
+          const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
+          const isShort = session ? (session.short_session === true) : false;
+          const calculatedPrice = (b.status === "completed" && !isShort) ? netAmount : 0;
 
           return {
             booking_id: b.id,
@@ -378,6 +392,9 @@ export default function TeacherPerformanceTab() {
             actual_seconds: actualSeconds,
             status: b.status,
             price: calculatedPrice,
+            net_amount: netAmount,
+            gross_amount: grossAmount,
+            short_session: isShort,
           };
         });
 
@@ -532,7 +549,7 @@ export default function TeacherPerformanceTab() {
                   { key: "name", label: "المعلم" },
                   { key: "duration", label: "المدة الفعلية (س:د:ث)" },
                   { key: "hours", label: "الساعات" },
-                  { key: "earnings", label: "إجمالي الأرباح (ر.س)" },
+                  { key: "earnings", label: "أرباح المعلم صافي (ر.س)" },
                   { key: "sessions", label: "الحصص المكتملة" },
                   { key: "cancelled", label: "الحصص الملغاة" },
                   { key: "students", label: "عدد الطلاب" },
@@ -636,7 +653,7 @@ export default function TeacherPerformanceTab() {
                                   { label: "حصص مكتملة", value: displayStats.completedCount, icon: BookOpen, color: "text-green-600" },
                                   { label: "حصص ملغاة", value: displayStats.cancelledCount, icon: BookOpen, color: "text-destructive" },
                                   { label: "عدد الطلاب", value: displayStats.studentsCount, icon: Users, color: "text-secondary" },
-                                  { label: "إجمالي السعر", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
+                                  { label: "أرباح المعلم (صافي)", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
                                   { label: "التقييم", value: displayStats.rating, icon: Star, color: "text-yellow-500" },
                                 ].map((stat, i) => (
                                   <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">
