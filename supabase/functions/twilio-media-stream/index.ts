@@ -1,7 +1,7 @@
 // Twilio Media Streams WebSocket → ElevenLabs Realtime STT → AI/Regex violation detection
 // Receives μ-law 8kHz base64 audio chunks from Twilio, streams them to ElevenLabs,
 // scans transcripts for personal info, logs to violations + call_transcripts.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
