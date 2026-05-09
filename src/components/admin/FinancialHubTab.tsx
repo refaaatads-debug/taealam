@@ -33,6 +33,8 @@ export default function FinancialHubTab() {
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const [platformSummary, setPlatformSummary] = useState<any | null>(null);
   const [platformMonth, setPlatformMonth] = useState<string>("");
+  const [platformFrom, setPlatformFrom] = useState<string>("");
+  const [platformTo, setPlatformTo] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -113,10 +115,15 @@ export default function FinancialHubTab() {
     }
   };
 
-  const loadPlatformSummary = async (month?: string) => {
+  const loadPlatformSummary = async (month?: string, from?: string, to?: string) => {
+    const m = month !== undefined ? month : platformMonth;
+    const f = from !== undefined ? from : platformFrom;
+    const t2 = to !== undefined ? to : platformTo;
     try {
       const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, {
-        _month: month && month.length > 0 ? month : null,
+        _month: m && m.length > 0 ? m : null,
+        _from_date: f && f.length > 0 ? f : null,
+        _to_date: t2 && t2.length > 0 ? t2 : null,
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
@@ -261,7 +268,7 @@ export default function FinancialHubTab() {
   const platformExportRows = useMemo(() => {
     if (!platformSummary) return [];
     return [{
-      month: platformMonth || "الكل",
+      month: platformMonth || (platformFrom && platformTo ? `${platformFrom} → ${platformTo}` : platformFrom || platformTo || "الكل"),
       total_revenue: Number(platformSummary.total_revenue || 0).toFixed(2),
       total_vat: Number(platformSummary.total_vat || 0).toFixed(2),
       total_platform_earnings: Number(platformSummary.total_platform_earnings || 0).toFixed(2),
@@ -389,19 +396,38 @@ export default function FinancialHubTab() {
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle>أرباح المنصة المالية</CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Input
                   type="month"
                   value={platformMonth}
                   onChange={(e) => setPlatformMonth(e.target.value)}
-                  className="w-40"
+                  className="w-36"
+                  placeholder="شهر محدد"
                 />
-                <Button size="sm" onClick={() => loadPlatformSummary(platformMonth)}>
+                <span className="text-muted-foreground text-xs">أو نطاق:</span>
+                <Input
+                  type="date"
+                  value={platformFrom}
+                  onChange={(e) => setPlatformFrom(e.target.value)}
+                  className="w-36"
+                  title="من تاريخ"
+                />
+                <Input
+                  type="date"
+                  value={platformTo}
+                  onChange={(e) => setPlatformTo(e.target.value)}
+                  className="w-36"
+                  title="إلى تاريخ"
+                />
+                <Button size="sm" onClick={() => loadPlatformSummary(platformMonth, platformFrom, platformTo)}>
                   <RefreshCw className="h-4 w-4 ml-2" />
-                  تحديث
+                  تصفية
                 </Button>
-                {platformMonth && (
-                  <Button size="sm" variant="ghost" onClick={() => { setPlatformMonth(""); loadPlatformSummary(""); }}>
+                {(platformMonth || platformFrom || platformTo) && (
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setPlatformMonth(""); setPlatformFrom(""); setPlatformTo("");
+                    loadPlatformSummary("", "", "");
+                  }}>
                     <X className="h-4 w-4 ml-1" />
                     مسح
                   </Button>

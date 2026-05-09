@@ -238,10 +238,10 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                     {s.status === "completed" ? (
                       s.short_session ? (
                         <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">جلسة قصيرة</span>
-                      ) : s.net_amount > 0 ? (
+                      ) : s.gross_amount > 0 ? (
                         <div className="text-xs leading-tight">
-                          <div className="font-semibold text-green-600">{s.net_amount} ر.س</div>
-                          <div className="text-muted-foreground text-[10px]">إجمالي: {s.gross_amount} ر.س</div>
+                          <div className="font-semibold text-green-600">{s.gross_amount} ر.س</div>
+                          <div className="text-muted-foreground text-[10px]">صافي بعد العمولة: {s.net_amount} ر.س</div>
                         </div>
                       ) : "—"
                     ) : "—"}
@@ -382,7 +382,6 @@ export default function TeacherPerformanceTab() {
           // 2. net_amount = 0 + deducted_minutes >= 5 → old session, recalculate
           // 3. net_amount = 0 + valid wall-time >= 5 min → use wall-time
           // 4. < 5 min → 0 earnings (short session rule)
-          const PLATFORM_FEE_RATE = 0.60;
           const netAmount = session ? (Number(session.net_amount) || 0) : 0;
           const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
           const isShort = session ? (session.short_session === true) : false;
@@ -390,17 +389,14 @@ export default function TeacherPerformanceTab() {
           if (b.status === "completed") {
             if (isShort) {
               calculatedPrice = 0; // < 5 min rule
-            } else if (netAmount > 0) {
-              calculatedPrice = netAmount; // DB authoritative value
+            } else if (grossAmount > 0) {
+              calculatedPrice = grossAmount; // gross = full teacher earnings
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5 && hourlyRate > 0) {
               // Old sessions: trigger ran but didn't set net_amount
-              const gross = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100;
-              calculatedPrice = Math.round(gross * (1 - PLATFORM_FEE_RATE) * 100) / 100;
+              calculatedPrice = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100; // gross direct
             } else if (actualSeconds && (actualSeconds / 60) >= 5 && hourlyRate > 0) {
               // Sessions with valid wall-time but no deducted_minutes
-              const wallMin = actualSeconds / 60;
-              const gross = Math.round((wallMin / 60) * hourlyRate * 100) / 100;
-              calculatedPrice = Math.round(gross * (1 - PLATFORM_FEE_RATE) * 100) / 100;
+              calculatedPrice = Math.round((actualSeconds / 3600) * hourlyRate * 100) / 100; // gross direct
             }
           }
 
@@ -573,7 +569,7 @@ export default function TeacherPerformanceTab() {
                   { key: "name", label: "المعلم" },
                   { key: "duration", label: "المدة الفعلية (س:د:ث)" },
                   { key: "hours", label: "الساعات" },
-                  { key: "earnings", label: "أرباح المعلم صافي (ر.س)" },
+                  { key: "earnings", label: "أرباح المعلم إجمالي (ر.س)" },
                   { key: "sessions", label: "الحصص المكتملة" },
                   { key: "cancelled", label: "الحصص الملغاة" },
                   { key: "students", label: "عدد الطلاب" },
@@ -677,7 +673,7 @@ export default function TeacherPerformanceTab() {
                                   { label: "حصص مكتملة", value: displayStats.completedCount, icon: BookOpen, color: "text-green-600" },
                                   { label: "حصص ملغاة", value: displayStats.cancelledCount, icon: BookOpen, color: "text-destructive" },
                                   { label: "عدد الطلاب", value: displayStats.studentsCount, icon: Users, color: "text-secondary" },
-                                  { label: "أرباح المعلم (صافي)", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
+                                  { label: "أرباح المعلم (إجمالي)", value: `${Math.round(displayStats.totalPrice * 10) / 10} ر.س`, icon: DollarSign, color: "text-green-600" },
                                   { label: "التقييم", value: displayStats.rating, icon: Star, color: "text-yellow-500" },
                                 ].map((stat, i) => (
                                   <div key={i} className="bg-muted/40 rounded-xl p-3 text-center">

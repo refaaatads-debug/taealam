@@ -1,5 +1,5 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
   const [studentName, setStudentName] = useState<string>("");
   const [hasPremium, setHasPremium] = useState<boolean | null>(null);
+  const [disconnectMsg, setDisconnectMsg] = useState<string>("");
+  const sessionStartRef = useRef<number>(0);
 
   useEffect(() => {
     (async () => {
@@ -35,8 +37,18 @@ const VoiceTutorInner = () => {
   }, []);
 
   const conversation = useConversation({
-    onConnect: () => toast.success("تم الاتصال بالمعلم الذكي 🎙️"),
-    onDisconnect: () => toast.info("انتهت المحادثة"),
+    onConnect: () => { sessionStartRef.current = Date.now(); setDisconnectMsg(""); toast.success("تم الاتصال بالمعلم الذكي 🎙️"); },
+    onDisconnect: () => {
+      const duration = sessionStartRef.current ? (Date.now() - sessionStartRef.current) / 1000 : 99;
+      if (duration < 12 && sessionStartRef.current > 0) {
+        setDisconnectMsg("⚠️ انقطع الاتصال تلقائياً — حاول مرة أخرى أو تحقق من إعدادات المتصفح.");
+        toast.error("انقطع الاتصال تلقائياً، يرجى المحاولة مرة أخرى");
+      } else {
+        setDisconnectMsg("");
+        toast.info("انتهت المحادثة");
+      }
+      sessionStartRef.current = 0;
+    },
     onError: (e: any) => {
       console.error("ElevenLabs error:", e);
       toast.error("خطأ في المحادثة الصوتية");
@@ -69,7 +81,7 @@ const VoiceTutorInner = () => {
 
       await conversation.startSession({
         signedUrl: data.signedUrl,
-        connectionType: "websocket",
+        connectionType: "webrtc",
         ...(overrides ? { overrides } : {}),
       } as any);
     } catch (e: any) {
@@ -122,6 +134,12 @@ const VoiceTutorInner = () => {
               ترقية الباقة
             </Button>
           </div>
+        </div>
+      )}
+
+      {disconnectMsg && (
+        <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-sm text-destructive max-w-md mx-auto text-center">
+          {disconnectMsg}
         </div>
       )}
 
