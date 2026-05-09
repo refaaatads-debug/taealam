@@ -34,15 +34,15 @@ serve(async (req) => {
 
     const authClient = createClient(supabaseUrl, anonKey);
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: authError } = await authClient.auth.getClaims(token);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
 
-    if (authError || !claimsData?.claims?.sub) {
+    if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: "Authentication failed" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const user = { id: claimsData.claims.sub };
+    const user = { id: user.id };
 
     const admin = createClient(supabaseUrl, serviceKey);
 

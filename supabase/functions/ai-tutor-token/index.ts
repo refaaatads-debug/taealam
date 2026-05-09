@@ -25,13 +25,12 @@ serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !claimsData?.claims?.sub) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const user = { id: claimsData.claims.sub };
 
     // Check premium subscription with detailed reason classification
     const nowIso = new Date().toISOString();

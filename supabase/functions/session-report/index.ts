@@ -247,13 +247,13 @@ serve(async (req) => {
     // Verify user via JWT claims (works even if session record is missing)
     const authClient = createClient(supabaseUrl, anonKey);
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: authError } = await authClient.auth.getClaims(token);
-    if (authError || !claimsData?.claims?.sub) {
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+    if (authError || !user?.id) {
       return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const authUser = { id: claimsData.claims.sub, email: claimsData.claims.email as string | undefined };
+    const authUser = { id: user.id, email: claimsData.claims.email as string | undefined };
 
     const { booking_id, session_stats } = await req.json();
     if (!booking_id) throw new Error("booking_id is required");

@@ -28,8 +28,8 @@ serve(async (req) => {
       const userClient = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: `Bearer ${token}` } },
       });
-      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-      const userId = claimsData?.claims?.sub;
+      const { data: claimsData, error: claimsError } = await supabaseClient.auth.getUser(token);
+      const userId = user?.id;
       if (claimsError || !userId) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },

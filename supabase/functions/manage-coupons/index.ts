@@ -27,12 +27,12 @@ serve(async (req) => {
     );
 
     // Verify JWT locally via getClaims (avoids slow /user network call)
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
+    const { data: { user: claimsUser }, error: claimsError } = await supabaseClient.auth.getUser(token);
+    if (claimsError || !claimsUser?.id) {
       console.error("Auth getClaims failed:", claimsError);
       throw new Error("Authentication failed");
     }
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     const { data: roleData } = await supabaseClient
       .from("user_roles")
