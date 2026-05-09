@@ -90,12 +90,17 @@ serve(async (req) => {
     if (speak && text) {
       const { data: voiceSetting } = await supabase.from("site_settings").select("value").eq("key", "ai_tutor_voice_id").maybeSingle();
       const voiceId = voiceSetting?.value?.trim() || "EXAVITQu4vr4xnSDxMaL";
-      const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
-      if (ELEVENLABS_API_KEY) {
+      const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY") || "";
+      const ELEVENLABS_API_KEY_BACKUP = Deno.env.get("ELEVENLABS_API_KEY_BACKUP") || "";
+      if (ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP) {
         try {
-          const ttsResp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-            { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json" },
-              body: JSON.stringify({ text: text.slice(0, 1000), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 } }) });
+          const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
+          const ttsBody = JSON.stringify({ text: text.slice(0, 1000), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 } });
+          let ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json" }, body: ttsBody });
+          if ((ttsResp.status === 401 || ttsResp.status === 402 || ttsResp.status === 429) && ELEVENLABS_API_KEY_BACKUP) {
+            console.warn("ElevenLabs TTS primary key exhausted, switching to backup key...");
+            ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY_BACKUP, "Content-Type": "application/json" }, body: ttsBody });
+          }
           if (ttsResp.ok) { const buf = await ttsResp.arrayBuffer(); audioBase64 = base64Encode(new Uint8Array(buf)); }
           else console.error("TTS error:", ttsResp.status, await ttsResp.text());
         } catch (e) { console.error("TTS exception:", e); }
