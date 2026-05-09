@@ -1,16 +1,27 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2500;
 
 const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
   const [studentName, setStudentName] = useState<string>("");
   const [hasPremium, setHasPremium] = useState<boolean | null>(null);
   const [disconnectMsg, setDisconnectMsg] = useState<string>("");
+  const [retryCount, setRetryCount] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+
   const sessionStartRef = useRef<number>(0);
+  const retryCountRef = useRef<number>(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const studentNameRef = useRef<string>("");
+
+  useEffect(() => { studentNameRef.current = studentName; }, [studentName]);
 
   useEffect(() => {
     (async () => {
@@ -34,29 +45,15 @@ const VoiceTutorInner = () => {
       const ok = (subs || []).some((s: any) => s.subscription_plans?.tier === "premium");
       setHasPremium(ok);
     })();
+
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
   }, []);
 
-  const conversation = useConversation({
-    onConnect: () => { sessionStartRef.current = Date.now(); setDisconnectMsg(""); toast.success("تم الاتصال بالمعلم الذكي 🎙️"); },
-    onDisconnect: () => {
-      const duration = sessionStartRef.current ? (Date.now() - sessionStartRef.current) / 1000 : 99;
-      if (duration < 12 && sessionStartRef.current > 0) {
-        setDisconnectMsg("⚠️ انقطع الاتصال تلقائياً — حاول مرة أخرى أو تحقق من إعدادات المتصفح.");
-        toast.error("انقطع الاتصال تلقائياً، يرجى المحاولة مرة أخرى");
-      } else {
-        setDisconnectMsg("");
-        toast.info("انتهت المحادثة");
-      }
-      sessionStartRef.current = 0;
-    },
-    onError: (e: any) => {
-      console.error("ElevenLabs error:", e);
-      toast.error("خطأ في المحادثة الصوتية");
-    },
-  });
-
-  const start = useCallback(async () => {
+  const doStartSession = useCallback(async (conversationInstance: ReturnType<typeof useConversation>) => {
     setConnecting(true);
+    setDisconnectMsg("");
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const { data, error } = await supabase.functions.invoke("ai-tutor-token");
@@ -67,21 +64,22 @@ const VoiceTutorInner = () => {
         return;
       }
 
-      const firstName = studentName ? studentName.split(" ")[0] : "";
+      const name = studentNameRef.current;
+      const firstName = name ? name.split(" ")[0] : "";
       const overrides = {
         agent: {
-          firstMessage: studentName
+          firstMessage: name
             ? `مرحباً ${firstName}! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟`
             : "مرحباً! أنا معلمك الذكي في منصة أجيال المعرفة. كيف يمكنني مساعدتك اليوم؟",
           prompt: {
-            prompt: studentName
-              ? `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${studentName}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.`
+            prompt: name
+              ? `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${name}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.`
               : "أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.",
           },
         },
       };
 
-      await conversation.startSession({
+      await conversationInstance.startSession({
         signedUrl: data.signedUrl,
         connectionType: "websocket",
         overrides,
@@ -91,10 +89,67 @@ const VoiceTutorInner = () => {
       toast.error(e?.message || "تعذر الوصول للميكروفون");
     } finally {
       setConnecting(false);
+      setRetrying(false);
     }
-  }, [conversation, studentName]);
+  }, []);
+
+  const conversation = useConversation({
+    onConnect: () => {
+      sessionStartRef.current = Date.now();
+      retryCountRef.current = 0;
+      setRetryCount(0);
+      setDisconnectMsg("");
+      toast.success("تم الاتصال بالمعلم الذكي 🎙️");
+    },
+    onDisconnect: () => {
+      const duration = sessionStartRef.current
+        ? (Date.now() - sessionStartRef.current) / 1000
+        : 99;
+      sessionStartRef.current = 0;
+
+      if (duration < 8 && retryCountRef.current < MAX_RETRIES) {
+        retryCountRef.current += 1;
+        setRetryCount(retryCountRef.current);
+        setRetrying(true);
+        setDisconnectMsg(`⏳ إعادة الاتصال تلقائياً... (محاولة ${retryCountRef.current}/${MAX_RETRIES})`);
+        console.warn(`ElevenLabs: short disconnect (${duration.toFixed(1)}s), retry ${retryCountRef.current}/${MAX_RETRIES}`);
+
+        retryTimerRef.current = setTimeout(async () => {
+          await doStartSession(conversation);
+        }, RETRY_DELAY_MS);
+      } else if (duration < 8) {
+        setDisconnectMsg("❌ انقطع الاتصال — قد تكون دقائق الباقة قد نفدت أو يوجد مشكلة في الشبكة. حاول لاحقاً.");
+        toast.error("فشل الاتصال بعد عدة محاولات");
+        retryCountRef.current = 0;
+        setRetryCount(0);
+        setRetrying(false);
+      } else {
+        setDisconnectMsg("");
+        retryCountRef.current = 0;
+        setRetryCount(0);
+        setRetrying(false);
+        toast.info("انتهت المحادثة");
+      }
+    },
+    onError: (e: any) => {
+      console.error("ElevenLabs error:", e);
+      toast.error("خطأ في المحادثة الصوتية");
+    },
+  });
+
+  const start = useCallback(async () => {
+    retryCountRef.current = 0;
+    setRetryCount(0);
+    await doStartSession(conversation);
+  }, [conversation, doStartSession]);
 
   const stop = useCallback(async () => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    retryCountRef.current = MAX_RETRIES;
+    setRetrying(false);
     await conversation.endSession();
   }, [conversation]);
 
@@ -110,7 +165,9 @@ const VoiceTutorInner = () => {
         {isActive && conversation.isSpeaking && (
           <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
         )}
-        {isActive ? (
+        {retrying && !isActive ? (
+          <RefreshCw className="h-14 w-14 text-muted-foreground animate-spin" />
+        ) : isActive ? (
           <Volume2 className="h-14 w-14 text-primary-foreground" />
         ) : (
           <Mic className="h-14 w-14 text-muted-foreground" />
@@ -120,6 +177,7 @@ const VoiceTutorInner = () => {
       <h3 className="text-lg font-bold mb-1">
         {isActive
           ? conversation.isSpeaking ? "المعلم يتحدث..." : "أنا أستمع إليك"
+          : retrying ? `إعادة الاتصال... (${retryCount}/${MAX_RETRIES})`
           : studentName ? `مرحباً ${studentName.split(" ")[0]} 👋` : "محادثة صوتية مباشرة"}
       </h3>
       <p className="text-sm text-muted-foreground mb-6">
@@ -128,7 +186,7 @@ const VoiceTutorInner = () => {
           : "تحدث مع المعلم الذكي بصوتك مباشرة بالعربية"}
       </p>
 
-      {hasPremium === false && !isActive && (
+      {hasPremium === false && !isActive && !retrying && (
         <div className="mb-4 p-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground max-w-md mx-auto">
           🔒 المحادثة الصوتية الحية متاحة فقط لمشتركي <strong className="text-foreground">الباقة الاحترافية</strong> مع رصيد دقائق متبقي.
           <div className="mt-3">
@@ -140,19 +198,23 @@ const VoiceTutorInner = () => {
       )}
 
       {disconnectMsg && (
-        <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-sm text-destructive max-w-md mx-auto text-center">
+        <div className={`mb-4 p-3 rounded-xl text-sm max-w-md mx-auto text-center border ${
+          retrying
+            ? "bg-blue-50 border-blue-200 text-blue-700"
+            : "bg-destructive/10 border-destructive/30 text-destructive"
+        }`}>
           {disconnectMsg}
         </div>
       )}
 
-      {!isActive ? (
+      {!isActive && !retrying ? (
         <Button onClick={start} disabled={connecting || hasPremium !== true} size="lg" className="gap-2 rounded-full px-8">
           {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
           {connecting ? "جاري الاتصال..." : "ابدأ المحادثة بالعربية"}
         </Button>
       ) : (
-        <Button onClick={stop} size="lg" variant="destructive" className="gap-2 rounded-full px-8">
-          <MicOff className="h-4 w-4" /> إنهاء المحادثة
+        <Button onClick={stop} size="lg" variant="destructive" className="gap-2 rounded-full px-8" disabled={!isActive && !retrying}>
+          <MicOff className="h-4 w-4" /> {retrying ? "إلغاء" : "إنهاء المحادثة"}
         </Button>
       )}
 
