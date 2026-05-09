@@ -1392,7 +1392,7 @@ const LiveSession = () => {
     // 2) Show success toast right away — UX feels instant
     toast.success("تم إنهاء الحصة ✅");
 
-    const durationSeconds = elapsed;
+    const durationSeconds = elapsedRef.current; // use ref to avoid stale closure (elapsed state may be 0)
     const durationMinutes = Math.ceil(durationSeconds / 60);
     const isShortSession = durationMinutes < 5;
     const currentBookingId = bookingId;
