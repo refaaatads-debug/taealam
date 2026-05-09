@@ -49,6 +49,7 @@ interface SessionDetail {
   net_amount: number;
   gross_amount: number;
   short_session: boolean;
+  booked_minutes: number;
 }
 
 interface FilteredStats {
@@ -225,11 +226,13 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                       : "—"}
                   </td>
                   <td className="py-2 text-foreground font-medium font-mono">
-                    {s.status === "completed" && s.actual_seconds != null && s.actual_seconds > 0
-                      ? formatDuration(s.actual_seconds)
-                      : s.status !== "completed"
-                        ? `${s.duration_minutes} دقيقة`
-                        : <span className="text-muted-foreground text-xs">لا توجد بيانات</span>}
+                    {s.status === "completed" ? (
+                      s.actual_seconds != null && s.actual_seconds > 0
+                        ? formatDuration(s.actual_seconds)
+                        : <span className="text-muted-foreground text-xs">—</span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">{s.booked_minutes} دقيقة (محجوز)</span>
+                    )}
                   </td>
                   <td className="py-2">
                     {s.status === "completed" ? (
@@ -351,35 +354,55 @@ export default function TeacherPerformanceTab() {
           let actualSeconds: number | null = null;
           
           if (b.status === "completed" && session) {
-            // Priority: duration_seconds (DB stored) > timestamps diff > deducted_minutes > duration_minutes
+            // Priority: duration_seconds > deducted_minutes > wall-time (capped) > duration_minutes
+            // deducted_minutes is set by the trigger and is the most reliable actual duration
             if (session.duration_seconds && session.duration_seconds > 0) {
               actualSeconds = session.duration_seconds;
+            } else if (session.deducted_minutes && session.deducted_minutes > 0) {
+              actualSeconds = session.deducted_minutes * 60;
             } else if (session.started_at && session.ended_at) {
               const fromTs = Math.floor(
                 (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
               );
-              if (fromTs > 0) actualSeconds = fromTs;
-            }
-            if (!actualSeconds || actualSeconds <= 0) {
-              if (session.deducted_minutes && session.deducted_minutes > 0) {
-                actualSeconds = session.deducted_minutes * 60;
-              } else if (session.duration_minutes && session.duration_minutes > 0) {
-                actualSeconds = session.duration_minutes * 60;
+              // Cap at 2x booked duration to reject bogus ended_at values
+              const maxAllowed = b.duration_minutes * 2 * 60;
+              if (fromTs > 0 && fromTs <= maxAllowed) {
+                actualSeconds = fromTs;
               }
             }
             if (actualSeconds && actualSeconds > 0) totalActualSeconds += actualSeconds;
           }
-          if (b.status === "completed" && actualDuration) {
-            totalActualMinutes += actualDuration;
+          if (b.status === "completed") {
+            const minutesForTotal = actualDuration || (session?.deducted_minutes && session.deducted_minutes > 0 ? session.deducted_minutes : 0);
+            if (minutesForTotal > 0) totalActualMinutes += minutesForTotal;
           }
 
-          // Use net_amount from DB — set by auto_complete_session trigger
-          // Architecture: gross=(deducted_min/60)*hourly_rate, platform_fee=gross*0.60, net=gross*0.40
-          // short_session=true means session < 5 min → no earnings
+          // Price calculation (completed sessions only):
+          // 1. net_amount > 0  → use DB value (trigger calculated, authoritative)
+          // 2. net_amount = 0 + deducted_minutes >= 5 → old session, recalculate
+          // 3. net_amount = 0 + valid wall-time >= 5 min → use wall-time
+          // 4. < 5 min → 0 earnings (short session rule)
+          const PLATFORM_FEE_RATE = 0.60;
           const netAmount = session ? (Number(session.net_amount) || 0) : 0;
           const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
           const isShort = session ? (session.short_session === true) : false;
-          const calculatedPrice = (b.status === "completed" && !isShort) ? netAmount : 0;
+          let calculatedPrice = 0;
+          if (b.status === "completed") {
+            if (isShort) {
+              calculatedPrice = 0; // < 5 min rule
+            } else if (netAmount > 0) {
+              calculatedPrice = netAmount; // DB authoritative value
+            } else if (session?.deducted_minutes && session.deducted_minutes >= 5 && hourlyRate > 0) {
+              // Old sessions: trigger ran but didn't set net_amount
+              const gross = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100;
+              calculatedPrice = Math.round(gross * (1 - PLATFORM_FEE_RATE) * 100) / 100;
+            } else if (actualSeconds && (actualSeconds / 60) >= 5 && hourlyRate > 0) {
+              // Sessions with valid wall-time but no deducted_minutes
+              const wallMin = actualSeconds / 60;
+              const gross = Math.round((wallMin / 60) * hourlyRate * 100) / 100;
+              calculatedPrice = Math.round(gross * (1 - PLATFORM_FEE_RATE) * 100) / 100;
+            }
+          }
 
           return {
             booking_id: b.id,
@@ -395,6 +418,7 @@ export default function TeacherPerformanceTab() {
             net_amount: netAmount,
             gross_amount: grossAmount,
             short_session: isShort,
+            booked_minutes: b.duration_minutes,
           };
         });
 
