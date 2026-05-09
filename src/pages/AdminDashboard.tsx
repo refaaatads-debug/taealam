@@ -79,6 +79,9 @@ const TAB_TITLES: Record<string, string> = {
   wallets: "المحافظ والمكالمات",
   team: "فريق الإدارة وسجل العمليات",
   advanced_analytics: "التحليلات المتقدمة",
+  featured_teachers: "المدرسون المميزون",
+  financial_hub: "المركز المالي",
+  domain_ssl: "حالة SSL/HTTPS",
 };
 
 const AdminDashboard = () => {

@@ -47,8 +47,20 @@ serve(async (req) => {
     const user = userData.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: "2025-08-27.basil",
+      timeout: 8000,
+    });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+    let customers;
+    try {
+      customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (customers.data.length === 0) {
       return new Response(JSON.stringify({ subscribed: false }), {
@@ -87,9 +99,13 @@ serve(async (req) => {
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    const isTimeout = errorMessage.includes("abort") || errorMessage.includes("timeout");
+    return new Response(JSON.stringify({
+      error: isTimeout ? "Request timed out - please retry" : errorMessage,
+      subscribed: false,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+      status: isTimeout ? 504 : 500,
     });
   }
 });
