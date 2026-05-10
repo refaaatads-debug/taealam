@@ -231,7 +231,9 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                   <td className="py-2 text-muted-foreground font-mono">
                     {s.started_at
                       ? new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
-                      : "—"}
+                      : s.status === "completed"
+                        ? <span className="text-xs text-orange-400">لم تُنفَّذ</span>
+                        : "—"}
                   </td>
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" ? (
@@ -248,6 +250,8 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                     {s.status === "completed" ? (
                       s.short_session ? (
                         <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">جلسة قصيرة</span>
+                      ) : !s.started_at ? (
+                        <span className="text-[10px] text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded">لم تُنفَّذ</span>
                       ) : (s.price != null && s.price > 0) ? (
                         <div className="text-xs leading-tight">
                           <div className="font-semibold text-green-600">{Number(s.price).toFixed(2)} ر.س</div>
@@ -308,11 +312,21 @@ export default function TeacherPerformanceTab() {
 
       const userIds = teacherProfiles.map(t => t.user_id);
 
-      // Fetch profiles and bookings in parallel
+      // Fetch profiles and bookings (with nested sessions) in parallel
       const [profilesRes, bookingsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
-        supabase.from("bookings").select("id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status").in("teacher_id", userIds),
+        supabase
+          .from("bookings")
+          .select(`id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status,
+            sessions(booking_id, duration_minutes, duration_seconds, deducted_minutes, started_at, ended_at, net_amount, gross_amount, teacher_earning, short_session)`)
+          .in("teacher_id", userIds)
+          .limit(5000),
       ]);
+
+      if (bookingsRes.error) {
+        console.error("Bookings fetch error:", bookingsRes.error);
+        throw bookingsRes.error;
+      }
 
       const profileMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p]));
       const bookingsByTeacher = new Map<string, any[]>();
@@ -325,17 +339,6 @@ export default function TeacherPerformanceTab() {
       // Get all student names and subject names
       const allStudentIds = [...new Set((bookingsRes.data ?? []).map(b => b.student_id))];
       const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
-      // Sessions fetched for all bookings (cancelled may also have started)
-      const allBookingIds = (bookingsRes.data ?? []).map(b => b.id);
-
-      // Batch session queries to avoid 1000-row limit
-      const batchSize = 200;
-      let allSessions: any[] = [];
-      for (let i = 0; i < allBookingIds.length; i += batchSize) {
-        const batch = allBookingIds.slice(i, i + batchSize);
-        const { data } = await supabase.from("sessions").select("booking_id, duration_minutes, duration_seconds, deducted_minutes, started_at, ended_at, net_amount, gross_amount, short_session").in("booking_id", batch);
-        if (data) allSessions = allSessions.concat(data);
-      }
 
       const [studentsRes, subjectsRes] = await Promise.all([
         allStudentIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", allStudentIds) : { data: [] },
@@ -344,7 +347,6 @@ export default function TeacherPerformanceTab() {
 
       const studentMap = new Map((studentsRes.data ?? []).map(s => [s.user_id, s.full_name]));
       const subjectMap = new Map((subjectsRes.data ?? []).map(s => [s.id, s.name]));
-      const sessionMap = new Map((allSessions as any[]).map(s => [s.booking_id, s]));
 
       // Build teacher data
       const teacherData: TeacherData[] = teacherProfiles.map(tp => {
@@ -358,7 +360,8 @@ export default function TeacherPerformanceTab() {
         let totalActualMinutes = 0;
         let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
-          const session = sessionMap.get(b.id);
+          // Session is embedded via FK relationship (one-to-one, returned as array)
+          const session = (b as any).sessions?.[0] ?? null;
           // actualDuration: deducted_minutes = authoritative (set by trigger after session ends)
           // session.duration_minutes is set at START from booked duration → not actual
           const actualDuration = (session?.deducted_minutes && session.deducted_minutes > 0)
@@ -396,6 +399,7 @@ export default function TeacherPerformanceTab() {
           // 2. net_amount = 0 + deducted_minutes >= 5 → old session, recalculate
           // 3. net_amount = 0 + valid wall-time >= 5 min → use wall-time
           // 4. < 5 min → 0 earnings (short session rule)
+          const teacherEarning = session ? (Number(session.teacher_earning) || 0) : 0;
           const netAmount = session ? (Number(session.net_amount) || 0) : 0;
           const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
           const isShort = session ? (session.short_session === true) : false;
@@ -403,16 +407,18 @@ export default function TeacherPerformanceTab() {
           if (b.status === "completed") {
             if (isShort) {
               calculatedPrice = 0; // < 5 min rule
+            } else if (teacherEarning > 0) {
+              calculatedPrice = teacherEarning; // authoritative: set by trigger
             } else if (netAmount > 0) {
               calculatedPrice = netAmount; // teacher net from trigger (authoritative)
             } else if (grossAmount > 0) {
-              calculatedPrice = Math.round((grossAmount / 3) * 100) / 100; // 1/3 of gross = teacher share (20 SAR per 45 min)
+              calculatedPrice = Math.round((grossAmount / 3) * 100) / 100;
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5) {
-              // Old sessions: use teacher hourly_rate
-              calculatedPrice = Math.round((session.deducted_minutes / 45) * hourlyRate * 100) / 100;
+              // Fallback: 60-min base rate
+              calculatedPrice = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100;
             } else if (actualSeconds && (actualSeconds / 60) >= 5) {
-              // Wall-time sessions: use teacher hourly_rate
-              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * hourlyRate * 100) / 100;
+              // Wall-time fallback: 60-min base rate
+              calculatedPrice = Math.round(((actualSeconds / 60) / 60) * hourlyRate * 100) / 100;
             }
           }
 
