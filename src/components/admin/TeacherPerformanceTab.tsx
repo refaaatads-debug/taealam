@@ -238,10 +238,12 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                     {s.status === "completed" ? (
                       s.short_session ? (
                         <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">جلسة قصيرة</span>
-                      ) : s.gross_amount > 0 ? (
+                      ) : (s.price != null && s.price > 0) ? (
                         <div className="text-xs leading-tight">
-                          <div className="font-semibold text-green-600">{s.gross_amount} ر.س</div>
-                          <div className="text-muted-foreground text-[10px]">صافي بعد العمولة: {s.net_amount} ر.س</div>
+                          <div className="font-semibold text-green-600">{Number(s.price).toFixed(2)} ر.س</div>
+                          {s.gross_amount > 0 && (
+                            <div className="text-muted-foreground text-[10px]">إجمالي الحصة: {s.gross_amount} ر.س</div>
+                          )}
                         </div>
                       ) : "—"
                     ) : "—"}
@@ -389,14 +391,16 @@ export default function TeacherPerformanceTab() {
           if (b.status === "completed") {
             if (isShort) {
               calculatedPrice = 0; // < 5 min rule
+            } else if (netAmount > 0) {
+              calculatedPrice = netAmount; // teacher net from trigger (authoritative)
             } else if (grossAmount > 0) {
-              calculatedPrice = grossAmount; // gross = full teacher earnings
-            } else if (session?.deducted_minutes && session.deducted_minutes >= 5 && hourlyRate > 0) {
-              // Old sessions: trigger ran but didn't set net_amount
-              calculatedPrice = Math.round((session.deducted_minutes / 45) * 60 * 100) / 100; // spec: 60 SAR per 45 min
-            } else if (actualSeconds && (actualSeconds / 60) >= 5 && hourlyRate > 0) {
-              // Sessions with valid wall-time but no deducted_minutes
-              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * 60 * 100) / 100; // spec: 60 SAR per 45 min
+              calculatedPrice = Math.round((grossAmount / 3) * 100) / 100; // 1/3 of gross = teacher share (20 SAR per 45 min)
+            } else if (session?.deducted_minutes && session.deducted_minutes >= 5) {
+              // Old sessions: 20 SAR teacher share per 45 min
+              calculatedPrice = Math.round((session.deducted_minutes / 45) * 20 * 100) / 100;
+            } else if (actualSeconds && (actualSeconds / 60) >= 5) {
+              // Wall-time sessions: 20 SAR teacher share per 45 min
+              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * 20 * 100) / 100;
             }
           }
 
