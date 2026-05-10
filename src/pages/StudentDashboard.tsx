@@ -159,7 +159,7 @@ const StudentDashboard = () => {
       // Fetch completed bookings with sessions for actual time
       const { data: completedBookings } = await supabase
         .from("bookings")
-        .select("*, subjects(name), reviews(rating), sessions(started_at, ended_at, duration_minutes)")
+        .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
         .eq("student_id", user.id)
         .eq("status", "completed")
         .order("scheduled_at", { ascending: false });
@@ -167,16 +167,23 @@ const StudentDashboard = () => {
       const completed = completedBookings || [];
       setPastClasses(completed.slice(0, 10));
 
-      // Calculate actual seconds from sessions
+      // Calculate actual seconds — same fallback chain as TeacherPerformanceTab:
+      // deducted_minutes → duration_seconds → wall-clock (ended_at - started_at)
       let totalActualSeconds = 0;
       completed.forEach((b: any) => {
         const session = Array.isArray(b.sessions) ? b.sessions[0] : b.sessions;
-        if (session?.started_at && session?.ended_at) {
-          const seconds = Math.floor(
+        if (!session) return;
+        let secs = 0;
+        if (session.deducted_minutes > 0) {
+          secs = session.deducted_minutes * 60;
+        } else if (session.duration_seconds > 0) {
+          secs = session.duration_seconds;
+        } else if (session.started_at && session.ended_at) {
+          secs = Math.floor(
             (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
           );
-          if (seconds > 0) totalActualSeconds += seconds;
         }
+        if (secs > 0) totalActualSeconds += secs;
       });
 
       // Fetch cancelled/incomplete bookings

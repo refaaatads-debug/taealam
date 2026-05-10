@@ -11,11 +11,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Returns the authoritative actual session minutes using the same fallback chain
+// as TeacherPerformanceTab: deducted_minutes → duration_seconds/60 → wall-clock → duration_minutes
+const getActualMinutes = (session: any): number => {
+  if (session.deducted_minutes > 0) return session.deducted_minutes;
+  if (session.duration_seconds > 0) return Math.ceil(session.duration_seconds / 60);
+  if (session.started_at && session.ended_at) {
+    const secs = (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000;
+    if (secs >= 60) return Math.ceil(secs / 60);
+  }
+  if (session.duration_minutes > 0) return session.duration_minutes;
+  return 0;
+};
+
 interface DeductionRecord {
   id: string;
   booking_id: string;
   duration_minutes: number;
   deducted_minutes: number;
+  actual_minutes: number;
   teacher_earning: number;
   short_session: boolean;
   started_at: string;
@@ -88,7 +102,7 @@ const SubscriptionDetails = () => {
       const profileIds = teacherIds.map(uid => userIdToProfileId.get(uid)).filter(Boolean) as string[];
 
       const [sessionsRes, profilesRes, teacherSubjectsRes] = await Promise.all([
-        supabase.from("sessions").select("booking_id, duration_minutes, deducted_minutes, teacher_earning, short_session, started_at, ended_at").in("booking_id", bookingIds),
+        supabase.from("sessions").select("booking_id, duration_minutes, duration_seconds, deducted_minutes, teacher_earning, short_session, started_at, ended_at").in("booking_id", bookingIds),
         supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds),
         profileIds.length > 0
           ? supabase.from("teacher_subjects").select("teacher_id, subjects(name)").in("teacher_id", profileIds)
@@ -115,13 +129,15 @@ const SubscriptionDetails = () => {
           const session = sessionsMap.get(b.id);
           if (!session) return null;
           const subjectName = (b.subjects as any)?.name || teacherSubjectMap.get(b.teacher_id) || "غير محدد";
+          const actualMins = getActualMinutes(session as any);
           return {
             id: b.id,
             booking_id: b.id,
             duration_minutes: session.duration_minutes || 0,
             deducted_minutes: (session as any).deducted_minutes || 0,
+            actual_minutes: actualMins,
             teacher_earning: (session as any).teacher_earning || 0,
-            short_session: (session as any).short_session || false,
+            short_session: actualMins > 0 && actualMins < 5 ? true : ((session as any).short_session || false),
             started_at: session.started_at || b.scheduled_at,
             ended_at: session.ended_at || "",
             scheduled_at: b.scheduled_at || session.started_at || "",
@@ -137,12 +153,13 @@ const SubscriptionDetails = () => {
     setLoading(false);
   };
 
-  const remainingMinutes = (subscription as any)?.remaining_minutes ?? (subscription?.sessions_remaining ?? 0) * 45;
+  const planSessionMin = (subscription as any)?.session_duration_minutes || 60;
+  const remainingMinutes = (subscription as any)?.remaining_minutes ?? (subscription?.sessions_remaining ?? 0) * planSessionMin;
   const totalHours = (subscription as any)?.total_hours ?? 0;
-  const totalMinutesOriginal = totalHours > 0 ? totalHours * 60 : (subscription?.subscription_plans?.sessions_count ?? 0) * 45;
+  const totalMinutesOriginal = totalHours > 0 ? totalHours * 60 : (subscription?.subscription_plans?.sessions_count ?? 0) * planSessionMin;
   const usedMinutes = Math.max(0, totalMinutesOriginal - remainingMinutes);
   const usagePercent = totalMinutesOriginal > 0 ? Math.min(100, (usedMinutes / totalMinutesOriginal) * 100) : 0;
-  const totalDeducted = deductions.reduce((sum, d) => sum + d.deducted_minutes, 0);
+  const totalDeducted = deductions.reduce((sum, d) => sum + (d.short_session ? 0 : d.actual_minutes), 0);
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
@@ -286,10 +303,10 @@ const SubscriptionDetails = () => {
                       {/* Per-subject breakdown */}
                       {Object.entries(
                         deductions
-                          .filter(d => !d.short_session && d.deducted_minutes > 0)
+                          .filter(d => !d.short_session && d.actual_minutes > 0)
                           .reduce((acc: Record<string, {minutes:number;count:number}>, d) => {
                             if (!acc[d.subject_name]) acc[d.subject_name] = {minutes:0,count:0};
-                            acc[d.subject_name].minutes += d.deducted_minutes;
+                            acc[d.subject_name].minutes += d.actual_minutes;
                             acc[d.subject_name].count += 1;
                             return acc;
                           }, {})
@@ -298,10 +315,10 @@ const SubscriptionDetails = () => {
                           <p className="text-xs text-muted-foreground font-medium px-1">الخصومات حسب المادة:</p>
                           {Object.entries(
                             deductions
-                              .filter(d => !d.short_session && d.deducted_minutes > 0)
+                              .filter(d => !d.short_session && d.actual_minutes > 0)
                               .reduce((acc: Record<string, {minutes:number;count:number}>, d) => {
                                 if (!acc[d.subject_name]) acc[d.subject_name] = {minutes:0,count:0};
-                                acc[d.subject_name].minutes += d.deducted_minutes;
+                                acc[d.subject_name].minutes += d.actual_minutes;
                                 acc[d.subject_name].count += 1;
                                 return acc;
                               }, {})
@@ -341,7 +358,7 @@ const SubscriptionDetails = () => {
                               {d.short_session ? (
                                 <Badge variant="outline" className="text-[10px] bg-muted">لم تُحتسب</Badge>
                               ) : (
-                                <p className="text-sm font-black text-destructive">-{d.deducted_minutes} د</p>
+                                <p className="text-sm font-black text-destructive">-{d.actual_minutes} د</p>
                               )}
                             </div>
                           </div>
@@ -356,7 +373,7 @@ const SubscriptionDetails = () => {
                               <Clock className="h-3 w-3" />
                               {d.short_session
                                 ? "أقل من 5 دقائق"
-                                : `مدة الجلسة: ${d.deducted_minutes} دقيقة`}
+                                : `مدة الجلسة: ${d.actual_minutes} دقيقة`}
                             </span>
                           </div>
 
