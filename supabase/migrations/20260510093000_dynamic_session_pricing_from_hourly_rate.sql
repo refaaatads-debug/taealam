@@ -1,10 +1,8 @@
--- Migration: Make auto_complete_session trigger use teacher hourly_rate dynamically
--- Instead of hardcoded (teacher=20, gross=60, platform=40 per 45min),
--- reads teacher_profiles.hourly_rate so admin pricing changes take effect.
--- Formula: teacher_base = (duration/45) * hourly_rate
---          gross         = teacher_base * 3
---          platform_fee  = teacher_base * 2
---          net_amount    = teacher_base
+-- Migration: Dynamic session pricing
+-- gross is FIXED at 60 SAR per 45 min (what student pays)
+-- teacher gets their hourly_rate per 45 min (set by admin)
+-- platform gets the difference (gross - teacher)
+-- Example: teacher=20 → platform=40 | teacher=30 → platform=30
 
 CREATE OR REPLACE FUNCTION auto_complete_session()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -34,7 +32,6 @@ BEGIN
     END IF;
     SELECT * INTO _booking FROM bookings WHERE id = NEW.booking_id;
     SELECT COALESCE(vat_rate, 15) INTO _vat_rate FROM financial_settings LIMIT 1;
-    -- Dynamic: read teacher rate from teacher_profiles (default 20 if not set)
     SELECT COALESCE(hourly_rate, 20) INTO _hourly_rate
       FROM teacher_profiles WHERE user_id = _booking.teacher_id;
     IF _duration_minutes < 5 THEN
@@ -43,16 +40,17 @@ BEGIN
       NEW.vat_amount := 0; NEW.net_amount := 0;
       UPDATE bookings SET status = completed WHERE id = NEW.booking_id;
     ELSE
-      _teacher_base := ROUND((_duration_minutes::numeric / 45.0) * _hourly_rate, 2);
-      _gross        := ROUND(_teacher_base * 3.0, 2);
+      _gross        := ROUND((_duration_minutes::numeric / 45.0) * 60.0, 2);
       _vat_amount   := ROUND(_gross * _vat_rate / (100.0 + _vat_rate), 2);
-      _platform_fee := ROUND(_teacher_base * 2.0, 2);
+      _teacher_base := ROUND((_duration_minutes::numeric / 45.0) * _hourly_rate, 2);
+      _platform_fee := ROUND(_gross - _teacher_base, 2);
       _net          := _teacher_base;
       NEW.short_session := false; NEW.deducted_minutes := _duration_minutes;
       NEW.gross_amount := _gross; NEW.vat_amount := _vat_amount;
       NEW.vat_rate_snapshot := _vat_rate; NEW.teacher_base_amount := _teacher_base;
       NEW.teacher_earning := _net; NEW.platform_fee := _platform_fee;
-      NEW.platform_fee_rate_snapshot := ROUND(2.0 / 3.0, 6); NEW.net_amount := _net;
+      NEW.platform_fee_rate_snapshot := ROUND((_gross - _teacher_base) / _gross, 6);
+      NEW.net_amount := _net;
       _sub_id := _booking.subscription_id;
       IF _sub_id IS NULL OR NOT EXISTS (
         SELECT 1 FROM user_subscriptions
