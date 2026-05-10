@@ -206,42 +206,22 @@ const StudentDashboard = () => {
 
       // Fetch ALL active subscriptions and aggregate (student may have multiple)
       const now = new Date().toISOString();
-      const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-      const [subsRes, pendingBookings, pendingRequests] = await Promise.all([
-        supabase
+      const { data: subs } = await supabase
           .from("user_subscriptions")
           .select("*, subscription_plans(name_ar, tier)")
           .eq("user_id", user.id)
           .eq("is_active", true)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("bookings")
-          .select("duration_minutes")
-          .eq("student_id", user.id)
-          .in("status", ["pending", "confirmed"])
-          .gte("scheduled_at", now)
-          .lte("scheduled_at", future),
-        supabase
-          .from("booking_requests")
-          .select("duration_minutes")
-          .eq("student_id", user.id)
-          .in("status", ["open", "accepted"])
-          .gte("scheduled_at", now)
-          .lte("scheduled_at", future),
-      ]);
-      const subs = subsRes.data;
+          .gt("remaining_minutes", 0)
+          .gt("ends_at", now)
+          .order("ends_at", { ascending: true });
       if (subs && subs.length > 0) {
         const totalRemaining = subs.reduce((sum, s: any) => sum + (s.remaining_minutes || 0), 0);
-        const totalHours = subs.reduce((sum, s: any) => sum + (s.total_hours || 0), 0);
+        const totalHours    = subs.reduce((sum, s: any) => sum + (s.total_hours    || 0), 0);
         const totalSessions = subs.reduce((sum, s: any) => sum + (s.sessions_remaining || 0), 0);
-        const reservedMins =
-          (pendingBookings.data || []).reduce((s, x: any) => s + Math.max(0, x.duration_minutes || 45), 0) +
-          (pendingRequests.data || []).reduce((s, x: any) => s + Math.max(0, x.duration_minutes || 45), 0);
-        const netRemaining = Math.max(0, totalRemaining - reservedMins);
         setSubscription({
           ...subs[0],
-          remaining_minutes: netRemaining,
-          total_hours: totalHours,
+          remaining_minutes: totalRemaining,
+          total_hours:       totalHours,
           sessions_remaining: totalSessions,
           _aggregated_count: subs.length,
         });
