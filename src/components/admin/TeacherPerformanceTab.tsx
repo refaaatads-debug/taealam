@@ -213,7 +213,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.slice(0, 50).map((s, i) => (
+              {[...filtered].sort((a,b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()).slice(0, 150).map((s, i) => (
                 <tr key={i} className="hover:bg-muted/20">
                   <td className="py-2 text-foreground">{s.student_name}</td>
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
