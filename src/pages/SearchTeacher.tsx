@@ -972,7 +972,7 @@ const SearchTeacher = () => {
           </div>
         )}
       </div>
-      <Footer />
+      {!user && <Footer />}
       <BottomNav />
     </div>
     </>
