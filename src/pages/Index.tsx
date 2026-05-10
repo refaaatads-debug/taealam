@@ -207,9 +207,9 @@ const Index = () => {
               </motion.div>
 
               <motion.h1 variants={fadeUp} custom={1} className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.15] mb-5 md:mb-6 text-primary-foreground tracking-tight">
-                تعلّم بذكاء،
+                منصة أجيال المعرفة
                 <br />
-                <span className="opacity-90">تفوّق بثقة</span>
+                <span className="opacity-90">التعليم الذكي والحصص المباشرة</span>
               </motion.h1>
 
               <motion.p variants={fadeUp} custom={2} className="text-lg md:text-xl opacity-85 mb-8 max-w-lg leading-relaxed text-primary-foreground">
