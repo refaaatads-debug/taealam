@@ -208,7 +208,7 @@ const StudentDashboard = () => {
       const now = new Date().toISOString();
       const { data: subs } = await supabase
           .from("user_subscriptions")
-          .select("*, subscription_plans(name_ar, tier, session_duration_minutes)")
+          .select("*, session_duration_minutes, subscription_plans(name_ar, tier)")
           .eq("user_id", user.id)
           .eq("is_active", true)
           .gt("remaining_minutes", 0)
@@ -297,7 +297,7 @@ const StudentDashboard = () => {
 
   const displayName = profile?.full_name || "طالب";
   const remainingMinutes = subscription?.remaining_minutes ?? 0;
-  const SESSION_MINUTES = (subscription as any)?.subscription_plans?.session_duration_minutes || 60;
+  const SESSION_MINUTES = (subscription as any)?.session_duration_minutes || 60;
   const canBook = subscription && remainingMinutes >= SESSION_MINUTES;
   const showLowBalanceBanner = !loading && subscription && remainingMinutes < SESSION_MINUTES && remainingMinutes > 0;
   const showNoBanner = !loading && subscription && remainingMinutes <= 0;

@@ -90,7 +90,7 @@ const SearchTeacher = () => {
     Promise.all([
       supabase
         .from("user_subscriptions")
-        .select("sessions_remaining, remaining_minutes, subscription_plans(session_duration_minutes)")
+        .select("sessions_remaining, remaining_minutes, session_duration_minutes")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .gt("remaining_minutes", 0)
@@ -115,7 +115,7 @@ const SearchTeacher = () => {
       setBaseRemainingMinutes(totalRemaining);
 
       // Extract session duration from active plan (fallback: 45)
-      const planDuration: number = (subList[0]?.subscription_plans as any)?.session_duration_minutes || 60;
+      const planDuration: number = subList[0]?.session_duration_minutes || 60;
       setPlanSessionMinutes(planDuration);
 
       const reservedFromBookings = (bookingsRes.data || []).reduce(
