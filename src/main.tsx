@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
 import "./index.css";
 import { handleOAuthCallback } from "./lib/oauth-callback";
@@ -7,4 +8,4 @@ import { handleOAuthCallback } from "./lib/oauth-callback";
 // Waiting here can freeze the whole app if the callback session write is slow.
 void handleOAuthCallback();
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<HelmetProvider><App /></HelmetProvider>);
