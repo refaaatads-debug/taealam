@@ -82,7 +82,7 @@ export default function SessionReportsTab() {
         student_name: profileMap.get(b.student_id) || "طالب",
         subject_name: b.subjects?.name || "مادة عامة",
         scheduled_at: b.scheduled_at,
-        duration_minutes: session?.duration_minutes || b.duration_minutes || 45,
+        duration_minutes: session?.duration_minutes || b.duration_minutes || 60,
         report: parsed,
         raw_report: raw,
       };

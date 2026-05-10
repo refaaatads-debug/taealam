@@ -317,8 +317,7 @@ export default function TeacherPerformanceTab() {
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
         supabase
           .from("bookings")
-          .select(`id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status,
-            sessions(booking_id, duration_minutes, duration_seconds, deducted_minutes, started_at, ended_at, net_amount, gross_amount, teacher_earning, short_session)`)
+          .select("id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status, sessions(booking_id,duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at,net_amount,gross_amount,teacher_earning,short_session)")
           .in("teacher_id", userIds)
           .limit(5000),
       ]);
@@ -360,8 +359,9 @@ export default function TeacherPerformanceTab() {
         let totalActualMinutes = 0;
         let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
-          // Session is embedded via FK relationship (one-to-one, returned as array)
-          const session = (b as any).sessions?.[0] ?? null;
+          // Session embedded via unique FK — Supabase returns single object (not array)
+          const rawSess = (b as any).sessions;
+          const session = Array.isArray(rawSess) ? (rawSess[0] ?? null) : (rawSess ?? null);
           // actualDuration: deducted_minutes = authoritative (set by trigger after session ends)
           // session.duration_minutes is set at START from booked duration → not actual
           const actualDuration = (session?.deducted_minutes && session.deducted_minutes > 0)
@@ -399,26 +399,25 @@ export default function TeacherPerformanceTab() {
           // 2. net_amount = 0 + deducted_minutes >= 5 → old session, recalculate
           // 3. net_amount = 0 + valid wall-time >= 5 min → use wall-time
           // 4. < 5 min → 0 earnings (short session rule)
-          const teacherEarning = session ? (Number(session.teacher_earning) || 0) : 0;
-          const netAmount = session ? (Number(session.net_amount) || 0) : 0;
           const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
           const isShort = session ? (session.short_session === true) : false;
+          // Always recalculate using 60-min base to override old sessions stored with /45 formula
+          // Formula: actual_minutes / 60 * hourly_rate  (< 5 min = 0)
           let calculatedPrice = 0;
           if (b.status === "completed") {
             if (isShort) {
               calculatedPrice = 0; // < 5 min rule
-            } else if (teacherEarning > 0) {
-              calculatedPrice = teacherEarning; // authoritative: set by trigger
-            } else if (netAmount > 0) {
-              calculatedPrice = netAmount; // teacher net from trigger (authoritative)
-            } else if (grossAmount > 0) {
-              calculatedPrice = Math.round((grossAmount / 3) * 100) / 100;
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5) {
-              // Fallback: 60-min base rate
+              // Primary: use deducted_minutes (authoritative trigger value) with 60-min formula
               calculatedPrice = Math.round((session.deducted_minutes / 60) * hourlyRate * 100) / 100;
             } else if (actualSeconds && (actualSeconds / 60) >= 5) {
-              // Wall-time fallback: 60-min base rate
+              // Secondary: use wall-time seconds with 60-min formula
               calculatedPrice = Math.round(((actualSeconds / 60) / 60) * hourlyRate * 100) / 100;
+            } else if (session?.teacher_earning && Number(session.teacher_earning) > 0) {
+              // Last resort: use stored trigger value
+              calculatedPrice = Number(session.teacher_earning);
+            } else if (session?.net_amount && Number(session.net_amount) > 0) {
+              calculatedPrice = Number(session.net_amount);
             }
           }
 

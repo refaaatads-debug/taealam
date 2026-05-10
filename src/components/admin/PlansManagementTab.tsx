@@ -40,7 +40,7 @@ const PlansManagementTab = () => {
   const [newPlan, setNewPlan] = useState<Partial<Plan>>({
     name_ar: "", tier: "basic", price: 0, sessions_count: 4,
     has_ai_tutor: false, has_recording: false, has_priority_booking: false,
-    features: [], assigned_user_id: null, session_duration_minutes: 45,
+    features: [], assigned_user_id: null, session_duration_minutes: 60,
   });
   const [newFeature, setNewFeature] = useState("");
   const [editFeature, setEditFeature] = useState("");

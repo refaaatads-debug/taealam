@@ -111,7 +111,7 @@ export default function UserManagementTab() {
 
     setGranting(true);
     try {
-      const totalMinutes = (plan.sessions_count || 0) * (plan.session_duration_minutes || 45);
+      const totalMinutes = (plan.sessions_count || 0) * (plan.session_duration_minutes || 60);
       const endsAt = new Date();
       endsAt.setDate(endsAt.getDate() + (grantDurationDays || 30));
 

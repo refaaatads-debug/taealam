@@ -300,7 +300,7 @@ const SearchTeacher = () => {
     for (const sd of scheduledDates) {
       const hasConflict = (conflictingBookings || []).some((b: any) => {
         const bStart = new Date(b.scheduled_at).getTime();
-        const bEnd = bStart + (b.duration_minutes || 45) * 60 * 1000;
+        const bEnd = bStart + (b.duration_minutes || 60) * 60 * 1000;
         return sd.scheduled.getTime() < bEnd && sd.scheduledEnd.getTime() > bStart;
       });
       if (hasConflict) {

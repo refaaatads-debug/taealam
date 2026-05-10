@@ -622,7 +622,7 @@ const LiveSession = () => {
       if (!booking) return;
       setBookingData(booking);
       setSubjectName(booking.subjects?.name || "");
-      setSessionDuration(booking.duration_minutes || 45);
+      setSessionDuration(booking.duration_minutes || 60);
 
       const otherId = user.id === booking.student_id ? booking.teacher_id : booking.student_id;
       const { data: otherProfile } = await supabase
