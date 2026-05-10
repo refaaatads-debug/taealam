@@ -297,7 +297,7 @@ const StudentDashboard = () => {
 
   const displayName = profile?.full_name || "طالب";
   const remainingMinutes = subscription?.remaining_minutes ?? 0;
-  const SESSION_MINUTES = (subscription as any)?.subscription_plans?.session_duration_minutes || 45;
+  const SESSION_MINUTES = (subscription as any)?.subscription_plans?.session_duration_minutes || 60;
   const canBook = subscription && remainingMinutes >= SESSION_MINUTES;
   const showLowBalanceBanner = !loading && subscription && remainingMinutes < SESSION_MINUTES && remainingMinutes > 0;
   const showNoBanner = !loading && subscription && remainingMinutes <= 0;

@@ -63,7 +63,7 @@ const Booking = () => {
   const [loading, setLoading] = useState(false);
   const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
   const [reservedMinutes, setReservedMinutes] = useState(0);
-  const [planSessionMinutes, setPlanSessionMinutes] = useState(45);
+  const [planSessionMinutes, setPlanSessionMinutes] = useState(60);
   const SESSION_MINUTES = planSessionMinutes;
   const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
@@ -197,7 +197,7 @@ const Booking = () => {
         setBaseRemainingMinutes(Math.max(0, remainMin));
 
         // Extract session duration from active plan (fallback: 45)
-        const planDuration: number = (subsData[0]?.subscription_plans as any)?.session_duration_minutes || 45;
+        const planDuration: number = (subsData[0]?.subscription_plans as any)?.session_duration_minutes || 60;
         setPlanSessionMinutes(planDuration);
 
         const reservedFromBookings = (b.data || []).reduce(
