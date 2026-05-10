@@ -116,7 +116,7 @@ export default function TeacherScheduleTable() {
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes, deducted_minutes, started_at, ended_at)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
       .eq("teacher_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
@@ -145,12 +145,16 @@ export default function TeacherScheduleTable() {
       // sessions has UNIQUE constraint on booking_id → Supabase returns object not array
       const sessRaw = (b as any).sessions;
       const sess = (Array.isArray(sessRaw) ? sessRaw[0] : sessRaw) ?? null;
-      // Priority: teacher elapsed timer → deducted_minutes → wall-clock
-      let actualMins: number | null = (sess?.duration_minutes != null && sess.duration_minutes > 0) ? sess.duration_minutes : null;
-      if (actualMins == null && sess?.deducted_minutes && sess.deducted_minutes > 0) {
+      // Priority: deducted_minutes (trigger, authoritative) → duration_seconds → duration_minutes → wall-clock
+      // This order matches TeacherPerformanceTab and SubscriptionDetails for consistency.
+      let actualMins: number | null = null;
+      if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
         actualMins = sess.deducted_minutes;
-      }
-      if (actualMins == null && sess?.started_at && sess?.ended_at) {
+      } else if (sess?.duration_seconds && sess.duration_seconds > 0) {
+        actualMins = Math.ceil(sess.duration_seconds / 60);
+      } else if (sess?.duration_minutes && sess.duration_minutes > 0) {
+        actualMins = sess.duration_minutes;
+      } else if (sess?.started_at && sess?.ended_at) {
         actualMins = Math.max(1, Math.ceil((new Date(sess.ended_at).getTime() - new Date(sess.started_at).getTime()) / 60000));
       }
       return {
