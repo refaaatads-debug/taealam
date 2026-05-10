@@ -220,27 +220,18 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                   <td className="py-2 text-muted-foreground">
                     {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
                   </td>
-                  <td className="py-2 font-mono">
-                    {s.started_at ? (
-                      <span className="text-foreground font-medium">
-                        {new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    ) : s.status === "completed" ? (
-                      <span className="text-muted-foreground text-[10px] leading-tight">
-                        <span className="block">{new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</span>
-                        <span className="opacity-60">مجدول</span>
-                      </span>
-                    ) : "—"}
+                  <td className="py-2 text-muted-foreground font-mono">
+                    {s.started_at
+                      ? new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+                      : "—"}
                   </td>
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" ? (
                       s.actual_seconds != null && s.actual_seconds > 0
-                        ? <span className="text-foreground">{formatDuration(s.actual_seconds)}</span>
-                        : s.booked_minutes > 0
-                          ? <span className="text-muted-foreground text-[10px] leading-tight"><span className="block">{s.booked_minutes} د</span><span className="opacity-60 text-[9px]">محجوز</span></span>
-                          : <span className="text-muted-foreground text-xs">—</span>
+                        ? formatDuration(s.actual_seconds)
+                        : <span className="text-muted-foreground text-xs">—</span>
                     ) : (
-                      <span className="text-muted-foreground text-xs">{s.booked_minutes} دقيقة (محجوز)</span>
+                      <span className="text-muted-foreground text-xs">{s.booked_minutes} د (محجوز)</span>
                     )}
                   </td>
                   <td className="py-2">
@@ -253,11 +244,6 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                           {s.gross_amount > 0 && (
                             <div className="text-muted-foreground text-[10px]">إجمالي الحصة: {s.gross_amount} ر.س</div>
                           )}
-                        </div>
-                      ) : s.booked_minutes > 0 ? (
-                        <div className="text-xs leading-tight opacity-60">
-                          <div className="font-semibold">{((s.booked_minutes / 45) * 20).toFixed(2)} ر.س</div>
-                          <div className="text-[9px]">تقديري</div>
                         </div>
                       ) : "—"
                     ) : "—"}

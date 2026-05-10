@@ -633,41 +633,17 @@ const LiveSession = () => {
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
 
       const studentId = user.id === booking.student_id ? user.id : booking.student_id;
-      const sessionNow = new Date().toISOString();
-      const sessionFuture = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-      const [activeSubRes, otherBookings, otherRequests] = await Promise.all([
-        supabase
+      const { data: activeSub } = await supabase
           .from("user_subscriptions")
           .select("id, sessions_remaining, remaining_minutes")
           .eq("user_id", studentId)
           .eq("is_active", true)
-          .order("created_at", { ascending: false })
+          .order("ends_at", { ascending: true })   // soonest-expiring first, matches trigger
           .limit(1)
-          .maybeSingle(),
-        // Other confirmed/pending bookings (NOT the current one) consume reserved minutes
-        supabase
-          .from("bookings")
-          .select("duration_minutes")
-          .eq("student_id", studentId)
-          .in("status", ["pending", "confirmed"])
-          .neq("id", bookingId)
-          .gte("scheduled_at", sessionNow)
-          .lte("scheduled_at", sessionFuture),
-        supabase
-          .from("booking_requests")
-          .select("duration_minutes")
-          .eq("student_id", studentId)
-          .in("status", ["open", "accepted"])
-          .gte("scheduled_at", sessionNow)
-          .lte("scheduled_at", sessionFuture),
-      ]);
-      const activeSub = activeSubRes.data;
+          .maybeSingle();
       if (activeSub) {
-        const rawRemain = (activeSub as any).remaining_minutes ?? (activeSub.sessions_remaining * 45);
-        const otherReserved =
-          (otherBookings.data || []).reduce((s: number, x: any) => s + Math.max(0, x.duration_minutes || 45), 0) +
-          (otherRequests.data || []).reduce((s: number, x: any) => s + Math.max(0, x.duration_minutes || 45), 0);
-        const remainMin = Math.max(0, rawRemain - otherReserved);
+        // Use the actual remaining_minutes from DB — the trigger deducts from this after session ends
+        const remainMin = Math.max(0, (activeSub as any).remaining_minutes ?? (activeSub.sessions_remaining * 45));
         if (remainMin > 0) {
           setHasSubscription(true);
           setSubscriptionRemainingMinutes(remainMin);
