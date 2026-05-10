@@ -441,7 +441,7 @@ const Pricing = () => {
         </motion.div>
       </div>
 
-      <Footer />
+      {!user && <Footer />}
       <BottomNav />
     </div>
     </>
