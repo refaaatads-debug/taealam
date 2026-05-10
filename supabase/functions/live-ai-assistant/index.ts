@@ -107,7 +107,7 @@ ${STRICT_RULES}
       method: "POST",
       headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -118,6 +118,12 @@ ${STRICT_RULES}
     if (!response.ok) {
       const t = await response.text();
       console.error("AI error:", response.status, t);
+      // 429 quota exceeded — return graceful empty fallback instead of error
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: null, _quota_exceeded: true }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ error: "AI gateway error" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
