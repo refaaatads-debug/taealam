@@ -1468,7 +1468,7 @@ const LiveSession = () => {
             hourlyRate = Number(tp?.hourly_rate) || 0;
           } catch {}
           const teacherEarning = hourlyRate > 0
-            ? Math.round((hourlyRate / 60) * (durationSeconds / 60) * 10) / 10
+            ? Math.round((hourlyRate / 45) * (durationSeconds / 60) * 10) / 10
             : 0;
           await Promise.allSettled([
             supabase.from("bookings").update({ price: teacherEarning }).eq("id", currentBookingId),
