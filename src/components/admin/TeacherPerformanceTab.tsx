@@ -432,7 +432,7 @@ export default function TeacherPerformanceTab() {
             actual_seconds: actualSeconds,
             status: b.status,
             price: calculatedPrice,
-            net_amount: netAmount,
+            net_amount: session ? (Number(session.net_amount) || 0) : 0,
             gross_amount: grossAmount,
             short_session: isShort,
             booked_minutes: b.duration_minutes,
