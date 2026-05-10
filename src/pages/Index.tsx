@@ -1,3 +1,4 @@
+import SEOHead from "@/components/SEOHead";
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +75,7 @@ const steps = [
 function SmartCTA({ user, className = "" }: { user: any; className?: string }) {
   if (!user) {
     return (
+
       <Button size="lg" className={`gradient-cta shadow-button text-secondary-foreground text-base md:text-lg px-8 md:px-10 rounded-2xl h-14 md:h-16 w-full sm:w-auto font-black ${className}`} asChild>
         <Link to="/login">
           <Gift className="ml-2 h-5 w-5" />
@@ -167,6 +169,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col pb-16 md:pb-0">
+      <SEOHead title="منصة أجيال المعرفة: التعليم الذكي والحصص المباشرة" description="منصة أجيال المعرفة التعليمية — حصص خصوصية مباشرة مع أفضل المدرسين المعتمدين في السعودية. ذكاء اصطناعي يختار لك المدرس المثالي ويتابع تقدمك." canonical="/" />
       <Navbar />
 
       {/* ── Free Trial Top Banner ── */}
