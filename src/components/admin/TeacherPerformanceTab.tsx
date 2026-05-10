@@ -71,7 +71,7 @@ const formatDuration = (totalSeconds: number): string => {
 
 function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: SessionDetail[]; onFilteredStatsChange?: (stats: FilteredStats) => void }) {
   const [studentFilter, setStudentFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("completed");
   const [sessionDateFrom, setSessionDateFrom] = useState("");
   const [sessionDateTo, setSessionDateTo] = useState("");
   const [priceFilter, setPriceFilter] = useState("all");
@@ -94,7 +94,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
     });
   }, [sessions, studentFilter, statusFilter, sessionDateFrom, sessionDateTo, priceFilter]);
 
-  const hasActiveFilter = studentFilter || statusFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
+  const hasActiveFilter = studentFilter || (statusFilter !== "all" && statusFilter !== "completed") || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
 
   // Report filtered stats to parent
   useEffect(() => {
@@ -214,6 +214,10 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
             </thead>
             <tbody className="divide-y">
               {[...filtered].sort((a,b) => {
+                  // Actual sessions (with start time) always first
+                  const aHasStart = a.started_at ? 1 : 0;
+                  const bHasStart = b.started_at ? 1 : 0;
+                  if (bHasStart !== aHasStart) return bHasStart - aHasStart;
                   const ta = new Date(a.started_at || a.scheduled_at).getTime();
                   const tb = new Date(b.started_at || b.scheduled_at).getTime();
                   return tb - ta;
@@ -234,6 +238,8 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                       s.actual_seconds != null && s.actual_seconds > 0
                         ? <span className={s.short_session ? "text-muted-foreground" : ""}>{formatDuration(s.actual_seconds)}</span>
                         : <span className="text-muted-foreground text-xs">—</span>
+                    ) : s.status === "cancelled" ? (
+                      <span className="text-muted-foreground text-xs text-destructive/60">ملغي</span>
                     ) : (
                       <span className="text-muted-foreground text-xs">{s.booked_minutes} د (محجوز)</span>
                     )}
@@ -319,7 +325,8 @@ export default function TeacherPerformanceTab() {
       // Get all student names and subject names
       const allStudentIds = [...new Set((bookingsRes.data ?? []).map(b => b.student_id))];
       const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
-      const allBookingIds = (bookingsRes.data ?? []).filter(b => b.status === "completed").map(b => b.id);
+      // Sessions fetched for all bookings (cancelled may also have started)
+      const allBookingIds = (bookingsRes.data ?? []).map(b => b.id);
 
       // Batch session queries to avoid 1000-row limit
       const batchSize = 200;
