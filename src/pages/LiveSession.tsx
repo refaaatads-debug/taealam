@@ -633,20 +633,20 @@ const LiveSession = () => {
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
 
       const studentId = user.id === booking.student_id ? user.id : booking.student_id;
-      const { data: activeSub } = await supabase
+      const now = new Date().toISOString();
+      const { data: allSubs } = await supabase
           .from("user_subscriptions")
           .select("id, sessions_remaining, remaining_minutes")
           .eq("user_id", studentId)
           .eq("is_active", true)
-          .order("ends_at", { ascending: true })   // soonest-expiring first, matches trigger
-          .limit(1)
-          .maybeSingle();
-      if (activeSub) {
-        // Use the actual remaining_minutes from DB — the trigger deducts from this after session ends
-        const remainMin = Math.max(0, (activeSub as any).remaining_minutes ?? (activeSub.sessions_remaining * 45));
-        if (remainMin > 0) {
+          .gt("remaining_minutes", 0)
+          .gt("ends_at", now);
+      if (allSubs && allSubs.length > 0) {
+        // Sum ALL active subscriptions — student may hold multiple packages
+        const totalRemain = allSubs.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
+        if (totalRemain > 0) {
           setHasSubscription(true);
-          setSubscriptionRemainingMinutes(remainMin);
+          setSubscriptionRemainingMinutes(totalRemain);
         }
       }
     };
