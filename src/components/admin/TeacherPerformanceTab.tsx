@@ -257,9 +257,9 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
               ))}
             </tbody>
           </table>
-          {filtered.length > 50 && (
+          {filtered.length > 150 && (
             <p className="text-center text-xs text-muted-foreground mt-2">
-              يتم عرض أحدث 50 حصة من إجمالي {filtered.length}
+              يتم عرض أحدث 150 حصة من إجمالي {filtered.length}
             </p>
           )}
         </div>
@@ -396,11 +396,11 @@ export default function TeacherPerformanceTab() {
             } else if (grossAmount > 0) {
               calculatedPrice = Math.round((grossAmount / 3) * 100) / 100; // 1/3 of gross = teacher share (20 SAR per 45 min)
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5) {
-              // Old sessions: 20 SAR teacher share per 45 min
-              calculatedPrice = Math.round((session.deducted_minutes / 45) * 20 * 100) / 100;
+              // Old sessions: use teacher hourly_rate
+              calculatedPrice = Math.round((session.deducted_minutes / 45) * hourlyRate * 100) / 100;
             } else if (actualSeconds && (actualSeconds / 60) >= 5) {
-              // Wall-time sessions: 20 SAR teacher share per 45 min
-              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * 20 * 100) / 100;
+              // Wall-time sessions: use teacher hourly_rate
+              calculatedPrice = Math.round(((actualSeconds / 60) / 45) * hourlyRate * 100) / 100;
             }
           }
 
