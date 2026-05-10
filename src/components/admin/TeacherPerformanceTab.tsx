@@ -213,7 +213,11 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
               </tr>
             </thead>
             <tbody className="divide-y">
-              {[...filtered].sort((a,b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()).slice(0, 150).map((s, i) => (
+              {[...filtered].sort((a,b) => {
+                  const ta = new Date(a.started_at || a.scheduled_at).getTime();
+                  const tb = new Date(b.started_at || b.scheduled_at).getTime();
+                  return tb - ta;
+                }).slice(0, 150).map((s, i) => (
                 <tr key={i} className="hover:bg-muted/20">
                   <td className="py-2 text-foreground">{s.student_name}</td>
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
@@ -228,7 +232,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                   <td className="py-2 text-foreground font-medium font-mono">
                     {s.status === "completed" ? (
                       s.actual_seconds != null && s.actual_seconds > 0
-                        ? formatDuration(s.actual_seconds)
+                        ? <span className={s.short_session ? "text-muted-foreground" : ""}>{formatDuration(s.actual_seconds)}</span>
                         : <span className="text-muted-foreground text-xs">—</span>
                     ) : (
                       <span className="text-muted-foreground text-xs">{s.booked_minutes} د (محجوز)</span>
@@ -348,34 +352,35 @@ export default function TeacherPerformanceTab() {
         let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
           const session = sessionMap.get(b.id);
-          const actualDuration = (session?.duration_minutes && session.duration_minutes > 0)
-            ? session.duration_minutes
-            : (session?.deducted_minutes && session.deducted_minutes > 0)
-              ? session.deducted_minutes
+          // actualDuration: deducted_minutes = authoritative (set by trigger after session ends)
+          // session.duration_minutes is set at START from booked duration → not actual
+          const actualDuration = (session?.deducted_minutes && session.deducted_minutes > 0)
+            ? session.deducted_minutes
+            : (session?.duration_seconds && session.duration_seconds > 0)
+              ? Math.ceil(session.duration_seconds / 60)
               : null;
           let actualSeconds: number | null = null;
           
           if (b.status === "completed" && session) {
-            // Priority: duration_seconds > deducted_minutes > wall-time (capped) > duration_minutes
-            // deducted_minutes is set by the trigger and is the most reliable actual duration
-            if (session.duration_seconds && session.duration_seconds > 0) {
-              actualSeconds = session.duration_seconds;
-            } else if (session.deducted_minutes && session.deducted_minutes > 0) {
+            // Priority: deducted_minutes (trigger) > duration_seconds (timer) > wall-time
+            if (session.deducted_minutes && session.deducted_minutes > 0) {
               actualSeconds = session.deducted_minutes * 60;
+            } else if (session.duration_seconds && session.duration_seconds > 0) {
+              actualSeconds = session.duration_seconds;
             } else if (session.started_at && session.ended_at) {
               const fromTs = Math.floor(
                 (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
               );
-              // Cap at 2x booked duration to reject bogus ended_at values
-              const maxAllowed = b.duration_minutes * 2 * 60;
-              if (fromTs > 0 && fromTs <= maxAllowed) {
-                actualSeconds = fromTs;
-              }
+              // Max 8 hours to reject clearly bogus values
+              if (fromTs > 0 && fromTs <= 28800) actualSeconds = fromTs;
             }
             if (actualSeconds && actualSeconds > 0) totalActualSeconds += actualSeconds;
           }
           if (b.status === "completed") {
-            const minutesForTotal = actualDuration || (session?.deducted_minutes && session.deducted_minutes > 0 ? session.deducted_minutes : 0);
+            // Only count actual deducted minutes toward teacher totals (not wall-time estimates)
+            const minutesForTotal = (session?.deducted_minutes && session.deducted_minutes > 0)
+              ? session.deducted_minutes
+              : actualDuration || 0;
             if (minutesForTotal > 0) totalActualMinutes += minutesForTotal;
           }
 
