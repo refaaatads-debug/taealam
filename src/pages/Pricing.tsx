@@ -1,3 +1,4 @@
+import SEOHead from "@/components/SEOHead";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -139,6 +140,8 @@ const Pricing = () => {
   };
 
   return (
+    <>
+      <SEOHead title="أسعار الحصص الخصوصية | منصة أجيال المعرفة" description="خطط أسعار مرنة للطلاب وأولياء الأمور. ابدأ بأول حصة مجانية واختر الباقة المناسبة لك." canonical="/pricing" />
     <div className="min-h-screen flex flex-col pb-20 md:pb-0">
       <Navbar />
 
@@ -441,6 +444,7 @@ const Pricing = () => {
       <Footer />
       <BottomNav />
     </div>
+    </>
   );
 };
 
