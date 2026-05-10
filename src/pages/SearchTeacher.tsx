@@ -1,3 +1,4 @@
+import SEOHead from "@/components/SEOHead";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,6 +381,8 @@ const SearchTeacher = () => {
   };
 
   return (
+    <>
+      <SEOHead title="ابحث عن مدرس خصوصي | دروس رياضيات وفيزياء وانجليزي" description="ابحث بين مئات المدرسين المعتمدين في السعودية. فلتر حسب المادة والمستوى والسعر. احجز حصتك الأولى مجاناً." canonical="/search" />
     <div className="min-h-screen flex flex-col pb-16 md:pb-0">
       <Navbar />
 
@@ -972,6 +975,7 @@ const SearchTeacher = () => {
       <Footer />
       <BottomNav />
     </div>
+    </>
   );
 };
 
