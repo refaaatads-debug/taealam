@@ -75,7 +75,8 @@ const SearchTeacher = () => {
   const [filterSubject, setFilterSubject] = useState("all");
 
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
-  const QUICK_SESSION_MINUTES = 45;
+  const [planSessionMinutes, setPlanSessionMinutes] = useState(45);
+  const QUICK_SESSION_MINUTES = planSessionMinutes;
   const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxQuickSlots = Math.floor(remainingMinutes / QUICK_SESSION_MINUTES);
   const canQuickBook = remainingMinutes >= QUICK_SESSION_MINUTES;
@@ -89,7 +90,7 @@ const SearchTeacher = () => {
     Promise.all([
       supabase
         .from("user_subscriptions")
-        .select("sessions_remaining, remaining_minutes")
+        .select("sessions_remaining, remaining_minutes, subscription_plans(session_duration_minutes)")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .gt("remaining_minutes", 0)
@@ -109,15 +110,20 @@ const SearchTeacher = () => {
         .gte("scheduled_at", now)
         .lte("scheduled_at", future),
     ]).then(([subRes, bookingsRes, requestsRes]) => {
-      const totalRemaining = ((subRes.data || []) as any[]).reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
+      const subList = ((subRes.data || []) as any[]);
+      const totalRemaining = subList.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
       setBaseRemainingMinutes(totalRemaining);
 
+      // Extract session duration from active plan (fallback: 45)
+      const planDuration: number = (subList[0]?.subscription_plans as any)?.session_duration_minutes || 45;
+      setPlanSessionMinutes(planDuration);
+
       const reservedFromBookings = (bookingsRes.data || []).reduce(
-        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
+        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || planDuration),
         0
       );
       const reservedFromRequests = (requestsRes.data || []).reduce(
-        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || QUICK_SESSION_MINUTES),
+        (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || planDuration),
         0
       );
 

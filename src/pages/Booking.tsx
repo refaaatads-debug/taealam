@@ -63,7 +63,8 @@ const Booking = () => {
   const [loading, setLoading] = useState(false);
   const [baseRemainingMinutes, setBaseRemainingMinutes] = useState(0);
   const [reservedMinutes, setReservedMinutes] = useState(0);
-  const SESSION_MINUTES = 45;
+  const [planSessionMinutes, setPlanSessionMinutes] = useState(45);
+  const SESSION_MINUTES = planSessionMinutes;
   const remainingMinutes = Math.max(0, baseRemainingMinutes - reservedMinutes);
   const maxBookableSlots = Math.floor(remainingMinutes / SESSION_MINUTES);
   const canBook = remainingMinutes >= SESSION_MINUTES;
@@ -171,7 +172,7 @@ const Booking = () => {
       Promise.all([
         supabase
           .from("user_subscriptions")
-          .select("sessions_remaining, remaining_minutes")
+          .select("sessions_remaining, remaining_minutes, subscription_plans(session_duration_minutes)")
           .eq("user_id", user.id)
           .eq("is_active", true)
           .gt("remaining_minutes", 0)
@@ -195,12 +196,16 @@ const Booking = () => {
         const remainMin = subsData.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
         setBaseRemainingMinutes(Math.max(0, remainMin));
 
+        // Extract session duration from active plan (fallback: 45)
+        const planDuration: number = (subsData[0]?.subscription_plans as any)?.session_duration_minutes || 45;
+        setPlanSessionMinutes(planDuration);
+
         const reservedFromBookings = (b.data || []).reduce(
-          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || planDuration),
           0
         );
         const reservedFromRequests = (r.data || []).reduce(
-          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || SESSION_MINUTES),
+          (sum: number, item: any) => sum + Math.max(0, item.duration_minutes || planDuration),
           0
         );
 
