@@ -1,14 +1,51 @@
-User-agent: Googlebot
+# منصة أجيال المعرفة — robots.txt
+Sitemap: https://ajyalalmaerifa.com/sitemap.xml
+
+User-agent: *
+Allow: /
+Allow: /search
+Allow: /pricing
+Allow: /teach-with-us
+Allow: /faq
+Allow: /install
+Allow: /terms
+Allow: /privacy
+Allow: /refund
+
+# صفحات خاصة — لا تُفهرس
+Disallow: /student
+Disallow: /student/
+Disallow: /teacher
+Disallow: /teacher/
+Disallow: /parent
+Disallow: /admin
+Disallow: /admin/
+Disallow: /booking
+Disallow: /session
+Disallow: /chat
+Disallow: /support
+Disallow: /profile
+Disallow: /rating
+Disallow: /ai-tutor
+Disallow: /homework-solver
+Disallow: /invoices
+Disallow: /subscription-details
+Disallow: /payment-success
+Disallow: /complete-profile
+Disallow: /admin-login
+Disallow: /dashboard
+
+# السماح لـ Googlebot بالصور
+User-agent: Googlebot-Image
 Allow: /
 
+# السماح لـ Bingbot
 User-agent: Bingbot
 Allow: /
 
+# السماح لمعاينة السوشيال ميديا
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
-Allow: /
-
-User-agent: *
 Allow: /
