@@ -283,7 +283,10 @@ export function useWebRTC({
         await pc.setLocalDescription(offer);
         await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
       } catch (err) {
-        console.error("Negotiation error:", err);
+        // InvalidStateError is expected during signaling collision — ignore silently
+        if ((err as DOMException)?.name !== 'InvalidStateError') {
+          console.error('Negotiation error:', err);
+        }
       } finally {
         makingOfferRef.current = false;
       }
