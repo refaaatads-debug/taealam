@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/search</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/search"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/pricing</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/pricing"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/teach-with-us</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/teach-with-us"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/faq</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/faq"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/install</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://ajyalalmaerifa.com/install"/>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/terms</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/privacy</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://ajyalalmaerifa.com/refund</loc>
+    <lastmod>2025-05-10</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+</urlset>
