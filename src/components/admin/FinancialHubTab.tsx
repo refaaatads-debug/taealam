@@ -32,6 +32,7 @@ export default function FinancialHubTab() {
   const [reconciliations, setReconciliations] = useState<any[]>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<any[]>([]);
   const [platformSummary, setPlatformSummary] = useState<any | null>(null);
+  const [platformLoading, setPlatformLoading] = useState(false);
   const [platformMonth, setPlatformMonth] = useState<string>("");
   const [platformFrom, setPlatformFrom] = useState<string>("");
   const [platformTo, setPlatformTo] = useState<string>("");
@@ -61,12 +62,15 @@ export default function FinancialHubTab() {
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceLike | null>(null);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
+  const { user } = useAuth();
+
   useEffect(() => {
+    if (!user) return; // Wait for auth to be ready before calling RPCs
     void loadAll();
     void loadPlatformSummary();
     void loadCallWallet();
     void loadInvoices();
-  }, []);
+  }, [user?.id]); // Re-run when auth session becomes available
 
   const loadInvoices = async () => {
     setInvLoading(true);
@@ -119,19 +123,25 @@ export default function FinancialHubTab() {
     const m = month !== undefined ? month : platformMonth;
     const f = from !== undefined ? from : platformFrom;
     const t2 = to !== undefined ? to : platformTo;
+    setPlatformLoading(true);
     try {
       // Month and date range are mutually exclusive — prefer date range if both are set
       const useDateRange = (f && f.length > 0) || (t2 && t2.length > 0);
-      const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, {
-        _month: !useDateRange && m && m.length > 0 ? m : null,
+      const params: Record<string, string | null> = {
         _from_date: f && f.length > 0 ? f : null,
-        _to_date: t2 && t2.length > 0 ? t2 : null,
-      });
+        _to_date:   t2 && t2.length > 0 ? t2 : null,
+      };
+      if (!useDateRange && m && m.length > 0) params._month = m;
+      const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, params);
       if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      setPlatformSummary(row || null);
+      const row = Array.isArray(data) ? data[0] : (data ?? null);
+      // If row has no revenue data treat as valid zero-state, not null
+      setPlatformSummary(row ?? { total_revenue: 0, total_vat: 0, total_platform_earnings: 0, total_teacher_payouts: 0, net_profit: 0, sessions_count: 0, minutes_total: 0, invoices_count: 0 });
     } catch (e: any) {
       toast.error("فشل تحميل أرباح المنصة: " + e.message);
+      setPlatformSummary(null);
+    } finally {
+      setPlatformLoading(false);
     }
   };
 
@@ -453,8 +463,19 @@ export default function FinancialHubTab() {
               </div>
             </CardHeader>
             <CardContent>
-              {!platformSummary ? (
-                <div className="text-center text-muted-foreground py-8">جاري التحميل...</div>
+              {platformLoading ? (
+                <div className="text-center text-muted-foreground py-8 flex items-center justify-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  جاري التحميل...
+                </div>
+              ) : !platformSummary ? (
+                <div className="text-center text-muted-foreground py-8 space-y-3">
+                  <p>لم يتم تحميل البيانات</p>
+                  <Button size="sm" variant="outline" onClick={() => loadPlatformSummary()}>
+                    <RefreshCw className="h-4 w-4 ml-2" />
+                    إعادة التحميل
+                  </Button>
+                </div>
               ) : (
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="rounded-lg border p-4 bg-card">
