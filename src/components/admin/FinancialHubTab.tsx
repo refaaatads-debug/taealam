@@ -126,18 +126,40 @@ export default function FinancialHubTab() {
     const t2 = to !== undefined ? to : platformTo;
     setPlatformLoading(true);
     try {
-      // Month and date range are mutually exclusive — prefer date range if both are set
+      // Build params — only include non-empty values
       const useDateRange = (f && f.length > 0) || (t2 && t2.length > 0);
-      const params: Record<string, string | null> = {
-        _from_date: f && f.length > 0 ? f : null,
-        _to_date:   t2 && t2.length > 0 ? t2 : null,
-      };
-      if (!useDateRange && m && m.length > 0) params._month = m;
-      const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, params);
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : (data ?? null);
-      // If row has no revenue data treat as valid zero-state, not null
-      setPlatformSummary(row ?? { total_revenue: 0, total_vat: 0, total_platform_earnings: 0, total_teacher_payouts: 0, net_profit: 0, sessions_count: 0, minutes_total: 0, invoices_count: 0 });
+      const body: Record<string, string> = {};
+      if (!useDateRange && m && m.length > 0) body._month = m;
+      if (f && f.length > 0) body._from_date = f;
+      if (t2 && t2.length > 0) body._to_date = t2;
+
+      // Use direct fetch (same as confirmed-working curl calls)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token ?? anonKey;
+
+      const res = await fetch(`${supabaseUrl}/rest/v1/rpc/get_platform_revenue_summary`, {
+        method: "POST",
+        headers: {
+          "apikey": anonKey,
+          "Authorization": `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      const rows = await res.json() as any[];
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row || row.sessions_count == null) {
+        // Return zero-state when date range has no matching sessions
+        setPlatformSummary({ total_revenue: 0, total_vat: 0, total_platform_earnings: 0, total_teacher_payouts: 0, net_profit: 0, sessions_count: 0, minutes_total: 0, invoices_count: 0 });
+      } else {
+        setPlatformSummary(row);
+      }
     } catch (e: any) {
       toast.error("فشل تحميل أرباح المنصة: " + e.message);
       setPlatformSummary(null);
