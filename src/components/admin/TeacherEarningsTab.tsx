@@ -12,6 +12,13 @@ import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 
+const formatDuration = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+};
+
 const STATUS_OPTIONS = [
   { value: "confirmed", label: "مؤكدة", variant: "default" as const },
   { value: "unconfirmed", label: "غير مؤكدة", variant: "destructive" as const },
@@ -31,7 +38,7 @@ export default function TeacherEarningsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, number>>(new Map());
+  const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, { minutes: number; seconds: number; estimatedEarnings: number }>>(new Map());
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResults, setReconcileResults] = useState<any[] | null>(null);
@@ -59,21 +66,53 @@ export default function TeacherEarningsTab() {
     const endYear = parseInt(m) === 12 ? parseInt(year) + 1 : parseInt(year);
     const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
 
-    const { data } = await supabase
-      .from("teacher_daily_stats")
-      .select("total_minutes")
+    // Query sessions directly (filter by bookings.scheduled_at — same as TeacherPerformanceTab)
+    const { data: bookingIds } = await supabase
+      .from("bookings")
+      .select("id")
       .eq("teacher_id", teacherId)
-      .gte("date", startDate)
-      .lt("date", endDate);
+      .gte("scheduled_at", startDate)
+      .lt("scheduled_at", endDate);
 
-    const totalMin = (data ?? []).reduce((sum, d) => sum + (d.total_minutes || 0), 0);
-    setTeacherHoursMap(prev => new Map(prev).set(`${teacherId}_${monthStr}`, totalMin));
+    const ids = (bookingIds ?? []).map(b => b.id);
+    let minutes = 0, seconds = 0, estimatedEarnings = 0;
+
+    if (ids.length > 0) {
+      const { data: sessions } = await supabase
+        .from("sessions")
+        .select("deducted_minutes, duration_seconds, teacher_base_amount, short_session")
+        .in("booking_id", ids)
+        .not("ended_at", "is", null)
+        .eq("short_session", false);
+
+      for (const s of sessions ?? []) {
+        const mins = (s.deducted_minutes && s.deducted_minutes > 0)
+          ? s.deducted_minutes
+          : (s.duration_seconds && s.duration_seconds > 0)
+            ? Math.ceil(s.duration_seconds / 60)
+            : 0;
+        const secs = (s.deducted_minutes && s.deducted_minutes > 0)
+          ? s.deducted_minutes * 60
+          : (s.duration_seconds && s.duration_seconds > 0)
+            ? s.duration_seconds
+            : 0;
+        minutes += mins;
+        seconds += secs;
+        estimatedEarnings += Number(s.teacher_base_amount || 0);
+      }
+    }
+
+    setTeacherHoursMap(prev => {
+      const next = new Map(prev);
+      next.set(`${teacherId}_${monthStr}`, { minutes, seconds, estimatedEarnings });
+      return next;
+    });
   };
 
   const getComputedHours = () => {
     const key = `${selectedTeacher}_${month}`;
-    const minutes = teacherHoursMap.get(key) || 0;
-    return { minutes, hours: Math.round((minutes / 60) * 100) / 100 };
+    const data = teacherHoursMap.get(key) || { minutes: 0, seconds: 0, estimatedEarnings: 0 };
+    return { minutes: data.minutes, seconds: data.seconds, estimatedEarnings: data.estimatedEarnings, hours: Math.round((data.minutes / 60) * 100) / 100 };
   };
 
   const fetchData = async () => {
@@ -293,7 +332,7 @@ export default function TeacherEarningsTab() {
         await supabase.from("notifications").insert({
           user_id: selectedTeacher,
           title: "تم إضافة أرباح جديدة 💰",
-          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month} (${hours} ساعة عمل)`,
+          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month} (${computedHours.minutes} دقيقة عمل)`,
           type: "payment",
         });
 
@@ -495,15 +534,28 @@ export default function TeacherEarningsTab() {
                 </div>
 
                 {selectedTeacher && month && (
-                  <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                  <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
                     <div className="flex items-center gap-2 mb-1">
                       <Clock className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-bold text-foreground">ساعات العمل المحسوبة</span>
+                      <span className="text-sm font-bold text-foreground">إحصائيات الجلسات المكتملة</span>
                     </div>
-                    <p className="text-lg font-black text-primary">
-                      {computedHours.hours} ساعة ({computedHours.minutes} دقيقة)
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">محسوبة تلقائياً من الجلسات المكتملة (≥5 دقائق)</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">الوقت الفعلي للجلسات</p>
+                        <p className="text-xl font-black text-primary font-mono tracking-wider">
+                          {formatDuration(computedHours.seconds)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">{computedHours.minutes} دقيقة ({computedHours.hours} ساعة)</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">الأرباح المقدرة</p>
+                        <p className="text-xl font-black text-emerald-600">
+                          {computedHours.estimatedEarnings.toFixed(2)} ر.س
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">محسوبة تلقائياً من الجلسات</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">* مُفلترة بتاريخ الحجز (scheduled_at) — نفس منطق قسم أداء المعلمين</p>
                   </div>
                 )}
 
