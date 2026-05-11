@@ -456,37 +456,33 @@ export default function FinancialHubTab() {
               ) : (
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">إجمالي الإيرادات</p>
+                    <p className="text-xs text-muted-foreground mb-1">إجمالي إيرادات الجلسات (الإجمالي شاملاً VAT)</p>
                     <p className="text-2xl font-bold">{Number(platformSummary.total_revenue || 0).toFixed(2)} ر.س</p>
                   </div>
                   <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">إجمالي الضريبة المحصلة (VAT)</p>
+                    <p className="text-xs text-muted-foreground mb-1">ضريبة القيمة المضافة (VAT 15%)</p>
                     <p className="text-2xl font-bold text-amber-600">{Number(platformSummary.total_vat || 0).toFixed(2)} ر.س</p>
                   </div>
-                  <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح المنصة (عمولات)</p>
+                  <div className="rounded-lg border p-4 bg-primary/5">
+                    <p className="text-xs text-muted-foreground mb-1">أرباح المنصة (عمولة)</p>
                     <p className="text-2xl font-bold text-primary">{Number(platformSummary.total_platform_earnings || 0).toFixed(2)} ر.س</p>
                   </div>
                   <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">إجمالي مدفوعات المعلمين</p>
+                    <p className="text-xs text-muted-foreground mb-1">مستحقات المعلمين</p>
                     <p className="text-2xl font-bold">{Number(platformSummary.total_teacher_payouts || 0).toFixed(2)} ر.س</p>
                   </div>
                   <div className="rounded-lg border p-4 bg-emerald-500/5">
-                    <p className="text-xs text-muted-foreground mb-1">صافي الربح</p>
+                    <p className="text-xs text-muted-foreground mb-1">صافي ربح المنصة (بعد خصم المعلمين)</p>
                     <p className="text-2xl font-bold text-emerald-600">{Number(platformSummary.net_profit || 0).toFixed(2)} ر.س</p>
                   </div>
                   <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">عدد الفواتير الصادرة</p>
-                    <p className="text-2xl font-bold">{platformSummary.invoices_count || 0}</p>
-                  </div>
-                  <div className="rounded-lg border p-4 bg-card">
-                    <p className="text-xs text-muted-foreground mb-1">عدد الحصص / إجمالي الدقائق</p>
+                    <p className="text-xs text-muted-foreground mb-1">حصص مكتملة / إجمالي الدقائق</p>
                     <p className="text-2xl font-bold">{platformSummary.sessions_count || 0} / {platformSummary.minutes_total || 0}</p>
                   </div>
                 </div>
               )}
               <p className="text-xs text-muted-foreground mt-4">
-                * يتم احتساب أرباح المنصة تلقائياً من حصص مكتملة (مدتها ≥ 5 دقائق). الضريبة تُخصم من الإجمالي أولاً، ثم تُقسّم بقية الإيرادات بين المنصة والمعلم وفق نسبة العمولة.
+                * الأرقام من الجلسات المكتملة الفعلية (مدة ≥ 5 دقائق). الإيراد الإجمالي = إجمالي ما دفعه الطلاب. أرباح المنصة = الإجمالي − مستحقات المعلمين. VAT مضمّنة داخل الإجمالي.
               </p>
             </CardContent>
           </Card>
