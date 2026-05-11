@@ -126,12 +126,15 @@ export default function FinancialHubTab() {
     const t2 = to !== undefined ? to : platformTo;
     setPlatformLoading(true);
     try {
-      // Build params — only include non-empty values
+      // Build params — auto-swap if user entered dates in reverse order
       const useDateRange = (f && f.length > 0) || (t2 && t2.length > 0);
+      let effectiveFrom = f;
+      let effectiveTo   = t2;
+      if (f && t2 && f > t2) { effectiveFrom = t2; effectiveTo = f; }
       const body: Record<string, string> = {};
       if (!useDateRange && m && m.length > 0) body._month = m;
-      if (f && f.length > 0) body._from_date = f;
-      if (t2 && t2.length > 0) body._to_date = t2;
+      if (effectiveFrom && effectiveFrom.length > 0) body._from_date = effectiveFrom;
+      if (effectiveTo   && effectiveTo.length   > 0) body._to_date   = effectiveTo;
 
       // Use direct fetch (same as confirmed-working curl calls)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -155,7 +158,6 @@ export default function FinancialHubTab() {
       const rows = await res.json() as any[];
       const row = Array.isArray(rows) ? rows[0] : null;
       if (!row || row.sessions_count == null) {
-        // Return zero-state when date range has no matching sessions
         setPlatformSummary({ total_revenue: 0, total_vat: 0, total_platform_earnings: 0, total_teacher_payouts: 0, net_profit: 0, sessions_count: 0, minutes_total: 0, invoices_count: 0 });
       } else {
         setPlatformSummary(row);
@@ -440,20 +442,24 @@ export default function FinancialHubTab() {
                   placeholder="شهر محدد"
                 />
                 <span className="text-muted-foreground text-xs">أو نطاق:</span>
-                <Input
-                  type="date"
-                  value={platformFrom}
-                  onChange={(e) => { setPlatformFrom(e.target.value); if (e.target.value) setPlatformMonth(""); }}
-                  className="w-36"
-                  title="من تاريخ"
-                />
-                <Input
-                  type="date"
-                  value={platformTo}
-                  onChange={(e) => { setPlatformTo(e.target.value); if (e.target.value) setPlatformMonth(""); }}
-                  className="w-36"
-                  title="إلى تاريخ"
-                />
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-xs font-medium text-muted-foreground">من تاريخ</span>
+                  <Input
+                    type="date"
+                    value={platformFrom}
+                    onChange={(e) => { setPlatformFrom(e.target.value); if (e.target.value) setPlatformMonth(""); }}
+                    className="w-36"
+                  />
+                </div>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-xs font-medium text-muted-foreground">إلى تاريخ</span>
+                  <Input
+                    type="date"
+                    value={platformTo}
+                    onChange={(e) => { setPlatformTo(e.target.value); if (e.target.value) setPlatformMonth(""); }}
+                    className="w-36"
+                  />
+                </div>
                 <Button size="sm" onClick={() => loadPlatformSummary(platformMonth, platformFrom, platformTo)}>
                   <RefreshCw className="h-4 w-4 ml-2" />
                   تصفية
