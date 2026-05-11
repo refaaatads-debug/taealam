@@ -120,8 +120,10 @@ export default function FinancialHubTab() {
     const f = from !== undefined ? from : platformFrom;
     const t2 = to !== undefined ? to : platformTo;
     try {
+      // Month and date range are mutually exclusive — prefer date range if both are set
+      const useDateRange = (f && f.length > 0) || (t2 && t2.length > 0);
       const { data, error } = await supabase.rpc("get_platform_revenue_summary" as any, {
-        _month: m && m.length > 0 ? m : null,
+        _month: !useDateRange && m && m.length > 0 ? m : null,
         _from_date: f && f.length > 0 ? f : null,
         _to_date: t2 && t2.length > 0 ? t2 : null,
       });
@@ -400,7 +402,7 @@ export default function FinancialHubTab() {
                 <Input
                   type="month"
                   value={platformMonth}
-                  onChange={(e) => setPlatformMonth(e.target.value)}
+                  onChange={(e) => { setPlatformMonth(e.target.value); if (e.target.value) { setPlatformFrom(""); setPlatformTo(""); } }}
                   className="w-36"
                   placeholder="شهر محدد"
                 />
@@ -408,14 +410,14 @@ export default function FinancialHubTab() {
                 <Input
                   type="date"
                   value={platformFrom}
-                  onChange={(e) => setPlatformFrom(e.target.value)}
+                  onChange={(e) => { setPlatformFrom(e.target.value); if (e.target.value) setPlatformMonth(""); }}
                   className="w-36"
                   title="من تاريخ"
                 />
                 <Input
                   type="date"
                   value={platformTo}
-                  onChange={(e) => setPlatformTo(e.target.value)}
+                  onChange={(e) => { setPlatformTo(e.target.value); if (e.target.value) setPlatformMonth(""); }}
                   className="w-36"
                   title="إلى تاريخ"
                 />
