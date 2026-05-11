@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp, Download, Search, X } from "lucide-react";
+import { Loader2, ShieldCheck, AlertTriangle, RefreshCw, Lock, FileText, TrendingUp, Download, Search, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import FinancialExportButton from "./FinancialExportButton";
 import InvoiceDetailDialog, { type InvoiceLike } from "./InvoiceDetailDialog";
@@ -26,6 +26,57 @@ interface FinancialSettings {
   large_withdrawal_threshold: number;
   enable_auto_reconciliation: boolean;
 }
+
+function AuditRow({ a }: { a: any }) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = a.before_data || a.after_data || a.ip_address || a.actor_id;
+  return (
+    <>
+      <TableRow
+        className={hasDetail ? "cursor-pointer hover:bg-muted/50" : ""}
+        onClick={() => hasDetail && setOpen((o) => !o)}
+      >
+        <TableCell className="w-6 text-muted-foreground">
+          {hasDetail ? (open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />) : null}
+        </TableCell>
+        <TableCell className="text-xs whitespace-nowrap">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
+        <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
+        <TableCell className="text-xs">{a.entity_type}</TableCell>
+        <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
+        <TableCell className="text-xs">{a.actor_role || "-"}</TableCell>
+        <TableCell className="text-xs font-mono">{a.ip_address || "-"}</TableCell>
+        <TableCell className="text-xs font-mono truncate max-w-[120px]">{a.entity_id}</TableCell>
+      </TableRow>
+      {open && hasDetail && (
+        <TableRow className="bg-muted/30">
+          <TableCell colSpan={8} className="p-3">
+            <div className="grid md:grid-cols-2 gap-3 text-xs">
+              {a.actor_id && (
+                <div>
+                  <p className="font-semibold text-muted-foreground mb-1">معرف المنفذ</p>
+                  <p className="font-mono break-all">{a.actor_id}</p>
+                </div>
+              )}
+              {a.before_data && (
+                <div>
+                  <p className="font-semibold text-muted-foreground mb-1">قبل التعديل</p>
+                  <pre className="bg-background rounded p-2 overflow-auto max-h-32 text-xs border">{JSON.stringify(a.before_data, null, 2)}</pre>
+                </div>
+              )}
+              {a.after_data && (
+                <div>
+                  <p className="font-semibold text-muted-foreground mb-1">بعد التعديل</p>
+                  <pre className="bg-background rounded p-2 overflow-auto max-h-32 text-xs border">{JSON.stringify(a.after_data, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
 
 export default function FinancialHubTab() {
   const [settings, setSettings] = useState<FinancialSettings | null>(null);
@@ -1074,31 +1125,26 @@ export default function FinancialHubTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-6"></TableHead>
                       <TableHead>التاريخ</TableHead>
                       <TableHead>الإجراء</TableHead>
                       <TableHead>الجهة</TableHead>
                       <TableHead>المبلغ</TableHead>
                       <TableHead>المنفذ</TableHead>
+                      <TableHead>IP</TableHead>
                       <TableHead>المعرف</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAudit.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
                           لا توجد سجلات مطابقة
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredAudit.map((a) => (
-                        <TableRow key={a.id}>
-                          <TableCell className="text-xs whitespace-nowrap">{new Date(a.created_at).toLocaleString("ar-SA")}</TableCell>
-                          <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
-                          <TableCell className="text-xs">{a.entity_type}</TableCell>
-                          <TableCell>{a.amount ? Number(a.amount).toFixed(2) : "-"}</TableCell>
-                          <TableCell className="text-xs">{a.actor_role || "-"}</TableCell>
-                          <TableCell className="text-xs font-mono truncate max-w-[150px]">{a.entity_id}</TableCell>
-                        </TableRow>
+                        <AuditRow key={a.id} a={a} />
                       ))
                     )}
                   </TableBody>
