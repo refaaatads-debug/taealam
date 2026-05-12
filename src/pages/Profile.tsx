@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const Profile = () => {
-  const { user, profile, roles, signOut } = useAuth();
+  const { user, profile, roles, signOut, refreshProfile } = useAuth();
   const isTeacher = roles.includes("teacher");
   const isStudent = !isTeacher && (roles.length === 0 || roles.includes("student"));
 
@@ -156,6 +156,7 @@ const Profile = () => {
       }
 
       toast.success("تم حفظ التغييرات بنجاح");
+      await refreshProfile();
     } catch (err: any) {
       console.error("[Profile] Save failed:", err);
       toast.error("حدث خطأ: " + (err.message || JSON.stringify(err)));
