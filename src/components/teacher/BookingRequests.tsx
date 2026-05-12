@@ -74,11 +74,15 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
   const checkBusyStatus = async () => {
     if (!user) return;
+    // Only consider sessions that started in the last 4 hours to avoid stale
+    // in_progress rows from old sessions that were never properly closed.
+    const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
     const { data } = await supabase
       .from("bookings")
       .select("id")
       .eq("teacher_id", user.id)
       .eq("session_status", "in_progress")
+      .gte("scheduled_at", cutoff)
       .limit(1);
     setIsBusy(!!(data && data.length > 0));
   };
@@ -152,6 +156,19 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
   const handleExpire = useCallback((key: string) => {
     setExpiredKeys(prev => new Set(prev).add(key));
   }, []);
+
+  const handleRejectGroup = async (g: RequestGroup) => {
+    try {
+      await supabase
+        .from("booking_requests" as any)
+        .update({ status: "rejected" } as any)
+        .in("id", g.items.map((r) => r.id));
+      fetchRequests();
+      toast.info("تم رفض الطلب");
+    } catch (e: any) {
+      toast.error(e?.message || "حدث خطأ أثناء الرفض");
+    }
+  };
 
   // Check if booking conflicts with existing teacher schedule
   const hasConflict = async (scheduled_at: string, duration_minutes: number): Promise<boolean> => {
@@ -408,20 +425,32 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
                       )}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5 shrink-0"
-                    onClick={() => handleAcceptGroup(g)}
-                    disabled={accepting === g.key || expiredKeys.has(g.key) || isBusy}
-                    title={isBusy ? "أنت في جلسة نشطة الآن" : undefined}
-                  >
-                    {accepting === g.key ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4" />
-                    )}
-                    {isMulti ? `اقبل ${g.items.length} حصص` : "اقبل الطلب"}
-                  </Button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 px-3"
+                      onClick={() => handleRejectGroup(g)}
+                      disabled={accepting === g.key || expiredKeys.has(g.key)}
+                      title="رفض الطلب"
+                    >
+                      رفض
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gradient-cta text-secondary-foreground rounded-xl shadow-button gap-1.5"
+                      onClick={() => handleAcceptGroup(g)}
+                      disabled={accepting === g.key || expiredKeys.has(g.key) || isBusy}
+                      title={isBusy ? "أنت في جلسة نشطة الآن" : undefined}
+                    >
+                      {accepting === g.key ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                      {isMulti ? `اقبل ${g.items.length} حصص` : "اقبل الطلب"}
+                    </Button>
+                  </div>
                 </div>
 
                 <AnimatePresence>

@@ -401,7 +401,7 @@ const TeacherDashboard = () => {
           </Card>
 
           {/* Teacher Schedule Table */}
-          <TeacherScheduleTable />
+          <TeacherScheduleTable onInstantSessionSent={fetchData} />
 
           {/* Interactive scheduled sessions table with countdown + 1h reminder */}
           <ScheduledSessionsCalendar role="teacher" />

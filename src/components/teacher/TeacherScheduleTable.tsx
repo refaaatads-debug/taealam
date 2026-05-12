@@ -29,7 +29,11 @@ interface BookingRow {
   actual_duration_minutes?: number | null;
 }
 
-export default function TeacherScheduleTable() {
+interface TeacherScheduleTableProps {
+  onInstantSessionSent?: () => void;
+}
+
+export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherScheduleTableProps = {}) {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,6 +224,8 @@ export default function TeacherScheduleTable() {
 
     toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}. في انتظار قبول الطالب...`);
     fetchBookings();
+    // Notify parent (TeacherDashboard) to also refresh its upcoming-sessions list
+    onInstantSessionSent?.();
   };
 
   const openCancelDialog = (bookingId: string, studentId?: string) => {
