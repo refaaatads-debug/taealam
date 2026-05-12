@@ -83,6 +83,40 @@
     }
   }
 
+  // Inject a spoken warning into the active call without terminating it
+  async function warnTwilioCall(callSid: string) {
+    try {
+      const creds = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const streamWsUrl = `${SUPABASE_URL.replace("https://", "wss://")}/functions/v1/twilio-media-stream?apikey=${anonKey}`;
+      // Say warning then re-establish the media stream so monitoring continues
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Zeina" language="arb">تحذير: تم رصد محاولة تبادل بيانات تواصل شخصية. أي محاولة أخرى ستؤدي لإنهاء المكالمة فوراً وإيقاف حسابك.</Say>
+  <Pause length="1"/>
+  <Start>
+    <Stream url="${streamWsUrl}">
+      <Parameter name="teacherId" value="${teacherId || ''}"/>
+      <Parameter name="studentId" value="${studentId || ''}"/>
+    </Stream>
+  </Start>
+</Response>`;
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${callSid}.json`,
+        {
+          method: "POST",
+          headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ Twiml: twiml }),
+        }
+      );
+      if (!res.ok) console.error("warnTwilioCall HTTP error:", res.status);
+      else console.log("Voice warning injected into call", callSid);
+    } catch (e) {
+      console.error("warnTwilioCall failed:", e);
+    }
+  }
+
   Deno.serve((req) => {
     const upgrade = req.headers.get("upgrade") || "";
     if (upgrade.toLowerCase() !== "websocket") {
@@ -174,7 +208,8 @@
               }
               if (!warned) {
                 warned = true;
-                console.log("First violation — warning the call");
+                console.log("First violation — injecting voice warning");
+                await warnTwilioCall(callSid);
               } else {
                 console.log("Second violation — terminating call");
                 await endTwilioCall(callSid);
