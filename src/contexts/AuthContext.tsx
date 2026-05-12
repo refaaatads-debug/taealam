@@ -304,6 +304,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile(null);
           setRoles([]);
           setLoading(false);
+          // Redirect to /login when session expires (e.g. refresh-token 400).
+          // Do this via window.location.replace so:
+          //   1. The current (broken) page is evicted from history.
+          //   2. The browser fetches fresh HTML + chunk manifests → no 404 on
+          //      stale JS chunks that would cause a white screen.
+          // Skip redirect if already on a public page.
+          const currentPath = window.location.pathname;
+          const publicPaths = ["/", "/login", "/register", "/search"];
+          const isPublic = publicPaths.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
+          if (!isPublic) {
+            window.location.replace("/login");
+          }
         }
       }
     );
