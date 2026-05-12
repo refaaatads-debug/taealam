@@ -59,7 +59,50 @@ const TeacherDashboard = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Realtime: booking requests count updates instantly
+    const reqChannel = supabase
+      .channel(`teacher-requests-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "booking_requests",
+      }, (payload) => {
+        fetchData();
+        if (payload.eventType === "INSERT") toast.info("طلب حجز جديد! 🔔");
+      })
+      .subscribe();
+
+    // Realtime: teacher notifications (instant toast)
+    const notifChannel = supabase
+      .channel(`teacher-notif-${user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        const n = payload.new as any;
+        toast.info(n.title || "إشعار جديد", { description: n.body });
+      })
+      .subscribe();
+
+    // Realtime: earnings update instantly when a session ends
+    const earningsChannel = supabase
+      .channel(`teacher-earnings-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "teacher_earnings",
+        filter: `teacher_id=eq.${user.id}`,
+      }, () => fetchData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(reqChannel);
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(earningsChannel);
+    };
   }, [user]);
 
   const fetchData = async () => {

@@ -295,10 +295,34 @@ const StudentDashboard = () => {
       })
       .subscribe();
 
+    // Realtime: wallet balance updates instantly (after payment/deduction)
+    const walletChannel = supabase
+      .channel(`student-wallet-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "wallets",
+        filter: `user_id=eq.${user.id}`,
+      }, () => fetchData())
+      .subscribe();
+
+    // Realtime: points update instantly when earned
+    const pointsChannel = supabase
+      .channel(`student-points-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "student_points",
+        filter: `user_id=eq.${user.id}`,
+      }, () => fetchData())
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(subChannel);
       supabase.removeChannel(notifChannel);
+      supabase.removeChannel(walletChannel);
+      supabase.removeChannel(pointsChannel);
     };
   }, [user]);
 

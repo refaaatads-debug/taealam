@@ -159,19 +159,23 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
+    const refresh = () => { fetchBadgeCounts(); fetchData(true); };
+
     const channels = [
-      supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, () => fetchBadgeCounts()),
-      supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchBadgeCounts()),
-      supabase.channel("admin-bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => fetchBadgeCounts()),
-      supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => fetchBadgeCounts()),
+      supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, refresh),
+      supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, refresh),
+      supabase.channel("admin-bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refresh),
+      supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, refresh),
+      supabase.channel("admin-teacher-profiles").on("postgres_changes", { event: "*", schema: "public", table: "teacher_profiles" }, refresh),
+      supabase.channel("admin-payments").on("postgres_changes", { event: "*", schema: "public", table: "payment_records" }, refresh),
     ];
     channels.forEach(ch => ch.subscribe());
     return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const periodStart = getPeriodStart(period);
       const periodFilterIso = periodStart ? periodStart.toISOString() : null;
