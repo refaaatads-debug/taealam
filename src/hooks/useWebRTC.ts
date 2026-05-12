@@ -2,14 +2,17 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
-// useinbandfec=1  → forward error correction (masks 1-2% packet loss → no cuts)
-// minptime=10     → 10ms packet time (low latency voice)
-// maxaveragebitrate=64000 → 64 kbps (clear voice, not the browser default ~32kbps)
+// useinbandfec=1        → forward error correction (masks packet loss, prevents cuts)
+// minptime=20           → 20ms packet time (standard for voice, less header overhead)
+// maxaveragebitrate=128000 → 128 kbps (studio-quality voice, vs browser default ~32kbps)
+// maxplaybackrate=48000 → full 48 kHz wideband (capture all voice frequencies)
+// stereo=0              → force mono decode (saves bandwidth, voice doesn't need stereo)
+// sprop-stereo=0        → tell encoder to send mono
 function injectOpusParams(sdp: string): string {
   const opusMatch = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
   if (!opusMatch) return sdp;
   const pt = opusMatch[1];
-  const opusParams = "useinbandfec=1;minptime=10;maxaveragebitrate=64000";
+  const opusParams = "useinbandfec=1;minptime=20;maxaveragebitrate=128000;maxplaybackrate=48000;stereo=0;sprop-stereo=0";
   // If fmtp line already exists for this payload type, append our params
   if (new RegExp(`a=fmtp:${pt} `).test(sdp)) {
     return sdp.replace(
@@ -45,7 +48,11 @@ const buildIceServers = async (): Promise<RTCConfiguration> => {
     if (error) throw error;
     if (!data?.iceServers?.length) throw new Error("Empty iceServers from turn-credentials");
 
-    const config: RTCConfiguration = { iceServers: data.iceServers as RTCIceServer[] };
+    const config: RTCConfiguration = {
+      iceServers: data.iceServers as RTCIceServer[],
+      bundlePolicy: "max-bundle",      // bundle audio+data on one 5-tuple → less overhead
+      iceCandidatePoolSize: 10,        // pre-gather candidates for faster connection
+    };
     const ttlMs = (Number(data.ttl) || 3600) * 1000;
     cachedIce = { config, expiresAt: Date.now() + ttlMs };
     return config;
@@ -56,6 +63,8 @@ const buildIceServers = async (): Promise<RTCConfiguration> => {
         { urls: `stun:${TURN_HOST_FALLBACK}:3478` },
         { urls: "stun:stun.l.google.com:19302" },
       ],
+      bundlePolicy: "max-bundle",
+      iceCandidatePoolSize: 10,
     };
   }
 };
@@ -148,9 +157,11 @@ export function useWebRTC({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: false,  // AGC causes volume pumping → sounds like audio cutting
-          channelCount: 1,         // Mono: halves audio bandwidth, ideal for voice
-          sampleRate: 48000,       // Opus native sample rate
+          autoGainControl: false,          // AGC causes volume pumping → disable
+          channelCount: 1,                  // Mono: ideal for voice teaching sessions
+          sampleRate: 48000,                // Opus native sample rate
+          // Chrome-specific: disable extra processing that degrades voice quality
+          ...(({ googHighpassFilter: false, googTypingNoiseDetection: false }) as any),
         },
       });
       localStreamRef.current = stream;
@@ -291,11 +302,11 @@ export function useWebRTC({
           try {
             const params = sender.getParameters();
             if (!params.encodings || params.encodings.length === 0) params.encodings = [{} as any];
-            params.encodings[0].maxBitrate = 64_000;       // 64 kbps — crystal-clear voice
+            params.encodings[0].maxBitrate = 128_000;      // 128 kbps — highest quality voice
             (params.encodings[0] as any).priority = "high";
             (params.encodings[0] as any).networkPriority = "high";
             await sender.setParameters(params);
-            console.log("[audio] sender priority set to high, maxBitrate=64kbps");
+            console.log("[audio] sender priority=high, maxBitrate=128kbps, FEC+wideband active");
           } catch (e) {
             console.warn("[audio] setParameters failed:", e);
           }

@@ -28,7 +28,16 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
     let mounted = true;
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false,  // disable AGC (causes pumping/cutting)
+            channelCount: 1,         // mono — same as the live session
+            sampleRate: 48000,       // Opus native rate
+          },
+        });
         if (!mounted) {
           stream.getTracks().forEach(t => t.stop());
           return;

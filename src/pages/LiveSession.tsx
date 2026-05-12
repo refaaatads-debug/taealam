@@ -57,6 +57,7 @@ const LiveSession = () => {
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteAudioCtxRef = useRef<AudioContext | null>(null);
 
   const [bookingData, setBookingData] = useState<any>(null);
   const [otherName, setOtherName] = useState("المشارك");
@@ -404,14 +405,53 @@ const LiveSession = () => {
     },
   });
 
-  // Attach remote audio
+  // Attach remote audio with Web Audio API gain boost
   useEffect(() => {
-    if (remoteAudioRef.current && remoteStream) {
+    if (!remoteStream || remoteStream.getAudioTracks().length === 0) return;
+
+    // Tear down previous AudioContext to avoid duplicates on stream renegotiation
+    if (remoteAudioCtxRef.current) {
+      remoteAudioCtxRef.current.close().catch(() => {});
+      remoteAudioCtxRef.current = null;
+    }
+
+    // Primary path: route remoteStream → GainNode → speakers via AudioContext.
+    // This lets us apply a +30% volume boost so the remote side is always
+    // clearly audible even on laptops with weak built-in speakers.
+    let usedAudioCtx = false;
+    try {
+      const audioCtx = new AudioContext();
+      remoteAudioCtxRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(remoteStream);
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = 1.3; // +30% volume — compensates for browser normalization
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      // Resume if suspended by browser autoplay policy
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+      usedAudioCtx = true;
+      pushDebugEvent("remote-audio", "audioCtx-gain-active");
+    } catch {
+      usedAudioCtx = false;
+    }
+
+    // Fallback: direct <audio> element (no boost, but audio still works)
+    if (!usedAudioCtx && remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.play().catch(() => {
         pushDebugEvent("remote-audio", "autoplay-blocked");
       });
+      pushDebugEvent("remote-audio", "element-fallback");
     }
+
+    return () => {
+      if (remoteAudioCtxRef.current) {
+        remoteAudioCtxRef.current.close().catch(() => {});
+        remoteAudioCtxRef.current = null;
+      }
+    };
   }, [remoteStream, pushDebugEvent]);
 
   // Voice Activity Detection - track speaking time
