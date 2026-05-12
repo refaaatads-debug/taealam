@@ -116,6 +116,9 @@ export function useWebRTC({
   const directScreenRecorderRef = useRef<MediaRecorder | null>(null);
   const directScreenChunksRef = useRef<Blob[]>([]);
   const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
+  // Guard flag: set to true before calling t.stop() so stale "ended" handlers
+  // from the previous share session don't fire replaceTrack(null) onto the NEW track.
+  const screenEndedCancelledRef = useRef(false);
   // Always points to the latest active remote stream (audio+video) for recording
   const latestRemoteStreamRef = useRef<MediaStream | null>(null);
   const recordingHiddenVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -637,6 +640,10 @@ export function useWebRTC({
     if (!pc || !transceiver) return;
 
     if (screenSharing) {
+      // Cancel any pending "ended" handler from this share session BEFORE stopping
+      // the track, so it cannot fire replaceTrack(null) after we've explicitly stopped.
+      screenEndedCancelledRef.current = true;
+
       // NOTE: do NOT stop the direct screen recorder here — we want a single
       // continuous recording for the whole session. The recorder will be
       // stopped only when the session ends (in `stop()`).
@@ -710,11 +717,17 @@ export function useWebRTC({
       console.warn("setParameters failed (non-fatal):", e);
     }
 
+    // Reset the cancel flag for this new share session
+    screenEndedCancelledRef.current = false;
+
     videoTrack.addEventListener("ended", async () => {
+      // Guard: skip if user explicitly stopped via the toggle button (flag set before t.stop())
+      // This prevents a stale "ended" handler from overwriting the track of a NEW share session.
+      if (screenEndedCancelledRef.current) return;
       // Keep the direct recorder running — we want one continuous recording for the whole session.
       await transceiver.sender.replaceTrack(null);
-      setScreenSharing(false);
       screenStreamRef.current = null;
+      setScreenSharing(false);
       sendDataMessage({ type: "screen-share-status", active: false });
     });
 
