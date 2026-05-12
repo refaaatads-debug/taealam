@@ -71,7 +71,8 @@ export const useConnectionQuality = (
         return;
       }
 
-      // reset disconnect tracking when we reconnect
+      // reset disconnect tracking when we reconnect — also clear alerted flag
+      // so onSustainedDisconnect fires correctly on the next disconnect event
       if (disconnectStartRef.current !== null) {
         disconnectStartRef.current = null;
         alertedRef.current = false;

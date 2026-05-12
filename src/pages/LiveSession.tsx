@@ -384,8 +384,9 @@ const LiveSession = () => {
         setVideoQuality("high");
       }
     },
-    onSustainedDisconnect: (ms) => {
-      toast.error(`انقطع الاتصال لأكثر من ${Math.round(ms / 1000)} ثانية. جاري المحاولة...`, { id: "net-down" });
+    onSustainedDisconnect: (_ms) => {
+      // Banner already shown via connectionState useEffect — no extra toast needed.
+      // The session is still alive; useWebRTC auto-retries ICE restart + backoff.
     },
   });
 
@@ -768,6 +769,10 @@ const LiveSession = () => {
   // Auto-start recording when both parties join (retry when remoteStream arrives)
   const recordingToastShownRef = useRef(false);
   const screenSharePromptShownRef = useRef(false);
+  // ── Reconnection UX ──────────────────────────────────────────────────────
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  const prevConnectionStateRef = useRef<RTCPeerConnectionState>("new");
+  const reconnectBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (bothJoined && !isRecording && remoteStream) {
       startAutoRecording();
@@ -997,6 +1002,47 @@ const LiveSession = () => {
   // Spec: timer stops when peer leaves (peerDisconnected) or connection drops
   const shouldCount = meetingStarted && bothJoined && connectionHealthy && !peerDisconnected;
   shouldCountRef.current = shouldCount;
+
+  // ── Reconnection banner lifecycle ────────────────────────────────────────
+  // Show an informational "reconnecting..." overlay after 5s of WebRTC drop
+  // (brief flaps last <5s and should not alarm users).
+  // When connection is restored, dismiss banner and show a calm success toast.
+  useEffect(() => {
+    const prev = prevConnectionStateRef.current;
+    prevConnectionStateRef.current = connectionState;
+
+    if (connectionState === "connected") {
+      // Clear any pending timer
+      if (reconnectBannerTimerRef.current) {
+        clearTimeout(reconnectBannerTimerRef.current);
+        reconnectBannerTimerRef.current = null;
+      }
+      // If we were reconnecting, celebrate and hide banner
+      if (showReconnectBanner || prev === "disconnected" || prev === "failed") {
+        setShowReconnectBanner(false);
+        if (meetingStarted && (prev === "disconnected" || prev === "failed")) {
+          toast.success("✅ تم استعادة الاتصال! تُستأنف الجلسة...", {
+            id: "reconnected",
+            duration: 4000,
+          });
+        }
+      }
+    } else if (connectionState === "disconnected" || connectionState === "failed") {
+      // Start timer — show banner only if still down after 5s
+      if (!reconnectBannerTimerRef.current) {
+        reconnectBannerTimerRef.current = setTimeout(() => {
+          setShowReconnectBanner(true);
+          reconnectBannerTimerRef.current = null;
+        }, 5000);
+      }
+    } else {
+      // connecting / new / closed — clear pending timer
+      if (reconnectBannerTimerRef.current) {
+        clearTimeout(reconnectBannerTimerRef.current);
+        reconnectBannerTimerRef.current = null;
+      }
+    }
+  }, [connectionState]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // On (re)connection: sync timer between peers immediately (teacher = source of truth)
   useEffect(() => {
@@ -1565,9 +1611,9 @@ const LiveSession = () => {
   const getConnectionBadge = () => {
     switch (connectionState) {
       case "connected": return { icon: Wifi, text: "متصل", color: "text-green-400 bg-green-400/10" };
-      case "connecting": return { icon: Wifi, text: "جاري الاتصال...", color: "text-yellow-400 bg-yellow-400/10" };
-      case "disconnected": return { icon: WifiOff, text: "انقطع الاتصال", color: "text-orange-400 bg-orange-400/10" };
-      case "failed": return { icon: WifiOff, text: "فشل الاتصال", color: "text-destructive bg-destructive/10" };
+      case "connecting": return { icon: Loader2, text: "جاري الاتصال...", color: "text-yellow-400 bg-yellow-400/10" };
+      case "disconnected": return { icon: Loader2, text: "جاري إعادة الاتصال...", color: "text-orange-400 bg-orange-400/10" };
+      case "failed": return { icon: Loader2, text: "جاري إعادة الاتصال...", color: "text-orange-400 bg-orange-400/10" };
       default: return { icon: Wifi, text: "في الانتظار", color: "text-muted-foreground bg-muted/30" };
     }
   };
@@ -1798,6 +1844,24 @@ const LiveSession = () => {
         </div>
       )}
 
+      {/* ── Reconnecting banner (WebRTC drop > 5s) ── */}
+      <AnimatePresence>
+        {showReconnectBanner && !peerDisconnected && (
+          <motion.div
+            initial={{ opacity: 0, y: -24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-500/90 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 font-bold text-sm backdrop-blur-sm border border-orange-400/30"
+          >
+            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            <div className="flex flex-col gap-0.5">
+              <span>جاري إعادة الاتصال — الجلسة محفوظة...</span>
+              <span className="text-[11px] font-normal opacity-80">الوقت متوقف مؤقتاً ويُستأنف عند عودة الاتصال</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Peer disconnect warning */}
       <AnimatePresence>
         {peerDisconnected && (
@@ -1807,8 +1871,8 @@ const LiveSession = () => {
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-500/90 text-white px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm backdrop-blur-sm"
           >
-            <WifiOff className="h-4 w-4 animate-pulse" />
-            إشارة المشارك ضعيفة — الجلسة مستمرة...
+            <Loader2 className="h-4 w-4 animate-spin" />
+            في انتظار عودة الطرف الآخر — الجلسة محفوظة...
           </motion.div>
         )}
       </AnimatePresence>
