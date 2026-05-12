@@ -465,14 +465,32 @@ export function useWebRTC({
         await sendSignal("answer", { sdp: pc.localDescription?.toJSON() });
 
         for (const c of pendingCandidatesRef.current) {
-          await pc.addIceCandidate(new RTCIceCandidate(c));
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+          } catch (iceErr) {
+            const msg = (iceErr as DOMException)?.message || "";
+            if (msg.includes("ufrag")) {
+              console.debug("[webrtc] discarding stale pending ICE candidate (Unknown ufrag):", msg);
+            } else {
+              console.warn("[webrtc] addIceCandidate (pending) failed:", msg);
+            }
+          }
         }
         pendingCandidatesRef.current = [];
       } else if (signalType === "answer") {
         if (pc.signalingState === "have-local-offer") {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
           for (const c of pendingCandidatesRef.current) {
-            await pc.addIceCandidate(new RTCIceCandidate(c));
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(c));
+            } catch (iceErr) {
+              const msg = (iceErr as DOMException)?.message || "";
+              if (msg.includes("ufrag")) {
+                console.debug("[webrtc] discarding stale pending ICE candidate (Unknown ufrag):", msg);
+              } else {
+                console.warn("[webrtc] addIceCandidate (pending) failed:", msg);
+              }
+            }
           }
           pendingCandidatesRef.current = [];
         }
