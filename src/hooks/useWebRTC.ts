@@ -96,6 +96,8 @@ export function useWebRTC({
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
+  const isRestartingRef      = useRef(false);   // mutex — prevents concurrent ICE restarts
+  const disconnectTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinRetryIntervalRef = useRef<number | null>(null);
   const onDataMessageRef = useRef(onDataMessage);
   onDataMessageRef.current = onDataMessage;
@@ -315,9 +317,25 @@ export function useWebRTC({
           }
         });
       }
+      if (state === "connected") {
+        // Clear restart mutex and reset backoff counter on successful reconnect
+        isRestartingRef.current = false;
+        reconnectAttemptsRef.current = 0;
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+      }
       if (state === "disconnected") {
-        // Auto-recovery: try ICE restart if still disconnected after 12s (tolerate brief tab switches)
-        setTimeout(() => {
+        // Auto-recovery: try ICE restart after 12s (tolerates brief tab switches / flaps).
+        // Clears any pre-existing timer to avoid stacking up multiple restarts.
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        disconnectTimerRef.current = setTimeout(() => {
+          disconnectTimerRef.current = null;
+          if (isRestartingRef.current) return; // already handled by failed handler
           const cur = pcRef.current;
           if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
             console.log("[webrtc] disconnected >12s — attempting ICE restart");
@@ -326,6 +344,12 @@ export function useWebRTC({
         }, 12000);
       }
       if (state === "failed") {
+        // Cancel the disconnected 12s timer — backoff handles restart from here.
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        if (isRestartingRef.current) return; // mutex — skip if already restarting
         const attempt = reconnectAttemptsRef.current;
         const delay = Math.min(2000 * Math.pow(2, attempt), 15000); // exponential backoff, max 15s
         reconnectAttemptsRef.current = attempt + 1;
@@ -502,10 +526,12 @@ export function useWebRTC({
   }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
 
   const restartConnection = useCallback(async () => {
+    if (isRestartingRef.current) return; // prevent concurrent restarts
+    isRestartingRef.current = true;
     const pc = pcRef.current;
-    if (!pc) return;
+    if (!pc) { isRestartingRef.current = false; return; }
     try {
-      if (pc.signalingState !== "stable") return;
+      if (pc.signalingState !== "stable") { isRestartingRef.current = false; return; }
       const offer = await pc.createOffer({ iceRestart: true });
       const restartOfferWithOpus = new RTCSessionDescription({
         type: offer.type,
@@ -513,8 +539,10 @@ export function useWebRTC({
       });
       await pc.setLocalDescription(restartOfferWithOpus);
       await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
+      // mutex released when connection transitions to connected/failed (see state handler above)
     } catch (err) {
       console.error("Restart error:", err);
+      isRestartingRef.current = false; // release on error so next attempt can proceed
     }
   }, [sendSignal]);
 
