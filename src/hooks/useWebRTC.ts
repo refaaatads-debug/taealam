@@ -98,6 +98,7 @@ export function useWebRTC({
   const reconnectAttemptsRef = useRef(0);
   const isRestartingRef      = useRef(false);   // mutex — prevents concurrent ICE restarts
   const disconnectTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNegotiatingRef     = useRef(false);   // true while onnegotiationneeded offer/answer in flight
   const joinRetryIntervalRef = useRef<number | null>(null);
   const onDataMessageRef = useRef(onDataMessage);
   onDataMessageRef.current = onDataMessage;
@@ -326,6 +327,8 @@ export function useWebRTC({
       if (state === "disconnected") {
         // Auto-recovery: try ICE restart after 12s (tolerates brief tab switches / flaps).
         // Clears any pre-existing timer to avoid stacking up multiple restarts.
+        // ALSO skipped when a renegotiation is in flight (e.g. screen share track added)
+        // because direction changes transiently put ICE into "checking" which looks like disconnect.
         if (disconnectTimerRef.current) {
           clearTimeout(disconnectTimerRef.current);
           disconnectTimerRef.current = null;
@@ -333,6 +336,10 @@ export function useWebRTC({
         disconnectTimerRef.current = setTimeout(() => {
           disconnectTimerRef.current = null;
           if (isRestartingRef.current) return; // already handled by failed handler
+          if (isNegotiatingRef.current) {
+            console.log("[webrtc] disconnected during negotiation — skipping ICE restart, waiting for renegotiation to settle");
+            return;
+          }
           const cur = pcRef.current;
           if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
             console.log("[webrtc] disconnected >12s — attempting ICE restart");
@@ -361,9 +368,13 @@ export function useWebRTC({
     };
 
     pc.onnegotiationneeded = async () => {
+      isNegotiatingRef.current = true;
       try {
         if (pc.signalingState !== "stable") return;
         makingOfferRef.current = true;
+        // Clear stale pending candidates — they belong to the previous ICE generation
+        // and would cause "Unknown ufrag" errors if applied to the new description.
+        pendingCandidatesRef.current = [];
         const offer = await pc.createOffer();
         if (pc.signalingState !== "stable") return;
         // Inject Opus FEC + bitrate before sending
@@ -380,6 +391,9 @@ export function useWebRTC({
         }
       } finally {
         makingOfferRef.current = false;
+        // Give the ICE agent 3s to settle after offer/answer before clearing the flag.
+        // This covers the period where stale candidates could still arrive.
+        setTimeout(() => { isNegotiatingRef.current = false; }, 3000);
       }
     };
 
@@ -464,7 +478,18 @@ export function useWebRTC({
         }
       } else if (signalType === "ice-candidate") {
         if (pc.remoteDescription) {
-          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          } catch (iceErr) {
+            const msg = (iceErr as DOMException)?.message || "";
+            if (msg.includes("Unknown ufrag") || msg.includes("unknown ufrag") || msg.includes("ufrag")) {
+              // Stale candidate from a previous ICE generation (before last restart/renegotiation).
+              // Safely discard — the ICE agent only uses candidates matching the current ufrag.
+              console.debug("[webrtc] discarding stale ICE candidate (Unknown ufrag):", msg);
+            } else {
+              throw iceErr; // re-throw unexpected errors
+            }
+          }
         } else {
           pendingCandidatesRef.current.push(payload.candidate);
         }
@@ -539,6 +564,8 @@ export function useWebRTC({
     if (!pc) { isRestartingRef.current = false; return; }
     try {
       if (pc.signalingState !== "stable") { isRestartingRef.current = false; return; }
+      // Clear pending candidates — ICE restart generates new ufrag, old candidates are invalid.
+      pendingCandidatesRef.current = [];
       const offer = await pc.createOffer({ iceRestart: true });
       const restartOfferWithOpus = new RTCSessionDescription({
         type: offer.type,
