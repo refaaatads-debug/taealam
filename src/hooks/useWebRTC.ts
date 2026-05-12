@@ -297,8 +297,14 @@ export function useWebRTC({
       setConnectionState(state);
       onConnectionStateRef.current?.(state);
       if (state === "connected") {
-        detectIceTransportType(pc);
+        // M4: Merged into one block — release mutex, reset backoff, detect ICE type
+        isRestartingRef.current = false;
         reconnectAttemptsRef.current = 0;
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        detectIceTransportType(pc);
         // Stop join retry on connection established
         if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
         // Boost audio sender priority so audio packets are never dropped in favour of video
@@ -316,15 +322,6 @@ export function useWebRTC({
             console.warn("[audio] setParameters failed:", e);
           }
         });
-      }
-      if (state === "connected") {
-        // Clear restart mutex and reset backoff counter on successful reconnect
-        isRestartingRef.current = false;
-        reconnectAttemptsRef.current = 0;
-        if (disconnectTimerRef.current) {
-          clearTimeout(disconnectTimerRef.current);
-          disconnectTimerRef.current = null;
-        }
       }
       if (state === "disconnected") {
         // Auto-recovery: try ICE restart after 12s (tolerates brief tab switches / flaps).
@@ -344,12 +341,15 @@ export function useWebRTC({
         }, 12000);
       }
       if (state === "failed") {
+        // B1: Release mutex first — a failed state means the last restart ended (even if
+        // unsuccessfully). Without this, the backoff setTimeout can never call
+        // restartConnection() again because the mutex would still be held.
+        isRestartingRef.current = false;
         // Cancel the disconnected 12s timer — backoff handles restart from here.
         if (disconnectTimerRef.current) {
           clearTimeout(disconnectTimerRef.current);
           disconnectTimerRef.current = null;
         }
-        if (isRestartingRef.current) return; // mutex — skip if already restarting
         const attempt = reconnectAttemptsRef.current;
         const delay = Math.min(2000 * Math.pow(2, attempt), 15000); // exponential backoff, max 15s
         reconnectAttemptsRef.current = attempt + 1;
@@ -470,6 +470,13 @@ export function useWebRTC({
         }
       } else if (signalType === "join") {
         onRemoteJoinRef.current?.();
+        if (isRestartingRef.current) {
+          // M3: A join arrived mid-ICE-restart — rebuilding the PC now would create
+          // offer glare and abort the ongoing restart. Skip the rebuild; the ICE
+          // restart's own offer/answer will re-establish the connection.
+          console.log("[webrtc] join received during ICE restart — skipping PC rebuild");
+          return;
+        }
         // Remote peer (re)joined — rebuild the peer connection from scratch.
         // Do NOT create an explicit offer here; onnegotiationneeded fires automatically
         // after tracks are added, avoiding race conditions with concurrent offers

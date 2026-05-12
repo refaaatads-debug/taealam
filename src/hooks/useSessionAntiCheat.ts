@@ -31,7 +31,6 @@ export function useSessionAntiCheat({
   const [isTabLocked, setIsTabLocked] = useState(false);
   const [isDeviceConflict, setIsDeviceConflict] = useState(false);
   const [peerDisconnected, setPeerDisconnected] = useState(false);
-  const [reconnectCountdown, setReconnectCountdown] = useState(0);
 
   const heartbeatRef = useRef<number>();
   const disconnectTimerRef = useRef<number>();
@@ -238,15 +237,12 @@ export function useSessionAntiCheat({
           // Session ends only on explicit leave or page close.
           if (!peerDisconnected) {
             setPeerDisconnected(true);
-            setReconnectCountdown(0);
             logEvent("peer_heartbeat_stale", { peer_user_id: peer.user_id, elapsed_ms: elapsed });
             toast.warning("⚠️ إشارة المشارك ضعيفة — الجلسة مستمرة...", { duration: 5000 });
           }
         } else if (elapsed < PEER_STALE_THRESHOLD && peerDisconnected) {
           // Peer heartbeat restored
           setPeerDisconnected(false);
-          setReconnectCountdown(0);
-          if (countdownRef.current) clearInterval(countdownRef.current);
           toast.success("عاد المشارك الآخر! ✅");
           logEvent("peer_reconnected", { peer_user_id: peer.user_id });
         }
@@ -337,7 +333,6 @@ export function useSessionAntiCheat({
     isTabLocked,
     isDeviceConflict,
     peerDisconnected,
-    reconnectCountdown,
     cleanupSession,
     checkActiveSession,
     logEvent,

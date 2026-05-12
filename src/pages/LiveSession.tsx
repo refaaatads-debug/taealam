@@ -393,7 +393,6 @@ const LiveSession = () => {
   const {
     isTabLocked,
     peerDisconnected,
-    reconnectCountdown,
     cleanupSession,
     checkActiveSession,
     logEvent,
@@ -970,7 +969,7 @@ const LiveSession = () => {
   //   • On reconnect, the teacher broadcasts authoritative elapsed so the
   //     student resyncs from the exact same point (monotonic forward only).
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === "undefined" ? true : navigator.onLine);
-  const [isPageVisible, setIsPageVisible] = useState<boolean>(typeof document === "undefined" ? true : !document.hidden);
+  // isPageVisible removed (M1) — tab visibility does not pause the timer per spec.
   const wasCountingRef = useRef(false);
   const lastTickRef = useRef<number>(0);
 
@@ -978,9 +977,7 @@ const LiveSession = () => {
     const onOnline = () => { setIsOnline(true); logEvent("network_online"); };
     const onOffline = () => { setIsOnline(false); logEvent("network_offline"); };
     const onVis = () => {
-      const visible = !document.hidden;
-      setIsPageVisible(visible);
-      logEvent(visible ? "page_visible" : "page_hidden");
+      logEvent(!document.hidden ? "page_visible" : "page_hidden");
     };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
@@ -993,14 +990,15 @@ const LiveSession = () => {
   }, [logEvent]);
 
   // Counter runs after both parties join. Pauses ONLY when:
-  //   • A party leaves/ends the session (peerDisconnected)
   //   • Local network is offline OR WebRTC connection is not "connected"
   // On reconnect: resumes from the exact same point. Teacher broadcasts the
   // authoritative elapsed every second so the student stays in sync.
   // Tab switching and screen sharing do NOT pause the timer.
+  // NOTE: peerDisconnected (DB heartbeat) is NOT used here — WebRTC state is the
+  // authority for "peer is gone". DB heartbeat can be stale due to Supabase
+  // network issues even when WebRTC is healthy, which would falsely pause the timer.
   const connectionHealthy = isOnline && connectionState === "connected";
-  // Spec: timer stops when peer leaves (peerDisconnected) or connection drops
-  const shouldCount = meetingStarted && bothJoined && connectionHealthy && !peerDisconnected;
+  const shouldCount = meetingStarted && bothJoined && connectionHealthy;
   shouldCountRef.current = shouldCount;
 
   // ── Reconnection banner lifecycle ────────────────────────────────────────
@@ -1136,6 +1134,24 @@ const LiveSession = () => {
     }, 5_000);
     return () => clearInterval(id);
   }, [bookingId, meetingStarted]);
+
+  // B2: On teacher page refresh/rejoin, restore elapsed from the last saved checkpoint.
+  // Without this, the teacher's counter resets to 0 on refresh and broadcasts 0 to the student.
+  // Guards: only restore if (a) we're the teacher, (b) session just started, (c) save is <5min old.
+  useEffect(() => {
+    if (!isTeacher || !meetingStarted || !bookingId) return;
+    try {
+      const saved = localStorage.getItem(`session_elapsed_${bookingId}`);
+      if (!saved) return;
+      const { elapsed: savedElapsed, ts } = JSON.parse(saved);
+      if (typeof savedElapsed !== "number" || savedElapsed <= 0) return;
+      const ageSec = Math.max(0, (Date.now() - ts) / 1000);
+      if (ageSec > 300) return; // stale (>5 min) — ignore, likely a different session
+      const restored = Math.round(savedElapsed + ageSec);
+      setElapsed(restored);
+      console.log(`[timer] restored elapsed from localStorage: ${restored}s (saved=${savedElapsed}s + ${Math.round(ageSec)}s drift)`);
+    } catch { /* ignore parse errors */ }
+  }, [isTeacher, meetingStarted, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatTime = (s: number) => {
     const h = Math.floor(s / 3600).toString().padStart(2, "0");
