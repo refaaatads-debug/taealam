@@ -1,6 +1,33 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+// ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
+// useinbandfec=1  → forward error correction (masks 1-2% packet loss → no cuts)
+// minptime=10     → 10ms packet time (low latency voice)
+// maxaveragebitrate=64000 → 64 kbps (clear voice, not the browser default ~32kbps)
+function injectOpusParams(sdp: string): string {
+  const opusMatch = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
+  if (!opusMatch) return sdp;
+  const pt = opusMatch[1];
+  const opusParams = "useinbandfec=1;minptime=10;maxaveragebitrate=64000";
+  // If fmtp line already exists for this payload type, append our params
+  if (new RegExp(`a=fmtp:${pt} `).test(sdp)) {
+    return sdp.replace(
+      new RegExp(`(a=fmtp:${pt} [^\r\n]*)`),
+      (m) => {
+        if (m.includes("useinbandfec")) return m; // already set
+        return `${m};${opusParams}`;
+      }
+    );
+  }
+  // Otherwise insert a new fmtp line after the rtpmap line
+  return sdp.replace(
+    `a=rtpmap:${pt} opus/48000/2`,
+    `a=rtpmap:${pt} opus/48000/2
+a=fmtp:${pt} ${opusParams}`
+  );
+}
+
 // Self-hosted coturn (ajyal.app) — credentials issued by the
 // `turn-credentials` Edge Function (HMAC, expires after TURN_TTL).
 // Cached briefly so renegotiations don't hammer the function.
@@ -118,7 +145,13 @@ export function useWebRTC({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: false,
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,  // AGC causes volume pumping → sounds like audio cutting
+          channelCount: 1,         // Mono: halves audio bandwidth, ideal for voice
+          sampleRate: 48000,       // Opus native sample rate
+        },
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -252,6 +285,21 @@ export function useWebRTC({
         reconnectAttemptsRef.current = 0;
         // Stop join retry on connection established
         if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+        // Boost audio sender priority so audio packets are never dropped in favour of video
+        pc.getSenders().forEach(async (sender) => {
+          if (!sender.track || sender.track.kind !== "audio") return;
+          try {
+            const params = sender.getParameters();
+            if (!params.encodings || params.encodings.length === 0) params.encodings = [{} as any];
+            params.encodings[0].maxBitrate = 64_000;       // 64 kbps — crystal-clear voice
+            (params.encodings[0] as any).priority = "high";
+            (params.encodings[0] as any).networkPriority = "high";
+            await sender.setParameters(params);
+            console.log("[audio] sender priority set to high, maxBitrate=64kbps");
+          } catch (e) {
+            console.warn("[audio] setParameters failed:", e);
+          }
+        });
       }
       if (state === "disconnected") {
         // Auto-recovery: try ICE restart if still disconnected after 12s (tolerate brief tab switches)
@@ -280,7 +328,12 @@ export function useWebRTC({
         makingOfferRef.current = true;
         const offer = await pc.createOffer();
         if (pc.signalingState !== "stable") return;
-        await pc.setLocalDescription(offer);
+        // Inject Opus FEC + bitrate before sending
+        const offerWithOpus = new RTCSessionDescription({
+          type: offer.type,
+          sdp: injectOpusParams(offer.sdp || ""),
+        });
+        await pc.setLocalDescription(offerWithOpus);
         await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
       } catch (err) {
         // InvalidStateError is expected during signaling collision — ignore silently
@@ -352,7 +405,11 @@ export function useWebRTC({
         }
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
+        const answerWithOpus = new RTCSessionDescription({
+          type: answer.type,
+          sdp: injectOpusParams(answer.sdp || ""),
+        });
+        await pc.setLocalDescription(answerWithOpus);
         await sendSignal("answer", { sdp: pc.localDescription?.toJSON() });
 
         for (const c of pendingCandidatesRef.current) {
@@ -436,7 +493,11 @@ export function useWebRTC({
     try {
       if (pc.signalingState !== "stable") return;
       const offer = await pc.createOffer({ iceRestart: true });
-      await pc.setLocalDescription(offer);
+      const restartOfferWithOpus = new RTCSessionDescription({
+        type: offer.type,
+        sdp: injectOpusParams(offer.sdp || ""),
+      });
+      await pc.setLocalDescription(restartOfferWithOpus);
       await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
     } catch (err) {
       console.error("Restart error:", err);
