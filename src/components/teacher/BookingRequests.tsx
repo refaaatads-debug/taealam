@@ -159,10 +159,13 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
   const handleRejectGroup = async (g: RequestGroup) => {
     try {
-      await supabase
-        .from("booking_requests" as any)
-        .update({ status: "rejected" } as any)
-        .in("id", g.items.map((r) => r.id));
+      // Direct REST UPDATE is blocked by RLS; use SECURITY DEFINER RPC instead.
+      const { data: ok, error } = await supabase.rpc("reject_booking_request" as any, {
+        _request_ids: g.items.map((r) => r.id),
+        _teacher_id: user?.id ?? "",
+      });
+      if (error) throw error;
+      if (!ok) throw new Error("لم يتم العثور على الطلب أو تم معالجته مسبقاً");
       fetchRequests();
       toast.info("تم رفض الطلب");
     } catch (e: any) {
