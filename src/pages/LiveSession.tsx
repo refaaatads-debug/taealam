@@ -53,7 +53,7 @@ const LiveSession = () => {
   const [questionsDetected, setQuestionsDetected] = useState(0);
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
-  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string }[]>([]);
+  const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string; _tempId?: string }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -587,8 +587,13 @@ const LiveSession = () => {
             fileName: msg.file_name,
             fileType: msg.file_type,
           };
-          const exists = prev.some((item) => item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
-          return exists ? prev : [...prev, formatted];
+          // Remove any matching optimistic entry (same text, same sender) before adding real one
+          const withoutOptimistic = isMe
+            ? prev.filter(item => !(item._tempId && item.text === msg.content && item.me))
+            : prev;
+          // Dedup in case realtime fires twice
+          const exists = withoutOptimistic.some((item) => !item._tempId && item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
+          return exists ? withoutOptimistic : [...withoutOptimistic, formatted];
         });
         if (!isMe) {
           playNotificationSound();
@@ -1253,6 +1258,11 @@ const LiveSession = () => {
 
     setNewMessage("");
 
+    // Optimistic update: show message immediately, realtime will replace the temp entry
+    const _tempId = `_temp_${Date.now()}`;
+    const optTime = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+    setMessages(prev => [...prev, { sender: "أنت", text: msgText, time: optTime, me: true, _tempId }]);
+
     if (bookingId && user) {
       const { error } = await supabase.from("chat_messages").insert({
         booking_id: bookingId,
@@ -1263,6 +1273,8 @@ const LiveSession = () => {
       if (error) {
         toast.error("تعذر إرسال الرسالة");
         setNewMessage(msgText);
+        // Rollback optimistic entry
+        setMessages(prev => prev.filter(m => m._tempId !== _tempId));
         return;
       }
     }

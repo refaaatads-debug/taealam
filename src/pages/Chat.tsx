@@ -150,15 +150,35 @@ const Chat = () => {
     const content = newMessage.trim();
     setNewMessage("");
 
-    const { error } = await supabase.from("chat_messages").insert({
+    // Optimistic update: show the message immediately without waiting for realtime
+    const tempId = `_temp_${Date.now()}`;
+    const optimistic: ChatMessage = {
+      id: tempId,
       booking_id: bookingId,
       sender_id: user.id,
       content,
-    });
+      is_filtered: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimistic]);
+
+    const { data: inserted, error } = await supabase.from("chat_messages").insert({
+      booking_id: bookingId,
+      sender_id: user.id,
+      content,
+    }).select().single();
 
     if (error) {
+      // Rollback optimistic entry
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       setNewMessage(content);
     } else {
+      // Replace temp entry with the real persisted row (avoids duplicate when realtime fires)
+      if (inserted) {
+        setMessages(prev => prev.map(m => m.id === tempId ? (inserted as ChatMessage) : m));
+      }
+    }
+    if (!error) {
       try {
         const { data: booking } = await supabase
           .from("bookings")
