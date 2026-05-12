@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function useUnreadMessages(bookingIds: string[]) {
   const { user } = useAuth();
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  // A stable per-mount ID so each hook instance always gets a unique channel name
+  const instanceId = useRef(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 
   useEffect(() => {
     if (!user || bookingIds.length === 0) return;
@@ -27,8 +29,11 @@ export function useUnreadMessages(bookingIds: string[]) {
 
     fetchCounts();
 
+    // Use a unique channel name per effect execution to prevent
+    // "cannot add postgres_changes callbacks after subscribe()" when bookingIds change
+    const channelName = `unread-msg-${instanceId.current}-${Date.now()}`;
     const channel = supabase
-      .channel("unread-messages-" + bookingIds.slice(0, 3).join("-"))
+      .channel(channelName)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
@@ -45,7 +50,7 @@ export function useUnreadMessages(bookingIds: string[]) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, bookingIds.join(",")]);
+  }, [user?.id, bookingIds.join(",")]);
 
   return unreadCounts;
 }
