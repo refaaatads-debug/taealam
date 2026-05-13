@@ -14,7 +14,6 @@ import { AlertTriangle, ShieldAlert, Loader2, ArrowRight, ArrowLeft } from "luci
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { notificationTemplates } from "@/lib/notificationTemplates";
 
 interface Props {
   open: boolean;
@@ -83,16 +82,6 @@ export default function CancelSessionDialog({
         .eq("teacher_id", user.id);
 
       if (updateErr) throw updateErr;
-
-      if (studentId) {
-        await supabase.from("notifications").insert({
-          user_id: studentId,
-          ...notificationTemplates.bookingCancelledByTeacher({
-            teacherName: profile?.full_name || "معلمك",
-            reason: trimmedReason,
-          }),
-        });
-      }
 
       const newCount = monthCount + 1;
       const { data: notifyAdminsData, error: notifyAdminsError } = await supabase.functions.invoke("send-notification", {
