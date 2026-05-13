@@ -59,8 +59,18 @@ async function callGemini(messages: any[], apiKey: string): Promise<string | nul
   } catch (e) { console.error("Gemini exception:", e); return null; }
 }
 
+// Hard 25s timeout: AI+TTS chain must finish before edge runtime kills isolate
+// (which drops the shared HTTP/2 connection causing collateral NetworkErrors).
+const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const TIMEOUT_RESP = new Response(
+    JSON.stringify({ error: "انتهت مهلة الطلب، حاول مرة أخرى" }),
+    { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+  const inner = (async (): Promise<Response> => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -111,4 +121,6 @@ serve(async (req) => {
     console.error("ai-tutor-chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
+  })(); // end inner
+  return withTimeout(inner, 25_000, TIMEOUT_RESP);
 });

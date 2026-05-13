@@ -190,6 +190,13 @@ const TeacherDashboard = () => {
       sessions: tp?.total_sessions || 0,
       rating: Number(tp?.avg_rating) || 0,
     });
+    } catch (fetchErr) {
+      console.error("[teacher-dashboard] fetchData error:", fetchErr);
+      // Transient network error (e.g. edge-function crash dropped HTTP/2 connection).
+      // Silently retry once after 2s so the dashboard recovers automatically.
+      setTimeout(() => {
+        if (user) fetchData();
+      }, 2000);
     } finally {
       setLoading(false);
     }

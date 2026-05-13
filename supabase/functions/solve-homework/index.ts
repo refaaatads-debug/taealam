@@ -61,9 +61,19 @@ async function callGeminiVision(base64Data: string, mimeType: string, userText: 
   } catch (e) { console.error("Gemini vision exception:", e); return null; }
 }
 
+// Hard 20s timeout: prevents early termination from killing the shared HTTP/2
+// connection and causing collateral NetworkErrors for all concurrent users.
+const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const TIMEOUT_RESPONSE = new Response(
+    JSON.stringify({ error: "انتهى وقت المعالجة، حاول مرة أخرى بعد قليل" }),
+    { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 
+  const inner = (async (): Promise<Response> => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -202,4 +212,6 @@ serve(async (req) => {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  })(); // end inner
+  return withTimeout(inner, 20_000, TIMEOUT_RESPONSE);
 });
