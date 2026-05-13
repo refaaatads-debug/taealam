@@ -1864,15 +1864,20 @@ const LiveSession = () => {
       <AnimatePresence>
         {showReconnectBanner && !peerDisconnected && (
           <motion.div
-            initial={{ opacity: 0, y: -24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-500/90 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 font-bold text-sm backdrop-blur-sm border border-orange-400/30"
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 340, damping: 28 }}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/55 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 select-none"
           >
-            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            <div className="flex flex-col gap-0.5">
-              <span>جاري إعادة الاتصال — الجلسة محفوظة...</span>
-              <span className="text-[11px] font-normal opacity-80">الوقت متوقف مؤقتاً ويُستأنف عند عودة الاتصال</span>
+            {/* Animated pulse dot */}
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-white/90 text-[13px] font-semibold tracking-wide">إعادة الاتصال...</span>
+              <span className="text-white/45 text-[10px] font-normal">الجلسة محفوظة · الوقت متوقف مؤقتاً</span>
             </div>
           </motion.div>
         )}
@@ -1882,13 +1887,20 @@ const LiveSession = () => {
       <AnimatePresence>
         {peerDisconnected && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-orange-500/90 text-white px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 font-bold text-sm backdrop-blur-sm"
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 340, damping: 28 }}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/55 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40 select-none"
           >
-            <Loader2 className="h-4 w-4 animate-spin" />
-            في انتظار عودة الطرف الآخر — الجلسة محفوظة...
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-400" />
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-white/90 text-[13px] font-semibold tracking-wide">الطرف الآخر غير متصل</span>
+              <span className="text-white/45 text-[10px] font-normal">في انتظار عودته · الجلسة محفوظة</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
