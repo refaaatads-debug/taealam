@@ -22,6 +22,18 @@ interface SessionMaterial {
   subject_name: string;
 }
 
+
+// Limit concurrent signed-URL requests to avoid ERR_HTTP2_PROTOCOL_ERROR
+async function batchAsync<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const chunk = items.slice(i, i + size);
+    const chunkResults = await Promise.all(chunk.map(fn));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 export default function SessionMaterials() {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<SessionMaterial[]>([]);
@@ -64,7 +76,7 @@ export default function SessionMaterials() {
     const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    const enriched = await Promise.all(mats.map(async (m) => {
+    const enriched = await batchAsync(mats, 3, async (m) => {
       const session = sessionMap.get(m.session_id);
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
 
@@ -93,7 +105,7 @@ export default function SessionMaterials() {
         subject_name: subjectName,
         days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
-    }));
+    });
     setMaterials(enriched);
     setLoading(false);
   };

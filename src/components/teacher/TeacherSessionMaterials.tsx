@@ -22,6 +22,18 @@ interface SessionMaterial {
   student_name: string;
 }
 
+
+// Limit concurrent signed-URL requests to avoid ERR_HTTP2_PROTOCOL_ERROR
+async function batchAsync<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const chunk = items.slice(i, i + size);
+    const chunkResults = await Promise.all(chunk.map(fn));
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 export default function TeacherSessionMaterials() {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<SessionMaterial[]>([]);
@@ -67,7 +79,7 @@ export default function TeacherSessionMaterials() {
     const bookingMap = new Map((bookings ?? []).map(b => [b.id, (b.subjects as any)?.name || "حصة"]));
 
     const now = Date.now();
-    const result = await Promise.all(mats.map(async (m) => {
+    const result = await batchAsync(mats, 3, async (m) => {
       const session = sessionMap.get(m.session_id);
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
 
@@ -96,7 +108,7 @@ export default function TeacherSessionMaterials() {
         student_name: nameMap.get(m.student_id) || "طالب",
         days_remaining: Math.max(0, Math.ceil((new Date(m.expires_at).getTime() - now) / (1000 * 60 * 60 * 24))),
       };
-    }));
+    });
     setMaterials(result);
     // Auto-expand first student
     const firstStudent = result[0]?.student_name;
