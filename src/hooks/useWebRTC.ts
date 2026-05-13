@@ -140,13 +140,22 @@ export function useWebRTC({
   const onRemoteLeaveRef = useRef(onRemoteLeave);
   onRemoteLeaveRef.current = onRemoteLeave;
 
-  const waitForChannelSubscription = useCallback((channel: any) => {
+  const waitForChannelSubscription = useCallback((
+    channel: any,
+    onResubscribe?: () => void,
+  ) => {
     return new Promise<any>((resolve, reject) => {
       let settled = false;
       channel.subscribe((status: string) => {
-        if (status === "SUBSCRIBED" && !settled) {
-          settled = true;
-          resolve(channel);
+        if (status === "SUBSCRIBED") {
+          if (!settled) {
+            settled = true;
+            resolve(channel);
+          } else if (onResubscribe) {
+            // Supabase Realtime reconnected after internet outage — notify caller
+            console.log("[webrtc] Realtime channel re-subscribed after outage");
+            onResubscribe();
+          }
         }
         if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && !settled) {
           settled = true;
@@ -555,7 +564,19 @@ export function useWebRTC({
         }
       });
 
-    await waitForChannelSubscription(channel);
+    await waitForChannelSubscription(channel, async () => {
+      // Realtime channel reconnected after internet outage.
+      // If WebRTC is still broken, re-send "join" so the peer rebuilds the connection.
+      const pcState = pcRef.current?.connectionState;
+      if (pcState === "failed" || pcState === "disconnected") {
+        console.log("[webrtc] Realtime back — re-sending join (WebRTC state:", pcState, ")");
+        try {
+          await sendSignal("join", { userId });
+        } catch (e) {
+          console.warn("[webrtc] re-join signal failed:", e);
+        }
+      }
+    });
     channelRef.current = channel;
     await createPeerConnection();
     await sendSignal("join", { userId });

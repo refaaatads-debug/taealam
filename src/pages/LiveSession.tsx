@@ -770,8 +770,10 @@ const LiveSession = () => {
   const screenSharePromptShownRef = useRef(false);
   // ── Reconnection UX ──────────────────────────────────────────────────────
   const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  const [showReloadHint, setShowReloadHint] = useState(false);
   const prevConnectionStateRef = useRef<RTCPeerConnectionState>("new");
   const reconnectBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloadHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (bothJoined && !isRecording && remoteStream) {
       startAutoRecording();
@@ -989,15 +991,14 @@ const LiveSession = () => {
     };
   }, [logEvent]);
 
-  // Counter runs after both parties join. Pauses ONLY when:
-  //   • Local network is offline OR WebRTC connection is not "connected"
-  // On reconnect: resumes from the exact same point. Teacher broadcasts the
-  // authoritative elapsed every second so the student stays in sync.
-  // Tab switching and screen sharing do NOT pause the timer.
-  // NOTE: peerDisconnected (DB heartbeat) is NOT used here — WebRTC state is the
-  // authority for "peer is gone". DB heartbeat can be stale due to Supabase
-  // network issues even when WebRTC is healthy, which would falsely pause the timer.
-  const connectionHealthy = isOnline && connectionState === "connected";
+  // Counter runs after both parties join. Pauses when:
+  //   • Local network is offline
+  //   • WebRTC connectionState is not "connected"
+  //   • DataChannel is closed — fastest peer-disconnect signal (fires within seconds,
+  //     before the 20-30s ICE keepalive timeout that changes connectionState).
+  //     When the peer's internet drops, the DataChannel closes immediately on our side,
+  //     so using dataChannelReady avoids the long lag the user would otherwise see.
+  const connectionHealthy = isOnline && connectionState === "connected" && dataChannelReady;
   const shouldCount = meetingStarted && bothJoined && connectionHealthy;
   shouldCountRef.current = shouldCount;
 
@@ -1010,11 +1011,16 @@ const LiveSession = () => {
     prevConnectionStateRef.current = connectionState;
 
     if (connectionState === "connected") {
-      // Clear any pending timer
+      // Clear any pending timers
       if (reconnectBannerTimerRef.current) {
         clearTimeout(reconnectBannerTimerRef.current);
         reconnectBannerTimerRef.current = null;
       }
+      if (reloadHintTimerRef.current) {
+        clearTimeout(reloadHintTimerRef.current);
+        reloadHintTimerRef.current = null;
+      }
+      setShowReloadHint(false);
       // If we were reconnecting, celebrate and hide banner
       if (showReconnectBanner || prev === "disconnected" || prev === "failed") {
         setShowReconnectBanner(false);
@@ -1032,6 +1038,13 @@ const LiveSession = () => {
           setShowReconnectBanner(true);
           reconnectBannerTimerRef.current = null;
         }, 5000);
+      }
+      // After 90s still stuck → suggest page reload as last resort
+      if (!reloadHintTimerRef.current) {
+        reloadHintTimerRef.current = setTimeout(() => {
+          setShowReloadHint(true);
+          reloadHintTimerRef.current = null;
+        }, 90_000);
       }
     } else {
       // connecting / new / closed — clear pending timer
@@ -1879,6 +1892,14 @@ const LiveSession = () => {
               <span className="text-white/90 text-[13px] font-semibold tracking-wide">إعادة الاتصال...</span>
               <span className="text-white/45 text-[10px] font-normal">الجلسة محفوظة · الوقت متوقف مؤقتاً</span>
             </div>
+            {showReloadHint && (
+              <button
+                onClick={() => window.location.reload()}
+                className="mr-1 text-[11px] font-semibold text-amber-300 hover:text-white border border-amber-400/40 hover:border-white/30 rounded-lg px-2 py-1 transition-colors"
+              >
+                تحديث الصفحة
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
