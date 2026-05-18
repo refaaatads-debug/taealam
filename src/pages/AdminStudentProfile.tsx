@@ -33,6 +33,7 @@ export interface StudentBundle {
   bookings: any[];
   sessions: any[];
   payments: any[];
+  bookingRequests: any[];
   tickets: any[];
   warnings: any[];
   points: any | null;
@@ -67,7 +68,7 @@ const AdminStudentProfile = () => {
       const [
         profileRes, roleRes, subsRes, bookingsRes, paymentsRes,
         ticketsRes, warningsRes, pointsRes, badgesRes, reviewsRes,
-        notificationsRes, eventsRes,
+        notificationsRes, eventsRes, bookingRequestsRes,
       ] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", id).maybeSingle(),
@@ -81,6 +82,7 @@ const AdminStudentProfile = () => {
         supabase.from("reviews").select("*").eq("student_id", id).order("created_at", { ascending: false }).limit(20),
         supabase.from("notifications").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(30),
         supabase.from("session_events").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(50),
+        supabase.from("booking_requests").select("id, student_id, subject_id, scheduled_at, accepted_by, status").eq("student_id", id).order("scheduled_at", { ascending: false }),
       ]);
 
       if (!profileRes.data) {
@@ -115,6 +117,7 @@ const AdminStudentProfile = () => {
         badges: badgesRes.data || [],
         reviews: reviewsRes.data || [],
         notifications: notificationsRes.data || [],
+        bookingRequests: bookingRequestsRes.data || [],
         lastLogin,
       });
     } catch (e: any) {

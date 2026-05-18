@@ -72,7 +72,21 @@ const StudentSessionsTab = ({ data }: { data: StudentBundle }) => {
     if (b.subject_id && subjectNames[b.subject_id]) return subjectNames[b.subject_id];
     if (b.subjects?.name) return b.subjects.name;
     if (Array.isArray(b.subjects) && b.subjects[0]?.name) return b.subjects[0].name;
-    return "بدون مادة";
+    // Fallback: match via booking_requests by teacher_id + closest scheduled_at
+    const requests = (data.bookingRequests || []) as any[];
+    if (requests.length > 0 && b.teacher_id) {
+      const bTime = new Date(b.scheduled_at).getTime();
+      const candidates = requests
+        .filter((br: any) => br.accepted_by === b.teacher_id && br.subject_id)
+        .sort((a: any, z: any) =>
+          Math.abs(new Date(a.scheduled_at).getTime() - bTime) -
+          Math.abs(new Date(z.scheduled_at).getTime() - bTime)
+        );
+      if (candidates.length > 0 && subjectNames[candidates[0].subject_id]) {
+        return subjectNames[candidates[0].subject_id];
+      }
+    }
+    return "—";
   };
 
   const filtered = data.bookings.filter((b: any) => {
@@ -115,7 +129,7 @@ const StudentSessionsTab = ({ data }: { data: StudentBundle }) => {
             const subjectName = getSubjectName(b);
             const teacherName = teacherNames[b.teacher_id] || "معلم";
             const isShort = session && actualMins > 0 && actualMins < 5;
-            const hasSubject = b.subject_id && subjectNames[b.subject_id];
+            const hasSubject = subjectName !== "—";
 
             return (
               <Card key={b.id} className="border border-border/50">
