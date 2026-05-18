@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import TeacherSessionsTab from "@/components/admin/TeacherSessionsTab";
 import { ar } from "date-fns/locale";
 
 interface TeacherBundle {
@@ -297,25 +298,8 @@ const AdminTeacherProfile = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="sessions" className="m-0">
-              <Card>
-                <CardHeader><CardTitle className="text-sm">آخر الحصص ({data.bookings.length})</CardTitle></CardHeader>
-                <CardContent>
-                  {data.bookings.length === 0 ? <Empty text="لا حصص" /> : (
-                    <div className="space-y-2">
-                      {data.bookings.slice(0, 30).map((b: any) => (
-                        <div key={b.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{b.subjects?.name || "حصة"}</div>
-                            <div className="text-xs text-muted-foreground">{format(new Date(b.scheduled_at), "dd MMM yyyy HH:mm", { locale: ar })}</div>
-                          </div>
-                          <Badge variant={b.status === "completed" ? "secondary" : b.status === "cancelled" ? "destructive" : "outline"}>{b.status}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                        <TabsContent value="sessions" className="m-0">
+              <TeacherSessionsTab bookings={data.bookings} sessions={data.sessions} />
             </TabsContent>
 
             <TabsContent value="reviews" className="m-0">
