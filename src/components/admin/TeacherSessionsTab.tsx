@@ -46,6 +46,7 @@ const TeacherSessionsTab = ({ bookings, sessions }: TeacherSessionsTabProps) => 
   const [filter, setFilter] = useState<"all" | "upcoming" | "past" | "cancelled">("all");
   const [search, setSearch] = useState("");
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
+  const [subjectNames, setSubjectNames] = useState<Record<string, string>>({});
 
   const sessionsMap = useMemo(() => {
     const m: Record<string, any> = {};
@@ -54,19 +55,34 @@ const TeacherSessionsTab = ({ bookings, sessions }: TeacherSessionsTabProps) => 
   }, [sessions]);
 
   useEffect(() => {
+    // Fetch student names
     const ids = Array.from(new Set(bookings.map((b: any) => b.student_id).filter(Boolean)));
-    if (ids.length === 0) return;
-    const CHUNK = 50;
-    const chunks: string[][] = [];
-    for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-    Promise.all(chunks.map(c =>
-      supabase.from("profiles").select("user_id, full_name").in("user_id", c)
-    )).then(results => {
+    if (ids.length > 0) {
+      const CHUNK = 50;
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+      Promise.all(chunks.map(c =>
+        supabase.from("profiles").select("user_id, full_name").in("user_id", c)
+      )).then(results => {
+        const m: Record<string, string> = {};
+        results.flatMap(r => r.data || []).forEach((r: any) => { m[r.user_id] = r.full_name; });
+        setStudentNames(m);
+      });
+    }
+    // Fetch all subjects as a lookup map
+    supabase.from("subjects").select("id, name").then(({ data: rows }) => {
       const m: Record<string, string> = {};
-      results.flatMap(r => r.data || []).forEach((r: any) => { m[r.user_id] = r.full_name; });
-      setStudentNames(m);
+      (rows || []).forEach((r: any) => { m[r.id] = r.name; });
+      setSubjectNames(m);
     });
   }, [bookings]);
+
+  const getSubjectName = (b: any): string => {
+    if (b.subject_id && subjectNames[b.subject_id]) return subjectNames[b.subject_id];
+    if (b.subjects?.name) return b.subjects.name;
+    if (Array.isArray(b.subjects) && b.subjects[0]?.name) return b.subjects[0].name;
+    return "بدون مادة";
+  };
 
   const filtered = bookings.filter((b: any) => {
     const isUpcoming = new Date(b.scheduled_at) > new Date() && (b.status === "confirmed" || b.status === "pending");
@@ -78,7 +94,7 @@ const TeacherSessionsTab = ({ bookings, sessions }: TeacherSessionsTabProps) => 
     if (search) {
       const q = search.toLowerCase();
       const sn = (studentNames[b.student_id] || "").toLowerCase();
-      const sub = (b.subjects?.name || "").toLowerCase();
+      const sub = getSubjectName(b).toLowerCase();
       if (!sn.includes(q) && !sub.includes(q)) return false;
     }
     return true;
@@ -105,9 +121,10 @@ const TeacherSessionsTab = ({ bookings, sessions }: TeacherSessionsTabProps) => 
           {filtered.map((b: any) => {
             const session = sessionsMap[b.id] || null;
             const actualMins = getActualMinutes(session);
-            const subjectName = b.subjects?.name || "غير محدد";
+            const subjectName = getSubjectName(b);
             const studentName = studentNames[b.student_id] || "طالب";
             const isShort = session && actualMins > 0 && actualMins < 5;
+            const hasSubject = b.subject_id && subjectNames[b.subject_id];
 
             return (
               <Card key={b.id} className="border border-border/50">
@@ -118,7 +135,9 @@ const TeacherSessionsTab = ({ bookings, sessions }: TeacherSessionsTabProps) => 
                         <BookOpen className="h-4 w-4 text-primary" />
                       </div>
                       <div>
-                        <div className="font-bold text-sm">{subjectName}</div>
+                        <div className={`font-bold text-sm ${!hasSubject ? "text-muted-foreground italic" : ""}`}>
+                          {subjectName}
+                        </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <User className="h-3 w-3" /> {studentName}
                         </div>
