@@ -184,6 +184,25 @@ export default function StudentScheduleTable() {
   const handleInstantSession = async (teacherId: string, teacherName: string) => {
     if (!user) return;
 
+    // Block if student already has an active instant session with ANY other teacher
+    const { data: studentActiveSessions } = await supabase
+      .from("bookings")
+      .select("id, session_status")
+      .eq("student_id", user.id)
+      .in("session_status", ["waiting_acceptance", "in_progress"])
+      .neq("teacher_id", teacherId)
+      .limit(1);
+
+    if (studentActiveSessions && studentActiveSessions.length > 0) {
+      const isInProgress = studentActiveSessions[0].session_status === "in_progress";
+      toast.error(
+        isInProgress
+          ? "أنت في جلسة جارية الآن، لا يمكنك طلب جلسة فورية جديدة"
+          : "لديك طلب جلسة فورية مرسل لمعلم آخر في انتظار القبول، يرجى الانتهاء منه أولاً"
+      );
+      return;
+    }
+
     // Auto-cancel any old pending requests this student has with this teacher (avoid stuck waiting_acceptance)
     await supabase
       .from("bookings")
@@ -215,6 +234,23 @@ export default function StudentScheduleTable() {
           type: "info",
         });
       } catch {}
+      return;
+    }
+
+    // Block if teacher already has a waiting instant session from another student
+    const { data: teacherWaitingSession } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("teacher_id", teacherId)
+      .eq("session_status", "waiting_acceptance")
+      .neq("student_id", user.id)
+      .limit(1);
+
+    if (teacherWaitingSession && teacherWaitingSession.length > 0) {
+      toast.error("المعلم لديه طلب جلسة فورية من طالب آخر في الانتظار", {
+        description: "يرجى الانتظار قليلاً أو اختيار معلم آخر.",
+        action: { label: "ابحث عن معلم آخر", onClick: () => (window.location.href = "/search") },
+      });
       return;
     }
 

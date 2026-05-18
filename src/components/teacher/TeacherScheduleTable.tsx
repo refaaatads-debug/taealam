@@ -180,6 +180,24 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
   const handleInstantSession = async (studentId: string, studentName: string) => {
     if (!user) return;
 
+    // Block if teacher already has an active instant session (waiting or in progress)
+    const { data: teacherActiveSessions } = await supabase
+      .from("bookings")
+      .select("id, session_status")
+      .eq("teacher_id", user.id)
+      .in("session_status", ["waiting_acceptance", "in_progress"])
+      .limit(1);
+
+    if (teacherActiveSessions && teacherActiveSessions.length > 0) {
+      const isInProgress = teacherActiveSessions[0].session_status === "in_progress";
+      toast.error(
+        isInProgress
+          ? "أنت في جلسة جارية الآن، لا يمكنك إرسال جلسة فورية جديدة"
+          : "لديك طلب جلسة فورية في انتظار القبول، يرجى الانتهاء منه أولاً"
+      );
+      return;
+    }
+
     // Instant sessions are NOT bound by teacher availability schedule
 
     // Check student subscription
