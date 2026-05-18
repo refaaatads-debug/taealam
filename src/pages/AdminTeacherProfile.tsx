@@ -25,6 +25,7 @@ interface TeacherBundle {
   sessions: any[];
   earnings: any[];
   withdrawals: any[];
+  payments: any[];
   reviews: any[];
   tickets: any[];
   warnings: any[];
@@ -69,11 +70,12 @@ const AdminTeacherProfile = () => {
       }
 
       const tpId = teacherRes.data?.id;
-      const [subjectsRes, certsRes, earningsRes, withdrawalsRes] = await Promise.all([
+      const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes] = await Promise.all([
         tpId ? supabase.from("teacher_subjects").select("subjects(name)").eq("teacher_id", tpId) : Promise.resolve({ data: [] as any[] }),
         supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", id),
         supabase.from("teacher_earnings").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
         supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(20),
+        supabase.from("teacher_payments").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
       ]);
 
       const bookingIds = (bookingsRes.data || []).map((b: any) => b.id);
@@ -94,6 +96,7 @@ const AdminTeacherProfile = () => {
         sessions: sessionsData,
         earnings: earningsRes.data || [],
         withdrawals: (withdrawalsRes.data as any[]) || [],
+        payments: (paymentsRes.data as any[]) || [],
         reviews: reviewsRes.data || [],
         tickets: ticketsRes.data || [],
         warnings: warningsRes.data || [],
@@ -328,25 +331,69 @@ const AdminTeacherProfile = () => {
             </TabsContent>
 
             <TabsContent value="finance" className="m-0 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <StatBox label="الرصيد الحالي" value={`${Number(t.balance || 0).toFixed(2)} ر.س`} icon={Wallet} />
-                <StatBox label="عدد الأرباح" value={data.earnings.length} icon={CreditCard} />
-                <StatBox label="طلبات السحب" value={data.withdrawals.length} icon={Wallet} />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatBox label="الرصيد الحالي" value={Number(t.balance || 0).toFixed(2) + " ر.س"} icon={Wallet} />
+                <StatBox label="إجمالي المدفوع" value={data.payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0).toFixed(2) + " ر.س"} icon={CreditCard} tone="success" />
+                <StatBox label="سجلات الأرباح" value={data.earnings.length} icon={CreditCard} />
+                <StatBox label="طلبا֪ السحب" value={data.withdrawals.length} icon={Wallet} />
               </div>
               <Card>
-                <CardHeader><CardTitle className="text-sm">الأرباح</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">المدفوعات المنفّذة ({data.payments.length})</CardTitle></CardHeader>
+                <CardContent>
+                  {data.payments.length === 0 ? <Empty text="لا مدفوعا֪" /> : (
+                    <div className="space-y-2">
+                      {data.payments.map((p: any) => (
+                        <div key={p.id} className="border rounded-lg p-3 text-sm space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-emerald-600">{Number(p.amount).toFixed(2)} ر.س</span>
+                            <span className="text-xs text-muted-foreground">{format(new Date(p.created_at), "dd MMM yyyy HH:mm", { locale: ar })}</span>
+                          </div>
+                          {p.payment_method && (
+                            <div className="text-xs text-muted-foreground">طريقة الدفع: <span className="text-foreground font-medium">{p.payment_method}</span></div>
+                          )}
+                          {p.notes && <p className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">{p.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-sm">سجلات الأرباح ({data.earnings.length})</CardTitle></CardHeader>
                 <CardContent>
                   {data.earnings.length === 0 ? <Empty text="لا أرباح" /> : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {data.earnings.map((e: any) => (
-                        <div key={e.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
-                          <div>
-                            <div className="font-medium">{e.month}</div>
-                            <div className="text-xs text-muted-foreground">{e.invoice_id || "—"}</div>
+                        <div key={e.id} className="border rounded-lg p-3 text-sm space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="font-bold">{e.month || "—"}</div>
+                              {e.invoice_id && <div className="text-xs text-muted-foreground">فاتورة: {e.invoice_id}</div>}
+                            </div>
+                            <Badge variant={e.status === "paid" ? "secondary" : e.status === "pending" ? "outline" : "destructive"} className="text-xs shrink-0">{e.status}</Badge>
                           </div>
-                          <div className="text-left">
-                            <div className="font-bold">{Number(e.amount).toFixed(2)} ر.س</div>
-                            <Badge variant="outline" className="text-xs">{e.status}</Badge>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="bg-muted/40 rounded px-2 py-1.5">
+                              <div className="text-[10px] text-muted-foreground">الإجمالي</div>
+                              <div className="font-bold text-xs">{Number(e.gross_amount || e.amount || 0).toFixed(2)} ر.س</div>
+                            </div>
+                            <div className="bg-muted/40 rounded px-2 py-1.5">
+                              <div className="text-[10px] text-muted-foreground">عمولة المنصة</div>
+                              <div className="font-bold text-xs text-destructive">{Number(e.platform_fee || 0).toFixed(2)} ر.س</div>
+                            </div>
+                            <div className="bg-muted/40 rounded px-2 py-1.5">
+                              <div className="text-[10px] text-muted-foreground">ضريبة القيمة</div>
+                              <div className="font-bold text-xs text-amber-600">{Number(e.vat_amount || 0).toFixed(2)} ر.س</div>
+                            </div>
+                            <div className="bg-emerald-500/10 rounded px-2 py-1.5">
+                              <div className="text-[10px] text-muted-foreground">الصافي للمعلم</div>
+                              <div className="font-black text-xs text-emerald-600">{Number(e.net_amount || e.teacher_base_amount || e.amount || 0).toFixed(2)} ر.س</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
+                            {e.total_sessions_snapshot > 0 && <span>الحصص: <b>{e.total_sessions_snapshot}</b></span>}
+                            {e.hours > 0 && <span>الساعات: <b>{Number(e.hours).toFixed(1)}</b></span>}
+                            {e.minutes_snapshot > 0 && <span>الدقائق: <b>{e.minutes_snapshot}</b></span>}
                           </div>
                         </div>
                       ))}
@@ -355,17 +402,27 @@ const AdminTeacherProfile = () => {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-sm">طلبات السحب</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">طلبات السحب ({data.withdrawals.length})</CardTitle></CardHeader>
                 <CardContent>
-                  {data.withdrawals.length === 0 ? <Empty text="لا طلبات" /> : (
+                  {data.withdrawals.length === 0 ? <Empty text="لا طلبا֪" /> : (
                     <div className="space-y-2">
                       {data.withdrawals.map((w: any) => (
-                        <div key={w.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
-                          <div>
-                            <div className="font-medium">{Number(w.amount).toFixed(2)} ر.س</div>
-                            <div className="text-xs text-muted-foreground">{format(new Date(w.created_at), "dd MMM yyyy", { locale: ar })}</div>
+                        <div key={w.id} className="border rounded-lg p-3 text-sm space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-bold">{Number(w.amount).toFixed(2)} ر.س</span>
+                              {w.net_amount > 0 && <span className="text-xs text-emerald-600 mr-2">صافي: {Number(w.net_amount).toFixed(2)}</span>}
+                              {w.vat_amount > 0 && <span className="text-xs text-muted-foreground mr-2">ضريبة: {Number(w.vat_amount).toFixed(2)}</span>}
+                            </div>
+                            <Badge variant={w.status === "approved" || w.status === "paid" ? "secondary" : w.status === "rejected" ? "destructive" : "outline"} className="text-xs shrink-0">{w.status}</Badge>
                           </div>
-                          <Badge variant={w.status === "approved" ? "secondary" : w.status === "rejected" ? "destructive" : "outline"}>{w.status}</Badge>
+                          <div className="flex gap-3 text-[11px] text-muted-foreground flex-wrap">
+                            <span>تاريخ الطلب: {format(new Date(w.created_at), "dd MMM yyyy", { locale: ar })}</span>
+                            {w.approved_at && <span>تاريخ الموافقة: {format(new Date(w.approved_at), "dd MMM yyyy", { locale: ar })}</span>}
+                            {w.paid_at && <span className="text-emerald-600">تاريخ الدفع: {format(new Date(w.paid_at), "dd MMM yyyy", { locale: ar })}</span>}
+                          </div>
+                          {w.teacher_notes && <p className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">ملاحظات المعلم: {w.teacher_notes}</p>}
+                          {w.admin_notes && <p className="text-xs text-primary bg-primary/5 rounded px-2 py-1">ملاحظات الإدارة: {w.admin_notes}</p>}
                         </div>
                       ))}
                     </div>
