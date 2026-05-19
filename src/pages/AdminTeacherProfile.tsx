@@ -26,6 +26,10 @@ interface TeacherBundle {
   earnings: any[];
   withdrawals: any[];
   payments: any[];
+  bookingRequests: any[];
+  callLogs: any[];
+  walletTransactions: any[];
+  wallet: any | null;
   reviews: any[];
   tickets: any[];
   warnings: any[];
@@ -70,7 +74,7 @@ const AdminTeacherProfile = () => {
       }
 
       const tpId = teacherRes.data?.id;
-      const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes] = await Promise.all([
+      const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes, bookingRequestsRes, callLogsRes, walletTxRes, walletRes] = await Promise.all([
         tpId ? supabase.from("teacher_subjects").select("subjects(name)").eq("teacher_id", tpId) : Promise.resolve({ data: [] as any[] }),
         supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", id),
         supabase.from("teacher_earnings").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
@@ -97,6 +101,10 @@ const AdminTeacherProfile = () => {
         earnings: earningsRes.data || [],
         withdrawals: (withdrawalsRes.data as any[]) || [],
         payments: (paymentsRes.data as any[]) || [],
+        bookingRequests: (bookingRequestsRes.data as any[]) || [],
+        callLogs: (callLogsRes.data as any[]) || [],
+        walletTransactions: (walletTxRes.data as any[]) || [],
+        wallet: (walletRes as any).data || null,
         reviews: reviewsRes.data || [],
         tickets: ticketsRes.data || [],
         warnings: warningsRes.data || [],
@@ -273,6 +281,7 @@ const AdminTeacherProfile = () => {
             <TabsTrigger value="sessions" className="gap-1.5 whitespace-nowrap"><BookOpen className="h-4 w-4" />الحصص</TabsTrigger>
             <TabsTrigger value="reviews" className="gap-1.5 whitespace-nowrap"><Star className="h-4 w-4" />التقييمات</TabsTrigger>
             <TabsTrigger value="finance" className="gap-1.5 whitespace-nowrap"><Wallet className="h-4 w-4" />المالية</TabsTrigger>
+            <TabsTrigger value="wallet" className="gap-1.5 whitespace-nowrap"><Phone className="h-4 w-4" />محفظة المكالمات</TabsTrigger>
             <TabsTrigger value="support" className="gap-1.5 whitespace-nowrap"><LifeBuoy className="h-4 w-4" />الدعم</TabsTrigger>
             <TabsTrigger value="activity" className="gap-1.5 whitespace-nowrap"><Bell className="h-4 w-4" />النشاط</TabsTrigger>
           </TabsList>
@@ -302,7 +311,7 @@ const AdminTeacherProfile = () => {
             </TabsContent>
 
                         <TabsContent value="sessions" className="m-0">
-              <TeacherSessionsTab bookings={data.bookings} sessions={data.sessions} />
+              <TeacherSessionsTab bookings={data.bookings} sessions={data.sessions} bookingRequests={data.bookingRequests} />
             </TabsContent>
 
             <TabsContent value="reviews" className="m-0">
@@ -425,6 +434,86 @@ const AdminTeacherProfile = () => {
                           {w.admin_notes && <p className="text-xs text-primary bg-primary/5 rounded px-2 py-1">ملاحظات الإدارة: {w.admin_notes}</p>}
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+
+            <TabsContent value="wallet" className="m-0 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card><CardContent className="p-4 space-y-1"><div className="text-xs text-muted-foreground">رصيد المحفظة</div><div className="text-2xl font-bold text-emerald-600">{Number(data.wallet?.balance || 0).toFixed(2)} ر.س</div></CardContent></Card>
+                <Card><CardContent className="p-4 space-y-1"><div className="text-xs text-muted-foreground">إجمالي المكالمات</div><div className="text-2xl font-bold">{data.callLogs.length}</div></CardContent></Card>
+                <Card><CardContent className="p-4 space-y-1"><div className="text-xs text-muted-foreground">مكالمات ناجحة</div><div className="text-2xl font-bold text-emerald-600">{data.callLogs.filter((c: any) => c.status === "completed").length}</div></CardContent></Card>
+                <Card><CardContent className="p-4 space-y-1"><div className="text-xs text-muted-foreground">إجمالي التكلفة</div><div className="text-2xl font-bold text-amber-600">{data.callLogs.reduce((s: number, c: any) => s + Number(c.cost || 0), 0).toFixed(2)} ر.س</div></CardContent></Card>
+              </div>
+
+              <Card>
+                <CardHeader className="p-4 pb-2"><CardTitle className="text-sm">حركات المحفظة ({data.walletTransactions.length})</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {data.walletTransactions.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">لا توجد حركات</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-xs text-muted-foreground">
+                          <tr>
+                            <th className="text-right p-3">التاريخ</th>
+                            <th className="text-right p-3">النوع</th>
+                            <th className="text-right p-3">المبلغ</th>
+                            <th className="text-right p-3">الرصيد بعد</th>
+                            <th className="text-right p-3">الوصف</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.walletTransactions.map((tx: any) => (
+                            <tr key={tx.id} className="border-t hover:bg-muted/30">
+                              <td className="p-3 text-xs">{new Date(tx.created_at).toLocaleDateString("ar-SA")}</td>
+                              <td className="p-3"><Badge variant="outline" className={tx.type === "credit" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" : "bg-destructive/15 text-destructive border-destructive/30"}>{tx.type === "credit" ? "إيداع" : "خصم"}</Badge></td>
+                              <td className="p-3 font-bold">{Number(tx.amount).toFixed(2)}</td>
+                              <td className="p-3 text-xs">{Number(tx.balance_after).toFixed(2)}</td>
+                              <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">{tx.description || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="p-4 pb-2"><CardTitle className="text-sm">سجل المكالمات ({data.callLogs.length})</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {data.callLogs.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">لا توجد مكالمات</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-xs text-muted-foreground">
+                          <tr>
+                            <th className="text-right p-3">التاريخ</th>
+                            <th className="text-right p-3">المدة الفعلية</th>
+                            <th className="text-right p-3">المدة المقدرة</th>
+                            <th className="text-right p-3">التكلفة</th>
+                            <th className="text-right p-3">الحالة</th>
+                            <th className="text-right p-3">ملاحظة</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.callLogs.map((cl: any) => (
+                            <tr key={cl.id} className="border-t hover:bg-muted/30">
+                              <td className="p-3 text-xs">{new Date(cl.created_at).toLocaleDateString("ar-SA")}</td>
+                              <td className="p-3 font-bold">{Number(cl.duration_minutes).toFixed(1)} د</td>
+                              <td className="p-3 text-xs">{cl.estimated_minutes} د</td>
+                              <td className="p-3 font-bold text-amber-600">{Number(cl.cost).toFixed(2)} ر.س</td>
+                              <td className="p-3"><Badge variant="outline" className={cl.status === "completed" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" : cl.status === "failed" ? "bg-destructive/15 text-destructive border-destructive/30" : "bg-muted text-muted-foreground border-border"}>{cl.status === "completed" ? "ناجحة" : cl.status === "failed" ? "فاشلة" : cl.status}</Badge></td>
+                              <td className="p-3 text-[10px] text-muted-foreground max-w-[150px] truncate">{cl.error_message || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </CardContent>
