@@ -80,6 +80,10 @@ const AdminTeacherProfile = () => {
         supabase.from("teacher_earnings").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
         supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(20),
         supabase.from("teacher_payments").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
+        supabase.from("booking_requests").select("id, student_id, subject_id, scheduled_at, accepted_by, status").eq("accepted_by", id).order("scheduled_at", { ascending: false }),
+        (supabase.from as any)("call_logs").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(100),
+        (supabase.from as any)("wallet_transactions").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(100),
+        (supabase.from as any)("wallets").select("*").eq("user_id", id).maybeSingle(),
       ]);
 
       const bookingIds = (bookingsRes.data || []).map((b: any) => b.id);
