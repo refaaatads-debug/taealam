@@ -206,10 +206,12 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
       .select("remaining_minutes")
       .eq("user_id", studentId)
       .eq("is_active", true)
-      .gt("remaining_minutes", 4);
-    
+      .gte("remaining_minutes", 15);
+
     if (!subs || subs.length === 0) {
-      toast.error(`الطالب ${studentName} ليس لديه رصيد كافٍ في الباقة`);
+      toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
+        description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+      });
       return;
     }
 
@@ -223,7 +225,9 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
     }).select("id").single();
 
     if (error || !newBooking) {
-      toast.error("تعذر إنشاء الجلسة");
+      toast.error("حدث خطأ أثناء إنشاء الجلسة", {
+        description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
+      });
       return;
     }
 

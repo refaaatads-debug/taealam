@@ -260,10 +260,13 @@ export default function StudentScheduleTable() {
       .select("remaining_minutes")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .gt("remaining_minutes", 4);
+      .gte("remaining_minutes", 15);
 
     if (!subs || subs.length === 0) {
-      toast.error("ليس لديك رصيد كافٍ في الباقة لبدء جلسة");
+      toast.error("لا يمكن بدء جلسة فورية", {
+        description: "يجب أن يكون لديك باقة نشطة بها 15 دقيقة على الأقل. اشترك في باقة للمتابعة.",
+        action: { label: "اشترك الآن", onClick: () => (window.location.href = "/pricing") },
+      });
       return;
     }
 
@@ -296,7 +299,9 @@ export default function StudentScheduleTable() {
     }).select("id").single();
 
     if (error || !newBooking) {
-      toast.error("تعذر إنشاء الجلسة");
+      toast.error("حدث خطأ أثناء إنشاء الجلسة", {
+        description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
+      });
       return;
     }
 
