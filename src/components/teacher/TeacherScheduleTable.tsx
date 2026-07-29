@@ -206,7 +206,8 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
       .select("remaining_minutes")
       .eq("user_id", studentId)
       .eq("is_active", true)
-      .gte("remaining_minutes", 15);
+      .gte("remaining_minutes", 15)
+      .gt("ends_at", new Date().toISOString());
 
     if (!subs || subs.length === 0) {
       toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
@@ -225,9 +226,16 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
     }).select("id").single();
 
     if (error || !newBooking) {
-      toast.error("حدث خطأ أثناء إنشاء الجلسة", {
-        description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
-      });
+      const isBalanceError = error?.message?.includes("INSUFFICIENT_BALANCE") || error?.code === "P0001";
+      if (isBalanceError) {
+        toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
+          description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+        });
+      } else {
+        toast.error("حدث خطأ أثناء إنشاء الجلسة", {
+          description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
+        });
+      }
       return;
     }
 

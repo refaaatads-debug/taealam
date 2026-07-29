@@ -260,7 +260,8 @@ export default function StudentScheduleTable() {
       .select("remaining_minutes")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .gte("remaining_minutes", 15);
+      .gte("remaining_minutes", 15)
+      .gt("ends_at", new Date().toISOString());
 
     if (!subs || subs.length === 0) {
       toast.error("لا يمكن بدء جلسة فورية", {
@@ -299,9 +300,17 @@ export default function StudentScheduleTable() {
     }).select("id").single();
 
     if (error || !newBooking) {
-      toast.error("حدث خطأ أثناء إنشاء الجلسة", {
-        description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
-      });
+      const isBalanceError = error?.message?.includes("INSUFFICIENT_BALANCE") || error?.code === "P0001";
+      if (isBalanceError) {
+        toast.error("لا يمكن بدء جلسة فورية", {
+          description: "يجب أن يكون لديك باقة نشطة بها 15 دقيقة على الأقل. اشترك في باقة للمتابعة.",
+          action: { label: "اشترك الآن", onClick: () => (window.location.href = "/pricing") },
+        });
+      } else {
+        toast.error("حدث خطأ أثناء إنشاء الجلسة", {
+          description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
+        });
+      }
       return;
     }
 
