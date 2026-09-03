@@ -6,10 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionVideoPlayer from "@/components/student/SessionVideoPlayer";
+import CallStudentButton from "@/components/teacher/CallStudentButton";
 
 interface SessionMaterial {
   id: string;
   session_id: string;
+  student_id: string;
   title: string;
   description: string | null;
   recording_url: string | null;
@@ -147,23 +149,31 @@ export default function TeacherSessionMaterials() {
       <CardContent className="space-y-3">
         {Object.entries(grouped).map(([studentName, items]) => (
           <div key={studentName} className="rounded-2xl border bg-muted/20 overflow-hidden">
-            <button
-              onClick={() => toggleStudent(studentName)}
-              className="w-full flex items-center justify-between p-3 hover:bg-muted/40 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <div className="flex items-center gap-2 p-2">
+              <button
+                onClick={() => toggleStudent(studentName)}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 text-right hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                   <User className="h-4 w-4 text-primary" />
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">{studentName}</p>
+                <div className="min-w-0 text-right">
+                  <p className="truncate text-sm font-bold text-foreground">{studentName}</p>
                   <p className="text-[11px] text-muted-foreground">{items.length} حصة</p>
                 </div>
-              </div>
-              {expandedStudents.has(studentName)
-                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-            </button>
+                {expandedStudents.has(studentName)
+                  ? <ChevronUp className="mr-auto h-4 w-4 text-muted-foreground" />
+                  : <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground" />}
+              </button>
+              <CallStudentButton
+                studentId={items[0].student_id}
+                studentName={studentName}
+                variant="outline"
+                size="sm"
+                iconOnly
+                className="h-8 w-8 shrink-0 rounded-lg p-0 border-secondary/30 text-secondary hover:bg-secondary/10"
+              />
+            </div>
             <AnimatePresence>
               {expandedStudents.has(studentName) && (
                 <motion.div

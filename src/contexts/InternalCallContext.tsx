@@ -31,7 +31,7 @@ type InternalCall = {
 
 type StartCallInput = {
   studentId: string;
-  bookingId: string;
+  bookingId?: string | null;
   studentName?: string;
 };
 
@@ -284,7 +284,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       await ensureMicrophone();
       const { data, error } = await (supabase as any).rpc("start_internal_call", {
         p_student_id: studentId,
-        p_booking_id: bookingId,
+        p_booking_id: bookingId || null,
       });
       if (error) throw error;
       if (!data?.success) {
