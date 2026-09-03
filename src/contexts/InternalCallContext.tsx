@@ -84,6 +84,9 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const markedConnectedRef = useRef(false);
   const ringtoneContextRef = useRef<AudioContext | null>(null);
   const ringtoneTimerRef = useRef<number | null>(null);
+  const voiceAnnouncementTimerRef = useRef<number | null>(null);
+  const voiceAnnouncementCallRef = useRef<string | null>(null);
+  const incomingCallRef = useRef<string | null>(null);
   const clearCallTimerRef = useRef<number | null>(null);
 
   const isCaller = Boolean(call && user && call.caller_id === user.id);
@@ -122,6 +125,43 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       console.warn("Incoming ringtone unavailable:", error);
     }
   }, [stopRingtone]);
+
+  const stopIncomingAnnouncement = useCallback(() => {
+    if (voiceAnnouncementTimerRef.current) window.clearInterval(voiceAnnouncementTimerRef.current);
+    voiceAnnouncementTimerRef.current = null;
+    voiceAnnouncementCallRef.current = null;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }, []);
+
+  const playIncomingAnnouncement = useCallback((callId: string, teacherName: string) => {
+    if (!("speechSynthesis" in window)) return;
+    if (voiceAnnouncementCallRef.current === callId && voiceAnnouncementTimerRef.current) return;
+
+    stopIncomingAnnouncement();
+    voiceAnnouncementCallRef.current = callId;
+    const text = `لديك اتصال وارد من المعلم، ${teacherName.trim() || "المعلم"}.`;
+
+    const speak = () => {
+      const synthesis = window.speechSynthesis;
+      if (!synthesis) return;
+      synthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ar-SA";
+      utterance.volume = 1;
+      utterance.rate = 0.82;
+      utterance.pitch = 1;
+      const voices = synthesis.getVoices();
+      const arabicVoice = voices.find((voice) => voice.lang.toLowerCase() === "ar-sa")
+        || voices.find((voice) => voice.lang.toLowerCase().startsWith("ar"));
+      if (arabicVoice) utterance.voice = arabicVoice;
+      synthesis.resume();
+      synthesis.speak(utterance);
+    };
+
+    // يبدأ فورًا ثم يتكرر أثناء الرنين دون تداخل بين الجمل.
+    speak();
+    voiceAnnouncementTimerRef.current = window.setInterval(speak, 6500);
+  }, [stopIncomingAnnouncement]);
 
   const stopMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -162,10 +202,13 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadOtherPartyName = useCallback(async (row: InternalCall) => {
-    if (!user) return;
+    const fallback = row.caller_id === user?.id ? "الطالب" : "المعلم";
+    if (!user) return fallback;
     const otherId = row.caller_id === user.id ? row.callee_id : row.caller_id;
     const { data } = await supabase.from("public_profiles").select("full_name").eq("user_id", otherId).maybeSingle();
-    setOtherPartyName(data?.full_name?.trim() || (row.caller_id === user.id ? "الطالب" : "المعلم"));
+    const name = data?.full_name?.trim() || fallback;
+    setOtherPartyName(name);
+    return name;
   }, [user?.id]);
 
   const applyCallUpdate = useCallback((row: InternalCall) => {
@@ -174,9 +217,18 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       if (current && current.id !== row.id && !TERMINAL.includes(current.status)) return current;
       return row;
     });
-    loadOtherPartyName(row);
-    if (row.callee_id === user.id && row.status === "ringing") playIncomingRingtone();
-    else stopRingtone();
+    if (row.callee_id === user.id && row.status === "ringing") {
+      incomingCallRef.current = row.id;
+      playIncomingRingtone();
+      void loadOtherPartyName(row).then((teacherName) => {
+        if (teacherName && incomingCallRef.current === row.id) playIncomingAnnouncement(row.id, teacherName);
+      });
+    } else {
+      incomingCallRef.current = null;
+      stopRingtone();
+      stopIncomingAnnouncement();
+      void loadOtherPartyName(row);
+    }
 
     if (TERMINAL.includes(row.status)) {
       cleanupPeer();
@@ -184,12 +236,13 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       if (clearCallTimerRef.current) window.clearTimeout(clearCallTimerRef.current);
       clearCallTimerRef.current = window.setTimeout(() => setCall((current) => current?.id === row.id ? null : current), 2800);
     }
-  }, [user?.id, cleanupPeer, loadOtherPartyName, playIncomingRingtone, stopMedia, stopRingtone]);
+  }, [user?.id, cleanupPeer, loadOtherPartyName, playIncomingAnnouncement, playIncomingRingtone, stopIncomingAnnouncement, stopMedia, stopRingtone]);
 
   useEffect(() => {
     if (!user) {
       setCall(null);
       stopRingtone();
+      stopIncomingAnnouncement();
       cleanupPeer();
       stopMedia();
       return;
@@ -222,7 +275,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(incomingChannel);
       supabase.removeChannel(outgoingChannel);
     };
-  }, [user?.id, applyCallUpdate, cleanupPeer, stopMedia, stopRingtone]);
+  }, [user?.id, applyCallUpdate, cleanupPeer, stopIncomingAnnouncement, stopMedia, stopRingtone]);
 
   const startInternalCall = useCallback(async ({ studentId, bookingId, studentName }: StartCallInput) => {
     if (!user) return { success: false, code: "UNAUTHENTICATED", message: "سجّل الدخول أولًا" };
@@ -273,6 +326,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
     if (!call || ending) return;
     setEnding(true);
     stopRingtone();
+    stopIncomingAnnouncement();
     cleanupPeer();
     stopMedia();
     try {
@@ -281,7 +335,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
     } finally {
       setEnding(false);
     }
-  }, [call, ending, applyCallUpdate, cleanupPeer, stopMedia, stopRingtone]);
+  }, [call, ending, applyCallUpdate, cleanupPeer, stopIncomingAnnouncement, stopMedia, stopRingtone]);
 
   useEffect(() => {
     if (!call || !user || !["connecting", "connected"].includes(call.status) || !localStreamRef.current) return;
@@ -438,8 +492,8 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
                     </Avatar>
                   </div>
                   <h3 className="mt-4 text-xl font-black">{otherPartyName}</h3>
-                  <p className="mt-1 text-sm text-blue-100/80">
-                    {isIncoming && "مكالمة صوتية واردة من المعلم"}
+                  <p aria-live={isIncoming ? "assertive" : "off"} className="mt-1 text-sm text-blue-100/80">
+                    {isIncoming && `لديك اتصال وارد من المعلم، ${otherPartyName}`}
                     {call.status === "ringing" && isCaller && "جارٍ الاتصال بالطالب…"}
                     {call.status === "connecting" && "جارٍ إنشاء اتصال صوتي آمن…"}
                     {call.status === "connected" && (peerState === "connected" ? "المكالمة متصلة" : "جارٍ تثبيت الاتصال…")}
