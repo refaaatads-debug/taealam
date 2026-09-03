@@ -18,7 +18,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu,
+  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,6 +103,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "violations", title: "المخالفات", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
         { id: "call_transcripts", title: "تفريغ المكالمات", icon: MessageSquare, permission: "view_call_transcripts" },
         { id: "ai_audit", title: "فحص AI", icon: Brain, permission: "manage_ai_audit" },
+        { id: "platform_health", title: "صحة المنصة", icon: Activity, permission: "view_overview" },
       ],
     },
     {

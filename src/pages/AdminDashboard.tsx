@@ -52,6 +52,7 @@ import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
 import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
 import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
 import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
+import AdminPlatformHealthTab from "@/components/admin/AdminPlatformHealthTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -127,6 +128,7 @@ const TAB_TITLES: Record<string, string> = {
   featured_teachers: "المدرسون المميزون",
   financial_hub: "المركز المالي",
   domain_ssl: "حالة SSL/HTTPS",
+  platform_health: "صحة المنصة وجودة البيانات",
 };
 
 const AdminDashboard = () => {
@@ -517,6 +519,7 @@ const AdminDashboard = () => {
     admin_notifications: "manage_notifications",
     domain_ssl: "manage_domain_ssl",
     team: "manage_admins",
+    platform_health: "view_overview",
   };
 
   const renderContent = () => {
@@ -562,6 +565,7 @@ const AdminDashboard = () => {
       case "team": return <AdminTeamManagementTab />;
       case "domain_ssl": return <DomainSSLTab />;
       case "advanced_analytics": return <AdvancedAnalyticsTab />;
+      case "platform_health": return <AdminPlatformHealthTab onNavigateTab={handleTabChange} />;
       default: return null;
     }
   };
