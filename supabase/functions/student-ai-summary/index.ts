@@ -1,4 +1,6 @@
 // Edge function: AI summary for a student profile in admin dashboard
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -10,12 +12,13 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { stats, full } = body || {};
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    const apiKey = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const geminiModel = await getGeminiModel(apiKey);
 
     const sys = full
       ? `أنت مساعد ذكي لمنصة تعليمية. حلل بيانات الطالب وأرجع JSON فقط بهذا الشكل بدون أي شرح خارجي:
@@ -34,7 +37,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: geminiModel,
         messages: [{ role: "system", content: sys }, { role: "user", content: userMsg }],
         ...(full ? { response_format: { type: "json_object" } } : {}),
       }),

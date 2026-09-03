@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,7 +73,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const authHeader = req.headers.get("Authorization") || "";
@@ -144,8 +145,9 @@ serve(async (req) => {
       // AI analysis with retry
       let analysis = { is_violation: true, confidence: 0.6, reason: "كشف بالأنماط (Regex)", violation_type: "contact_sharing" };
       try {
+        const geminiModel = await getGeminiModel(GEMINI_API_KEY);
         const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
-          model: "gemini-2.5-flash",
+          model: geminiModel,
           messages: [
             {
               role: "system",

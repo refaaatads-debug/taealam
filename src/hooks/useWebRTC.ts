@@ -93,6 +93,7 @@ export function useWebRTC({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const pendingDataMessagesRef = useRef<any[]>([]);
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
@@ -203,7 +204,21 @@ export function useWebRTC({
   const sendDataMessage = useCallback((msg: any) => {
     const dc = dataChannelRef.current;
     if (dc && dc.readyState === "open") {
-      dc.send(JSON.stringify(msg));
+      try {
+        dc.send(JSON.stringify(msg));
+      } catch {
+        // Preserve whiteboard events during a transient channel transition.
+        if (typeof msg?.type === "string" && msg.type.startsWith("whiteboard-")) {
+          pendingDataMessagesRef.current.push(msg);
+        }
+      }
+      return;
+    }
+
+    // Permission and drawing events must not disappear if the user clicks
+    // immediately while WebRTC is still opening.
+    if (typeof msg?.type === "string" && msg.type.startsWith("whiteboard-")) {
+      pendingDataMessagesRef.current = [...pendingDataMessagesRef.current, msg].slice(-200);
     }
   }, []);
 
@@ -212,6 +227,15 @@ export function useWebRTC({
     dc.onopen = () => {
       console.log("DataChannel open");
       setDataChannelReady(true);
+      const pending = pendingDataMessagesRef.current;
+      pendingDataMessagesRef.current = [];
+      pending.forEach((message) => {
+        try {
+          if (dc.readyState === "open") dc.send(JSON.stringify(message));
+        } catch {
+          pendingDataMessagesRef.current.push(message);
+        }
+      });
     };
     dc.onclose = () => {
       console.log("DataChannel closed");

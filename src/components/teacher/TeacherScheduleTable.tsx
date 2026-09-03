@@ -31,9 +31,10 @@ interface BookingRow {
 
 interface TeacherScheduleTableProps {
   onInstantSessionSent?: () => void;
+  historyOnly?: boolean;
 }
 
-export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherScheduleTableProps = {}) {
+export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly = false }: TeacherScheduleTableProps = {}) {
   const { user } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,10 +42,14 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
   const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
   const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [isTableCollapsed, setIsTableCollapsed] = useState(false);
   useEffect(() => {
     if (user?.id) setHiddenIds(getHiddenBookings(user.id));
   }, [user?.id]);
-  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const visibleBookings = useMemo(
+    () => bookings.filter(b => !hiddenIds.has(b.id) && (!historyOnly || new Date(b.scheduled_at).getTime() < Date.now() || ["completed", "cancelled"].includes(b.status))),
+    [bookings, hiddenIds, historyOnly]
+  );
   const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
   const unreadCounts = useUnreadMessages(bookingIds);
   const { play: playNotificationSound } = useNotificationSound();
@@ -59,15 +64,15 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
     return result;
   }, [visibleBookings, unreadCounts]);
 
-  // Get latest booking id per student for chat link
+  // Get latest booking id per student for chat link (use ALL bookings so hiding doesn't erase chat access)
   const latestBookingByStudent = useMemo(() => {
     const result: Record<string, string> = {};
-    visibleBookings.forEach(b => {
+    bookings.filter(b => !historyOnly || new Date(b.scheduled_at).getTime() < Date.now() || ["completed", "cancelled"].includes(b.status)).forEach(b => {
       const key = b.student_id || "unknown";
       if (!result[key]) result[key] = b.id; // bookings are ordered desc, first is latest
     });
     return result;
-  }, [visibleBookings]);
+  }, [bookings]);
 
   const handleHideBooking = (bookingId: string) => {
     if (!user?.id) return;
@@ -212,6 +217,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
     if (!subs || subs.length === 0) {
       toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
         description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+        duration: 6000,
       });
       return;
     }
@@ -226,15 +232,14 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
     }).select("id").single();
 
     if (error || !newBooking) {
-      const isBalanceError = error?.message?.includes("INSUFFICIENT_BALANCE") || error?.code === "P0001";
-      if (isBalanceError) {
+      const msg = error?.message || "";
+      if (msg.includes("INSUFFICIENT_BALANCE") || msg.includes("باقة") || msg.includes("دقيقة")) {
         toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
           description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+          duration: 6000,
         });
       } else {
-        toast.error("حدث خطأ أثناء إنشاء الجلسة", {
-          description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
-        });
+        toast.error("تعذر إنشاء الجلسة", { description: msg || "حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى." });
       }
       return;
     }
@@ -279,15 +284,20 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
 
   const groupedByStudent = useMemo(() => {
     const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
-    visibleBookings.forEach(b => {
+    // Build group keys from ALL bookings so the student group always appears (even if all bookings are hidden)
+    bookings.forEach(b => {
       const key = b.student_id || "unknown";
       if (!groups[key]) {
         groups[key] = { studentName: b.student_name || "طالب", studentId: key, bookings: [] };
       }
-      groups[key].bookings.push(b);
+    });
+    // Populate rows from visibleBookings only
+    visibleBookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      if (groups[key]) groups[key].bookings.push(b);
     });
     return Object.values(groups);
-  }, [visibleBookings]);
+  }, [bookings, visibleBookings, historyOnly]);
 
   if (loading) {
     return (
@@ -306,9 +316,20 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <CalendarCheck className="h-4 w-4 text-primary" />
           </div>
-          جدول الحصص
+          {historyOnly ? "سجل التواصل والحصص السابقة" : "جدول الحصص"}
           {visibleBookings.length > 0 && <Badge className="bg-primary/10 text-primary border-0 text-xs">{visibleBookings.length}</Badge>}
           <div className="mr-auto flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[10px] gap-1"
+              onClick={() => setIsTableCollapsed(prev => !prev)}
+              aria-expanded={!isTableCollapsed}
+              title={isTableCollapsed ? "توسيع جدول الحصص" : "طي جدول الحصص"}
+            >
+              {isTableCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+              {isTableCollapsed ? "توسيع" : "طي الجدول"}
+            </Button>
             {hiddenIds.size > 0 && (
               <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1" onClick={handleRestoreAll} title="استعادة الحصص المخفية">
                 <RotateCcw className="h-3 w-3" /> استعادة ({hiddenIds.size})
@@ -316,13 +337,13 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
             )}
             {visibleBookings.length > 0 && (
               <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10" onClick={handleClearAll} title="مسح الجدول بالكامل">
-                <Eraser className="h-3 w-3" /> مسح الجدول
+                <Eraser className="h-3 w-3" /> {historyOnly ? "إخفاء السجل" : "مسح الجدول"}
               </Button>
             )}
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {!isTableCollapsed && <CardContent className="space-y-3">
         {groupedByStudent.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص</p>
         ) : (
@@ -393,6 +414,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
                       <div onClick={(e) => e.stopPropagation()}>
                         <CallStudentButton
                           bookingId={chatBookingId}
+                          studentName={group.studentName}
                           variant="outline"
                           size="sm"
                           iconOnly
@@ -477,7 +499,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherSc
             );
           })
         )}
-      </CardContent>
+      </CardContent>}
 
       <CancelSessionDialog
         open={!!cancelTarget}

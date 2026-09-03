@@ -1,15 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const GROQ_MODELS = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-];
 
 function formatDate(iso: string): string {
   if (!iso) return "غير محدد";
@@ -255,7 +250,8 @@ function buildSystemPrompt(role: string, fullName: string): string {
 
 async function callGroqChain(messages: any[], apiKey: string): Promise<any> {
   let lastErr: any;
-  for (const model of GROQ_MODELS) {
+  const models = await getGroqModels(apiKey);
+  for (const model of models) {
     try {
       const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -273,12 +269,13 @@ async function callGroqChain(messages: any[], apiKey: string): Promise<any> {
 }
 
 async function callGeminiFallback(messages: any[], sysPrompt: string, apiKey: string): Promise<string> {
+  const model = await getGeminiModel(apiKey);
   const contents = messages
     .filter((m: any) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
     .map((m: any) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
   if (!contents.length) contents.push({ role: "user", parts: [{ text: "مرحبا" }] });
   const resp = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
     { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system_instruction: { parts: [{ text: sysPrompt }] }, contents }) }
   );
@@ -314,8 +311,8 @@ Deno.serve(async (req) => {
     const messages: any[] = Array.isArray(body.messages) ? body.messages : [];
     if (!messages.length) return json({ error: "messages array required" }, 400);
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+    const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     const sysPrompt = buildSystemPrompt(role, fullName);
 
     const convo: any[] = [{ role: "system", content: sysPrompt }, ...messages];
@@ -343,10 +340,21 @@ Deno.serve(async (req) => {
         return json({ role: "assistant", content: msg.content || "", ticket: createdTicket });
       }
 
-      convo.push(msg);
+      // Send only the standard assistant fields back on the next tool hop.
+      // Some Groq models include a provider-specific `reasoning` field that
+      // should not be replayed as part of the OpenAI-compatible transcript.
+      convo.push({
+        role: "assistant",
+        content: msg.content || "",
+        ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}),
+      });
       for (const tc of msg.tool_calls) {
         let parsedArgs: any = {};
-        try { parsedArgs = JSON.parse(tc.function.arguments || "{}"); } catch { /* ignore */ }
+        try {
+          parsedArgs = typeof tc.function?.arguments === "string"
+            ? JSON.parse(tc.function.arguments || "{}")
+            : (tc.function?.arguments || {});
+        } catch { /* ignore */ }
         const result = await runTool(tc.function.name, parsedArgs, { supabase, userId, role });
         if (tc.function.name === "create_support_ticket" && result?.success) {
           createdTicket = { id: result.ticket_id };

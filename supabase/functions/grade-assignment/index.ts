@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,8 +20,8 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY missing");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY missing");
 
     // Require authenticated caller
     const authHeader = req.headers.get("Authorization") || "";
@@ -145,8 +146,6 @@ ${imageUrls.length > 0 ? `**يوجد ${imageUrls.length} صورة مرفقة م�
       }
     }
 
-    // Try models cheapest-first; gemini-2.5-pro is too expensive and returns 402.
-    const OR_MODELS = ["google/gemini-2.0-flash-001", "google/gemini-2.5-pro-exp-03-25:free"];
     const orBody = {
         messages: [
           { role: "system", content: systemPrompt },
@@ -196,27 +195,18 @@ ${imageUrls.length > 0 ? `**يوجد ${imageUrls.length} صورة مرفقة م�
         tool_choice: { type: "function", function: { name: "submit_grade" } },
       };
 
-    // Fallback loop: try each model until one succeeds
-    let aiResp: Response = new Response(JSON.stringify({ error: "no model available" }), { status: 502 });
-    for (const orModel of OR_MODELS) {
-      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://ajyalalmaerifa.com",
-          "X-Title": "Ajyal Al-Maerifa - Grade Assignment",
-        },
-        body: JSON.stringify({ ...orBody, model: orModel }),
-      });
-      if (r.ok) { aiResp = r; break; }
-      if (r.status === 402 || r.status === 429) {
-        console.warn(`Model ${orModel} returned ${r.status}, trying next`);
-        aiResp = r;
-        continue;
-      }
-      aiResp = r; break; // surface other errors immediately
-    }
+    // Use the same verified Gemini gateway as the other AI features. The
+    // previous OpenRouter model ids were no longer present in the catalogue,
+    // so grading failed before a model was ever reached.
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
+    const aiResp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ...orBody, model: geminiModel }),
+    });
 
     if (aiResp.status === 429) {
       return new Response(JSON.stringify({ error: "تم تجاوز الحد المسموح، حاول لاحقاً" }), {

@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const AI_URL       = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 function calculateQualityScore(text: string): number {
   if (!text || text.trim().length === 0) return 0;
@@ -20,47 +23,50 @@ function calculateQualityScore(text: string): number {
   return Math.min(100, score);
 }
 
-async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
+async function callAI(apiKey: string, body: any, maxRetries = 3): Promise<{ result: any; retryCount: number; responseTime: number; modelUsed: string }> {
+  const model = await getGeminiModel(apiKey);
   let lastError: Error | null = null;
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const start = Date.now();
     try {
-      const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      const resp = await fetch(AI_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, model }),
       });
       const responseTime = Date.now() - start;
+      if (resp.status === 429 || resp.status === 402) {
+        console.warn(`${model} rate-limited (attempt ${attempt + 1}), retrying...`);
+        lastError = new Error(`${model} rate limited: ${resp.status}`);
+        continue;
+      }
       if (!resp.ok) {
         const err = await resp.text();
         lastError = new Error(`AI error ${resp.status}: ${err}`);
-        if (resp.status === 429 || resp.status === 402) throw lastError;
         continue;
       }
       const data = await resp.json();
       const content = data.choices?.[0]?.message?.content || "";
       if (content.length < 50 && attempt < maxRetries - 1) continue;
-      return { result: data, retryCount: attempt, responseTime };
+      return { result: data, retryCount: attempt, responseTime, modelUsed: model };
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      if (lastError.message.includes("429") || lastError.message.includes("402")) throw lastError;
     }
   }
-  throw lastError || new Error("Max retries exceeded");
+  throw lastError || new Error("All models exhausted");
 }
 
 async function evaluateOutput(apiKey: string, inputCtx: string, output: string) {
   try {
-    const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    // Use fallback model for evaluation to save primary quota
+    const resp = await fetch(AI_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: await getGeminiModel(apiKey),
         messages: [
-          {
-            role: "system",
-            content: `أنت مقيّم لتقارير أداء المعلمين. قيّم: الفائدة، التخصيص، الارتباط بالمدخلات، عدم التعميم. أعطِ درجة 1-10.`,
-          },
+          { role: "system", content: "أنت مقيّم لتقارير أداء المعلمين. قيّم: الفائدة، التخصيص، الارتباط بالمدخلات، عدم التعميم. أعطِ درجة 1-10." },
           { role: "user", content: `Input:\n${inputCtx.slice(0, 600)}\n\nOutput:\n${output.slice(0, 1200)}` },
         ],
         tools: [{
@@ -99,7 +105,7 @@ serve(async (req) => {
   try {
     const { teacher_name, total_hours, total_sessions, cancelled_sessions, students_count, avg_rating, total_reviews, sessions } = await req.json();
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -113,10 +119,10 @@ serve(async (req) => {
     let isRegenerated = false;
     let usefulnessScore = 0;
     let evaluatorFeedback = "";
+  let modelUsed = await getGeminiModel(GEMINI_API_KEY);
 
     try {
-      const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
-        model: "gemini-2.5-flash",
+      const baseMessages = {
         messages: [
           {
             role: "system",
@@ -130,21 +136,21 @@ serve(async (req) => {
             content: `بيانات:\n- الاسم: ${teacher_name}\n- الساعات: ${total_hours}\n- الحصص: ${total_sessions}\n- الملغاة: ${cancelled_sessions}\n- الطلاب: ${students_count}\n- التقييم: ${avg_rating}/5 (${total_reviews})\n\nالحصص:\n${sessionsText || "لا توجد"}`,
           },
         ],
-      });
+      };
+
+      const aiResult = await callAI(GEMINI_API_KEY, baseMessages);
+      modelUsed = aiResult.modelUsed;
 
       let report = aiResult.result.choices?.[0]?.message?.content || "تعذر إنشاء التقرير";
       const qualityScore = calculateQualityScore(report);
 
-      // Evaluate
       const evaluation = await evaluateOutput(GEMINI_API_KEY, inputSummary, report);
       usefulnessScore = evaluation.usefulness_score;
       evaluatorFeedback = evaluation.feedback;
 
-      // Regenerate if weak
       if (usefulnessScore < 6) {
         isRegenerated = true;
-        const regen = await callAIWithRetry(GEMINI_API_KEY, {
-          model: "gemini-2.5-flash",
+        const regen = await callAI(GEMINI_API_KEY, {
           messages: [
             {
               role: "system",
@@ -157,6 +163,7 @@ serve(async (req) => {
           ],
         });
         report = regen.result.choices?.[0]?.message?.content || report;
+        modelUsed = regen.modelUsed;
         const reEval = await evaluateOutput(GEMINI_API_KEY, inputSummary, report);
         usefulnessScore = reEval.usefulness_score;
         evaluatorFeedback = reEval.feedback;
@@ -172,10 +179,10 @@ serve(async (req) => {
         retry_count: aiResult.retryCount,
         usefulness_score: usefulnessScore,
         is_regenerated: isRegenerated,
-        evaluator_feedback: evaluatorFeedback.slice(0, 500),
+        evaluator_feedback: `[${modelUsed}] ${evaluatorFeedback}`.slice(0, 500),
       });
 
-      return new Response(JSON.stringify({ report, quality_score: qualityScore, usefulness_score: usefulnessScore, is_regenerated: isRegenerated }), {
+      return new Response(JSON.stringify({ report, quality_score: qualityScore, usefulness_score: usefulnessScore, is_regenerated: isRegenerated, model_used: modelUsed }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (aiError) {

@@ -12,6 +12,7 @@ import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Shield, BarChart3, Clock,
   UserCheck, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings,
+  MessageSquare, UserPlus, Activity, CreditCard, TicketCheck, ArrowLeft,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -33,6 +34,7 @@ import StudentProfilesTab from "@/components/admin/StudentProfilesTab";
 import TeacherProfilesTab from "@/components/admin/TeacherProfilesTab";
 import SessionReportsTab from "@/components/admin/SessionReportsTab";
 import AIAuditTab from "@/components/admin/AIAuditTab";
+import AIModelsManagementTab from "@/components/admin/AIModelsManagementTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import FinancialHubTab from "@/components/admin/FinancialHubTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
@@ -48,10 +50,52 @@ import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
 import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
 import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
 import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
+import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
+import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
+
+type OverviewEvent = {
+  id: string;
+  label: string;
+  detail: string;
+  created_at: string;
+  tab: string;
+};
+
+type OverviewSnapshot = {
+  newUsers: number;
+  newTeachers: number;
+  newSupportTickets: number;
+  openSupportTickets: number;
+  newBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  newPayments: number;
+  paymentTotal: number;
+  pendingWithdrawals: number;
+  unreviewedViolations: number;
+  supportMessages: number;
+  recentEvents: OverviewEvent[];
+};
+
+const EMPTY_OVERVIEW: OverviewSnapshot = {
+  newUsers: 0,
+  newTeachers: 0,
+  newSupportTickets: 0,
+  openSupportTickets: 0,
+  newBookings: 0,
+  completedBookings: 0,
+  cancelledBookings: 0,
+  newPayments: 0,
+  paymentTotal: 0,
+  pendingWithdrawals: 0,
+  unreviewedViolations: 0,
+  supportMessages: 0,
+  recentEvents: [],
+};
 
 const TAB_TITLES: Record<string, string> = {
   overview: "نظرة عامة",
@@ -73,6 +117,7 @@ const TAB_TITLES: Record<string, string> = {
   violations: "المخالفات المكتشفة",
   call_transcripts: "تفريغ المكالمات الهاتفية",
   ai_audit: "فحص الذكاء الاصطناعي",
+  ai_models: "نماذج الذكاء الاصطناعي",
   site: "إدارة المحتوى",
   support: "الدعم الفني",
   admin_notifications: "مركز الإشعارات",
@@ -96,12 +141,14 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
+  const [overview, setOverview] = useState<OverviewSnapshot>(EMPTY_OVERVIEW);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
   const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
   });
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+  const [supportTarget, setSupportTarget] = useState<{ user_id: string; full_name: string } | null>(null);
 
   // Sync tab when ?tab= changes (e.g. from a notification link)
   useEffect(() => {
@@ -197,6 +244,82 @@ const AdminDashboard = () => {
         violationsCountQ,
       ]);
 
+      // Operational snapshot: every number here comes from the selected period,
+      // while queue counts (open support, pending withdrawals, violations) are
+      // intentionally current-state counts.
+      const [
+        newUsersRes,
+        newTeachersRes,
+        newSupportRes,
+        openSupportRes,
+        newBookingsRes,
+        completedRes,
+        cancelledRes,
+        newPaymentsRes,
+        pendingWithdrawalsRes,
+        unreviewedViolationsRes,
+        supportMessagesRes,
+      ] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("teacher_profiles").select("user_id, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("support_tickets").select("id, subject, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("support_tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
+        supabase.from("bookings").select("id, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "completed").gte("created_at", periodFilterIso || "1970-01-01"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "cancelled").gte("created_at", periodFilterIso || "1970-01-01"),
+        supabase.from("payment_records").select("amount, created_at", { count: "exact" }).eq("status", "completed").gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        (supabase as any).from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
+        supabase.from("support_messages").select("id", { count: "exact", head: true }).gte("created_at", periodFilterIso || "1970-01-01"),
+      ]);
+
+      const eventRows: OverviewEvent[] = [
+        ...(newUsersRes.data ?? []).map((row: any) => ({
+          id: `user-${row.user_id}`,
+          label: "تسجيل مستخدم",
+          detail: row.full_name?.trim() || "مستخدم جديد",
+          created_at: row.created_at,
+          tab: "users",
+        })),
+        ...(newTeachersRes.data ?? []).map((row: any) => ({
+          id: `teacher-${row.user_id}`,
+          label: "طلب تسجيل معلم",
+          detail: "بانتظار المراجعة",
+          created_at: row.created_at,
+          tab: "teachers",
+        })),
+        ...(newSupportRes.data ?? []).map((row: any) => ({
+          id: `support-${row.id}`,
+          label: "تذكرة دعم",
+          detail: row.subject || "طلب دعم جديد",
+          created_at: row.created_at,
+          tab: "support",
+        })),
+        ...(newBookingsRes.data ?? []).map((row: any) => ({
+          id: `booking-${row.id}`,
+          label: "حجز جديد",
+          detail: row.status === "completed" ? "مكتمل" : row.status === "confirmed" ? "مؤكد" : row.status === "cancelled" ? "ملغى" : "معلق",
+          created_at: row.created_at,
+          tab: "bookings",
+        })),
+      ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 10);
+
+      setOverview({
+        newUsers: newUsersRes.count ?? 0,
+        newTeachers: newTeachersRes.count ?? 0,
+        newSupportTickets: newSupportRes.count ?? 0,
+        openSupportTickets: openSupportRes.count ?? 0,
+        newBookings: newBookingsRes.count ?? 0,
+        completedBookings: completedRes.count ?? 0,
+        cancelledBookings: cancelledRes.count ?? 0,
+        newPayments: newPaymentsRes.count ?? 0,
+        paymentTotal: (paymentsRes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
+        pendingWithdrawals: pendingWithdrawalsRes.count ?? 0,
+        unreviewedViolations: unreviewedViolationsRes.count ?? 0,
+        supportMessages: supportMessagesRes.count ?? 0,
+        recentEvents: eventRows,
+      });
+
       let allBookingsQ = supabase.from("bookings").select("created_at, status, price");
       if (periodFilterIso) allBookingsQ = allBookingsQ.gte("created_at", periodFilterIso);
       const { data: allBookingsData } = await allBookingsQ;
@@ -207,7 +330,6 @@ const AdminDashboard = () => {
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
         existing.bookings += 1;
-        existing.revenue += Number(b.price || 0);
         monthMap.set(key, existing);
       });
       (paymentsRes.data ?? []).forEach((p: any) => {
@@ -329,6 +451,14 @@ const AdminDashboard = () => {
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
   };
 
+  const openTeacherSupport = (teacher: any) => {
+    setSupportTarget({
+      user_id: teacher.user_id,
+      full_name: teacher.profile?.full_name || "المعلم",
+    });
+    handleTabChange("support");
+  };
+
   const filterByDate = (items: any[], dateFrom: string, dateTo: string) => {
     return items.filter(item => {
       const created = new Date(item.created_at);
@@ -381,6 +511,7 @@ const AdminDashboard = () => {
     violations: "manage_violations",
     call_transcripts: "view_call_transcripts",
     ai_audit: "manage_ai_audit",
+    ai_models: "manage_ai_models",
     site: "manage_content",
     support: "customer_support",
     admin_notifications: "manage_notifications",
@@ -402,12 +533,12 @@ const AdminDashboard = () => {
       );
     }
     switch (activeTab) {
-      case "overview": return <OverviewContent stats={stats} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} />;
+      case "overview": return <OverviewContent stats={stats} overview={overview} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} badgeCounts={badgeCounts} />;
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
       case "teacher_profiles": return <TeacherProfilesTab />;
-      case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} />;
-      case "bookings": return <BookingsContent bookings={filteredBookings} bookingStatusFilter={bookingStatusFilter} setBookingStatusFilter={setBookingStatusFilter} bookingDateFrom={bookingDateFrom} bookingDateTo={bookingDateTo} setBookingDateFrom={setBookingDateFrom} setBookingDateTo={setBookingDateTo} />;
+       case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} openTeacherSupport={openTeacherSupport} />;
+       case "bookings": return <AdminBookingsTab />;
       case "sessions_status": return <SessionsStatusTab />;
       case "violations": return <ViolationsTab violations={filteredViolations} setViolations={setViolations} user={user} searchQuery={violationSearchQuery} setSearchQuery={setViolationSearchQuery} statusFilter={violationStatusFilter} setStatusFilter={setViolationStatusFilter} dateFrom={violationDateFrom} dateTo={violationDateTo} setDateFrom={setViolationDateFrom} setDateTo={setViolationDateTo} />;
       case "plans": return <PlansManagementTab />;
@@ -419,9 +550,10 @@ const AdminDashboard = () => {
       case "financial_hub": return <FinancialHubTab />;
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
-      case "support": return <SupportTicketsTab />;
+       case "support": return <SupportTicketsTab initialUser={supportTarget} onInitialUserHandled={() => setSupportTarget(null)} />;
       case "session_reports": return <SessionReportsTab />;
       case "ai_audit": return <AIAuditTab />;
+      case "ai_models": return <AIModelsManagementTab />;
       case "call_transcripts": return <CallTranscriptsTab />;
       case "materials_monitor": return <MaterialsMonitorTab />;
       case "session_pricing": return <SessionPricingTab />;
@@ -435,7 +567,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen bg-background">
+    <div dir="rtl" className="min-h-screen bg-[#f4f7fb]">
       <SidebarProvider defaultOpen={true}>
         <div className="min-h-screen flex w-full">
           <AdminSidebar
@@ -448,20 +580,18 @@ const AdminDashboard = () => {
           />
           <SidebarInset>
             {/* Top Bar - Professional */}
-            <header className="sticky top-0 z-20 border-b bg-gradient-to-l from-primary/10 via-background/95 to-secondary/10 backdrop-blur-md">
+            <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 shadow-[0_8px_35px_-30px_rgba(15,42,78,0.65)] backdrop-blur-xl">
               <div className="flex items-center gap-3 px-4 md:px-6 h-16">
                 <SidebarTrigger className="h-9 w-9 hover:bg-primary/10 rounded-lg transition-colors" />
                 <div className="h-6 w-px bg-border" />
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shrink-0">
-                    <Shield className="h-5 w-5 text-primary-foreground" />
-                  </div>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#123d6b] to-[#168276] shadow-lg shadow-blue-950/10"><Shield className="h-5 w-5 text-white" /></div>
                   <div className="min-w-0">
                     <h1 className="text-base md:text-lg font-black text-foreground leading-tight truncate">
                       {TAB_TITLES[activeTab] || "لوحة التحكم"}
                     </h1>
                     <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block">
-                      {access.isFullAdmin ? "المدير العام" : "مشرف"} · {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })}
+                      أجيال المعرفة · {access.isFullAdmin ? "المدير العام" : "مشرف"} · {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })}
                     </p>
                   </div>
                 </div>
@@ -482,7 +612,7 @@ const AdminDashboard = () => {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in bg-gradient-to-br from-background via-background to-muted/20 min-h-[calc(100vh-4rem)]">
+            <main className="relative flex-1 space-y-6 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(20,128,116,0.07),transparent_26%),radial-gradient(circle_at_top_left,rgba(18,61,107,0.07),transparent_30%)] p-4 animate-fade-in md:p-7 min-h-[calc(100vh-4rem)]">
               {renderContent()}
             </main>
           </SidebarInset>
@@ -515,7 +645,18 @@ const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string
   </Card>
 );
 
-const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab }: any) => (
+const formatNumber = (value: number) => new Intl.NumberFormat("ar-SA").format(value);
+const formatMoney = (value: number) => `${new Intl.NumberFormat("ar-SA", { maximumFractionDigits: 0 }).format(value)} ر.س`;
+const timeAgo = (iso: string) => {
+  const minutes = Math.max(0, Math.floor((Date.now() - +new Date(iso)) / 60000));
+  if (minutes < 1) return "الآن";
+  if (minutes < 60) return `منذ ${minutes} دقيقة`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `منذ ${hours} ساعة`;
+  return `منذ ${Math.floor(hours / 24)} يوم`;
+};
+
+const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab, badgeCounts }: any) => (
   <div className="space-y-6">
     {/* Period filter */}
     <div className="flex items-center justify-between flex-wrap gap-3">
@@ -526,6 +667,19 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
       <AdminPeriodFilter value={period} onChange={setPeriod} />
     </div>
 
+    <Card className="border-0 bg-gradient-to-l from-[#123d6b] via-[#174f79] to-[#168276] text-white shadow-lg">
+      <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-[11px] font-bold text-white/70">مركز التشغيل · الإجراء التالي</p>
+          <h2 className="mt-1 text-xl font-black">لديك {formatNumber((badgeCounts?.withdrawals || 0) + (badgeCounts?.support || 0) + (badgeCounts?.pendingBookings || 0) + (badgeCounts?.unreviewed || 0))} مهام تحتاج مراجعة</h2>
+          <p className="mt-1 text-xs text-white/75">ابدأ بالحجوزات والطلبات العاجلة ثم انتقل إلى الدعم والعمليات المالية.</p>
+        </div>
+        <Button onClick={() => onOpenTab((badgeCounts?.pendingBookings || 0) > 0 ? "bookings" : (badgeCounts?.support || 0) > 0 ? "support" : (badgeCounts?.withdrawals || 0) > 0 ? "withdrawals" : "violations")} className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
+          فتح أول مهمة <ArrowLeft className="h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
+
     {/* Urgent tasks + Live alerts */}
     <div className="grid lg:grid-cols-2 gap-6">
       <AdminUrgentTasks onOpenTab={onOpenTab} />
@@ -534,18 +688,114 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
 
     {/* Stats Grid */}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="إجمالي المستخدمين" value={stats.users} icon={Users} color="from-primary to-primary/70" />
-      <StatCard label="المعلمين المسجلين" value={stats.teachers} icon={GraduationCap} color="from-secondary to-secondary/70" />
-      <StatCard label="إجمالي الحجوزات" value={stats.bookings} icon={BookOpen} color="from-info to-info/70" />
-      <StatCard label="الإيرادات" value={`${stats.revenue} ر.س`} icon={DollarSign} color="from-success to-success/70" />
+       <StatCard label="إجمالي المستخدمين" value={formatNumber(stats.users)} icon={Users} color="from-primary to-primary/70" />
+       <StatCard label="المعلمين المسجلين" value={formatNumber(stats.teachers)} icon={GraduationCap} color="from-secondary to-secondary/70" />
+       <StatCard label="إجمالي الحجوزات" value={formatNumber(stats.bookings)} icon={BookOpen} color="from-info to-info/70" />
+       <StatCard label="الإيرادات المحصلة" value={formatMoney(stats.revenue)} icon={DollarSign} color="from-success to-success/70" />
     </div>
 
     {/* Secondary Stats */}
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatCard label="طلبات معلقة" value={stats.pendingTeachers} icon={UserCheck} color="from-warning to-warning/70" />
-      <StatCard label="حصص مكتملة" value={stats.completedSessions} icon={CheckCircle} color="from-success to-success/70" />
-      <StatCard label="حجوزات ملغاة" value={stats.cancelledBookings} icon={XCircle} color="from-destructive to-destructive/70" />
-      <StatCard label="المخالفات" value={stats.violations} icon={ShieldAlert} color="from-destructive to-destructive/70" />
+       <StatCard label="طلبات معلمين معلقة" value={formatNumber(stats.pendingTeachers)} icon={UserCheck} color="from-warning to-warning/70" />
+       <StatCard label="حصص مكتملة" value={formatNumber(stats.completedSessions)} icon={CheckCircle} color="from-success to-success/70" />
+       <StatCard label="حجوزات ملغاة" value={formatNumber(stats.cancelledBookings)} icon={XCircle} color="from-destructive to-destructive/70" />
+       <StatCard label="مخالفات غير مراجعة" value={formatNumber(stats.violations)} icon={ShieldAlert} color="from-destructive to-destructive/70" />
+    </div>
+
+    {/* Period activity and actionable queues */}
+    <div className="grid lg:grid-cols-3 gap-4">
+      <Card className="lg:col-span-2 border border-border/50 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            ملخص النشاط في الفترة
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: "تسجيلات المستخدمين", value: overview.newUsers, icon: UserPlus, color: "text-primary", tab: "users" },
+            { label: "طلبات المعلمين", value: overview.newTeachers, icon: GraduationCap, color: "text-secondary", tab: "teachers" },
+            { label: "تذاكر دعم جديدة", value: overview.newSupportTickets, icon: MessageSquare, color: "text-info", tab: "support" },
+            { label: "حجوزات جديدة", value: overview.newBookings, icon: BookOpen, color: "text-accent-foreground", tab: "bookings" },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="rounded-xl border border-border/50 bg-muted/20 p-3 text-right hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span className="text-2xl font-black">{formatNumber(item.value)}</span>
+                </div>
+                <p className="mt-2 text-[11px] font-semibold text-muted-foreground">{item.label}</p>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+      <Card className="border border-border/50 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <TicketCheck className="h-4 w-4 text-warning" />
+            طابور الإجراءات
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {[
+            { label: "تذاكر دعم مفتوحة", value: overview.openSupportTickets, tab: "support", icon: MessageSquare },
+            { label: "طلبات سحب معلقة", value: overview.pendingWithdrawals, tab: "withdrawals", icon: CreditCard },
+            { label: "مخالفات غير مراجعة", value: overview.unreviewedViolations, tab: "violations", icon: ShieldAlert },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-muted/50 transition-colors">
+                <span className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{item.label}</span>
+                <Badge variant={item.value > 0 ? "destructive" : "secondary"}>{formatNumber(item.value)}</Badge>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+
+    <div className="grid lg:grid-cols-2 gap-6">
+      <Card className="border border-border/50 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2"><Clock className="h-4 w-4 text-primary" />آخر النشاط</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {overview.recentEvents.length === 0 ? (
+            <p className="px-5 py-12 text-center text-sm text-muted-foreground">لا توجد أحداث في الفترة المحددة</p>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {overview.recentEvents.map((event: OverviewEvent) => (
+                <button key={event.id} onClick={() => onOpenTab(event.tab)} className="w-full flex items-center gap-3 px-5 py-3 text-right hover:bg-muted/30 transition-colors">
+                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold truncate">{event.label}</span>
+                    <span className="block text-[11px] text-muted-foreground truncate">{event.detail}</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{timeAgo(event.created_at)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="border border-border/50 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2"><DollarSign className="h-4 w-4 text-success" />التحصيل المالي في الفترة</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end justify-between gap-3">
+            <div><p className="text-3xl font-black">{formatMoney(overview.paymentTotal)}</p><p className="text-xs text-muted-foreground mt-1">مدفوعات مكتملة فقط</p></div>
+            <Badge variant="secondary">{formatNumber(overview.newPayments)} عملية</Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="rounded-lg bg-success/10 p-3"><span className="text-muted-foreground">حصص مكتملة</span><strong className="block text-lg mt-1">{formatNumber(overview.completedBookings)}</strong></div>
+            <div className="rounded-lg bg-destructive/10 p-3"><span className="text-muted-foreground">حجوزات ملغاة</span><strong className="block text-lg mt-1">{formatNumber(overview.cancelledBookings)}</strong></div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">رسائل الدعم المسجلة: {formatNumber(overview.supportMessages)}</p>
+        </CardContent>
+      </Card>
     </div>
 
     {/* Charts */}
@@ -618,7 +868,7 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
   </div>
 );
 
-const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => (
+const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => (
   <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -657,6 +907,10 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="rounded-lg gap-1 border-primary/30 text-primary hover:bg-primary/10" onClick={() => openTeacherSupport(t)}>
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    مراسلة
+                  </Button>
                   <Button size="sm" className="rounded-lg bg-success hover:bg-success/90 text-success-foreground gap-1" onClick={() => approveTeacher(t.id)}>
                     <CheckCircle className="h-3.5 w-3.5" />
                     موافقة
@@ -682,18 +936,7 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
                 )}
                 {t.bio && <div className="col-span-2 md:col-span-4"><span className="text-muted-foreground">النبذة</span><p className="font-medium text-foreground mt-0.5">{t.bio}</p></div>}
               </div>
-              {t.certificates && t.certificates.length > 0 && (
-                <div className="text-xs">
-                  <span className="text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {t.certificates.map((c: any) => (
-                      <a key={c.id} href={c.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                        <FileText className="h-3 w-3" />{c.name}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <TeacherCertificatesList certificates={t.certificates || []} compact />
               <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
             </div>
           ))}

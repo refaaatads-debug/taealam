@@ -32,6 +32,19 @@ const MAX_HISTORY = 20;
 const TYPING_CHARS_PER_TICK = 3;
 const TYPING_INTERVAL_MS = 18;
 
+const readFunctionError = async (error: unknown): Promise<string> => {
+  const candidate = error as { context?: Response; message?: string };
+  if (candidate?.context instanceof Response) {
+    try {
+      const payload = await candidate.context.clone().json();
+      if (typeof payload?.error === "string") return payload.error;
+    } catch {
+      // Fall back to the SDK error below.
+    }
+  }
+  return candidate?.message || "";
+};
+
 const QUICK_REPLIES_STUDENT = [
   "كم الدقائق المتبقية في باقتي؟",
   "متى موعد حصتي القادمة؟",
@@ -49,9 +62,10 @@ const QUICK_REPLIES_TEACHER = [
 interface Props {
   onCreateTicket?: (subject: string, conversationLog: string) => void;
   onTicketCreated?: (ticketId: string) => void;
+  compact?: boolean;
 }
 
-const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
+const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: Props) => {
   const { user, roles } = useAuth();
   const isTeacher = roles.includes("teacher");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -302,11 +316,13 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
       if (ticket?.id) onTicketCreated?.(ticket.id);
     } catch (e: any) {
       console.error("AI support error:", e);
-      const errMsg = e?.message?.includes("429")
+      const backendError = await readFunctionError(e);
+      const errorText = `${backendError} ${e?.message || ""}`;
+      const errMsg = errorText.includes("429")
         ? "⚠️ تم تجاوز الحد المسموح به مؤقتًا. حاول بعد قليل."
-        : e?.message?.includes("402")
+        : errorText.includes("402")
         ? "⚠️ يحتاج النظام لإعادة تعبئة الرصيد. تواصل مع الإدارة."
-        : "حدث خطأ في الاتصال بالمساعد. حاول مرة أخرى.";
+        : backendError || "حدث خطأ في الاتصال بالمساعد. حاول مرة أخرى.";
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: errMsg, ts: Date.now() },
@@ -345,7 +361,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated }: Props) => {
   const isImage = (t?: string) => t?.startsWith("image/");
 
   return (
-    <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+    <div className={cn("flex flex-col", compact ? "h-full min-h-0" : "h-[calc(100vh-220px)] min-h-[500px]")}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-l from-primary/5 to-transparent rounded-t-xl">
         <div className="flex items-center gap-3">

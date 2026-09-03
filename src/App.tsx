@@ -12,6 +12,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ChatNotificationToast from "@/components/ChatNotificationToast";
 import SessionConflictDialog from "@/components/SessionConflictDialog";
+import { InternalCallProvider } from "@/contexts/InternalCallContext";
 
 // Lazy-loaded pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -98,6 +99,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <InternalCallProvider>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -146,6 +148,7 @@ const App = () => (
           </Suspense>
           <ChatNotificationToast />
           <SessionConflictDialog />
+          </InternalCallProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

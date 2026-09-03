@@ -92,6 +92,11 @@ export default function WhiteboardCanvas({
 
   const currentPathRef = useRef<{ x: number; y: number }[]>([]);
   const actionsRef = useRef<DrawAction[]>([]);
+  // Actions received from the other participant are kept separately from
+  // local actions. This is important when the teacher is also drawing:
+  // previously the remote-actions effect was skipped whenever canDraw=true,
+  // so the teacher could never see a student's strokes.
+  const remoteActionsRef = useRef<DrawAction[]>([]);
   const undoneRef = useRef<DrawAction[]>([]);
   const shapeStartRef = useRef<{ x: number; y: number } | null>(null);
   const throttleRef = useRef<number>(0);
@@ -184,6 +189,9 @@ export default function WhiteboardCanvas({
     for (const action of actionsRef.current) {
       drawAction(ctx, action);
     }
+    for (const action of remoteActionsRef.current) {
+      drawAction(ctx, action);
+    }
   }, [fillBackground, drawAction]);
 
   const resizeCanvas = useCallback(() => {
@@ -255,9 +263,7 @@ export default function WhiteboardCanvas({
   };
 
   useEffect(() => {
-    if (!remoteActions || canDraw) return;
-    actionsRef.current = remoteActions.map(a => denormalizeAction(a));
-    undoneRef.current = [];
+    remoteActionsRef.current = (remoteActions || []).map(a => denormalizeAction(a));
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;

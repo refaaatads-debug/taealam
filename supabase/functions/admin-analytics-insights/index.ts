@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,7 +42,8 @@ serve(async (req) => {
     }
 
     const { summary } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
 
     const prompt = `أنت محلل بيانات خبير لمنصة تعليمية عربية. حلّل البيانات التالية وقدّم:
 1. **التشخيص**: ما الأرقام تخبرنا بها؟
@@ -61,7 +63,7 @@ ${JSON.stringify(summary, null, 2)}
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: geminiModel,
         messages: [
           { role: "system", content: "أنت محلل بيانات تعليمية محترف، تكتب بالعربية بأسلوب واضح ومباشر." },
           { role: "user", content: prompt },

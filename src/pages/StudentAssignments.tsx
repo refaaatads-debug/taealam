@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Upload, Mic, Square, FileText, CheckCircle2, Sparkles, Play, Pause, Lock } from "lucide-react";
+import { Loader2, Upload, Mic, Square, FileText, CheckCircle2, Sparkles, Play, Pause, Lock, ListChecks, Clock3, Trophy } from "lucide-react";
 import { toast } from "sonner";
+
+const isQuiz = (item: any) => item?.content_type === "quiz";
 
 const StudentAssignments = () => {
   const { user } = useAuth();
@@ -23,10 +25,11 @@ const StudentAssignments = () => {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [openSubmit, setOpenSubmit] = useState<any>(null);
+  const [resultType, setResultType] = useState<"all" | "assignment" | "quiz">("all");
 
   // Submission form
   const [text, setText] = useState("");
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<any[]>([]);
   const [images, setImages] = useState<File[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [recording, setRecording] = useState(false);
@@ -58,7 +61,7 @@ const StudentAssignments = () => {
     // الواجبات أولاً (الأهم) — استعلام مبسط بدون joins ثقيلة
     const { data: a } = await supabase
       .from("assignments" as any)
-      .select("id, title, description, total_points, due_date, questions, attachments, allow_text, allow_image, allow_audio, subject_id, teaching_stage, created_at, student_id")
+      .select("id, title, description, total_points, due_date, questions, attachments, allow_text, allow_image, allow_audio, subject_id, teaching_stage, created_at, student_id, teacher_id, content_type")
       .or(`student_id.eq.${user.id},student_id.is.null`)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -85,6 +88,48 @@ const StudentAssignments = () => {
 
   const submittedIds = new Set(submissions.map(s => s.assignment_id));
   const pending = assignments.filter(a => !submittedIds.has(a.id));
+  const pendingHomework = pending.filter((assignment) => !isQuiz(assignment));
+  const pendingQuizzes = pending.filter(isQuiz);
+  const gradedCount = submissions.filter(s => s.final_score != null || s.ai_score != null).length;
+  const pendingReviewCount = submissions.filter(s => s.final_score == null).length;
+  const totalEarned = submissions.reduce((sum, s) => sum + Number(s.final_score ?? s.ai_score ?? 0), 0);
+  const totalAvailable = submissions.reduce((sum, s) => sum + Number(s.assignment?.total_points || 100), 0);
+  const hasAnswer = (answer: any) => Array.isArray(answer) ? answer.length > 0 : Boolean(String(answer ?? "").trim());
+  const visibleSubmissions = submissions.filter((submission) => resultType === "all" || (isQuiz(submission.assignment) ? "quiz" : "assignment") === resultType);
+  const renderPendingCard = (assignment: any) => (
+    <Card key={assignment.id} className={`border-r-4 ${isQuiz(assignment) ? "border-r-secondary/60" : "border-r-primary/60"}`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold">{assignment.title}</h3>
+              <Badge variant={isQuiz(assignment) ? "secondary" : "outline"}>{isQuiz(assignment) ? "اختبار" : "واجب"}</Badge>
+            </div>
+            {assignment.description && <p className="text-sm text-muted-foreground mt-1">{assignment.description}</p>}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Badge variant="secondary">{(assignment.questions || []).length} أسئلة</Badge>
+              {(assignment.questions || []).some((question: any) => question.type === "multiple_choice" || question.type === "multiple_select") && <Badge variant="outline">MCQ / MSQ</Badge>}
+              <Badge variant="outline">{assignment.total_points} درجة</Badge>
+              {assignment.due_date && <Badge variant="outline">حتى {new Date(assignment.due_date).toLocaleDateString("ar")}</Badge>}
+            </div>
+          </div>
+          <Button
+            disabled={!hasActiveSubscription}
+            onClick={() => {
+              if (!hasActiveSubscription) {
+                toast.error("تحتاج إلى اشتراك نشط لحل الواجبات والاختبارات");
+                return;
+              }
+              setOpenSubmit(assignment);
+              setAnswers(new Array((assignment.questions || []).length).fill(""));
+            }}
+          >
+            {hasActiveSubscription ? (isQuiz(assignment) ? "ابدأ الاختبار" : "حل الواجب") : <><Lock className="h-3 w-3 ml-1" /> مقفل</>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const startRecord = async () => {
     try {
@@ -111,7 +156,13 @@ const StudentAssignments = () => {
 
   const handleSubmit = async () => {
     if (!user || !openSubmit) return;
-    if (!text.trim() && images.length === 0 && !audioBlob && answers.every(a => !a?.trim())) {
+    const questions = Array.isArray(openSubmit.questions) ? openSubmit.questions : [];
+    const missingQuestion = questions.findIndex((question: any, index: number) => !hasAnswer(answers[index]));
+    if (questions.length > 0 && missingQuestion !== -1) {
+      toast.error(`أجب عن السؤال ${missingQuestion + 1} قبل التسليم`);
+      return;
+    }
+    if (!text.trim() && images.length === 0 && !audioBlob && answers.every(a => !hasAnswer(a))) {
       toast.error("أضف إجابة (نص أو صورة أو صوت)");
       return;
     }
@@ -182,16 +233,47 @@ const StudentAssignments = () => {
     <div className="min-h-screen bg-background pb-24">
       <Navbar />
       <main className="container mx-auto px-4 py-6 max-w-4xl">
-        <h1 className="text-2xl md:text-3xl font-black mb-6">واجباتي</h1>
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-black">واجباتي واختباراتي</h1>
+          <p className="text-sm text-muted-foreground mt-1">حل المطلوب، تابع التصحيح، وراجع أخطاءك لتحسين مستواك</p>
+        </div>
 
-        <Tabs defaultValue="pending">
-          <TabsList>
-            <TabsTrigger value="pending">المطلوبة {pending.length > 0 && <Badge className="mr-1">{pending.length}</Badge>}</TabsTrigger>
-            <TabsTrigger value="completed">المُسلَّمة ({submissions.length})</TabsTrigger>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <Card className="border-primary/15 bg-primary/[0.04]">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-primary"><ListChecks className="h-4 w-4" /><span className="text-xs font-semibold">متاحة للحل</span></div>
+              <p className="text-2xl font-black mt-2">{pending.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-amber-600"><Clock3 className="h-4 w-4" /><span className="text-xs font-semibold">قيد التصحيح</span></div>
+              <p className="text-2xl font-black mt-2">{pendingReviewCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-emerald-600"><CheckCircle2 className="h-4 w-4" /><span className="text-xs font-semibold">تم تقييمها</span></div>
+              <p className="text-2xl font-black mt-2">{gradedCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-secondary"><Trophy className="h-4 w-4" /><span className="text-xs font-semibold">متوسط الإنجاز</span></div>
+              <p className="text-2xl font-black mt-2">{totalAvailable ? `${Math.round((totalEarned / totalAvailable) * 100)}%` : "—"}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="homework">
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="homework">الواجبات {pendingHomework.length > 0 && <Badge className="mr-1">{pendingHomework.length}</Badge>}</TabsTrigger>
+            <TabsTrigger value="quizzes">الاختبارات {pendingQuizzes.length > 0 && <Badge className="mr-1">{pendingQuizzes.length}</Badge>}</TabsTrigger>
+            <TabsTrigger value="completed">النتائج والمراجعة ({submissions.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pending" className="space-y-3 mt-4">
-            {!hasActiveSubscription && pending.length > 0 && (
+          <TabsContent value="homework" className="space-y-3 mt-4">
+            {!hasActiveSubscription && pendingHomework.length > 0 && (
               <Card className="border-amber-500/40 bg-amber-500/5">
                 <CardContent className="p-4 flex items-start gap-3">
                   <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -207,41 +289,41 @@ const StudentAssignments = () => {
                 </CardContent>
               </Card>
             )}
-            {pending.length === 0 && <Card className="p-8 text-center text-muted-foreground">لا توجد واجبات مطلوبة</Card>}
-            {pending.map(a => (
-              <Card key={a.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <h3 className="font-bold">{a.title}</h3>
-                      {a.description && <p className="text-sm text-muted-foreground mt-1">{a.description}</p>}
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary">{(a.questions || []).length} أسئلة</Badge>
-                        <Badge variant="outline">{a.total_points} درجة</Badge>
-                        {a.due_date && <Badge variant="outline">حتى {new Date(a.due_date).toLocaleDateString("ar")}</Badge>}
-                      </div>
-                    </div>
-                    <Button
-                      disabled={!hasActiveSubscription}
-                      onClick={() => {
-                        if (!hasActiveSubscription) {
-                          toast.error("تحتاج إلى اشتراك نشط لحل الواجبات");
-                          return;
-                        }
-                        setOpenSubmit(a);
-                        setAnswers(new Array((a.questions || []).length).fill(""));
-                      }}>
-                      {hasActiveSubscription ? "حل الواجب" : <><Lock className="h-3 w-3 ml-1" /> مقفل</>}
-                    </Button>
-                  </div>
+            {pendingHomework.length === 0 && <Card className="p-8 text-center text-muted-foreground">لا توجد واجبات مطلوبة</Card>}
+            {pendingHomework.map(renderPendingCard)}
+          </TabsContent>
+
+          <TabsContent value="quizzes" className="space-y-3 mt-4">
+            <div className="rounded-xl border border-secondary/20 bg-secondary/[0.04] p-4">
+              <p className="font-semibold text-sm">قسم الاختبارات</p>
+              <p className="text-xs text-muted-foreground mt-1">ابدأ الاختبار، أجب عن MCQ باختيار واحد وMSQ بأكثر من إجابة، ثم تابع نتيجتك بعد التصحيح.</p>
+            </div>
+            {!hasActiveSubscription && pendingQuizzes.length > 0 && (
+              <Card className="border-amber-500/40 bg-amber-500/5">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div><h4 className="font-bold text-foreground">بدء الاختبار يتطلب اشتراكاً نشطاً</h4><p className="text-sm text-muted-foreground mt-1">يمكنك مشاهدة الاختبارات، ويُفتح الحل عند توفر اشتراك نشط.</p></div>
                 </CardContent>
               </Card>
-            ))}
+            )}
+            {pendingQuizzes.length === 0 && <Card className="p-8 text-center text-muted-foreground">لا توجد اختبارات متاحة</Card>}
+            {pendingQuizzes.map(renderPendingCard)}
           </TabsContent>
 
           <TabsContent value="completed" className="space-y-3 mt-4">
-            {submissions.length === 0 && <Card className="p-8 text-center text-muted-foreground">لم تُسلِّم أي واجب بعد</Card>}
-            {submissions.map(s => {
+            <div className="flex flex-wrap gap-2">
+              {([
+                { value: "all", label: "الكل", count: submissions.length },
+                { value: "assignment", label: "📘 الواجبات", count: submissions.filter((submission) => !isQuiz(submission.assignment)).length },
+                { value: "quiz", label: "🧠 الاختبارات", count: submissions.filter((submission) => isQuiz(submission.assignment)).length },
+              ] as const).map((filter) => (
+                <Button key={filter.value} type="button" size="sm" variant={resultType === filter.value ? "default" : "outline"} onClick={() => setResultType(filter.value)}>
+                  {filter.label} ({filter.count})
+                </Button>
+              ))}
+            </div>
+            {visibleSubmissions.length === 0 && <Card className="p-8 text-center text-muted-foreground">لا توجد نتائج في هذا القسم بعد</Card>}
+            {visibleSubmissions.map(s => {
               const isFinal = s.final_score != null;
               const totalPts = s.assignment?.total_points || 100;
               const score = s.final_score ?? s.ai_score;
@@ -253,7 +335,12 @@ const StudentAssignments = () => {
                     <div className={`p-4 ${isFinal ? "bg-primary/5" : "bg-muted/30"}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold truncate">{s.assignment?.title || "واجب"}</h4>
+                           <div className="flex items-center gap-2">
+                             <h4 className="font-bold truncate">{s.assignment?.title || "محتوى تعليمي"}</h4>
+                             <Badge variant={isQuiz(s.assignment) ? "secondary" : "outline"} className="shrink-0 text-[10px]">
+                               {isQuiz(s.assignment) ? "اختبار" : "واجب"}
+                             </Badge>
+                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             سُلِّم {new Date(s.submitted_at).toLocaleDateString("ar")}
                             {s.reviewed_at && ` • صُحِّح ${new Date(s.reviewed_at).toLocaleDateString("ar")}`}
@@ -387,11 +474,21 @@ const StudentAssignments = () => {
                     <Label className="text-base">الأسئلة</Label>
                     {(openSubmit.questions as any[]).map((q, i) => (
                       <Card key={i} className="p-3">
-                        <p className="font-semibold text-sm mb-2">{i + 1}. {q.text} <Badge variant="outline" className="text-[10px]">{q.points} درجة</Badge></p>
-                        {q.type === "multiple_choice" && (q.options || []).length > 0 ? (
+                         <p className="font-semibold text-sm mb-2">
+                           {i + 1}. {q.text}
+                           <Badge variant="outline" className="text-[10px] mr-2">
+                             {q.points} درجة
+                           </Badge>
+                           {(q.type === "multiple_choice" || q.type === "multiple_select") && (
+                             <Badge variant="secondary" className="text-[10px]">
+                               {q.type === "multiple_choice" ? "MCQ" : "MSQ"}
+                             </Badge>
+                           )}
+                         </p>
+                         {q.type === "multiple_choice" && (q.options || []).length > 0 ? (
                           <div className="space-y-1">
                             {q.options.map((opt: string, oi: number) => (
-                              <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer">
+                               <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 hover:bg-muted/60">
                                 <input type="radio" name={`q-${i}`} value={opt} checked={answers[i] === opt} onChange={() => {
                                   const next = [...answers]; next[i] = opt; setAnswers(next);
                                 }} />
@@ -399,6 +496,29 @@ const StudentAssignments = () => {
                               </label>
                             ))}
                           </div>
+                         ) : q.type === "multiple_select" && (q.options || []).length > 0 ? (
+                           <div className="space-y-1">
+                             <p className="text-xs text-muted-foreground mb-2">يمكن اختيار أكثر من إجابة</p>
+                             {q.options.map((opt: string, oi: number) => {
+                               const selected = Array.isArray(answers[i]) ? answers[i] : [];
+                               return (
+                                 <label key={oi} className="flex items-center gap-2 text-sm cursor-pointer rounded-md px-2 py-1 hover:bg-muted/60">
+                                   <input
+                                     type="checkbox"
+                                     value={opt}
+                                     checked={selected.includes(opt)}
+                                     onChange={(e) => {
+                                       const nextSelected = e.target.checked
+                                         ? [...selected, opt]
+                                         : selected.filter((value: string) => value !== opt);
+                                       const next = [...answers]; next[i] = nextSelected; setAnswers(next);
+                                     }}
+                                   />
+                                   {opt}
+                                 </label>
+                               );
+                             })}
+                           </div>
                         ) : q.type === "true_false" ? (
                           <div className="flex gap-2">
                             {["صح", "خطأ"].map(v => (

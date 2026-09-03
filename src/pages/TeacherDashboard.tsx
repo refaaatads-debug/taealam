@@ -1,10 +1,10 @@
 import Navbar from "@/components/Navbar";
 import BrandLoader from "@/components/BrandLoader";
 import BottomNav from "@/components/BottomNav";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, X, Loader2 } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays } from "lucide-react";
 
 import BookingRequests from "@/components/teacher/BookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
@@ -15,27 +15,30 @@ import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterial
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
 
 import { motion } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useUnreadMessages } from "@/hooks/useUnreadMessages";
-import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 import { useIsPhoneDevice } from "@/hooks/use-is-phone";
+
+const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
   const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
-  const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
-  const unreadCounts = useUnreadMessages(scheduleIds);
   const isPhone = useIsPhoneDevice();
+  const todayKey = localDayKey(new Date());
+  const todaySessions = schedule.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
+  const nextSession = [...todaySessions].sort((a, b) => {
+    if (a.session_status === "in_progress" && b.session_status !== "in_progress") return -1;
+    if (b.session_status === "in_progress" && a.session_status !== "in_progress") return 1;
+    return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+  })[0];
 
   useEffect(() => {
     if (!user) return;
@@ -293,6 +296,37 @@ const TeacherDashboard = () => {
           ))}
         </div>
 
+        {nextSession ? (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <Card className="overflow-hidden border-0 bg-gradient-to-l from-[#123d6b] via-[#174f79] to-[#168276] text-white shadow-lg">
+              <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                    {nextSession.session_status === "in_progress" ? <Play className="h-6 w-6" /> : <CalendarDays className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-white/70">{nextSession.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
+                    <h2 className="mt-0.5 text-lg font-black">{nextSession.subjects?.name || "حصة تعليمية"}</h2>
+                    <p className="mt-1 text-xs text-white/75">مع {nextSession.student_profile?.full_name || "الطالب"} · {new Date(nextSession.scheduled_at).toLocaleString("ar-SA", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                </div>
+                {!isPhone && (
+                  <Button asChild className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
+                    <Link to={`/session?booking=${nextSession.id}`}>ابدأ الحصة <ArrowLeft className="h-4 w-4" /></Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <Card className="mb-6 border-dashed border-secondary/30 bg-secondary/[0.03]">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="font-black">لا توجد حصة مجدولة اليوم</p><p className="mt-1 text-xs text-muted-foreground">راجع الجدول اليومي لمتابعة حصص الأيام القادمة أو حدّث أوقات التوفر لاستقبال حصص جديدة.</p></div>
+              <Button variant="outline" className="gap-2 rounded-xl" onClick={() => document.getElementById("booking-requests")?.scrollIntoView({ behavior: "smooth" })}>راجع الطلبات <ArrowLeft className="h-4 w-4" /></Button>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="mb-6">
           <Link to="/teacher/assignments">
             <Card className="border-0 shadow-card hover:shadow-lg transition cursor-pointer bg-gradient-to-l from-primary/10 to-secondary/10">
@@ -313,105 +347,11 @@ const TeacherDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <BookingRequests onAccepted={fetchData} />
-
-          {/* Upcoming Sessions */}
-          <Card className="border-0 shadow-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <Clock className="h-4 w-4 text-secondary" />
-                </div>
-                الحصص القادمة
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {schedule.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص قادمة</p>
-              ) : (
-                schedule.map((s: any, i: number) => {
-                  const isToday = new Date(s.scheduled_at).toDateString() === new Date().toDateString();
-                  return (
-                    <motion.div key={s.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }}
-                      className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-2xl ${isToday ? "bg-accent border border-secondary/20" : "bg-muted/50"}`}>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isToday ? "gradient-cta text-secondary-foreground" : "bg-card border"}`}>
-                          <Users className={`h-5 w-5 ${!isToday ? "text-primary" : ""}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm text-foreground truncate">{s.student_profile?.full_name || "طالب"} - {s.subjects?.name || ""}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {isToday ? "اليوم" : new Date(s.scheduled_at).toLocaleDateString("ar-SA", { weekday: "long" })} • {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })} • {s.duration_minutes} دقيقة
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3 relative" asChild>
-                          <Link to={`/chat?booking=${s.id}`}>
-                            <MessageSquare className="h-5 w-5" />
-                            <span className="text-xs font-medium">دردشة</span>
-                            {(unreadCounts[s.id] || 0) > 0 && (
-                              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center font-bold">
-                                {unreadCounts[s.id]}
-                              </span>
-                            )}
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl gap-1.5 px-3 border-secondary/30 text-secondary hover:bg-secondary/10"
-                          onClick={async () => {
-                            await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", s.id);
-                            toast.success(`تم قبول الجلسة — ابدأ الحصة الآن`, {
-                              duration: 8000,
-                              action: {
-                                label: "ابدأ الحصة",
-                                onClick: () => navigate(`/session?booking=${s.id}`),
-                              },
-                            });
-                          }}
-                        >
-                          <Play className="h-4 w-4" />
-                          <span className="text-xs font-medium">قبول وبدء</span>
-                        </Button>
-                        {isPhone ? (
-                          <Button
-                            size="sm"
-                            className="gradient-cta text-secondary-foreground rounded-xl shadow-button opacity-60"
-                            onClick={() =>
-                              toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب لبدء الجلسة.")
-                            }
-                          >
-                            ابدأ الحصة
-                          </Button>
-                        ) : (
-                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                            <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl h-8 w-8 p-0 border-destructive/30 text-destructive hover:bg-destructive/10"
-                          title="رفض الحصة"
-                          onClick={() => setCancelTarget({ id: s.id, studentId: s.student_id })}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </motion.div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Teacher Schedule Table */}
-          <TeacherScheduleTable onInstantSessionSent={fetchData} />
-
-          {/* Interactive scheduled sessions table with countdown + 1h reminder */}
-          <ScheduledSessionsCalendar role="teacher" />
+          <div className="lg:col-span-2 space-y-6">
+            <div id="booking-requests"><BookingRequests onAccepted={fetchData} /></div>
+            <ScheduledSessionsCalendar role="teacher" />
+            <TeacherScheduleTable historyOnly onInstantSessionSent={fetchData} />
+          </div>
 
           {/* Withdrawal Section */}
           <WithdrawalSection />
@@ -426,16 +366,6 @@ const TeacherDashboard = () => {
         </div>
       </div>
       <TeacherCustomerServiceButton />
-      <CancelSessionDialog
-        open={!!cancelTarget}
-        onOpenChange={(v) => !v && setCancelTarget(null)}
-        bookingId={cancelTarget?.id ?? null}
-        studentId={cancelTarget?.studentId ?? null}
-        onCancelled={() => {
-          setCancelTarget(null);
-          fetchData();
-        }}
-      />
       <BottomNav />
     </div>
   );

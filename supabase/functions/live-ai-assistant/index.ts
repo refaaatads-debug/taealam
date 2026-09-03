@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +11,9 @@ serve(async (req) => {
 
   try {
     const { messages, subject, action, elapsed_minutes } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
 
     let systemPrompt = "";
     let userPrompt = "";
@@ -107,7 +109,7 @@ ${STRICT_RULES}
       method: "POST",
       headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-2.0-flash",
+        model: geminiModel,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,16 +30,16 @@ const SYSTEM_PROMPT = `أنت مساعد ذكي في منصة "أجيال الم
 إذا الصورة غير واضحة أو ليست واجباً، أعد JSON: {"error": "السبب"}.
 الرد دائماً بالعربية.`;
 
-// Vision-capable Groq models in priority order
-const VISION_MODELS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-];
+// Groq's current model catalogue no longer exposes a vision model.
+// Gemini remains the vision provider and is called directly below.
+const VISION_MODELS: string[] = [];
 
 // Gemini vision fallback
 async function callGeminiVision(base64Data: string, mimeType: string, userText: string, apiKey: string): Promise<string | null> {
   try {
+    const model = await getGeminiModel(apiKey);
     const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,8 +144,8 @@ serve(async (req) => {
       ? `اقرأ الواجب من الصورة وأجب. ملاحظة من الطالب: ${extraQuestion.trim()}. أعد الرد بصيغة JSON فقط.`
       : "اقرأ الواجب من الصورة وحلّه خطوة بخطوة. أعد الرد بصيغة JSON فقط.";
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+    const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
 
     const t0 = Date.now();
     let rawText: string | null = null;

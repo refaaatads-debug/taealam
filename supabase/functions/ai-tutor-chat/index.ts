@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,14 +15,8 @@ const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" - 
 - اقترح كلمات صعبة لينطقها ويتدرب عليها.
 - اجعل ردودك قصيرة (2-4 جمل) ليسهل سماعها.`;
 
-const GROQ_MODELS = [
-  "llama-3.1-8b-instant",
-  "llama-3.3-70b-versatile",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-];
-
 async function callGroq(messages: any[], apiKey: string): Promise<string | null> {
-  for (const model of GROQ_MODELS) {
+  for (const model of await getGroqModels(apiKey)) {
     try {
       const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -44,12 +39,13 @@ async function callGroq(messages: any[], apiKey: string): Promise<string | null>
 
 async function callGemini(messages: any[], apiKey: string): Promise<string | null> {
   try {
+    const model = await getGeminiModel(apiKey);
     const contents = messages.map((m: any) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
     const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
       { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents }) }
     );
@@ -86,8 +82,8 @@ serve(async (req) => {
     const { messages, speak = true } = await req.json();
     if (!Array.isArray(messages)) return new Response(JSON.stringify({ error: "messages required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+    const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
 
     let text = await callGroq(messages, GROQ_API_KEY);
     if (!text) {
@@ -100,8 +96,8 @@ serve(async (req) => {
     if (speak && text) {
       const { data: voiceSetting } = await supabase.from("site_settings").select("value").eq("key", "ai_tutor_voice_id").maybeSingle();
       const voiceId = voiceSetting?.value?.trim() || "EXAVITQu4vr4xnSDxMaL";
-      const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY") || "";
-      const ELEVENLABS_API_KEY_BACKUP = Deno.env.get("ELEVENLABS_API_KEY_BACKUP") || "";
+      const ELEVENLABS_API_KEY = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
+      const ELEVENLABS_API_KEY_BACKUP = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
       if (ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP) {
         try {
           const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;

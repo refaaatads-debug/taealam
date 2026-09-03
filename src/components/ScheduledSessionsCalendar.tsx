@@ -12,15 +12,29 @@ import {
   Grid3x3,
   List,
   Filter,
+  MessageSquare,
+  X,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Row {
   id: string;
@@ -68,10 +82,14 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
-  const [view, setView] = useState<View>("month");
+  const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
   const [joining, setJoining] = useState<string | null>(null);
+  const [teacherCancelTarget, setTeacherCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
+  const [studentCancelTarget, setStudentCancelTarget] = useState<Row | null>(null);
+  const [cancellingStudent, setCancellingStudent] = useState(false);
+  const unreadCounts = useUnreadMessages(rows.map((row) => row.id));
 
   // Filters
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -127,6 +145,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   useEffect(() => {
     if (!user) return;
     fetchRows();
+    // Realtime is normally enough, but polling keeps the calendar reliable
+    // when a browser/tab misses the booking update that marks a session live.
+    const refreshTimer = window.setInterval(fetchRows, 15_000);
     const channel = supabase
       .channel(`sched-cal-${role}-${user.id}`)
       .on(
@@ -141,6 +162,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       )
       .subscribe();
     return () => {
+      window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [user, role]);
@@ -274,6 +296,36 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     setTimeout(() => navigate(`/session?booking=${id}`), 200);
   };
 
+  const handleStudentCancel = async () => {
+    if (!user || !studentCancelTarget) return;
+    setCancellingStudent(true);
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "cancelled", session_status: "cancelled" } as any)
+        .eq("id", studentCancelTarget.id)
+        .eq("student_id", user.id);
+
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: studentCancelTarget.other_id,
+        ...notificationTemplates.bookingCancelledByStudent({
+          subjectName: studentCancelTarget.subject_name,
+          scheduledAt: studentCancelTarget.scheduled_at,
+        }),
+      });
+
+      toast.success("تم إلغاء الحصة بنجاح");
+      setStudentCancelTarget(null);
+      await fetchRows();
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء الحصة");
+    } finally {
+      setCancellingStudent(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="border-0 shadow-card">
@@ -292,7 +344,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <CalendarClock className="h-4 w-4 text-primary" />
             </div>
-            جدول الحصص المجدولة
+            الجدول اليومي
             {filteredRows.length > 0 && (
               <Badge className="bg-primary/10 text-primary border-0 text-xs">
                 {filteredRows.length}
@@ -454,61 +506,108 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
           )}
         </AnimatePresence>
 
-        {/* Selected day list */}
+        {/* Unified daily timeline */}
         {selectedDay && (
           <div className="border-t pt-3">
-            <div className="flex items-center gap-2 mb-2">
-              <List className="h-4 w-4 text-primary" />
-              <span className="text-sm font-bold text-foreground">
-                حصص {ARABIC_DAYS[selectedDay.getDay()]} {selectedDay.getDate()} {ARABIC_MONTHS[selectedDay.getMonth()]}
-              </span>
-              <Badge variant="outline" className="text-[10px]">{selectedSessions.length}</Badge>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <List className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-sm font-bold text-foreground">
+                    جدول {ARABIC_DAYS[selectedDay.getDay()]}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {selectedDay.toLocaleDateString("ar-SA", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px]">{selectedSessions.length} حصة</Badge>
+              </div>
+              <span className="text-[10px] text-muted-foreground">الوقت بتوقيت الرياض</span>
             </div>
 
             {selectedSessions.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">لا توجد حصص في هذا اليوم</p>
+              <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 py-7 text-center">
+                <CalendarClock className="h-7 w-7 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-muted-foreground">لا توجد حصص أو مواعيد في هذا اليوم</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-1">اختر يومًا آخر من الجدول لمراجعة مواعيدك</p>
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="relative space-y-2 before:absolute before:right-[52px] before:top-4 before:bottom-4 before:w-px before:bg-border/70">
                 {selectedSessions.map((s) => {
-                  const startMs = new Date(s.scheduled_at).getTime();
-                  const diff = startMs - now;
                   const live = s.session_status === "in_progress";
-                  const joinable = diff <= 10 * 60_000 && diff >= -30 * 60_000;
+                  const confirmed = s.status === "confirmed";
+                  const waitingAcceptance = s.session_status === "waiting_acceptance";
+                  // A confirmed booking can be opened before its scheduled time.
+                  // The teacher starts it from the pre-join screen; the student
+                  // waits there until the teacher changes the status to live.
+                  const closed = s.session_status === "completed" || s.session_status === "cancelled";
+                  const canEnterSession = live || (confirmed && !waitingAcceptance && !closed);
                   const isJoining = joining === s.id;
+                  const unread = unreadCounts[s.id] || 0;
                   return (
-                    <div key={s.id} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg border ${live ? "bg-secondary/5 border-secondary/30" : "bg-muted/30 border-border/40"}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate">
-                          {s.other_name} — {s.subject_name}
+                    <div key={s.id} className={`relative z-[1] grid grid-cols-[58px_1fr] items-start gap-3 ${live ? "rounded-xl" : ""}`}>
+                      <div className="pt-3 text-center">
+                        <p className={`text-xs font-black ${live ? "text-secondary" : "text-foreground"}`}>
+                          {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })} • {s.duration_minutes} د
-                        </p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5">{s.duration_minutes} دقيقة</p>
+                        <span className={`mx-auto mt-2 block h-2.5 w-2.5 rounded-full border-2 border-background ${live ? "bg-secondary ring-4 ring-secondary/15" : "bg-primary"}`} />
                       </div>
-                      {live ? (
-                        <Button
-                          size="sm"
-                          className="h-8 gradient-cta text-secondary-foreground gap-1 min-w-[80px]"
-                          onClick={() => handleJoin(s.id)}
-                          disabled={isJoining}
-                        >
-                          {isJoining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Video className="h-3.5 w-3.5" />}
-                          {isJoining ? "..." : "انضم"}
-                        </Button>
-                      ) : joinable ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 border-secondary/40 text-secondary min-w-[80px]"
-                          onClick={() => handleJoin(s.id)}
-                          disabled={isJoining}
-                        >
-                          {isJoining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Video className="h-3.5 w-3.5" />}
-                          {isJoining ? "..." : "ابدأ"}
-                        </Button>
-                      ) : (
-                        <Badge className="bg-primary/10 text-primary border-0 text-[10px]">مجدولة</Badge>
-                      )}
+                      <div className={`rounded-xl border p-3 ${live ? "border-secondary/40 bg-secondary/5 shadow-sm" : "border-border/50 bg-card/80"}`}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-black text-foreground truncate">{s.subject_name}</p>
+                              {live ? (
+                                <Badge className="bg-secondary/15 text-secondary border-0 text-[10px] animate-pulse">جارية الآن</Badge>
+                              ) : s.session_status === "waiting_acceptance" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 border-0 text-[10px]">جلسة فورية · بانتظار القبول</Badge>
+                              ) : s.status === "pending" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 border-0 text-[10px]">بانتظار التأكيد</Badge>
+                              ) : (
+                                <Badge className="bg-primary/10 text-primary border-0 text-[10px]">مؤكدة</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {role === "student" ? "مع المعلم" : "مع الطالب"}: <span className="font-semibold text-foreground/80">{s.other_name}</span>
+                            </p>
+                             {!live && canEnterSession && (
+                               <p className="text-[10px] text-primary/80 mt-1">يمكن بدء الحصة الآن دون انتظار الموعد المحدد</p>
+                             )}
+                          </div>
+                          <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0">
+                            <Button size="sm" variant="outline" className="h-8 min-w-0 flex-1 rounded-lg gap-1 px-2.5 text-[10px] relative sm:flex-none" onClick={() => navigate(`/chat?booking=${s.id}`)}>
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              محادثة
+                              {unread > 0 && <span className="absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">{unread}</span>}
+                            </Button>
+                            {!live && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 min-w-0 flex-1 rounded-lg gap-1 px-2.5 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive sm:flex-none"
+                                onClick={() => role === "teacher"
+                                  ? setTeacherCancelTarget({ id: s.id, studentId: s.other_id })
+                                  : setStudentCancelTarget(s)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                إلغاء
+                              </Button>
+                            )}
+                              {canEnterSession && (
+                              <Button
+                                size="sm"
+                                className="h-8 min-w-0 flex-1 rounded-lg gradient-cta text-secondary-foreground gap-1 px-2.5 text-[10px] sm:flex-none"
+                                onClick={() => handleJoin(s.id)}
+                                disabled={isJoining}
+                              >
+                                {isJoining ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Video className="h-3.5 w-3.5" />}
+                                 {isJoining ? "..." : live ? "انضم الآن" : role === "teacher" ? "ابدأ الحصة" : "انضم للحصة"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -517,6 +616,42 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
           </div>
         )}
       </CardContent>
+
+      <CancelSessionDialog
+        open={role === "teacher" && !!teacherCancelTarget}
+        onOpenChange={(open) => !open && setTeacherCancelTarget(null)}
+        bookingId={teacherCancelTarget?.id ?? null}
+        studentId={teacherCancelTarget?.studentId ?? null}
+        onCancelled={() => {
+          setTeacherCancelTarget(null);
+          fetchRows();
+        }}
+      />
+
+      <AlertDialog
+        open={role === "student" && !!studentCancelTarget}
+        onOpenChange={(open) => !open && setStudentCancelTarget(null)}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من إلغاء حصة {studentCancelTarget?.subject_name || "حصة"} مع{" "}
+              {studentCancelTarget?.other_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancellingStudent}>تراجع</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleStudentCancel}
+              disabled={cancellingStudent}
+            >
+              {cancellingStudent ? "جارٍ الإلغاء..." : "نعم، إلغاء الحصة"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

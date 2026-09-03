@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import platformLogo from "@/assets/logo.png";
 import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
@@ -17,7 +18,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen,
+  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,6 +108,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
     {
       label: "النظام",
       items: [
+        { id: "ai_models", title: "نماذج الذكاء الاصطناعي", icon: Cpu, permission: "manage_ai_models" },
         { id: "site", title: "المحتوى", icon: Settings, permission: "manage_content" },
         { id: "support", title: "الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
         { id: "admin_notifications", title: "الإشعارات", icon: Bell, permission: "manage_notifications" },
@@ -126,25 +128,18 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
   };
 
   return (
-    <Sidebar side="right" collapsible="icon" className="border-l-0 border-r">
-      <SidebarHeader className="p-4">
+    <Sidebar side="right" collapsible="icon" className="border-l-0 border-r border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_46%,#f2f7f7_100%)] shadow-[8px_0_35px_-25px_rgba(15,42,78,0.45)]">
+      <SidebarHeader className="border-b border-slate-200/70 p-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0">
-            <Shield className="h-5 w-5 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div className="animate-fade-in">
-              <h2 className="text-sm font-black text-foreground leading-tight">لوحة التحكم</h2>
-              <p className="text-[10px] text-muted-foreground">إدارة المنصة</p>
-            </div>
-          )}
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"><img src={platformLogo} alt="أجيال المعرفة" className="h-full w-full object-contain" /></div>
+          {!collapsed && (<div className="min-w-0 animate-fade-in"><h2 className="truncate text-sm font-black leading-tight text-[#12345d]">أجيال المعرفة</h2><p className="mt-1 text-[10px] font-semibold tracking-wide text-emerald-700/80">مركز إدارة المنصة</p></div>)}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-2.5 py-2">
         {menuGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
+            <SidebarGroupLabel className="px-2 text-[10px] font-black text-slate-400 tracking-wider">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -155,7 +150,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                       isActive={activeTab === item.id}
                       onClick={() => onTabChange(item.id)}
                       tooltip={item.title}
-                      className="relative"
+                      className="relative h-10 rounded-xl text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
                       <span className="truncate">{item.title}</span>
@@ -176,10 +171,10 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
+      <SidebarFooter className="border-t border-slate-200/70 bg-white/60 p-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="تسجيل الخروج" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+            <SidebarMenuButton onClick={handleLogout} tooltip="تسجيل الخروج" className="h-10 rounded-xl text-rose-600 hover:bg-rose-50 hover:text-rose-700">
               <LogOut className="h-4 w-4" />
               <span>تسجيل الخروج</span>
             </SidebarMenuButton>

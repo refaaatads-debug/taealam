@@ -84,8 +84,17 @@ export default function PendingBookingRequests() {
     })));
   };
 
-  const handleExpire = (id: string) => {
+  const handleExpire = async (id: string) => {
     setRequests(prev => prev.filter(r => r.id !== id));
+    // Keep the database state aligned with what the student sees. The request
+    // disappears from the active list, but remains in Admin history as a
+    // request that no teacher accepted before the deadline.
+    await supabase
+      .from("booking_requests" as any)
+      .update({ status: "expired" } as any)
+      .eq("id", id)
+      .eq("student_id", user?.id)
+      .eq("status", "open");
   };
 
   const handleCancel = async (id: string) => {

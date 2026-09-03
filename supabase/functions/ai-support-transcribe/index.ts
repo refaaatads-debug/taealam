@@ -1,5 +1,6 @@
 // Transcribe audio uploads (webm/wav/mp3) to text using ElevenLabs Scribe v2.
 // Used by the AI Support Assistant voice-to-text input.
+import { getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,8 +38,8 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const primaryKey = Deno.env.get("ELEVENLABS_API_KEY") || "";
-    const backupKey  = Deno.env.get("ELEVENLABS_API_KEY_BACKUP") || "";
+    const primaryKey = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
+    const backupKey = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
     if (!primaryKey && !backupKey) return json({ error: "ELEVENLABS_API_KEY not configured" }, 500);
 
     const incoming = await req.formData();

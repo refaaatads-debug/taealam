@@ -9,23 +9,16 @@ import StudentScheduleTable from "@/components/student/StudentScheduleTable";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, BookOpen, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, X, Loader2, FileText, AlertTriangle, Zap } from "lucide-react";
+import { CalendarCheck, Clock, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, FileText, AlertTriangle, Zap, ArrowLeft, CalendarDays } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 
 const formatDuration = (totalSeconds: number) => {
@@ -34,6 +27,8 @@ const formatDuration = (totalSeconds: number) => {
   const s = totalSeconds % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
+
+const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
@@ -45,7 +40,6 @@ const StudentDashboard = () => {
   const [subscription, setSubscription] = useState<any>(null);
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   useEffect(() => {
@@ -84,33 +78,6 @@ const StudentDashboard = () => {
     };
   }, [user]);
 
-  const handleCancelBooking = async (booking: any) => {
-    setCancellingId(booking.id);
-    try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: "cancelled" as any })
-        .eq("id", booking.id)
-        .eq("student_id", user!.id);
-      if (error) throw error;
-
-      await supabase.from("notifications").insert({
-        user_id: booking.teacher_id,
-        ...notificationTemplates.bookingCancelledByStudent({
-          subjectName: booking.subjects?.name || "حصة",
-          scheduledAt: booking.scheduled_at,
-        }),
-      });
-
-      toast.success("تم إلغاء الحصة بنجاح");
-      setUpcomingClasses(prev => prev.filter(c => c.id !== booking.id));
-    } catch {
-      toast.error("حدث خطأ أثناء إلغاء الحصة");
-    } finally {
-      setCancellingId(null);
-    }
-  };
-
   useEffect(() => {
     if (!user) return;
 
@@ -145,11 +112,13 @@ const StudentDashboard = () => {
 
       // Enrich with teacher names
       if (upcoming && upcoming.length > 0) {
-        const teacherIds = [...new Set(upcoming.map(b => b.teacher_id))];
-        const { data: teacherProfiles } = await supabase
-          .from("public_profiles")
-          .select("user_id, full_name")
-          .in("user_id", teacherIds);
+        const teacherIds = [...new Set(upcoming.map(b => b.teacher_id).filter(Boolean))];
+        const { data: teacherProfiles } = teacherIds.length > 0
+          ? await supabase
+              .from("public_profiles")
+              .select("user_id, full_name")
+              .in("user_id", teacherIds)
+          : { data: [] };
         const tMap = new Map((teacherProfiles ?? []).map(p => [p.user_id, p.full_name]));
         setUpcomingClasses(upcoming.map(b => ({ ...b, teacher_name: tMap.get(b.teacher_id) || "معلم" })));
       } else {
@@ -332,6 +301,13 @@ const StudentDashboard = () => {
   const canBook = subscription && remainingMinutes >= SESSION_MINUTES;
   const showLowBalanceBanner = !loading && subscription && remainingMinutes < SESSION_MINUTES && remainingMinutes > 0;
   const showNoBanner = !loading && subscription && remainingMinutes <= 0;
+  const todayKey = localDayKey(new Date());
+  const todayClasses = upcomingClasses.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
+  const nextClass = [...todayClasses].sort((a, b) => {
+    if (a.session_status === "in_progress" && b.session_status !== "in_progress") return -1;
+    if (b.session_status === "in_progress" && a.session_status !== "in_progress") return 1;
+    return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+  })[0];
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
@@ -348,6 +324,46 @@ const StudentDashboard = () => {
             </p>
           </motion.div>
         </div>
+
+        {nextClass ? (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <Card className="overflow-hidden border-0 bg-gradient-to-l from-[#123d6b] via-[#174f79] to-[#168276] text-white shadow-lg">
+              <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                    {nextClass.session_status === "in_progress" ? <Video className="h-6 w-6" /> : <CalendarDays className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-white/70">{nextClass.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
+                    <h2 className="mt-0.5 text-lg font-black">{nextClass.subjects?.name || "حصة تعليمية"}</h2>
+                    <p className="mt-1 text-xs text-white/75">مع {nextClass.teacher_name || "المعلم"} · {new Date(nextClass.scheduled_at).toLocaleString("ar-SA", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                </div>
+                {nextClass.status === "confirmed" && (
+                  <Button asChild className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
+                    <Link to={`/session?booking=${nextClass.id}`}>انضم للجلسة <ArrowLeft className="h-4 w-4" /></Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <Card className="mb-6 border-dashed border-primary/30 bg-primary/[0.03]">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-black">لا توجد حصة مجدولة اليوم</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {canBook ? "افتح الجدول اليومي لمتابعة حصص الأيام القادمة أو ابدأ حجز حصة جديدة." : "افتح الجدول اليومي لمتابعة مواعيدك القادمة أو ابدأ من بطاقة رصيد الباقة."}
+                </p>
+              </div>
+              {canBook && (
+                <Button asChild className="gap-2 rounded-xl">
+                  <Link to="/search">احجز حصتك الآن <ArrowLeft className="h-4 w-4" /></Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {profileIncomplete && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -455,101 +471,12 @@ const StudentDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* Upcoming Classes Cards */}
-            <Card className="border-0 shadow-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2 font-bold">
-                  <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                    <Video className="h-4 w-4 text-secondary" />
-                  </div>
-                  الحصص القادمة
-                  {upcomingClasses.length > 0 && (
-                    <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs">{upcomingClasses.length}</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {upcomingClasses.length === 0 ? (
-                  <div className="text-center py-6">
-                    <Video className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">لا توجد حصص قادمة</p>
-                    <Button variant="outline" className="mt-3 rounded-xl" asChild>
-                      <Link to="/search">احجز حصة الآن</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  upcomingClasses.map((c: any, i: number) => {
-                    const isToday = new Date(c.scheduled_at).toDateString() === new Date().toDateString();
-                    const time = new Date(c.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
-                    const date = isToday ? "اليوم" : new Date(c.scheduled_at).toLocaleDateString("ar-SA", { weekday: "long" });
-                    const isPending = c.status === "pending";
-                    const isConfirmed = c.status === "confirmed";
-                    return (
-                      <motion.div key={c.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }} className={`flex items-center justify-between p-4 rounded-2xl transition-colors ${isToday && isConfirmed ? "bg-accent border border-secondary/20" : isPending ? "bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/50" : "bg-muted/50"}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isToday && isConfirmed ? "gradient-cta text-secondary-foreground" : "bg-card"}`}>
-                            <BookOpen className={`h-5 w-5 ${!(isToday && isConfirmed) ? "text-primary" : ""}`} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-sm text-foreground">{c.subjects?.name || "حصة"} - {c.teacher_name || "معلم"}</p>
-                            <p className="text-xs text-muted-foreground">{date} • {time}</p>
-                            {isPending && <p className="text-xs text-amber-600 font-semibold mt-0.5">⏳ في انتظار موافقة المعلم</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3" asChild>
-                            <Link to={`/chat?booking=${c.id}`}>
-                              <MessageSquare className="h-5 w-5" />
-                              <span className="text-xs font-medium">دردشة</span>
-                            </Link>
-                          </Button>
-                          {isConfirmed && (
-                            <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
-                              <Link to={`/session?booking=${c.id}`}>انضم للجلسة</Link>
-                            </Button>
-                          )}
-                          {c.session_status !== "in_progress" && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="rounded-xl h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
-                                  {cancellingId === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>إلغاء الحصة</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    هل أنت متأكد من إلغاء حصة {c.subjects?.name || "حصة"} مع {c.teacher_name || "المعلم"}؟ سيتم إخطار المعلم بالإلغاء.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>تراجع</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    onClick={() => handleCancelBooking(c)}
-                                  >
-                                    نعم، إلغاء الحصة
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Schedule Table - تحت الحصص القادمة */}
-            <StudentScheduleTable />
-
-            {/* Interactive scheduled sessions table with countdown + 1h reminder */}
             <ScheduledSessionsCalendar role="student" />
 
-            {/* Pending Booking Requests */}
+            {/* Booking requests are kept directly below the unified schedule. */}
             <PendingBookingRequests />
+
+            <StudentScheduleTable historyOnly />
 
             {/* Warnings */}
             <WarningsSection />

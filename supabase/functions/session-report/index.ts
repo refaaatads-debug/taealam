@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,13 +9,14 @@ const corsHeaders = {
 
 async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
   let lastError: Error | null = null;
+  const model = await getGeminiModel(apiKey);
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const start = Date.now();
     try {
       const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, model }),
       });
       const responseTime = Date.now() - start;
       if (!resp.ok) {
@@ -320,7 +322,7 @@ serve(async (req) => {
     if (gapWarnings.filter(g => g.type === "confusion_ignored").length > 0) performanceScore -= 10;
     performanceScore = Math.max(0, Math.min(100, performanceScore));
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const rawStats = {

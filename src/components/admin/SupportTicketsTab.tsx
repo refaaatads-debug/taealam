@@ -34,6 +34,11 @@ interface Message {
   sender_name?: string;
 }
 
+interface SupportTicketsTabProps {
+  initialUser?: { user_id: string; full_name: string } | null;
+  onInitialUserHandled?: () => void;
+}
+
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   open: { label: "مفتوحة", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30", icon: AlertCircle },
   in_progress: { label: "قيد المعالجة", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", icon: Hourglass },
@@ -42,7 +47,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 const initials = (name?: string) => (name || "?").trim().split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
 
-const SupportTicketsTab = () => {
+const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTicketsTabProps = {}) => {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
@@ -172,6 +177,17 @@ const SupportTicketsTab = () => {
   };
 
   useEffect(() => { fetchTickets(); }, []);
+
+  // The teacher-approval list can open this same support composer for a
+  // specific teacher, so the whole conversation stays in one support thread.
+  useEffect(() => {
+    if (!initialUser) return;
+    setInitiateUser(initialUser);
+    setInitiateSubject("متابعة طلب اعتماد حساب المعلم");
+    setInitiateMessage(`مرحبًا ${initialUser.full_name || "بك"}،\n\nنتواصل معك بخصوص طلب اعتماد حسابك في المنصة. يرجى تزويدنا بأي معلومات أو مستندات مطلوبة.`);
+    setInitiateOpen(true);
+    onInitialUserHandled?.();
+  }, [initialUser]);
 
   // Realtime: refresh ticket list on any change (new tickets / status / assignment)
   useEffect(() => {

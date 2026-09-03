@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download, ClipboardList } from "lucide-react";
+import { Send, ArrowRight, MessageSquare, Loader2, Paperclip, FileText, Image, Download, ClipboardList, ChevronLeft, UserRound } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
@@ -29,6 +29,160 @@ interface ChatMessage {
   file_name?: string | null;
   file_type?: string | null;
 }
+
+interface ConversationSummary {
+  bookingId: string;
+  otherUserId: string;
+  otherName: string;
+  scheduledAt: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+}
+
+/**
+ * The chat route used to show an empty state when opened without
+ * ?booking=. That made existing student/teacher threads look as if they
+ * did not exist. Keep the list on the same chat surface and open the
+ * selected thread with the same unified booking logic below.
+ */
+const ConversationIndex = () => {
+  const { user, roles } = useAuth();
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    const loadConversations = async () => {
+      setLoading(true);
+      const isTeacher = roles.includes("teacher");
+      const roleColumn = isTeacher ? "teacher_id" : "student_id";
+      const { data: bookings, error } = await supabase
+        .from("bookings")
+        .select("id, student_id, teacher_id, scheduled_at")
+        .eq(roleColumn, user.id)
+        .order("scheduled_at", { ascending: false })
+        .limit(1000);
+
+      if (!active) return;
+      if (error || !bookings?.length) {
+        setConversations([]);
+        setLoading(false);
+        return;
+      }
+
+      const latestByUser = new Map<string, any>();
+      bookings.forEach((booking: any) => {
+        const otherUserId = isTeacher ? booking.student_id : booking.teacher_id;
+        if (otherUserId && !latestByUser.has(otherUserId)) {
+          latestByUser.set(otherUserId, booking);
+        }
+      });
+
+      const bookingIds = bookings.map((booking: any) => booking.id);
+      const { data: chatMessages } = await supabase
+        .from("chat_messages")
+        .select("booking_id, content, created_at")
+        .in("booking_id", bookingIds)
+        .gte("created_at", new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      const lastMessageByBooking = new Map<string, any>();
+      (chatMessages || []).forEach((message: any) => {
+        if (!lastMessageByBooking.has(message.booking_id)) {
+          lastMessageByBooking.set(message.booking_id, message);
+        }
+      });
+
+      const otherIds = [...latestByUser.keys()];
+      const { data: profiles } = await supabase
+        .from("public_profiles")
+        .select("user_id, full_name")
+        .in("user_id", otherIds);
+      const names = new Map((profiles || []).map((profile: any) => [profile.user_id, profile.full_name]));
+
+      const result = [...latestByUser.entries()]
+        .map(([otherUserId, booking]) => {
+          const lastMessage = lastMessageByBooking.get(booking.id);
+          return {
+            bookingId: booking.id,
+            otherUserId,
+            otherName: names.get(otherUserId) || (isTeacher ? "طالب" : "معلم"),
+            scheduledAt: booking.scheduled_at,
+            lastMessage: lastMessage?.content,
+            lastMessageAt: lastMessage?.created_at,
+          };
+        })
+        .sort((a, b) => new Date(b.lastMessageAt || b.scheduledAt).getTime() - new Date(a.lastMessageAt || a.scheduledAt).getTime());
+
+      if (active) {
+        setConversations(result);
+        setLoading(false);
+      }
+    };
+
+    loadConversations();
+    return () => {
+      active = false;
+    };
+  }, [user, roles]);
+
+  return (
+    <div className="min-h-screen bg-background" dir="rtl">
+      <Navbar />
+      <main className="container mx-auto max-w-2xl px-4 py-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-foreground">المحادثات</h1>
+            <p className="text-sm text-muted-foreground">محادثاتك الموحدة مع الطلاب والمعلمين</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex min-h-[280px] items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="flex min-h-[280px] flex-col items-center justify-center rounded-3xl border bg-card px-6 text-center">
+            <MessageSquare className="mb-3 h-12 w-12 text-muted-foreground/30" />
+            <p className="font-bold text-foreground">لا توجد محادثات بعد</p>
+            <p className="mt-1 text-sm text-muted-foreground">تظهر المحادثة تلقائيًا عند وجود حجز بين الطالب والمعلم.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {conversations.map((conversation) => (
+              <Link
+                key={conversation.otherUserId}
+                to={`/chat?booking=${conversation.bookingId}`}
+                className="flex items-center gap-3 rounded-2xl border bg-card p-4 text-right transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <UserRound className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-black text-foreground">{conversation.otherName}</span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">
+                    {conversation.lastMessage || "ابدأ المحادثة"}
+                  </span>
+                </span>
+                <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground/50" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </main>
+      <BottomNav />
+    </div>
+  );
+};
 
 const Chat = () => {
   const { user, roles } = useAuth();
@@ -85,12 +239,17 @@ const Chat = () => {
         }
 
         // Get ALL booking IDs between this pair for unified chat
+        // The booking already gives us the canonical student/teacher
+        // direction. Use two equality filters instead of a raw OR expression;
+        // this avoids opening a valid, but empty, single-booking thread when
+        // the pair has older bookings containing the actual messages.
         const { data: pairBookings } = await supabase
           .from("bookings")
           .select("id")
-          .or(`and(student_id.eq.${booking.student_id},teacher_id.eq.${booking.teacher_id}),and(student_id.eq.${booking.teacher_id},teacher_id.eq.${booking.student_id})`);
+          .eq("student_id", booking.student_id)
+          .eq("teacher_id", booking.teacher_id);
         
-        const ids = pairBookings?.map(b => b.id) || [bookingId];
+        const ids = [...new Set([bookingId, ...(pairBookings?.map(b => b.id) || [])])];
         setAllBookingIds(ids);
 
         // Fetch messages from ALL bookings between this pair
@@ -381,18 +540,7 @@ const Chat = () => {
   };
 
   if (!bookingId) {
-    return (
-      <div className="min-h-screen bg-background" dir="rtl">
-        <Navbar />
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-          <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">لا توجد محادثة</h2>
-          <p className="text-muted-foreground mb-4">يتم إنشاء المحادثة تلقائياً عند قبول الحجز</p>
-          <Button asChild><Link to={dashboardPath}>العودة للوحة التحكم</Link></Button>
-        </div>
-        <BottomNav />
-      </div>
-    );
+    return <ConversationIndex />;
   }
 
   return (

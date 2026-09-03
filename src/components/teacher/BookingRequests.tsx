@@ -284,16 +284,26 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
         acceptedRequests = [r];
       }
 
-      // Get active subscription
+      // Get active subscription — must have >= 15 remaining minutes
       const { data: activeSub } = await supabase
         .from("user_subscriptions")
-        .select("id")
+        .select("id, remaining_minutes")
         .eq("user_id", group.student_id)
         .eq("is_active", true)
-        .gt("sessions_remaining", 0)
+        .gte("remaining_minutes", 15)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // Block acceptance if student has no active subscription with enough balance
+      if (!activeSub) {
+        toast.error(`لا يمكن قبول طلب ${group.student_name}`, {
+          description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. لا يمكن تأكيد الحصة.",
+          duration: 6000,
+        });
+        setAccepting(null);
+        return;
+      }
 
       // Bulk insert bookings
       const bookingsPayload = acceptedRequests.map(r => ({

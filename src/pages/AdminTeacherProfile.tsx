@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import TeacherSessionsTab from "@/components/admin/TeacherSessionsTab";
+import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
 import { ar } from "date-fns/locale";
 
 interface TeacherBundle {
@@ -312,6 +313,7 @@ const AdminTeacherProfile = () => {
                   <Row label="الشهادات" value={`${data.certificates.length} شهادة`} />
                 </CardContent>
               </Card>
+              <TeacherCertificatesList certificates={data.certificates} />
             </TabsContent>
 
                         <TabsContent value="sessions" className="m-0">

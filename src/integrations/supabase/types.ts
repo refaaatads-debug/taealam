@@ -266,6 +266,7 @@ export type Database = {
           allow_text: boolean | null
           attachments: Json
           booking_id: string | null
+          content_type: string
           created_at: string
           description: string | null
           due_date: string | null
@@ -286,6 +287,7 @@ export type Database = {
           allow_text?: boolean | null
           attachments?: Json
           booking_id?: string | null
+          content_type?: string
           created_at?: string
           description?: string | null
           due_date?: string | null
@@ -306,6 +308,7 @@ export type Database = {
           allow_text?: boolean | null
           attachments?: Json
           booking_id?: string | null
+          content_type?: string
           created_at?: string
           description?: string | null
           due_date?: string | null

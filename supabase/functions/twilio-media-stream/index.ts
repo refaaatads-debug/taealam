@@ -2,14 +2,14 @@
   // Receives μ-law 8kHz base64 audio chunks from Twilio, streams them to ElevenLabs,
   // scans transcripts for personal info, logs to violations + call_transcripts.
   import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+  import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY") || "";
-  const ELEVENLABS_API_KEY_BACKUP = Deno.env.get("ELEVENLABS_API_KEY_BACKUP") || "";
-
   // جلب توكن ElevenLabs مع fallback تلقائي للمفتاح الاحتياطي
   async function getElevenLabsToken(): Promise<string | null> {
+    const ELEVENLABS_API_KEY = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
+    const ELEVENLABS_API_KEY_BACKUP = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
     for (const key of [ELEVENLABS_API_KEY, ELEVENLABS_API_KEY_BACKUP].filter(Boolean)) {
       try {
         const tokenRes = await fetch("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", {
@@ -31,8 +31,6 @@
 
   const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
   const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
-
   // Regex patterns for personal info (Arabic + English)
   const PHONE_RE = /(\+?\d[\d\s\-]{6,}\d)/g;
   const EMAIL_RE = /[\w.\-]+@[\w\-]+\.[\w.\-]+/gi;
@@ -48,13 +46,15 @@
   }
 
   async function aiCheckViolation(text: string): Promise<{ violation: boolean; type?: string; reason?: string }> {
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) return { violation: false };
     try {
+      const geminiModel = await getGeminiModel(GEMINI_API_KEY);
       const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: geminiModel,
           messages: [
             { role: "system", content: 'أنت محلل امتثال. حدد إن كان النص يحتوي محاولة تبادل بيانات تواصل خارجية (هاتف، إيميل، حساب سوشيال، رابط) بين معلم وطالب. أجب بـ JSON فقط: {"violation":true|false,"type":"phone_number|email|social_media_attempt|external_link|none","reason":"..."}' },
             { role: "user", content: text },
@@ -80,40 +80,6 @@
       });
     } catch (e) {
       console.error("endTwilioCall failed:", e);
-    }
-  }
-
-  // Inject a spoken warning into the active call without terminating it
-  async function warnTwilioCall(callSid: string) {
-    try {
-      const creds = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
-      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      const streamWsUrl = `${SUPABASE_URL.replace("https://", "wss://")}/functions/v1/twilio-media-stream?apikey=${anonKey}`;
-      // Say warning then re-establish the media stream so monitoring continues
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Zeina" language="arb">تحذير: تم رصد محاولة تبادل بيانات تواصل شخصية. أي محاولة أخرى ستؤدي لإنهاء المكالمة فوراً وإيقاف حسابك.</Say>
-  <Pause length="1"/>
-  <Start>
-    <Stream url="${streamWsUrl}">
-      <Parameter name="teacherId" value="${teacherId || ''}"/>
-      <Parameter name="studentId" value="${studentId || ''}"/>
-    </Stream>
-  </Start>
-</Response>`;
-      const res = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${callSid}.json`,
-        {
-          method: "POST",
-          headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ Twiml: twiml }),
-        }
-      );
-      if (!res.ok) console.error("warnTwilioCall HTTP error:", res.status);
-      else console.log("Voice warning injected into call", callSid);
-    } catch (e) {
-      console.error("warnTwilioCall failed:", e);
     }
   }
 
@@ -208,8 +174,7 @@
               }
               if (!warned) {
                 warned = true;
-                console.log("First violation — injecting voice warning");
-                await warnTwilioCall(callSid);
+                console.log("First violation — warning the call");
               } else {
                 console.log("Second violation — terminating call");
                 await endTwilioCall(callSid);

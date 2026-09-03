@@ -48,6 +48,7 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: "manage_violations", label: "المخالفات", group: "أمان" },
   { key: "view_call_transcripts", label: "تفريغ المكالمات", group: "أمان" },
   { key: "manage_ai_audit", label: "تدقيق الذكاء الاصطناعي", group: "أمان" },
+  { key: "manage_ai_models", label: "نماذج ومفاتيح الذكاء الاصطناعي", group: "النظام" },
   { key: "manage_content", label: "إدارة المحتوى (CMS)", group: "النظام" },
   { key: "customer_support", label: "الدعم الفني", group: "النظام" },
   { key: "manage_notifications", label: "الإشعارات", group: "النظام" },

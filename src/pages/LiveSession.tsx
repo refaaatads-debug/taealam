@@ -35,7 +35,9 @@ const LiveSession = () => {
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
 
-  const [chatOpen, setChatOpen] = useState(false);
+  // Keep the conversation visible beside the call on desktop. On mobile the
+  // same button still toggles it to preserve the compact layout.
+  const [chatOpen, setChatOpen] = useState(true);
   const [boardOpen, setBoardOpen] = useState(false);
   const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
@@ -89,7 +91,9 @@ const LiveSession = () => {
   const chatChannelRef = useRef<any>(null);
   const sessionStatusChannelRef = useRef<any>(null);
   const remoteDrawingTimerRef = useRef<number>();
+  const wasWorkspaceSharingRef = useRef(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatLoading, setChatLoading] = useState(true);
   const [fileUploading, setFileUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
@@ -189,6 +193,7 @@ const LiveSession = () => {
     pushDebugEvent("data", messageType);
 
     if (msg.type === "whiteboard-action") {
+      if (!msg.action || typeof msg.action.type !== "string") return;
       setWhiteboardRemoteActions((prev) => [...prev, msg.action]);
       if (!isTeacher) {
         setBoardOpen(true);
@@ -201,6 +206,8 @@ const LiveSession = () => {
       if (!isTeacher) {
         setBoardOpen(true);
       }
+    } else if (msg.type === "whiteboard-undo") {
+      setWhiteboardRemoteActions((prev) => prev.slice(0, -1));
     } else if (msg.type === "whiteboard-toggle") {
       // Sync board open/close state from teacher to student instantly
       if (!isTeacher) setBoardOpen(!!msg.open);
@@ -547,10 +554,15 @@ const LiveSession = () => {
     };
   }, [remoteStream, remoteScreenSharing, pushDebugEvent]);
 
-   // Chat messages persistence and realtime - UNIFIED across all bookings between pair
+   // Chat messages persistence and realtime - UNIFIED across all bookings between pair.
+   // Load the same thread even before the media handshake is complete so the
+   // history is visible as soon as the session screen opens.
   useEffect(() => {
-    if (!bookingId || !user || !meetingStarted) return;
+     if (!bookingId || !user) return;
 
+     let active = true;
+     let pairBookingIds: string[] = [bookingId];
+      setChatLoading(true);
     const fetchUnifiedMessages = async () => {
       // Get booking info to find the pair
       const { data: booking } = await supabase
@@ -559,15 +571,22 @@ const LiveSession = () => {
         .eq("id", bookingId)
         .single();
 
-      if (!booking) return;
+       if (!booking) {
+         if (active) setChatLoading(false);
+         return;
+       }
 
-      // Get ALL booking IDs between this pair
+       // Get ALL booking IDs between this pair. The booking record already
+       // provides the canonical direction, so keep this query explicit and
+       // deterministic instead of relying on a raw OR filter.
       const { data: pairBookings } = await supabase
         .from("bookings")
         .select("id")
-        .or(`and(student_id.eq.${booking.student_id},teacher_id.eq.${booking.teacher_id}),and(student_id.eq.${booking.teacher_id},teacher_id.eq.${booking.student_id})`);
+         .eq("student_id", booking.student_id)
+         .eq("teacher_id", booking.teacher_id);
 
-      const allIds = pairBookings?.map(b => b.id) || [bookingId];
+       const allIds = [...new Set([bookingId, ...(pairBookings?.map(b => b.id) || [])])];
+       pairBookingIds = allIds;
 
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -579,7 +598,12 @@ const LiveSession = () => {
         .gte("created_at", oneYearAgo.toISOString())
         .order("created_at", { ascending: true });
 
-      if (!data) return;
+        if (!active) return;
+        if (!data) {
+          setMessages([]);
+          setChatLoading(false);
+          return;
+        }
 
       setMessages(data.map((msg: any) => ({
         sender: msg.sender_id === user.id ? "أنت" : otherName,
@@ -590,69 +614,65 @@ const LiveSession = () => {
         fileName: msg.file_name,
         fileType: msg.file_type,
       })));
+       setChatLoading(false);
 
-      return allIds;
+       return allIds;
     };
-
-    let pairBookingIds: string[] = [];
-
-    fetchUnifiedMessages().then(ids => {
-      if (ids) pairBookingIds = ids;
-    });
 
     if (chatChannelRef.current) {
       supabase.removeChannel(chatChannelRef.current);
       chatChannelRef.current = null;
     }
 
-    const channel = supabase
-      .channel(`live-session-chat-${bookingId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "chat_messages",
-      }, (payload) => {
-        const msg = payload.new as any;
-        // Only show messages from bookings between this pair
-        if (pairBookingIds.length > 0 && !pairBookingIds.includes(msg.booking_id)) return;
-        
-        const isMe = msg.sender_id === user.id;
-        setMessages((prev) => {
-          const formatted = {
-            sender: isMe ? "أنت" : otherName,
-            text: msg.content,
-            time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-            me: isMe,
-            fileUrl: msg.file_url,
-            fileName: msg.file_name,
-            fileType: msg.file_type,
-          };
-          // Remove any matching optimistic entry (same text, same sender) before adding real one
-          const withoutOptimistic = isMe
-            ? prev.filter(item => !(item._tempId && item.text === msg.content && item.me))
-            : prev;
-          // Dedup in case realtime fires twice
-          const exists = withoutOptimistic.some((item) => !item._tempId && item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
-          return exists ? withoutOptimistic : [...withoutOptimistic, formatted];
-        });
-        if (!isMe) {
-          playNotificationSound();
-          if (!chatOpen) {
-            setUnreadCount(prev => prev + 1);
-          }
-        }
-      })
-      .subscribe();
+     let channel: ReturnType<typeof supabase.channel> | null = null;
+     const subscribeToPair = () => {
+       if (!active) return;
+       channel = supabase
+         .channel(`live-session-chat-${bookingId}`)
+         .on("postgres_changes", {
+           event: "INSERT",
+           schema: "public",
+           table: "chat_messages",
+         }, (payload) => {
+           const msg = payload.new as any;
+           if (!pairBookingIds.includes(msg.booking_id)) return;
 
-    chatChannelRef.current = channel;
+           const isMe = msg.sender_id === user.id;
+           setMessages((prev) => {
+             const formatted = {
+               sender: isMe ? "أنت" : otherName,
+               text: msg.content,
+               time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+               me: isMe,
+               fileUrl: msg.file_url,
+               fileName: msg.file_name,
+               fileType: msg.file_type,
+             };
+             const withoutOptimistic = isMe
+               ? prev.filter(item => !(item._tempId && item.text === msg.content && item.me))
+               : prev;
+             const exists = withoutOptimistic.some((item) => !item._tempId && item.text === formatted.text && item.time === formatted.time && item.me === formatted.me);
+             return exists ? withoutOptimistic : [...withoutOptimistic, formatted];
+           });
+           if (!isMe) {
+             playNotificationSound();
+             if (!chatOpen) setUnreadCount(prev => prev + 1);
+           }
+         })
+         .subscribe();
+       chatChannelRef.current = channel;
+     };
+
+     fetchUnifiedMessages().then(() => subscribeToPair());
 
     return () => {
+       active = false;
       if (chatChannelRef.current) {
         supabase.removeChannel(chatChannelRef.current);
         chatChannelRef.current = null;
       }
     };
-  }, [bookingId, user, meetingStarted, otherName, chatOpen, playNotificationSound]);
+   }, [bookingId, user, otherName, chatOpen, playNotificationSound]);
 
   // Fetch booking details
   useEffect(() => {
@@ -1684,6 +1704,19 @@ const LiveSession = () => {
     toast.success(allow ? "✏️ تم منح الطالب إذن الرسم" : "تم سحب إذن الرسم");
   }, [isTeacher, sendDataMessage]);
 
+  // Screen sharing gets the full teaching surface. Restore the split layout
+  // and reopen the conversation as soon as sharing ends.
+  const workspaceSharing = screenSharing || remoteScreenSharing;
+  useEffect(() => {
+    if (workspaceSharing) {
+      setChatOpen(false);
+    } else if (wasWorkspaceSharingRef.current) {
+      setChatOpen(true);
+      setUnreadCount(0);
+    }
+    wasWorkspaceSharingRef.current = workspaceSharing;
+  }, [workspaceSharing]);
+
 
   // Pre-join screen: show before user clicks "join the session" so they can verify mic.
   // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
@@ -1970,12 +2003,37 @@ const LiveSession = () => {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex relative overflow-hidden">
+       <div className="flex-1 flex relative overflow-hidden bg-[#0a1220]">
 
         {/* Main area */}
-        <div className={`flex-1 flex flex-col items-center justify-center relative ${showReport ? "hidden md:flex" : ""}`}>
+         <div className={`order-0 min-w-0 flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-gradient-to-br from-[#0b1424] via-[#111c2e] to-[#0a1220] ${showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
-            <div className="absolute inset-0 w-full h-full bg-foreground flex items-center justify-center">
+             <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-3xl border border-white/10 shadow-2xl shadow-black/30"}`}>
+               {/* Workspace status: the active teaching surface is always explicit. */}
+               <div className="absolute top-3 left-3 right-3 z-40 flex items-center justify-between gap-3 pointer-events-none">
+                 <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0b1424]/85 px-3 py-2 text-white shadow-lg backdrop-blur-xl">
+                   <span className={`flex h-7 w-7 items-center justify-center rounded-xl ${boardOpen ? "bg-emerald-400/20 text-emerald-300" : "bg-sky-400/20 text-sky-300"}`}>
+                     {boardOpen ? <PenTool className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
+                   </span>
+                   <span className="text-right leading-tight">
+                     <span className="block text-[9px] font-medium text-white/45">مساحة العمل</span>
+                     <span className="block text-xs font-black">
+                       {boardOpen ? "السبورة التفاعلية" : remoteScreenSharing || screenSharing ? "مشاركة الشاشة" : "الفصل المباشر"}
+                     </span>
+                   </span>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   {isTeacher && boardOpen && (
+                     <span className={`rounded-xl border px-3 py-2 text-[10px] font-bold shadow-lg backdrop-blur-xl ${studentCanDraw ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-[#0b1424]/85 text-white/60"}`}>
+                       {studentCanDraw ? "✏️ الطالب يكتب الآن" : "الطالب يشاهد فقط"}
+                     </span>
+                   )}
+                   <span className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#0b1424]/85 px-3 py-2 text-[10px] font-bold text-white/70 shadow-lg backdrop-blur-xl">
+                     <span className={`h-2 w-2 rounded-full ${connectionState === "connected" ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+                     {connectionState === "connected" ? "متصل" : "جاري الاتصال"}
+                   </span>
+                 </div>
+               </div>
             {/* Screen share video display (for student viewing teacher's screen) */}
               {remoteScreenSharing && !isTeacher && (
                 <div className="absolute inset-0 z-10">
@@ -2205,15 +2263,32 @@ const LiveSession = () => {
         </AnimatePresence>
 
         {/* Chat Panel */}
-        <AnimatePresence>
-          {chatOpen && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-80 bg-card border-r flex flex-col absolute md:relative inset-0 md:inset-auto z-10">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h3 className="font-bold text-foreground">المحادثة</h3>
-                <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors">✕</button>
+         <AnimatePresence initial={false}>
+           {!workspaceSharing && <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-2 w-full md:w-[360px] md:shrink-0 bg-card/95 backdrop-blur-sm border-l border-border/70 flex flex-col absolute md:relative inset-0 md:inset-auto z-10 shadow-[-10px_0_30px_rgba(15,23,42,0.12)] ${chatOpen ? "" : "hidden md:flex"}`}>
+              <div className="px-4 py-3 border-b border-border/70 bg-gradient-to-l from-primary/10 via-card to-card flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-black text-foreground truncate">المحادثة</h3>
+                  <p className="text-[11px] text-muted-foreground truncate">{otherName} · متزامنة مع الجلسة</p>
+                </div>
+                <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors" aria-label="إغلاق المحادثة">✕</button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={(el) => { if (el) setTimeout(() => el.scrollTop = el.scrollHeight, 50); }}>
-                {messages.map((m, i) => (
+               <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-muted/10" ref={(el) => { if (el) setTimeout(() => el.scrollTop = el.scrollHeight, 50); }}>
+                 {chatLoading ? (
+                   <div className="flex h-full min-h-[220px] items-center justify-center">
+                     <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                   </div>
+                 ) : messages.length === 0 ? (
+                   <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-5 text-center">
+                     <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                       <MessageSquare className="h-6 w-6" />
+                     </div>
+                     <p className="text-sm font-black text-foreground">لا توجد رسائل في هذه المحادثة</p>
+                     <p className="mt-1 text-xs leading-5 text-muted-foreground">ستظهر الرسائل القديمة والجديدة هنا تلقائيًا.</p>
+                   </div>
+                 ) : messages.map((m, i) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}
@@ -2244,9 +2319,9 @@ const LiveSession = () => {
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">{m.time}</p>
                   </motion.div>
-                ))}
+                 ))}
               </div>
-              <div className="p-3 border-t">
+              <div className="p-3 border-t border-border/70 bg-card">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -2284,8 +2359,8 @@ const LiveSession = () => {
                   </div>
                 )}
               </div>
-            </motion.div>
-          )}
+           </motion.div>
+           }
         </AnimatePresence>
       </div>
 
@@ -2307,7 +2382,7 @@ const LiveSession = () => {
         )}
 
         {/* Chat - for both */}
-        <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnreadCount(0); }} title="الدردشة">
+         <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20 md:gradient-cta md:text-secondary-foreground md:ring-2 md:ring-secondary/40"}`} onClick={() => { if (window.innerWidth < 768) setChatOpen(!chatOpen); else setChatOpen(true); setUnreadCount(0); }} title="الدردشة">
           <MessageSquare className="h-5 w-5" />
           {unreadCount > 0 && !chatOpen && (
             <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse-soft">

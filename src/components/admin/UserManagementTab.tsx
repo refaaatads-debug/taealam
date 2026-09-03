@@ -14,7 +14,8 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen,
+  CheckCircle2, CircleOff, Timer, CalendarDays, Sparkles, IdCard
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
@@ -39,7 +40,14 @@ interface UserDetail extends UserProfile {
   points?: number;
   streak?: number;
   badges?: { name_ar: string; icon: string | null }[];
-  subscriptions?: { plan_name: string; sessions_remaining: number; is_active: boolean; ends_at: string }[];
+  subscriptions?: {
+    plan_name: string;
+    sessions_remaining: number;
+    is_active: boolean;
+    starts_at: string | null;
+    ends_at: string | null;
+    created_at: string;
+  }[];
   bookingsAsStudent?: number;
   // Teacher data
   teacherProfile?: {
@@ -65,6 +73,33 @@ interface UserDetail extends UserProfile {
   // Warnings
   warnings?: { warning_type: string; description: string | null; created_at: string; warning_count: number }[];
 }
+
+type SubscriptionDisplayState = "active" | "expired" | "inactive" | "upcoming";
+
+const formatAdminDate = (value: string | null | undefined) => {
+  if (!value) return "غير محدد";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "غير محدد";
+  return date.toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
+};
+
+const getSubscriptionDisplayState = (subscription: NonNullable<UserDetail["subscriptions"]>[number]): SubscriptionDisplayState => {
+  const now = Date.now();
+  const startsAt = subscription.starts_at ? new Date(subscription.starts_at).getTime() : null;
+  const endsAt = subscription.ends_at ? new Date(subscription.ends_at).getTime() : null;
+
+  if (endsAt !== null && !Number.isNaN(endsAt) && endsAt <= now) return "expired";
+  if (!subscription.is_active) return "inactive";
+  if (startsAt !== null && !Number.isNaN(startsAt) && startsAt > now) return "upcoming";
+  return "active";
+};
+
+const subscriptionStateMeta: Record<SubscriptionDisplayState, { label: string; className: string }> = {
+  active: { label: "نشطة", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  expired: { label: "منتهية", className: "border-rose-200 bg-rose-50 text-rose-700" },
+  inactive: { label: "غير نشطة", className: "border-slate-200 bg-slate-100 text-slate-600" },
+  upcoming: { label: "لم تبدأ", className: "border-amber-200 bg-amber-50 text-amber-700" },
+};
 
 export default function UserManagementTab() {
   const { user: currentUser } = useAuth();
@@ -190,7 +225,7 @@ export default function UserManagementTab() {
       const promises: Promise<any>[] = [
         supabase.from("student_points").select("total_points, streak_days").eq("user_id", profile.user_id).maybeSingle(),
         supabase.from("student_badges").select("badge_id, badges(name_ar, icon)").eq("user_id", profile.user_id),
-        supabase.from("user_subscriptions").select("sessions_remaining, is_active, ends_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+        supabase.from("user_subscriptions").select("sessions_remaining, is_active, starts_at, ends_at, created_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
         supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", profile.user_id),
         (supabase as any).from("user_warnings").select("warning_type, description, created_at, warning_count").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       ];
@@ -216,7 +251,9 @@ export default function UserManagementTab() {
         plan_name: s.subscription_plans?.name_ar || "—",
         sessions_remaining: s.sessions_remaining,
         is_active: s.is_active,
+        starts_at: s.starts_at,
         ends_at: s.ends_at,
+        created_at: s.created_at,
       }));
       detail.bookingsAsStudent = studentBookingsRes.count ?? 0;
       detail.warnings = warningsRes.data ?? [];
@@ -616,30 +653,37 @@ export default function UserManagementTab() {
 
       {/* User Detail Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={(open) => { if (!open) { setSelectedUser(null); setEditMode(false); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto overflow-x-hidden border-0 bg-[#f7f9fc] p-0 shadow-[0_30px_100px_-30px_rgba(15,31,61,0.45)] sm:rounded-[28px]" dir="rtl">
           {detailLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : selectedUser && (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-primary" />
-                    بيانات المستخدم
+              <DialogHeader className="relative overflow-hidden bg-gradient-to-l from-[#102b55] via-[#174477] to-[#167d72] px-6 pb-7 pt-6 text-white">
+                <div className="pointer-events-none absolute -left-16 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+                <div className="pointer-events-none absolute bottom-0 right-1/3 h-24 w-24 rounded-full bg-emerald-300/10 blur-xl" />
+                <DialogTitle className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner backdrop-blur-sm">
+                      <IdCard className="h-6 w-6 text-emerald-200" />
+                    </span>
+                    <span>
+                      <span className="block text-lg font-black">ملف المستخدم</span>
+                      <span className="mt-1 block text-xs font-medium text-white/65">أجيال المعرفة · إدارة الحساب والاشتراكات</span>
+                    </span>
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
                     {!editMode ? (
-                      <Button size="sm" variant="outline" className="rounded-lg text-xs h-8 gap-1" onClick={() => setEditMode(true)}>
+                      <Button size="sm" variant="outline" className="h-9 gap-1.5 rounded-xl border-white/25 bg-white/10 text-xs text-white hover:bg-white/20 hover:text-white" onClick={() => setEditMode(true)}>
                         <Edit className="h-3.5 w-3.5" /> تعديل
                       </Button>
                     ) : (
                       <>
-                        <Button size="sm" className="rounded-lg text-xs h-8 gap-1" onClick={saveUserEdit}>
+                        <Button size="sm" className="h-9 gap-1.5 rounded-xl bg-white text-xs text-[#14345e] hover:bg-white/90" onClick={saveUserEdit}>
                           <Save className="h-3.5 w-3.5" /> حفظ
                         </Button>
-                        <Button size="sm" variant="ghost" className="rounded-lg text-xs h-8 gap-1" onClick={() => setEditMode(false)}>
+                        <Button size="sm" variant="ghost" className="h-9 gap-1.5 rounded-xl text-xs text-white/80 hover:bg-white/10 hover:text-white" onClick={() => setEditMode(false)}>
                           <X className="h-3.5 w-3.5" /> إلغاء
                         </Button>
                       </>
@@ -648,11 +692,11 @@ export default function UserManagementTab() {
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="space-y-5 mt-2">
+              <div className="space-y-5 p-5 sm:p-6">
                 {/* Basic Info */}
-                <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_10px_35px_-28px_rgba(15,42,78,0.8)] space-y-3">
                   <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                    <User className="h-4 w-4 text-primary" /> المعلومات الأساسية
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50"><User className="h-4 w-4 text-[#174477]" /></span> المعلومات الأساسية
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -719,24 +763,24 @@ export default function UserManagementTab() {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-muted/40 rounded-xl p-3 text-center">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-center shadow-sm">
                     <Award className="h-4 w-4 mx-auto mb-1 text-yellow-500" />
                     <p className="text-lg font-black text-foreground">{selectedUser.points || 0}</p>
                     <p className="text-[10px] text-muted-foreground">النقاط</p>
                   </div>
-                  <div className="bg-muted/40 rounded-xl p-3 text-center">
+                  <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-center shadow-sm">
                     <Calendar className="h-4 w-4 mx-auto mb-1 text-primary" />
                     <p className="text-lg font-black text-foreground">{selectedUser.streak || 0}</p>
                     <p className="text-[10px] text-muted-foreground">أيام متتالية</p>
                   </div>
-                  <div className="bg-muted/40 rounded-xl p-3 text-center">
+                  <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-center shadow-sm">
                     <BookOpen className="h-4 w-4 mx-auto mb-1 text-secondary" />
                     <p className="text-lg font-black text-foreground">{selectedUser.bookingsAsStudent || 0}</p>
                     <p className="text-[10px] text-muted-foreground">حجوزات كطالب</p>
                   </div>
                   {selectedUser.role === "teacher" && (
-                    <div className="bg-muted/40 rounded-xl p-3 text-center">
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-center shadow-sm">
                       <GraduationCap className="h-4 w-4 mx-auto mb-1 text-green-600" />
                       <p className="text-lg font-black text-foreground">{selectedUser.bookingsAsTeacher || 0}</p>
                       <p className="text-[10px] text-muted-foreground">حجوزات كمعلم</p>
@@ -746,76 +790,51 @@ export default function UserManagementTab() {
 
                 {/* Subscriptions */}
                 {selectedUser.role === "student" && (
-                  <div className="bg-muted/30 rounded-xl p-4">
-                    <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
-                      <Package className="h-4 w-4 text-primary" /> الاشتراكات
-                    </h3>
-                    {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 ? (
-                      <div className="space-y-2 mb-4">
-                        {selectedUser.subscriptions.map((sub, i) => (
-                          <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
-                                {sub.is_active ? "نشط" : "منتهي"}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {sub.sessions_remaining} حصة متبقية
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
+                  <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_40px_-32px_rgba(15,42,78,0.9)]">
+                    <div className="flex flex-col gap-3 border-b border-slate-100 bg-gradient-to-l from-blue-50/90 via-white to-emerald-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#163f70] text-white shadow-lg shadow-blue-900/10"><Package className="h-5 w-5" /></span>
+                        <div><h3 className="text-sm font-black text-slate-900">باقات الطالب</h3><p className="mt-0.5 text-[11px] text-slate-500">الحالة والتواريخ محسوبة من بيانات الاشتراك الفعلية</p></div>
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mb-4">لا توجد اشتراكات حالية</p>
-                    )}
-
-                    {/* Grant a Plan */}
-                    <div className="border-t border-border/50 pt-3 mt-2">
-                      <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1">
-                        <Plus className="h-3 w-3" /> منح باقة جديدة
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <Select value={grantPlanId} onValueChange={setGrantPlanId}>
-                          <SelectTrigger className="text-xs">
-                            <SelectValue placeholder="اختر الباقة" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availablePlans.map((p) => (
-                              <SelectItem key={p.id} value={p.id} className="text-xs">
-                                {p.name_ar} ({p.tier}) — {p.sessions_count} حصة
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={grantDurationDays}
-                          onChange={(e) => setGrantDurationDays(parseInt(e.target.value) || 30)}
-                          placeholder="عدد الأيام"
-                          className="text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={grantPlanToUser}
-                          disabled={!grantPlanId || granting}
-                          className="text-xs"
-                        >
-                          {granting ? "جارٍ..." : "منح الباقة"}
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-2">
-                        سيتم إنشاء اشتراك نشط فوري مع إشعار للطالب.
-                      </p>
+                      <Badge variant="outline" className="w-fit rounded-full border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-600">{selectedUser.subscriptions?.length || 0} اشتراك</Badge>
                     </div>
-                  </div>
+                    <div className="p-4 sm:p-5">
+                      {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 ? (
+                        <div className="space-y-3 mb-5">
+                          {selectedUser.subscriptions.map((sub, i) => {
+                            const displayState = getSubscriptionDisplayState(sub);
+                            const stateMeta = subscriptionStateMeta[displayState];
+                            const isCurrent = displayState === "active";
+                            return (
+                              <article key={`${sub.created_at}-${i}`} className={`relative overflow-hidden rounded-2xl border p-4 transition-shadow hover:shadow-md ${isCurrent ? "border-emerald-200 bg-gradient-to-l from-emerald-50/70 via-white to-white" : "border-slate-200 bg-slate-50/60"}`}>
+                                {isCurrent && <span className="absolute inset-y-0 right-0 w-1 bg-emerald-500" />}
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                  <div className="flex items-start gap-3">
+                                    <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isCurrent ? "bg-emerald-100 text-emerald-700" : "bg-slate-200/70 text-slate-600"}`}>{displayState === "active" ? <CheckCircle2 className="h-5 w-5" /> : displayState === "expired" ? <Timer className="h-5 w-5" /> : <CircleOff className="h-5 w-5" />}</span>
+                                    <div><div className="flex flex-wrap items-center gap-2"><p className="font-black text-slate-900">{sub.plan_name}</p><Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${stateMeta.className}`}>{stateMeta.label}</Badge></div><p className="mt-1 text-xs text-slate-500">{sub.sessions_remaining ?? 0} حصة متبقية في هذه الباقة</p></div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 sm:min-w-[330px]">
+                                    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2.5"><span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400"><CalendarDays className="h-3.5 w-3.5" /> بداية الاشتراك</span><p className="mt-1 text-xs font-bold text-slate-700">{formatAdminDate(sub.starts_at || sub.created_at)}</p></div>
+                                    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2.5"><span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400"><Calendar className="h-3.5 w-3.5" /> نهاية الاشتراك</span><p className="mt-1 text-xs font-bold text-slate-700">{formatAdminDate(sub.ends_at)}</p></div>
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="mb-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center"><CircleOff className="mb-2 h-7 w-7 text-slate-400" /><p className="text-sm font-bold text-slate-700">لا توجد باقة مسجلة</p><p className="mt-1 text-xs text-slate-400">يمكن منح الطالب باقة من القسم أدناه</p></div>
+                      )}
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                        <div className="mb-3 flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-[#174477]"><Sparkles className="h-3.5 w-3.5" /></span><div><p className="text-xs font-black text-slate-800">منح باقة جديدة</p><p className="text-[10px] text-slate-500">يُنشأ الاشتراك فورًا ويصل إشعار للطالب</p></div></div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_auto]">
+                          <Select value={grantPlanId} onValueChange={setGrantPlanId}><SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-xs shadow-sm"><SelectValue placeholder="اختر الباقة" /></SelectTrigger><SelectContent>{availablePlans.map((p) => (<SelectItem key={p.id} value={p.id} className="text-xs">{p.name_ar} ({p.tier}) — {p.sessions_count} حصة</SelectItem>))}</SelectContent></Select>
+                          <Input type="number" min={1} max={365} value={grantDurationDays} onChange={(e) => setGrantDurationDays(parseInt(e.target.value) || 30)} placeholder="عدد الأيام" className="h-10 rounded-xl border-slate-200 bg-white text-xs shadow-sm" />
+                          <Button size="sm" onClick={grantPlanToUser} disabled={!grantPlanId || granting} className="h-10 rounded-xl bg-[#163f70] px-5 text-xs shadow-lg shadow-blue-900/10 hover:bg-[#102f55]">{granting ? "جارٍ المنح..." : "منح الباقة"}</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 )}
 
                 {/* Teacher Info */}
