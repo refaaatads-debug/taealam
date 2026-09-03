@@ -81,7 +81,6 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "bookings", title: "إدارة الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings, permission: "manage_bookings" },
         { id: "sessions_status", title: "مراقبة حالات الجلسات", icon: Monitor, permission: "manage_sessions_status" },
         { id: "session_reports", title: "تقارير الجلسات", icon: FileText, permission: "manage_session_reports" },
-        { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
       ],
     },
     {
@@ -90,6 +89,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "financial_hub", title: "المركز المالي والمطابقة", icon: ShieldCheck, permission: "manage_teacher_earnings" },
         { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
         { id: "coupons", title: "الكوبونات والعروض", icon: Tag, permission: "manage_coupons" },
+        { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
         { id: "teacher_payments", title: "مدفوعات المعلمين", icon: DollarSign, permission: "manage_teacher_payments" },
         { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign, permission: "manage_teacher_earnings" },
         { id: "withdrawals", title: "طلبات سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
@@ -101,6 +101,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       items: [
         { id: "materials_monitor", title: "مركز مراقبة المواد التعليمية", icon: BookOpen, permission: "manage_materials" },
         { id: "site", title: "إدارة محتوى المنصة", icon: Settings, permission: "manage_content" },
+        { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
         { id: "admin_notifications", title: "إشعارات المنصة", icon: Bell, permission: "manage_notifications" },
       ],
     },
@@ -110,6 +111,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "ai_models", title: "نماذج الذكاء الاصطناعي", icon: Cpu, permission: "manage_ai_models" },
         { id: "ai_audit", title: "تدقيق مخرجات الذكاء الاصطناعي", icon: Brain, permission: "manage_ai_audit" },
         { id: "call_transcripts", title: "تفريغ وتحليل المكالمات", icon: MessageSquare, permission: "view_call_transcripts" },
+        { id: "domain_ssl", title: "تقرير حالة HTTPS / SSL", icon: Lock, permission: "manage_domain_ssl" },
       ],
     },
     {
@@ -117,14 +119,12 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       items: [
         { id: "support", title: "مركز الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
         { id: "violations", title: "المخالفات والمراجعة الأمنية", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
-        { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
       ],
     },
     {
       label: "الإدارة والنظام",
       items: [
         { id: "team", title: "فريق الإدارة وسجل العمليات", icon: ShieldCheck, permission: "manage_admins" },
-        { id: "domain_ssl", title: "حالة النطاق وSSL/HTTPS", icon: Lock, permission: "manage_domain_ssl" },
       ],
     },
   ];
@@ -150,7 +150,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       <SidebarContent className="px-2.5 py-2">
         {menuGroups.map((group) => (
           <SidebarGroup key={group.label} className="mb-1">
-            <SidebarGroupLabel className="px-2 text-[11px] font-extrabold leading-5 tracking-wide text-slate-500">
+            <SidebarGroupLabel className="mx-1 mb-2 rounded-lg border border-slate-200/80 bg-slate-100/80 px-3 py-2 text-[13px] font-black leading-5 tracking-wide text-[#123d6b] shadow-sm">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>

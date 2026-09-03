@@ -127,7 +127,7 @@ const TAB_TITLES: Record<string, string> = {
   advanced_analytics: "التحليلات المتقدمة",
   featured_teachers: "المدرسون المميزون",
   financial_hub: "المركز المالي",
-  domain_ssl: "حالة SSL/HTTPS",
+  domain_ssl: "تقرير حالة HTTPS / SSL",
   platform_health: "صحة المنصة وجودة البيانات",
 };
 
