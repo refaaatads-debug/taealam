@@ -58,63 +58,73 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
 
   const allGroups: MenuGroupConfig[] = [
     {
-      label: "الرئيسية",
+      label: "الرئيسية والتحليلات",
       items: [
         { id: "overview", title: "نظرة عامة", icon: BarChart3, permission: "view_overview" },
         { id: "advanced_analytics", title: "التحليلات المتقدمة", icon: TrendingUp, permission: "view_advanced_analytics" },
       ],
     },
     {
-      label: "إدارة المستخدمين",
+      label: "المستخدمون والكوادر",
       items: [
-        { id: "users", title: "المستخدمين", icon: Users, permission: "manage_users" },
+        { id: "users", title: "إدارة المستخدمين", icon: Users, permission: "manage_users" },
         { id: "student_profiles", title: "ملفات الطلاب", icon: FolderOpen, permission: "manage_student_profiles" },
         { id: "teacher_profiles", title: "ملفات المعلمين", icon: FolderOpen, permission: "manage_teacher_profiles" },
-        { id: "teachers", title: "طلبات المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
+        { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
-        { id: "featured_teachers", title: "المدرسون المميزون", icon: Star, permission: "manage_featured_teachers" },
+        { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
       ],
     },
     {
-      label: "الحجوزات والحصص",
+      label: "الحجوزات والجلسات",
       items: [
-        { id: "bookings", title: "الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings, permission: "manage_bookings" },
-        { id: "sessions_status", title: "حالات الجلسات", icon: Monitor, permission: "manage_sessions_status" },
-        { id: "session_reports", title: "تقارير الحصص", icon: FileText, permission: "manage_session_reports" },
-        { id: "session_pricing", title: "أسعار الحصص", icon: DollarSign, permission: "manage_session_pricing" },
-        { id: "materials_monitor", title: "مراقبة المواد", icon: BookOpen, permission: "manage_materials" },
+        { id: "bookings", title: "إدارة الحجوزات", icon: Clock, badge: badgeCounts.pendingBookings, permission: "manage_bookings" },
+        { id: "sessions_status", title: "مراقبة حالات الجلسات", icon: Monitor, permission: "manage_sessions_status" },
+        { id: "session_reports", title: "تقارير الجلسات", icon: FileText, permission: "manage_session_reports" },
+        { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
       ],
     },
     {
-      label: "المالية",
+      label: "المالية والمدفوعات",
       items: [
-        { id: "plans", title: "الباقات", icon: CreditCard, permission: "manage_plans" },
-        { id: "coupons", title: "الكوبونات", icon: Tag, permission: "manage_coupons" },
-        { id: "withdrawals", title: "سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
-        { id: "teacher_payments", title: "المدفوعات", icon: DollarSign, permission: "manage_teacher_payments" },
+        { id: "financial_hub", title: "المركز المالي والمطابقة", icon: ShieldCheck, permission: "manage_teacher_earnings" },
+        { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
+        { id: "coupons", title: "الكوبونات والعروض", icon: Tag, permission: "manage_coupons" },
+        { id: "teacher_payments", title: "مدفوعات المعلمين", icon: DollarSign, permission: "manage_teacher_payments" },
         { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign, permission: "manage_teacher_earnings" },
+        { id: "withdrawals", title: "طلبات سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
         { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet, permission: "manage_wallets" },
-        { id: "financial_hub", title: "المركز المالي", icon: ShieldCheck, permission: "manage_teacher_earnings" },
       ],
     },
     {
-      label: "الأمان والمراقبة",
+      label: "المنصة والمحتوى",
       items: [
-        { id: "violations", title: "المخالفات", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
-        { id: "call_transcripts", title: "تفريغ المكالمات", icon: MessageSquare, permission: "view_call_transcripts" },
-        { id: "ai_audit", title: "فحص AI", icon: Brain, permission: "manage_ai_audit" },
-        { id: "platform_health", title: "صحة المنصة", icon: Activity, permission: "view_overview" },
+        { id: "materials_monitor", title: "مركز مراقبة المواد التعليمية", icon: BookOpen, permission: "manage_materials" },
+        { id: "site", title: "إدارة محتوى المنصة", icon: Settings, permission: "manage_content" },
+        { id: "admin_notifications", title: "إشعارات المنصة", icon: Bell, permission: "manage_notifications" },
       ],
     },
     {
-      label: "النظام",
+      label: "الذكاء الاصطناعي",
       items: [
         { id: "ai_models", title: "نماذج الذكاء الاصطناعي", icon: Cpu, permission: "manage_ai_models" },
-        { id: "site", title: "المحتوى", icon: Settings, permission: "manage_content" },
-        { id: "support", title: "الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
-        { id: "admin_notifications", title: "الإشعارات", icon: Bell, permission: "manage_notifications" },
-        { id: "domain_ssl", title: "حالة SSL/HTTPS", icon: Lock, permission: "manage_domain_ssl" },
+        { id: "ai_audit", title: "تدقيق مخرجات الذكاء الاصطناعي", icon: Brain, permission: "manage_ai_audit" },
+        { id: "call_transcripts", title: "تفريغ وتحليل المكالمات", icon: MessageSquare, permission: "view_call_transcripts" },
+      ],
+    },
+    {
+      label: "الدعم والأمان",
+      items: [
+        { id: "support", title: "مركز الدعم الفني", icon: MessageSquare, badge: badgeCounts.support, permission: "customer_support" },
+        { id: "violations", title: "المخالفات والمراجعة الأمنية", icon: ShieldAlert, badge: badgeCounts.unreviewed, permission: "manage_violations" },
+        { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
+      ],
+    },
+    {
+      label: "الإدارة والنظام",
+      items: [
         { id: "team", title: "فريق الإدارة وسجل العمليات", icon: ShieldCheck, permission: "manage_admins" },
+        { id: "domain_ssl", title: "حالة النطاق وSSL/HTTPS", icon: Lock, permission: "manage_domain_ssl" },
       ],
     },
   ];
@@ -139,8 +149,8 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
 
       <SidebarContent className="px-2.5 py-2">
         {menuGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="px-2 text-[10px] font-black text-slate-400 tracking-wider">
+          <SidebarGroup key={group.label} className="mb-1">
+            <SidebarGroupLabel className="px-2 text-[11px] font-extrabold leading-5 tracking-wide text-slate-500">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -151,7 +161,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                       isActive={activeTab === item.id}
                       onClick={() => onTabChange(item.id)}
                       tooltip={item.title}
-                      className="relative h-10 rounded-xl text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
+                      className="relative h-11 rounded-xl text-[13px] font-semibold leading-5 text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
                       <span className="truncate">{item.title}</span>

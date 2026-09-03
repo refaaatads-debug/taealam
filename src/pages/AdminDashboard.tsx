@@ -109,7 +109,7 @@ const TAB_TITLES: Record<string, string> = {
   sessions_status: "حالات الجلسات",
   session_reports: "تقارير الحصص",
   session_pricing: "أسعار الحصص",
-  materials_monitor: "مراقبة المواد",
+  materials_monitor: "مركز مراقبة المواد التعليمية",
   plans: "إدارة الباقات",
   coupons: "إدارة الكوبونات",
   withdrawals: "طلبات سحب الأرباح",
