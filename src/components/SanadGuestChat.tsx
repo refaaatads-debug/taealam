@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
-import sanadAvatar from "@/assets/sanad-avatar.svg";
+import logo from "@/assets/logo.png";
 
 type Message = {
   role: "user" | "assistant";
@@ -85,9 +85,9 @@ export default function SanadGuestChat() {
             <div className="pointer-events-none absolute -left-8 -top-12 h-32 w-32 rounded-full bg-[#b9e4dc]/15 blur-2xl" />
             <div className="relative flex items-center gap-3">
               <img
-                src={sanadAvatar}
-                alt="سند"
-                className="h-12 w-12 rounded-2xl border border-white/25 bg-white/10 object-cover shadow-inner"
+                src={logo}
+                alt="شعار أجيال المعرفة - سند"
+                className="h-12 w-12 rounded-2xl border border-white/25 bg-white object-contain p-1 shadow-inner"
               />
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-black">سند</h2>
@@ -116,7 +116,7 @@ export default function SanadGuestChat() {
               >
                 {message.role === "assistant" && (
                   <img
-                    src={sanadAvatar}
+                    src={logo}
                     alt=""
                     aria-hidden="true"
                     className="h-8 w-8 shrink-0 rounded-xl border border-[#188779]/15 bg-white object-cover"
@@ -144,7 +144,7 @@ export default function SanadGuestChat() {
             {loading && (
               <div className="flex items-end justify-end gap-2">
                 <img
-                  src={sanadAvatar}
+                  src={logo}
                   alt=""
                   aria-hidden="true"
                   className="h-8 w-8 rounded-xl border border-[#188779]/15 bg-white object-cover"
@@ -204,25 +204,24 @@ export default function SanadGuestChat() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        aria-label={open ? "إغلاق سند" : "التحدث مع سند"}
+        aria-label={open ? "إغلاق سند" : "أنا سند مساعد"}
         aria-expanded={open}
-        className="group relative flex items-center gap-3 rounded-[22px] bg-gradient-to-l from-[#102e57] via-[#174b78] to-[#14786f] p-2.5 pr-3 text-white shadow-[0_18px_45px_-15px_rgba(17,65,102,.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-16px_rgba(17,65,102,.85)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9e4dc]/50"
+        className="group relative flex items-center gap-3 rounded-2xl bg-gradient-to-l from-[#102e57] via-[#174b78] to-[#14786f] px-3 py-2.5 text-white shadow-[0_18px_45px_-15px_rgba(17,65,102,.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-16px_rgba(17,65,102,.85)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9e4dc]/50"
       >
         <span className="absolute inset-0 -z-10 rounded-[24px] bg-[#39b89d]/20 blur-md transition-transform group-hover:scale-110" />
         <span className="relative">
           <img
-            src={sanadAvatar}
+            src={logo}
             alt=""
             aria-hidden="true"
-            className="h-11 w-11 rounded-2xl border border-white/25 bg-white/10 object-cover"
+            className="h-11 w-11 rounded-xl border border-white/25 bg-white object-contain p-1"
           />
           <span className="absolute -left-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-[#174b78] bg-emerald-300" />
         </span>
-        <span className="hidden pl-2 text-right sm:block">
-          <span className="block text-xs font-black">تحدث مع سند</span>
-          <span className="mt-0.5 block text-[9px] text-white/65">مساعدك في اختيار البداية</span>
+        <span className="pl-1 text-right">
+          <span className="block text-sm font-black">أنا سند مساعد</span>
+          <span className="mt-0.5 block text-[9px] text-white/65">مساعدك في أجيال المعرفة</span>
         </span>
-        {!open && <MessageCircle className="ml-1 hidden h-4 w-4 text-[#b9e4dc] sm:block" />}
       </button>
     </div>
   );
