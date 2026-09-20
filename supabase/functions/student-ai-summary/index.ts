@@ -1,20 +1,33 @@
 // Edge function: AI summary for a student profile in admin dashboard
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "student-ai-summary", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
+    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: { user } } = await userClient.auth.getUser(token);
+    if (!user) return new Response(JSON.stringify({ error: "غير مصرح" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: adminRole } = await userClient.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+    if (!adminRole) return new Response(JSON.stringify({ error: "غير مصرح" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
     const body = await req.json();
     const { stats, full } = body || {};
     const apiKey = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "Missing GEMINI_API_KEY" }), {
+      return new Response(JSON.stringify({ error: "الخدمة غير متاحة حالياً" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -45,7 +58,8 @@ Deno.serve(async (req) => {
 
     if (!resp.ok) {
       const txt = await resp.text();
-      return new Response(JSON.stringify({ error: "AI gateway error", detail: txt }), {
+      console.error("student-ai-summary provider error:", resp.status, txt);
+      return new Response(JSON.stringify({ error: "تعذر إنشاء الملخص حالياً" }), {
         status: resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -70,7 +84,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
+    console.error("student-ai-summary error:", e);
+    return new Response(JSON.stringify({ error: "تعذر إنشاء الملخص حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

@@ -1,13 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "extract-questions-from-file", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const { file_url, file_type, subject_id, teaching_stage } = await req.json();
@@ -179,7 +182,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("extract-questions error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    return new Response(JSON.stringify({ error: "تعذر استخراج الأسئلة حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

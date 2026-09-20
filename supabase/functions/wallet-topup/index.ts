@@ -22,10 +22,20 @@ serve(async (req) => {
     );
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing auth");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "غير مصرح" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !userData.user?.email) throw new Error("Unauthorized");
+      if (userErr || !userData.user?.email) {
+        return new Response(JSON.stringify({ error: "غير مصرح" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
     const { amount } = await req.json();
     const topupAmount = Number(amount);

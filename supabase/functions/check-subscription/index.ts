@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const PRODUCT_TIER_MAP: Record<string, string> = {
   "prod_UFoN4vXiVUs4cn": "basic",
@@ -14,8 +11,16 @@ const PRODUCT_TIER_MAP: Record<string, string> = {
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+  const rate = checkEdgeRateLimit(req, "check-subscription", 20);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ subscribed: false, error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
   }
 
   try {
@@ -100,8 +105,9 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const isTimeout = errorMessage.includes("abort") || errorMessage.includes("timeout");
+    console.error("check-subscription error:", error);
     return new Response(JSON.stringify({
-      error: isTimeout ? "Request timed out - please retry" : errorMessage,
+      error: isTimeout ? "انتهت مهلة الطلب، حاول مرة أخرى" : "تعذر التحقق من الاشتراك",
       subscribed: false,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

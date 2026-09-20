@@ -1,15 +1,20 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+  const rate = checkEdgeRateLimit(req, "manage-coupons", 10);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
   }
 
   try {
@@ -32,7 +37,7 @@ serve(async (req) => {
       console.error("Auth getClaims failed:", claimsError);
       throw new Error("Authentication failed");
     }
-    const userId = user.id;
+    const userId = claimsUser.id;
 
     const { data: roleData } = await supabaseClient
       .from("user_roles")
@@ -123,8 +128,8 @@ serve(async (req) => {
         });
     }
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ error: msg }), {
+    console.error("manage-coupons error:", error);
+    return new Response(JSON.stringify({ error: "تعذر إدارة الكوبونات" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

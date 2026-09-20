@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const SYSTEM_PROMPT = `أنت مساعد دعم ذكي لـ"منصة أجيال المعرفة" - منصة تعليمية عربية للحصص الخصوصية أونلاين.
 
@@ -21,7 +18,15 @@ const SYSTEM_PROMPT = `أنت مساعد دعم ذكي لـ"منصة أجيال 
 لا تخترع معلومات لست متأكداً منها. إذا كان السؤال يحتاج تدخل بشري (مشكلة دفع، شكوى محددة، طلب إلغاء)، اقترح فتح تذكرة دعم.`;
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "help-bot", 10);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
 
   try {
     const { messages } = await req.json();
@@ -69,7 +74,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("help-bot error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    return new Response(JSON.stringify({ error: "تعذر معالجة الطلب حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

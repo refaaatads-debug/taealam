@@ -1,15 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 type Provider = "gemini" | "groq" | "elevenlabs";
 
@@ -128,7 +119,17 @@ async function inspectProvider(provider: Provider, apiKey: string) {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-model-management", 10);
+  if (!rate.allowed) {
+    return json({ error: "طلبات كثيرة، حاول لاحقاً" }, 429);
+  }
   try {
     const authHeader = req.headers.get("Authorization") || "";
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -225,6 +226,6 @@ Deno.serve(async (req) => {
     return json({ providers, checkedAt: new Date().toISOString() });
   } catch (error) {
     console.error("ai-model-management:", error);
-    return json({ error: error instanceof Error ? error.message : "Unexpected error" }, 500);
+    return json({ error: "تعذر إدارة إعدادات مزودي الذكاء الاصطناعي" }, 500);
   }
 });

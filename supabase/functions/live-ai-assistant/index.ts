@@ -1,13 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "live-ai-assistant", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const { messages, subject, action, elapsed_minutes } = await req.json();
@@ -148,7 +151,7 @@ ${STRICT_RULES}
     });
   } catch (e) {
     console.error("live-ai-assistant error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "تعذر تشغيل المساعد المباشر حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

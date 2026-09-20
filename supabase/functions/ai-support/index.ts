@@ -1,10 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 function formatDate(iso: string): string {
   if (!iso) return "غير محدد";
@@ -93,7 +90,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .eq("user_id", userId)
         .eq("is_active", true)
         .order("ends_at", { ascending: false });
-      if (error) return { error: error.message };
+      if (error) {
+        console.error("get_my_subscription query failed:", error);
+        return { error: "تعذر جلب بيانات الاشتراك حالياً" };
+      }
       if (!data?.length) return { active: false, message: "لا يوجد اشتراك فعال حاليا." };
       const formatted = data.map((s: any) => ({
         plan_name: s.plan?.name_ar,
@@ -115,7 +115,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .in("status", ["pending", "confirmed"])
         .order("scheduled_at", { ascending: true })
         .limit(limit);
-      if (error) return { error: error.message };
+      if (error) {
+        console.error("get_upcoming_sessions query failed:", error);
+        return { error: "تعذر جلب الحصص القادمة حالياً" };
+      }
       if (!data?.length) return { count: 0, message: "لا توجد حصص قادمة مجدولة حاليا." };
       const formatted = data.map((s: any) => ({
         subject: s.subject?.name || "غير محدد",
@@ -136,7 +139,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .eq("status", "completed")
         .order("scheduled_at", { ascending: false })
         .limit(limit);
-      if (error) return { error: error.message };
+      if (error) {
+        console.error("get_past_sessions query failed:", error);
+        return { error: "تعذر جلب الحصص السابقة حالياً" };
+      }
       if (!data?.length) return { count: 0, message: "لا توجد حصص سابقة مكتملة." };
       const formatted = data.map((s: any) => ({
         subject: s.subject?.name || "غير محدد",
@@ -156,7 +162,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
           .limit(10);
         if (status !== "all") q.eq("status", status);
         const { data, error } = await q;
-        if (error) return { error: error.message };
+        if (error) {
+          console.error("get_teacher_assignments query failed:", error);
+          return { error: "تعذر جلب الواجبات حالياً" };
+        }
         if (!data?.length) return { role: "teacher", message: "لا توجد واجبات.", assignments: [] };
         return { role: "teacher", assignments: data.map((a: any) => ({ ...a, due_date: formatDate(a.due_date) })) };
       }
@@ -166,7 +175,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .eq("student_id", userId)
         .order("due_date", { ascending: false })
         .limit(10);
-      if (error) return { error: error.message };
+      if (error) {
+        console.error("get_student_assignments query failed:", error);
+        return { error: "تعذر جلب الواجبات حالياً" };
+      }
       if (!data?.length) return { role: "student", message: "لا توجد واجبات.", assignments: [] };
       return { role: "student", assignments: data.map((a: any) => ({ ...a, due_date: formatDate(a.due_date) })) };
     }
@@ -183,7 +195,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .eq("teacher_id", userId)
         .order("month", { ascending: false })
         .limit(6);
-      if (error) return { error: error.message };
+      if (error) {
+        console.error("get_teacher_earnings query failed:", error);
+        return { error: "تعذر جلب بيانات الأرباح حالياً" };
+      }
       return { profile: profile ?? null, recent_months: earnings ?? [] };
     }
     case "create_support_ticket": {
@@ -196,7 +211,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         .insert({ user_id: userId, subject, category, status: "open" })
         .select("id")
         .single();
-      if (error || !ticket) return { error: error?.message || "تعذر انشاء التذكرة" };
+      if (error || !ticket) {
+        console.error("create_support_ticket insert failed:", error);
+        return { error: "تعذر إنشاء تذكرة الدعم حالياً" };
+      }
       const intro = "تذكرة محولة من المساعد الذكي\n\nالتصنيف: " + category + "\n\nالملخص:\n" + summary;
       await supabase.from("support_messages").insert({
         ticket_id: ticket.id, sender_id: userId, content: intro, is_admin: false,
@@ -285,10 +303,13 @@ async function callGeminiFallback(messages: any[], sysPrompt: string, apiKey: st
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-support", 20);
+  if (!rate.allowed) return json({ error: "طلبات كثيرة، حاول لاحقاً" }, 429, req);
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401, req);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -297,7 +318,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: userData, error: userErr } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401);
+    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401, req);
     const userId = userData.user.id;
 
     const [{ data: roleRow }, { data: profileRow }] = await Promise.all([
@@ -309,7 +330,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const messages: any[] = Array.isArray(body.messages) ? body.messages : [];
-    if (!messages.length) return json({ error: "messages array required" }, 400);
+    if (!messages.length) return json({ error: "messages array required" }, 400, req);
 
     const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
     const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
@@ -326,18 +347,18 @@ Deno.serve(async (req) => {
         console.error("All Groq failed, trying Gemini:", groqErr);
         try {
           const text = await callGeminiFallback(messages, sysPrompt, GEMINI_API_KEY);
-          return json({ role: "assistant", content: text, ticket: createdTicket });
+          return json({ role: "assistant", content: text, ticket: createdTicket }, 200, req);
         } catch (geminiErr) {
           console.error("Gemini fallback failed:", geminiErr);
-          return json({ error: "كل نماذج الذكاء الاصطناعي مشغولة حاليا، حاول بعد دقيقة." }, 503);
+          return json({ error: "كل نماذج الذكاء الاصطناعي مشغولة حاليا، حاول بعد دقيقة." }, 503, req);
         }
       }
 
       const msg = aiData.choices?.[0]?.message;
-      if (!msg) return json({ error: "Empty AI response" }, 500);
+      if (!msg) return json({ error: "Empty AI response" }, 500, req);
 
       if (!msg.tool_calls?.length) {
-        return json({ role: "assistant", content: msg.content || "", ticket: createdTicket });
+        return json({ role: "assistant", content: msg.content || "", ticket: createdTicket }, 200, req);
       }
 
       // Send only the standard assistant fields back on the next tool hop.
@@ -363,16 +384,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ role: "assistant", content: "تعذر انهاء المعالجة. يرجى المحاولة مجددا.", ticket: createdTicket });
+    return json({ role: "assistant", content: "تعذر انهاء المعالجة. يرجى المحاولة مجددا.", ticket: createdTicket }, 200, req);
   } catch (e: any) {
     console.error("ai-support fatal:", e);
-    return json({ error: e?.message || "Unknown error" }, 500);
+    return json({ error: "تعذر معالجة الطلب حالياً" }, 500, req);
   }
 });
 
-function json(payload: unknown, status = 200) {
+function json(payload: unknown, status = 200, req: Request) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }

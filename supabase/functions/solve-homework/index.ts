@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const SYSTEM_PROMPT = `أنت مساعد ذكي في منصة "أجيال المعرفة" متخصص في حل الواجبات المدرسية من الصور (بما فيها خط اليد).
 
@@ -68,7 +65,13 @@ const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
   Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "solve-homework", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
   const TIMEOUT_RESPONSE = new Response(
     JSON.stringify({ error: "انتهى وقت المعالجة، حاول مرة أخرى بعد قليل" }),
     { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -209,7 +212,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("solve-homework error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    return new Response(JSON.stringify({ error: "تعذر حل الواجب حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

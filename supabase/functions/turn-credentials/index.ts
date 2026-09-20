@@ -10,18 +10,8 @@
 //   TURN_TTL      — credential lifetime, seconds (default: 3600 = 1 hour)
 //   TURN_REALM    — coturn realm                 (default: "ajyal.app")
 
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 // HMAC-SHA1(secret, username) → base64
 async function hmacSha1Base64(secret: string, message: string): Promise<string> {
@@ -42,9 +32,17 @@ async function hmacSha1Base64(secret: string, message: string): Promise<string> 
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  const rate = checkEdgeRateLimit(req, "turn-credentials", 20);
+  if (!rate.allowed) return json({ error: "طلبات كثيرة، حاول لاحقاً" }, 429);
 
   try {
     // ---- Auth: require a valid Supabase user ---------------------------------
@@ -112,6 +110,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("turn-credentials error:", err);
-    return json({ error: (err as Error).message || "Internal error" }, 500);
+    return json({ error: "تعذر تجهيز اتصال الجلسة" }, 500);
   }
 });

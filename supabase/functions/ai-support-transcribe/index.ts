@@ -1,12 +1,8 @@
 // Transcribe audio uploads (webm/wav/mp3) to text using ElevenLabs Scribe v2.
 // Used by the AI Support Assistant voice-to-text input.
 import { getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 // محاولة بالمفتاح الأساسي، وإذا انتهى الاشتراك (401/402/429) ينتقل للاحتياطي
 async function elevenLabsFetch(
@@ -30,22 +26,25 @@ async function elevenLabsFetch(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-support-transcribe", 10);
+  if (!rate.allowed) return json({ error: "طلبات كثيرة، حاول لاحقاً" }, 429, req);
 
   try {
     const auth = req.headers.get("Authorization");
     if (!auth?.startsWith("Bearer ")) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized" }, 401, req);
     }
 
     const primaryKey = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
     const backupKey = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
-    if (!primaryKey && !backupKey) return json({ error: "ELEVENLABS_API_KEY not configured" }, 500);
+    if (!primaryKey && !backupKey) return json({ error: "الخدمة غير متاحة حالياً" }, 500, req);
 
     const incoming = await req.formData();
     const file = incoming.get("audio");
     if (!(file instanceof File) && !(file instanceof Blob)) {
-      return json({ error: "audio file required" }, 400);
+      return json({ error: "audio file required" }, 400, req);
     }
 
     const fd = new FormData();
@@ -63,20 +62,20 @@ Deno.serve(async (req) => {
     if (!r.ok) {
       const err = await r.text();
       console.error("ElevenLabs error:", r.status, err);
-      return json({ error: "Transcription failed" }, 500);
+      return json({ error: "تعذر تحويل التسجيل إلى نص" }, 500, req);
     }
 
     const data = await r.json();
-    return json({ text: (data.text || "").trim() });
+    return json({ text: (data.text || "").trim() }, 200, req);
   } catch (e: any) {
     console.error("transcribe fatal:", e);
-    return json({ error: e?.message || "Unknown error" }, 500);
+    return json({ error: "تعذر تحويل التسجيل إلى نص" }, 500, req);
   }
 });
 
-function json(payload: unknown, status = 200) {
+function json(payload: unknown, status = 200, req: Request) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }

@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const ALLOWED_WORDS = [
   "رقم الصفحة", "رقم السؤال", "رقم التمرين", "صفحة رقم",
@@ -70,7 +67,13 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 2) {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "analyze-violations", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
@@ -267,7 +270,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Analyze error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "خطأ" }), {
+    return new Response(JSON.stringify({ error: "تعذر تحليل المحتوى حالياً" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

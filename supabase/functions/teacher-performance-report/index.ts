@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const AI_URL       = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
@@ -100,7 +97,13 @@ async function evaluateOutput(apiKey: string, inputCtx: string, output: string) 
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "teacher-performance-report", 10);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const { teacher_name, total_hours, total_sessions, cancelled_sessions, students_count, avg_rating, total_reviews, sessions } = await req.json();
@@ -199,11 +202,11 @@ serve(async (req) => {
           body: `فشل تقرير ${teacher_name}: ${errMsg.slice(0, 100)}`, type: "ai_error",
         });
       }
-      return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "تعذر إنشاء تقرير الأداء" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   } catch (e) {
     console.error("Teacher performance report error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    return new Response(JSON.stringify({ error: "تعذر إنشاء تقرير الأداء" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

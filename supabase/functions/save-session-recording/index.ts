@@ -1,12 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -31,6 +28,29 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    let recordingUrl: URL;
+    try {
+      recordingUrl = new URL(recording_url);
+    } catch {
+      return new Response(JSON.stringify({ error: "رابط التسجيل غير صالح" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseOrigin = new URL(supabaseUrl).origin;
+    const isSessionRecordingObject =
+      recordingUrl.protocol === "https:" &&
+      recordingUrl.origin === supabaseOrigin &&
+      recordingUrl.pathname.startsWith("/storage/v1/object/") &&
+      recordingUrl.pathname.includes("/session-recordings/");
+    if (!isSessionRecordingObject) {
+      return new Response(JSON.stringify({ error: "رابط التسجيل غير مسموح" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const authClient = createClient(supabaseUrl, anonKey);
     const token = authHeader.replace("Bearer ", "");
@@ -147,7 +167,7 @@ serve(async (req) => {
     console.error("save-session-recording error:", error);
 
     return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: "تعذر حفظ تسجيل الجلسة",
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

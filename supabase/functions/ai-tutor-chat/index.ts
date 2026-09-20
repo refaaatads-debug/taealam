@@ -2,11 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" - مدرس ذكي ودود يساعد الطلاب العرب.
 - اشرح المفاهيم بأسلوب بسيط واضح بالعربية الفصحى.
@@ -61,7 +58,15 @@ const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
   Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-tutor-chat", 20);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
   const TIMEOUT_RESP = new Response(
     JSON.stringify({ error: "انتهت مهلة الطلب، حاول مرة أخرى" }),
     { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -108,14 +113,14 @@ serve(async (req) => {
             ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY_BACKUP, "Content-Type": "application/json" }, body: ttsBody });
           }
           if (ttsResp.ok) { const buf = await ttsResp.arrayBuffer(); audioBase64 = base64Encode(new Uint8Array(buf)); }
-          else console.error("TTS error:", ttsResp.status, await ttsResp.text());
-        } catch (e) { console.error("TTS exception:", e); }
+          else console.error("TTS request failed:", ttsResp.status);
+        } catch { console.error("TTS request exception"); }
       }
     }
     return new Response(JSON.stringify({ text, audio: audioBase64 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e) {
-    console.error("ai-tutor-chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch {
+    console.error("ai-tutor-chat request failed");
+    return new Response(JSON.stringify({ error: "تعذر معالجة المحادثة حالياً" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
   })(); // end inner
   return withTimeout(inner, 25_000, TIMEOUT_RESP);

@@ -1,14 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getProviderApiKey } from "../_shared/ai-models.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-tutor-token", 5);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
 
   try {
     // Verify auth
@@ -128,7 +133,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error("ElevenLabs signed-url error:", response.status, errText);
-      return new Response(JSON.stringify({ error: "تعذر الحصول على رابط المحادثة", detail: errText }), {
+      return new Response(JSON.stringify({ error: "تعذر الحصول على رابط المحادثة" }), {
         status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -138,8 +143,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("ai-tutor-token error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    console.error("ai-tutor-token request failed:", e);
+    return new Response(JSON.stringify({ error: "تعذر بدء المحادثة الصوتية" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

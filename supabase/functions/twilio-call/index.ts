@@ -1,9 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 interface CallRequest {
   bookingId: string;
@@ -45,7 +42,13 @@ const parseTwilioGatewayError = (message: string): TwilioGatewayError | null => 
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "twilio-call", 5);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
@@ -156,7 +159,7 @@ Deno.serve(async (req) => {
         { method: "POST", headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" }, body }
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(`Twilio error [${res.status}]: ${JSON.stringify(json)}`);
+      if (!res.ok) throw new Error(`Twilio request failed [${res.status}]`);
       return json.sid as string;
     };
 
@@ -187,7 +190,7 @@ Deno.serve(async (req) => {
     try {
       studentSid = await callParty(studentPhone);
       teacherSid = await callParty(teacherPhone);
-    } catch (callErr) {
+    } catch {
       // Refund if calls failed after deduction
       await admin.rpc("credit_wallet_balance", {
         _user_id: callerId,
@@ -195,9 +198,9 @@ Deno.serve(async (req) => {
         _stripe_session_id: `refund_conf_${callLog?.id || Date.now()}`,
         _description: "استرداد كامل - فشل بدء مكالمة المؤتمر",
       });
-      await admin.from("call_logs").update({ status: "failed", error_message: String(callErr), cost: 0 })
+      await admin.from("call_logs").update({ status: "failed", error_message: "تعذر بدء مكالمة المؤتمر", cost: 0 })
         .eq("id", callLog?.id);
-      throw callErr;
+      throw new Error("Conference call setup failed");
     }
 
     // Update call_log with teacher's SID (primary for tracking)
@@ -242,9 +245,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.error("twilio-call error:", errorMessage);
+  console.error("twilio-call request failed");
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: "تعذر بدء المكالمة" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
