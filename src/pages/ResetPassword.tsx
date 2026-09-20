@@ -35,8 +35,8 @@ const ResetPassword = () => {
       toast.error("كلمتا المرور غير متطابقتين");
       return;
     }
-    if (password.length < 6) {
-      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    if (password.length < 8) {
+      toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
       return;
     }
     setLoading(true);

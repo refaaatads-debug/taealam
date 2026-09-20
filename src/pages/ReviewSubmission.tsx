@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 const ReviewSubmission = () => {
   const { id } = useParams();
@@ -57,8 +58,8 @@ const ReviewSubmission = () => {
       body: { submission_id: id },
     });
     setGrading(false);
-    if (error) { toast.error("خطأ: " + error.message); return; }
-    if ((data as any)?.error) { toast.error((data as any).error); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر تصحيح الإجابة. حاول مرة أخرى.")); return; }
+    if ((data as any)?.error) { toast.error("تعذر تصحيح الإجابة. حاول مرة أخرى."); return; }
     toast.success("تم التصحيح بـ AI");
     fetch();
   };
@@ -74,7 +75,7 @@ const ReviewSubmission = () => {
       reviewed_at: new Date().toISOString(),
     }).eq("id", id);
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر حفظ الدرجة. حاول مرة أخرى.")); return; }
 
     // Notify student
     if (sub?.student_id) {
@@ -102,7 +103,7 @@ const ReviewSubmission = () => {
       status: "reviewed",
       reviewed_at: new Date().toISOString(),
     }).eq("id", id);
-    if (error) { setSaving(false); toast.error(error.message); return; }
+    if (error) { setSaving(false); toast.error(safeErrorMessage(error, "تعذر حفظ المراجعة. حاول مرة أخرى.")); return; }
 
     if (sub?.student_id) {
       await supabase.from("notifications").insert({

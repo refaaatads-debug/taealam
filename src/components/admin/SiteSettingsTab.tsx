@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Save, Upload, Image, Type, Globe, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings, SiteSetting } from "@/hooks/useSiteSettings";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 const categoryLabels: Record<string, string> = {
   homepage: "الصفحة الرئيسية",
@@ -59,7 +60,7 @@ const SiteSettingsTab = () => {
       .upload(path, file, { upsert: true });
     
     if (uploadError) {
-      toast.error("خطأ في رفع الصورة: " + uploadError.message);
+      toast.error(safeErrorMessage(uploadError, "تعذر رفع الصورة. حاول مرة أخرى."));
       setUploading(null);
       return;
     }

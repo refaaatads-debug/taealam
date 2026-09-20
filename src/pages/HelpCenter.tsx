@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Send, Sparkles, ArrowRight, Loader2, HelpCircle, MessageSquare, BookOpen, LifeBuoy } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Msg { role: "user" | "assistant"; content: string }
 
@@ -44,7 +45,7 @@ const HelpCenter = () => {
 
     setLoading(false);
     if (error || data?.error) {
-      toast.error(data?.error || "تعذر الاتصال");
+      toast.error(safeErrorMessage(error, "تعذر الاتصال بمركز المساعدة. حاول مرة أخرى."));
       return;
     }
     setMessages([...newMsgs, { role: "assistant", content: data.reply }]);

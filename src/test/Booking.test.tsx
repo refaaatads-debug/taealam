@@ -16,6 +16,7 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
   fn.single = () => Promise.resolve(terminal);
   fn.gte = () => chainable(terminal);
   fn.lte = () => chainable(terminal);
+  fn.gt = () => chainable(terminal);
   fn.then = (resolve: any) => Promise.resolve(terminal).then(resolve);
   fn.data = terminal.data;
   fn.error = terminal.error;
@@ -38,6 +39,9 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    img: ({ children, ...props }: any) => <img {...props}>{children}</img>,
+    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));

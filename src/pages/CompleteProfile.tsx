@@ -10,6 +10,7 @@ import { Loader2, UserCheck, Phone, GraduationCap, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 const STAGES = [
   { value: "kindergarten", label: "رياض الأطفال" },
@@ -91,7 +92,7 @@ const CompleteProfile = () => {
 
     if (error) {
       setSaving(false);
-      toast.error("خطأ في الحفظ: " + error.message);
+      toast.error(safeErrorMessage(error, "تعذر حفظ البيانات. حاول مرة أخرى."));
       return;
     }
 

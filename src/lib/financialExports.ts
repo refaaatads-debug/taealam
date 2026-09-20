@@ -1,17 +1,28 @@
-import * as XLSX from "xlsx";
+import writeExcelFile from "write-excel-file/browser";
 import { toast } from "sonner";
 
 export type Col = { key: string; label: string };
 
-export function exportExcel(filename: string, headers: Col[], rows: any[]) {
+export async function exportExcel(filename: string, headers: Col[], rows: any[]) {
   if (!rows.length) { toast.info("لا توجد بيانات للتصدير"); return; }
-  const data = rows.map(r => Object.fromEntries(headers.map(h => [h.label, r[h.key] ?? ""])));
-  const ws = XLSX.utils.json_to_sheet(data);
-  ws["!cols"] = headers.map(h => ({ wch: Math.max(h.label.length * 2, 14) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Report");
-  XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0,10)}.xlsx`);
-  toast.success(`تم تصدير ${rows.length} سجل (Excel)`);
+  try {
+    const sheetData = [
+      headers.map((header) => header.label),
+      ...rows.map((row) => headers.map((header) => {
+        const value = row[header.key];
+        return value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value instanceof Date
+          ? value ?? ""
+          : String(value);
+      })),
+    ];
+
+    await writeExcelFile(sheetData, {
+      columns: headers.map((header) => ({ width: Math.max(header.label.length * 2, 14) })),
+    }).toFile(`${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success(`تم تصدير ${rows.length} سجل (Excel)`);
+  } catch {
+    toast.error("تعذر تصدير ملف Excel");
+  }
 }
 
 export async function exportPDF(title: string, filename: string, headers: Col[], rows: any[]) {

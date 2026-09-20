@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 
 const chainable = (terminal = { data: [], error: null, count: 0 }) => {
@@ -11,6 +11,7 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
   fn.in = () => chainable(terminal);
   fn.order = () => chainable(terminal);
   fn.limit = () => Promise.resolve(terminal);
+  fn.maybeSingle = () => Promise.resolve(terminal);
   fn.single = () => Promise.resolve(terminal);
   fn.gte = () => chainable(terminal);
   fn.lte = () => chainable(terminal);
@@ -51,6 +52,8 @@ vi.mock("recharts", () => ({
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    img: ({ children, ...props }: any) => <img {...props}>{children}</img>,
+    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
@@ -58,11 +61,13 @@ vi.mock("framer-motion", () => ({
 describe("AdminDashboard Page", () => {
   it("renders admin dashboard title", async () => {
     const AdminDashboard = (await import("@/pages/AdminDashboard")).default;
-    const { getByText } = render(
+    const { container } = render(
       <BrowserRouter>
         <AdminDashboard />
       </BrowserRouter>
     );
-    expect(getByText("لوحة التحكم")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelector("h1")).toHaveTextContent("نظرة عامة");
+    });
   });
 });

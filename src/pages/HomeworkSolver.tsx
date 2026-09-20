@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Upload, Sparkles, ArrowRight, Loader2, X, BookOpen, Lightbulb, CheckCircle2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Step { title: string; explanation: string }
 interface Solution {
@@ -61,7 +62,7 @@ const HomeworkSolver = () => {
       }
       if (error) throw error;
       if (data?.error && !data?.final_answer) {
-        toast.error(data.error);
+        toast.error(safeErrorMessage(data.error, "تعذر حل المسألة. حاول مرة أخرى."));
         setSolution(data);
       } else {
         setSolution(data);

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, Send, Sparkles, Volume2, ArrowRight, Loader2, MessageSquare, Phone, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { LiveVoiceTutor } from "@/components/ai/LiveVoiceTutor";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Msg { role: "user" | "assistant"; content: string; audio?: string }
 
@@ -44,7 +45,7 @@ const AITutor = () => {
     });
     setLoading(false);
     if (error || data?.error) {
-      toast.error(data?.error || "خطأ في الاتصال");
+      toast.error(safeErrorMessage(error, "تعذر الاتصال بالمساعد الذكي. حاول مرة أخرى."));
       return;
     }
     const reply: Msg = { role: "assistant", content: data.text, audio: data.audio };

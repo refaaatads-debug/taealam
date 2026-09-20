@@ -32,6 +32,7 @@ const renderAt = (initial: string) =>
 describe("Rating page redirects (no 404)", () => {
   beforeEach(() => {
     maybeSingle.mockReset();
+    maybeSingle.mockResolvedValue({ data: null, error: null });
     fromMock.mockClear();
   });
 

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { logAdminAction } from "@/lib/auditLog";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import WarningsAdvancedFilter, {
   applyWarningFilters, DEFAULT_WARNING_FILTERS, type WarningFilters,
@@ -140,7 +141,7 @@ export default function UserWarningsList({ roleFilter = "all" }: Props) {
     const { error } = await supabase.from("user_warnings")
       .update({ is_banned: false, banned_until: null })
       .eq("id", row.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر إلغاء التحذير. حاول مرة أخرى.")); return; }
 
     // Send notification + track delivery status
     const { error: notifErr } = await supabase.from("notifications").insert({
@@ -174,7 +175,7 @@ export default function UserWarningsList({ roleFilter = "all" }: Props) {
     const { error } = await supabase.from("user_warnings")
       .update({ warning_count: 0, is_banned: false, banned_until: null })
       .eq("id", row.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر إعادة ضبط التحذير. حاول مرة أخرى.")); return; }
 
     const { error: notifErr } = await supabase.from("notifications").insert({
       user_id: row.user_id,
@@ -204,7 +205,7 @@ export default function UserWarningsList({ roleFilter = "all" }: Props) {
     if (!canDelete) { toast.error("الحذف متاح للمدير العام فقط"); return; }
     if (!confirm("حذف هذا التحذير نهائياً؟ لا يمكن التراجع.")) return;
     const { error } = await supabase.from("user_warnings").delete().eq("id", row.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر حذف التحذير. حاول مرة أخرى.")); return; }
     await logAdminAction({
       action: "delete_warning", category: "violations",
       description: `حذف تحذير ${TYPE_LABELS[row.warning_type] || row.warning_type} عن ${row.user_name}`,

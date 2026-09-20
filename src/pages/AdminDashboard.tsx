@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Shield, BarChart3, Clock,
@@ -440,7 +441,7 @@ const AdminDashboard = () => {
 
   const approveTeacher = async (teacherId: string) => {
     const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", teacherId);
-    if (error) { toast.error("حدث خطأ: " + error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر تنفيذ العملية. حاول مرة أخرى.")); return; }
     toast.success("تمت الموافقة على المعلم!");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
     setStats(prev => ({ ...prev, pendingTeachers: Math.max(0, prev.pendingTeachers - 1) }));

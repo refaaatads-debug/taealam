@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { Wallet, Phone, Plus, Minus, Search, Loader2, RefreshCw } from "lucide-react";
 
 interface WalletRow {
@@ -79,7 +80,7 @@ export default function WalletsManagementTab() {
       type: "number",
     }, { onConflict: "key" });
     setSavingPrice(false);
-    if (error) toast.error("تعذر الحفظ: " + error.message);
+    if (error) toast.error(safeErrorMessage(error, "تعذر حفظ سعر المكالمة. حاول مرة أخرى."));
     else toast.success(`تم تحديث سعر الدقيقة إلى ${v} ر.س`);
   };
 

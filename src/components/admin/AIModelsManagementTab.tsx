@@ -14,6 +14,7 @@ import {
   Clock3, Eye, EyeOff, KeyRound, Loader2, RefreshCw, Save, Search, ServerCog,
   ShieldCheck, Sparkles, Volume2, XCircle,
 } from "lucide-react";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 type ModelInfo = {
   id: string;
@@ -112,7 +113,7 @@ const AIModelsManagementTab = () => {
       setProviders(data.providers || []);
       setCheckedAt(data.checkedAt || new Date().toISOString());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر تحميل بيانات مزودي الذكاء الاصطناعي");
+      toast.error(safeErrorMessage(error, "تعذر تحميل بيانات مزودي الذكاء الاصطناعي."));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -139,7 +140,7 @@ const AIModelsManagementTab = () => {
       toast.success("تم التحقق من المفتاح وحفظه مشفّرًا، وأصبح جاهزًا للاستخدام");
       await loadProviders(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "لم يتم حفظ المفتاح");
+      toast.error(safeErrorMessage(error, "تعذر حفظ إعدادات المزود."));
     } finally {
       setSaving(null);
     }
@@ -159,7 +160,7 @@ const AIModelsManagementTab = () => {
       setProviders((current) => current.map((item) => item.provider === provider.provider ? next : item));
       toast.success("تم حفظ إعدادات المزود");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر حفظ الإعدادات");
+      toast.error(safeErrorMessage(error, "تعذر حفظ الإعدادات."));
     } finally {
       setSaving(null);
     }

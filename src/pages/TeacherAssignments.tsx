@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, FileText, Library, Loader2, Trash2, Sparkles, ArrowRight, ClipboardCheck, Clock3, UsersRound, BarChart3, ClipboardList, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Question {
   id: string;
@@ -230,7 +231,7 @@ const TeacherAssignments = () => {
       due_date: dueDate || null,
     }).select().single();
     setSaving(false);
-    if (error) { toast.error("خطأ: " + error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر حفظ المهمة. حاول مرة أخرى.")); return; }
 
     // إرسال إشعار + رسالة محادثة تلقائية
     try {
@@ -319,7 +320,7 @@ const TeacherAssignments = () => {
       teaching_stage: qStage || null,
       subject_id: qSubject || null,
     });
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(safeErrorMessage(error, "تعذر حفظ السؤال. حاول مرة أخرى.")); return; }
     toast.success("تم حفظ السؤال");
     setQOpen(false);
     setQText(""); setQOptions(""); setQCorrect(""); setQExplanation("");

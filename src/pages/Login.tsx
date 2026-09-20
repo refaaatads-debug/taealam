@@ -122,7 +122,7 @@ const Login = () => {
         }
       } else {
         if (!fullName.trim()) { toast.error("الرجاء إدخال الاسم الكامل"); setLoading(false); return; }
-        if (password.length < 6) { toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); setLoading(false); return; }
+        if (password.length < 8) { toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); setLoading(false); return; }
 
         const { data, error } = await withAuthTimeout(supabase.auth.signUp({
           email,
@@ -352,7 +352,7 @@ const Login = () => {
                 {method === "email" && (
                   <div className="relative">
                     <Input type={showPass ? "text" : "password"} placeholder="كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="h-12 text-right pl-12 rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required minLength={6} />
+                      className="h-12 text-right pl-12 rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required minLength={8} />
                     <button type="button" onClick={() => setShowPass(!showPass)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                       {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>

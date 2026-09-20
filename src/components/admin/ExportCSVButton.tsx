@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import writeExcelFile from "write-excel-file/browser";
 
 interface ExportCSVButtonProps {
   data: Record<string, any>[];
@@ -10,38 +10,36 @@ interface ExportCSVButtonProps {
 }
 
 export default function ExportCSVButton({ data, headers, filename }: ExportCSVButtonProps) {
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (data.length === 0) {
       toast.error("لا توجد بيانات للتصدير");
       return;
     }
 
-    const rows = data.map(item =>
-      Object.fromEntries(headers.map(h => [h.label, item[h.key] ?? ""]))
-    );
+    try {
+      const normalizeValue = (value: unknown) => (
+        value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value instanceof Date
+          ? value ?? ""
+          : String(value)
+      );
+      const sheetData = [
+        headers.map((header) => ({
+          value: header.label,
+          fontWeight: "bold" as const,
+          textColor: "#FFFFFF",
+          backgroundColor: "#4F46E5",
+          align: "center" as const,
+        })),
+        ...data.map((item) => headers.map((header) => normalizeValue(item[header.key]))),
+      ];
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-
-    // Column widths
-    ws["!cols"] = headers.map(h => ({ wch: Math.max(h.label.length * 2, 15) }));
-
-    // Style header row
-    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r: 0, c });
-      if (ws[addr]) {
-        ws[addr].s = {
-          font: { bold: true, color: { rgb: "FFFFFF" } },
-          fill: { fgColor: { rgb: "4F46E5" } },
-          alignment: { horizontal: "center" },
-        };
-      }
+      await writeExcelFile(sheetData, {
+        columns: headers.map((header) => ({ width: Math.max(header.label.length * 2, 15) })),
+      }).toFile(`${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(`تم تصدير ${data.length} سجل`);
+    } catch {
+      toast.error("تعذر تصدير ملف Excel");
     }
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "البيانات");
-    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success(`تم تصدير ${data.length} سجل`);
   };
 
   return (

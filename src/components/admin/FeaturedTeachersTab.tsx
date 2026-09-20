@@ -10,6 +10,7 @@ import { Star, Plus, Trash2, ArrowUp, ArrowDown, Search, Pencil, Upload } from "
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ImageCropDialog from "./ImageCropDialog";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface FeaturedRow {
   id: string;
@@ -90,7 +91,7 @@ export default function FeaturedTeachersTab() {
       display_order: nextOrder,
       is_active: true,
     });
-    if (error) return toast.error("تعذّر الإضافة: " + error.message);
+    if (error) return toast.error(safeErrorMessage(error, "تعذرت إضافة المعلم المميز. حاول مرة أخرى."));
     toast.success("تمت الإضافة");
     load();
   };
@@ -272,7 +273,7 @@ function EditDialog({ row, onClose, onSaved }: { row: FeaturedRow | null; onClos
         rating_override: form.rating_override === undefined || (form.rating_override as any) === "" ? null : Number(form.rating_override),
       })
       .eq("id", row.id);
-    if (error) return toast.error("تعذّر الحفظ: " + error.message);
+    if (error) return toast.error(safeErrorMessage(error, "تعذر حفظ التعديلات. حاول مرة أخرى."));
     toast.success("تم الحفظ");
     onSaved();
   };

@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 const tierIcons: Record<string, typeof Star> = { free: Gift, basic: Star, standard: Sparkles, premium: Crown };
 
@@ -104,7 +105,7 @@ const Pricing = () => {
       }
 
       if (data?.error) {
-        toast.error(data.error);
+        toast.error(safeErrorMessage(data.error, "تعذر إتمام العملية. حاول مرة أخرى."));
         return;
       }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -26,6 +27,10 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    img: ({ children, ...props }: any) => <img {...props}>{children}</img>,
+    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
+    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
@@ -38,9 +43,11 @@ describe("SearchTeacher Page", () => {
   it("renders the search page title", async () => {
     const SearchTeacher = (await import("@/pages/SearchTeacher")).default;
     const { getByText } = render(
-      <BrowserRouter>
-        <SearchTeacher />
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <SearchTeacher />
+        </BrowserRouter>
+      </HelmetProvider>
     );
     expect(getByText("ابحث عن مدرسك المثالي")).toBeInTheDocument();
   });
@@ -48,9 +55,11 @@ describe("SearchTeacher Page", () => {
   it("renders search input", async () => {
     const SearchTeacher = (await import("@/pages/SearchTeacher")).default;
     const { getByPlaceholderText } = render(
-      <BrowserRouter>
-        <SearchTeacher />
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <SearchTeacher />
+        </BrowserRouter>
+      </HelmetProvider>
     );
     expect(getByPlaceholderText("ابحث بالاسم أو المادة...")).toBeInTheDocument();
   });

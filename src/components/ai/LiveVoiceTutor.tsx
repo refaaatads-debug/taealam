@@ -57,9 +57,9 @@ const VoiceTutorInner = () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const { data, error } = await supabase.functions.invoke("ai-tutor-token");
-      console.log("ai-tutor-token response:", { data, error });
+      console.log("ai-tutor-token request completed:", { ok: !error });
       if (error || !data?.signedUrl) {
-        toast.error(data?.error || "تعذر بدء المحادثة. تأكد من إعداد المساعد.");
+        toast.error("تعذر بدء المحادثة. تأكد من إعداد المساعد وحاول مرة أخرى.");
         setConnecting(false);
         return;
       }

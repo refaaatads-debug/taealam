@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
@@ -828,9 +829,9 @@ const LiveSession = () => {
             const { data: signedData } = await supabase.storage
               .from("session-recordings")
               .createSignedUrl(b.fileName, 60 * 60 * 24 * 7);
-            const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(b.fileName);
+            if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
             await supabase.functions.invoke("save-session-recording", {
-              body: { booking_id: b.bookingId, recording_url: signedData?.signedUrl || urlData.publicUrl },
+              body: { booking_id: b.bookingId, recording_url: signedData.signedUrl },
             });
             await clearRecordingBackup(b.bookingId);
             toast.success("تم استرداد ورفع تسجيل سابق محفوظ محلياً ✅");
@@ -944,8 +945,8 @@ const LiveSession = () => {
       const { data: signedData } = await supabase.storage
         .from("session-recordings")
         .createSignedUrl(fileName, 60 * 60 * 24 * 7);
-      const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
-      const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
+      if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
+      const recordingUrl = signedData.signedUrl;
       await supabase.functions.invoke("save-session-recording", {
         body: { booking_id: bookingId, recording_url: recordingUrl },
       });
@@ -1439,7 +1440,7 @@ const LiveSession = () => {
 
   const uploadRecording = async () => {
     const blob = getRecordingBlob();
-    console.log("[uploadRecording] blob:", blob ? `${blob.size} bytes` : "null", "bookingId:", bookingId);
+    console.log("[uploadRecording] recording prepared:", blob ? `${blob.size} bytes` : "empty");
     if (!blob || blob.size === 0 || !bookingId || !user) {
       console.warn("[uploadRecording] Skipped - no blob/booking/user");
       toast.error("لم يتم العثور على فيديو للرفع");
@@ -1452,7 +1453,7 @@ const LiveSession = () => {
       // upload overwrites the same object instead of creating a duplicate.
       const fileName = chunkUploadFileNameRef.current
         || `${user.id}/${bookingId}_${Date.now()}.webm`;
-      console.log("[uploadRecording] Uploading", blob.size, "bytes to:", fileName);
+      console.log("[uploadRecording] Uploading recording:", blob.size, "bytes");
       const { error: uploadErr } = await supabase.storage
         .from("session-recordings")
         .upload(fileName, blob, { contentType: "video/webm", upsert: true });
@@ -1461,22 +1462,20 @@ const LiveSession = () => {
         throw uploadErr;
       }
 
-      const { data: urlData } = supabase.storage.from("session-recordings").getPublicUrl(fileName);
       const { data: signedData } = await supabase.storage
         .from("session-recordings")
         .createSignedUrl(fileName, 60 * 60 * 24 * 7);
-      const recordingUrl = signedData?.signedUrl || urlData.publicUrl;
-      console.log("[uploadRecording] Recording URL:", recordingUrl);
-
-      const { data: saveData, error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
+      if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
+      const recordingUrl = signedData.signedUrl;
+      const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
         body: { booking_id: bookingId, recording_url: recordingUrl },
       });
 
       if (saveRecordingError) {
-        console.error("[uploadRecording] save-session-recording error:", saveRecordingError);
+        console.error("[uploadRecording] save-session-recording failed");
         throw saveRecordingError;
       }
-      console.log("[uploadRecording] Saved successfully:", saveData);
+      console.log("[uploadRecording] Saved successfully");
 
       // Clear local backup once final upload is confirmed
       try {
@@ -1486,9 +1485,10 @@ const LiveSession = () => {
 
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
-      console.error("[uploadRecording] Failed:", error);
-      toast.error("تعذر حفظ التسجيل: " + (error instanceof Error ? error.message : "خطأ غير معروف"));
-      await markRecordingFailed(error instanceof Error ? error.message : "خطأ في الرفع");
+      console.error("[uploadRecording] Failed");
+      const safeMessage = safeErrorMessage(error, "تعذر حفظ التسجيل. حاول مرة أخرى.");
+      toast.error(safeMessage);
+      await markRecordingFailed(safeMessage);
     } finally {
       setRecordingUploading(false);
     }

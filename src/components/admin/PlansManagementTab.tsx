@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Save, Trash2, Loader2, Crown, Star, Sparkles, Edit, User, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Plan {
   id: string;
@@ -111,7 +112,7 @@ const PlansManagementTab = () => {
       })
       .eq("id", planId);
     if (error) {
-      toast.error("خطأ في الحفظ: " + error.message);
+      toast.error(safeErrorMessage(error, "تعذر تحديث الباقة. حاول مرة أخرى."));
     } else {
       toast.success("تم تحديث الباقة بنجاح");
       setEditingPlan(null);
@@ -135,7 +136,7 @@ const PlansManagementTab = () => {
       assigned_user_id: newPlan.assigned_user_id || null,
     });
     if (error) {
-      toast.error("خطأ في الإنشاء: " + error.message);
+      toast.error(safeErrorMessage(error, "تعذر إنشاء الباقة. حاول مرة أخرى."));
     } else {
       toast.success("تم إنشاء الباقة بنجاح");
       setShowNewForm(false);
@@ -149,7 +150,7 @@ const PlansManagementTab = () => {
     if (!window.confirm("هل أنت متأكد من حذف هذه الباقة؟")) return;
     const { error } = await supabase.from("subscription_plans").delete().eq("id", planId);
     if (error) {
-      toast.error("خطأ في الحذف: " + error.message);
+      toast.error(safeErrorMessage(error, "تعذر حذف الباقة. حاول مرة أخرى."));
     } else {
       toast.success("تم حذف الباقة");
       fetchPlans();

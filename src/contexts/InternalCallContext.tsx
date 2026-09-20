@@ -2,6 +2,7 @@ import {
   createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -318,7 +319,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       applyCallUpdate(data.call as InternalCall);
     } catch (error) {
       stopMedia();
-      toast.error(error instanceof Error ? error.message : "تعذر استخدام الميكروفون");
+      toast.error(safeErrorMessage(error, "تعذر استخدام الميكروفون. تحقق من الأذونات وحاول مرة أخرى."));
     }
   }, [call, applyCallUpdate, ensureMicrophone, stopMedia]);
 

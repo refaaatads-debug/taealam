@@ -48,18 +48,23 @@ export default function AdminQuickSearch({ onNavigateTab }: Props) {
   // Debounced search
   useEffect(() => {
     if (!open) return;
-    const q = query.trim();
+    const q = query.trim().slice(0, 100);
     if (!q) { setResults([]); return; }
 
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const like = `%${q}%`;
-        const [profilesRes, teachersRes, bookingsRes] = await Promise.all([
+        const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+        const [profilesByNameRes, profilesByPhoneRes, teachersRes, bookingsRes] = await Promise.all([
           supabase
             .from("profiles")
             .select("user_id, full_name, phone")
-            .or(`full_name.ilike.${like},phone.ilike.${like}`)
+            .ilike("full_name", like)
+            .limit(8),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, phone")
+            .ilike("phone", like)
             .limit(8),
           supabase
             .from("teacher_profiles")
@@ -68,12 +73,16 @@ export default function AdminQuickSearch({ onNavigateTab }: Props) {
           supabase
             .from("bookings")
             .select("id, status, scheduled_at, student_id, teacher_id, duration_minutes")
-            .or(`status.ilike.${like}`)
+            .ilike("status", like)
             .order("created_at", { ascending: false })
             .limit(8),
         ]);
 
-        const userResults: Result[] = (profilesRes.data || []).map(p => ({
+        const profileRows = Array.from(new Map(
+          [...(profilesByNameRes.data || []), ...(profilesByPhoneRes.data || [])]
+            .map((profile) => [profile.user_id, profile]),
+        ).values());
+        const userResults: Result[] = profileRows.map(p => ({
           id: p.user_id,
           type: "user",
           title: p.full_name || "بدون اسم",
