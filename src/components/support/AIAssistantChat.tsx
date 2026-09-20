@@ -3,12 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
-  Send, Loader2, Sparkles, RefreshCw, Headphones,
+  Send, Loader2, RefreshCw, Headphones,
   Paperclip, X, FileText, Image as ImageIcon, Mic, Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
+import sanadAvatar from "@/assets/sanad-avatar.svg";
 
 interface Attachment {
   url: string;
@@ -303,7 +304,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
           await supabase.from("support_messages").insert({
             ticket_id: ticket.id,
             sender_id: user.id,
-            content: `📋 **سجل المحادثة الكامل مع المساعد الذكي:**\n\n${log}`,
+            content: `📋 **سجل المحادثة الكامل مع سند:**\n\n${log}`,
             is_admin: false,
           });
         } catch (err) {
@@ -327,7 +328,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
         ...prev,
         { role: "assistant", content: errMsg, ts: Date.now() },
       ]);
-      toast.error("فشل الاتصال بالمساعد الذكي");
+      toast.error("فشل الاتصال بسند");
     } finally {
       setLoading(false);
     }
@@ -353,7 +354,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
     const log = messages
       .map((m) => `${m.role === "user" ? "👤 أنا" : "🤖 المساعد"}: ${m.content}`)
       .join("\n\n");
-    const subject = messages[0]?.content.slice(0, 60) || "استفسار من المساعد الذكي";
+    const subject = messages[0]?.content.slice(0, 60) || "استفسار من سند";
     onCreateTicket(`[محادثة AI] ${subject}`, log);
   };
 
@@ -366,13 +367,11 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-l from-primary/5 to-transparent rounded-t-xl">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-md">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src={sanadAvatar} alt="سند" className="h-10 w-10 rounded-full border border-primary/15 object-cover shadow-md" />
             <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-emerald-500 border-2 border-card rounded-full animate-pulse" />
           </div>
           <div>
-            <p className="font-bold text-sm text-foreground">المساعد الذكي</p>
+            <p className="font-bold text-sm text-foreground">سند</p>
             <p className="text-[11px] text-muted-foreground">متصل دائمًا • يفهم بياناتك</p>
           </div>
         </div>
@@ -387,12 +386,10 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-muted/20">
         {messages.length === 0 && (
           <div className="text-center py-8 space-y-3">
-            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="font-bold text-foreground">مرحبًا 👋</h3>
+            <img src={sanadAvatar} alt="سند" className="w-16 h-16 mx-auto rounded-full border border-primary/15 object-cover shadow-sm" />
+            <h3 className="font-bold text-foreground">مرحبًا، أنا سند</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              أنا مساعدك الذكي. اسألني عن باقتك، حصصك، واجباتك،
+              أساعدك في معرفة تفاصيل باقتك، حصصك، واجباتك،
               {isTeacher && " أرباحك،"} ويمكنك إرفاق ملف أو التسجيل بالصوت.
             </p>
           </div>
@@ -416,7 +413,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
             >
               {m.role === "assistant" && (
                 <p className="text-[10px] font-bold mb-1 text-primary flex items-center gap-1">
-                  <Sparkles className="h-2.5 w-2.5" /> المساعد الذكي
+                  <img src={sanadAvatar} alt="" aria-hidden="true" className="h-4 w-4 rounded-full object-cover" /> سند
                 </p>
               )}
               {m.attachment && (
@@ -584,7 +581,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onTextareaKeyDown}
-          placeholder={recording ? "🔴 جارٍ التسجيل..." : "اسأل المساعد الذكي... (Enter لإرسال، Shift+Enter لسطر جديد)"}
+          placeholder={recording ? "🔴 جارٍ التسجيل..." : "اسأل سند... (Enter لإرسال، Shift+Enter لسطر جديد)"}
           rows={1}
           dir="rtl"
           disabled={loading || recording}

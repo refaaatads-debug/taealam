@@ -663,7 +663,7 @@ export default function CommunicationHub() {
   const tabs = useMemo(() => [
     { value: "support" as const, label: "الدعم", icon: Headphones },
     { value: "messages" as const, label: "الرسائل", icon: MessagesSquare },
-    { value: "assistant" as const, label: "المساعد الذكي", icon: Bot },
+    { value: "assistant" as const, label: "سند", icon: Bot },
   ], []);
 
   return (

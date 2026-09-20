@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.help-bot]
 verify_jwt = true
 
+[functions.sanad-public]
+verify_jwt = false
+
 [functions.turn-credentials]
 verify_jwt = true
 

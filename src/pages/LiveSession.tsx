@@ -2417,7 +2417,7 @@ const LiveSession = () => {
               className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
               onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
               disabled={!meetingStarted}
-              title="المساعد الذكي"
+              title="سند"
             >
               <Brain className="h-5 w-5" />
             </Button>

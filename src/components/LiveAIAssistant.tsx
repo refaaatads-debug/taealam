@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, AlertCircle, TrendingUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import sanadAvatar from "@/assets/sanad-avatar.svg";
 
 interface ChatMessage {
   sender: string;
@@ -237,8 +238,8 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Brain className="h-5 w-5 text-primary" />
-          <h3 className="font-bold text-foreground text-sm">المساعد الذكي</h3>
+            <img src={sanadAvatar} alt="سند" className="h-7 w-7 rounded-full border border-primary/15 object-cover" />
+            <h3 className="font-bold text-foreground text-sm">سند</h3>
           {enabled && (
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           )}
@@ -249,7 +250,7 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
             variant="ghost"
             className="h-7 w-7"
             onClick={() => setEnabled(!enabled)}
-            title={enabled ? "إيقاف المساعد" : "تشغيل المساعد"}
+             title={enabled ? "إيقاف سند" : "تشغيل سند"}
           >
             {enabled ? <Power className="h-3.5 w-3.5 text-green-400" /> : <PowerOff className="h-3.5 w-3.5 text-muted-foreground" />}
           </Button>
@@ -305,7 +306,7 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
           {!enabled && (
             <div className="text-center py-8 text-muted-foreground">
               <PowerOff className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">المساعد متوقف</p>
+               <p className="text-sm">سند متوقف</p>
               <p className="text-xs mt-1">اضغط زر التشغيل لتفعيله</p>
             </div>
           )}
@@ -313,8 +314,8 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
           {enabled && activeInsights.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <Brain className="h-8 w-8 mx-auto mb-2 opacity-40 animate-pulse" />
-              <p className="text-sm">المساعد يراقب الجلسة</p>
-              <p className="text-xs mt-1">سيقدم اقتراحات عند الحاجة</p>
+               <p className="text-sm">سند يراقب الجلسة</p>
+               <p className="text-xs mt-1">سيقدم اقتراحات عند الحاجة</p>
             </div>
           )}
 

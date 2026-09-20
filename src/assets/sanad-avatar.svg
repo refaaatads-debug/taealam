@@ -1,0 +1,26 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">سند</title>
+  <desc id="desc">صورة شخصية ودودة لمساعد أجيال المعرفة سند</desc>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="16" x2="136" y2="148" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#174B78"/>
+      <stop offset="1" stop-color="#14786F"/>
+    </linearGradient>
+    <linearGradient id="shirt" x1="52" y1="104" x2="111" y2="158" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#188779"/>
+      <stop offset="1" stop-color="#0F5E65"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="url(#bg)"/>
+  <circle cx="80" cy="80" r="68" stroke="#B9E4DC" stroke-opacity=".28" stroke-width="2"/>
+  <path d="M45 151C49 122 62 108 80 108C98 108 111 122 115 151H45Z" fill="url(#shirt)"/>
+  <path d="M58 112C64 107 71 104 80 104C89 104 96 107 102 112C96 124 89 131 80 131C71 131 64 124 58 112Z" fill="#F8D2B6"/>
+  <path d="M52 69C52 45.252 64.536 29 80 29C95.464 29 108 45.252 108 69V82C108 104.091 95.464 119 80 119C64.536 119 52 104.091 52 82V69Z" fill="#F8D2B6"/>
+  <path d="M52 69C53 42 66 27 82 27C98 27 108 43 108 67C101 61 94 56 86 53C76 61 65 65 52 69Z" fill="#102E57"/>
+  <path d="M55 65C58 45 69 34 83 34C96 34 105 45 106 61C95 56 89 51 84 44C77 54 67 61 55 65Z" fill="#173F6B"/>
+  <circle cx="68" cy="78" r="3.5" fill="#102E57"/>
+  <circle cx="92" cy="78" r="3.5" fill="#102E57"/>
+  <path d="M70 94C76 99 84 99 90 94" stroke="#B56555" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="112" cy="39" r="14" fill="#B9E4DC"/>
+  <path d="M105.5 39L110 43.5L118.5 34.5" stroke="#14786F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
