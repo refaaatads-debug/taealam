@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 const renderAt = (initial: string) =>
   render(
-    <MemoryRouter initialEntries={[initial]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initial]}>
       <Routes>
         <Route path="/rating" element={<Rating />} />
         <Route path="/student" element={<div data-testid="student-dash">لوحة التحكم</div>} />

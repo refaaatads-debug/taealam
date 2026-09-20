@@ -62,7 +62,7 @@ describe("AdminDashboard Page", () => {
   it("renders admin dashboard title", async () => {
     const AdminDashboard = (await import("@/pages/AdminDashboard")).default;
     const { container } = render(
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AdminDashboard />
       </BrowserRouter>
     );

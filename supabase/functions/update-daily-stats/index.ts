@@ -1,18 +1,22 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const authHeader = req.headers.get("Authorization") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!serviceKey || authHeader !== `Bearer ${serviceKey}`) {
+      return new Response(JSON.stringify({ error: "غير مصرح" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get yesterday's date (or today if running mid-day)
@@ -62,27 +66,16 @@ Deno.serve(async (req) => {
     for (const [key, val] of statsMap) {
       const [teacherId, date] = key.split("__");
 
-      // Check if exists
-      const { data: existing } = await supabase
+      const { error: upsertError } = await supabase
         .from("teacher_daily_stats")
-        .select("id")
-        .eq("teacher_id", teacherId)
-        .eq("date", date)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from("teacher_daily_stats")
-          .update({ total_minutes: val.minutes, total_sessions: val.sessions })
-          .eq("id", existing.id);
-      } else {
-        await supabase.from("teacher_daily_stats").insert({
+        .upsert({
           teacher_id: teacherId,
           date,
           total_minutes: val.minutes,
           total_sessions: val.sessions,
-        });
-      }
+        }, { onConflict: "teacher_id,date" });
+
+      if (upsertError) throw upsertError;
       upsertCount++;
     }
 
@@ -91,7 +84,8 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("update-daily-stats error:", error);
+    return new Response(JSON.stringify({ error: "تعذر تحديث الإحصائيات اليومية" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getAllowedOrigin, getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const TIER_PRICE_MAP: Record<string, string> = {
   basic: "price_1THIkVQYkuo9PgsE3JqR2Fco",
@@ -14,7 +11,15 @@ const TIER_PRICE_MAP: Record<string, string> = {
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "create-checkout", 5);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
 
   try {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -41,7 +46,7 @@ serve(async (req) => {
       });
     }
 
-    const { plan_id, success_url, cancel_url, promo_code } = await req.json();
+    const { plan_id, promo_code } = await req.json();
     if (!plan_id) {
       return new Response(JSON.stringify({ error: "plan_id مطلوب" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -114,6 +119,7 @@ serve(async (req) => {
     // Build checkout session options - use DYNAMIC pricing from database
     // (price_data ensures the price always matches what admin sets in DB)
     const unitAmount = Math.round(Number(plan.price) * 100);
+    const appOrigin = getAllowedOrigin(req.headers.get("origin"));
     const sessionOptions: any = {
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -130,13 +136,14 @@ serve(async (req) => {
         quantity: 1,
       }],
       mode: "subscription",
-      success_url: success_url || `${req.headers.get("origin")}/payment-success`,
-      cancel_url: cancel_url || `${req.headers.get("origin")}/pricing?payment=cancelled`,
+      success_url: `${appOrigin}/payment-success`,
+      cancel_url: `${appOrigin}/pricing?payment=cancelled`,
       metadata: {
         user_id: user.id,
         plan_id: plan.id,
         plan_tier: plan.tier,
         sessions_count: String(plan.sessions_count),
+        payment_type: "subscription",
       },
       allow_promotion_codes: true,
     };
@@ -171,7 +178,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Checkout error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "خطأ" }), {
+    return new Response(JSON.stringify({ error: "تعذر إنشاء جلسة الدفع" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

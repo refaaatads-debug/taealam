@@ -21,7 +21,7 @@
           if (key === ELEVENLABS_API_KEY_BACKUP) console.warn("ElevenLabs: using BACKUP key");
           return token;
         }
-        console.warn(`ElevenLabs token failed with key ending ...${key.slice(-6)}: ${tokenRes.status}`);
+        console.warn(`ElevenLabs token request failed: ${tokenRes.status}`);
       } catch (e) {
         console.error("ElevenLabs token exception:", e);
       }
@@ -31,6 +31,40 @@
 
   const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
   const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+
+  function toBase64Url(bytes: Uint8Array): string {
+    return btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+  }
+
+  async function signMediaStreamParams(
+    teacherId: string,
+    studentId: string,
+    bookingId: string,
+    expiresAt: number,
+  ): Promise<string> {
+    const canonical = `${teacherId}|${studentId}|${bookingId}|${expiresAt}`;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(TWILIO_AUTH_TOKEN),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(canonical));
+    return toBase64Url(new Uint8Array(signature));
+  }
+
+  function secureEqual(left: string, right: string): boolean {
+    if (left.length !== right.length) return false;
+    let difference = 0;
+    for (let index = 0; index < left.length; index++) {
+      difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+    }
+    return difference === 0;
+  }
   // Regex patterns for personal info (Arabic + English)
   const PHONE_RE = /(\+?\d[\d\s\-]{6,}\d)/g;
   const EMAIL_RE = /[\w.\-]+@[\w\-]+\.[\w.\-]+/gi;
@@ -128,7 +162,6 @@
             const msg = JSON.parse(event.data);
             const text = msg?.committed_transcript_event?.text || msg?.text;
             if (!text || typeof text !== "string" || text.trim().length < 2) return;
-            console.log("Transcript:", text);
             let violation = detectViolations(text);
             if (!violation && text.length > 10) {
               const ai = await aiCheckViolation(text);
@@ -180,15 +213,15 @@
                 await endTwilioCall(callSid);
               }
             }
-          } catch (e) {
-            console.error("ElevenLabs message error:", e);
+          } catch {
+            console.error("ElevenLabs message processing failed");
           }
         };
 
-        elevenWS.onerror = (e) => console.error("ElevenLabs WS error:", e);
+        elevenWS.onerror = () => console.error("ElevenLabs WS error");
         elevenWS.onclose = () => { console.log("ElevenLabs WS closed"); elevenReady = false; };
-      } catch (e) {
-        console.error("setupElevenLabs failed:", e);
+      } catch {
+        console.error("setupElevenLabs failed");
       }
     };
 
@@ -201,9 +234,35 @@
         if (ev === "start") {
           callSid = data.start?.callSid || "";
           const params = data.start?.customParameters || {};
+          const signedTeacherId = params.teacherId || "";
+          const signedStudentId = params.studentId || "";
+          const signedBookingId = params.bookingId || "";
+          const expiresAt = Number(params.streamExpiresAt || 0);
+          if (!TWILIO_AUTH_TOKEN || !Number.isFinite(expiresAt)) {
+            console.warn("Rejected Twilio media stream: signing configuration is unavailable", { callSid });
+            twilioWS.close(1008, "Unauthorized stream");
+            return;
+          }
+          const expectedSignature = await signMediaStreamParams(
+            signedTeacherId,
+            signedStudentId,
+            signedBookingId,
+            expiresAt,
+          );
+          if (
+            !signedTeacherId ||
+            !params.streamSignature ||
+            expiresAt < Math.floor(Date.now() / 1000) ||
+            !secureEqual(params.streamSignature, expectedSignature)
+          ) {
+            console.warn("Rejected unsigned or expired Twilio media stream", { callSid });
+            twilioWS.close(1008, "Unauthorized stream");
+            return;
+          }
+
           callLogId = params.callLogId || null;
-          teacherId = params.teacherId || null;
-          studentId = params.studentId || null;
+          teacherId = signedTeacherId;
+          studentId = signedStudentId || null;
           console.log("Stream started:", { callSid, callLogId, teacherId, studentId });
           await setupElevenLabs();
         } else if (ev === "media") {
@@ -221,8 +280,8 @@
             setTimeout(() => elevenWS?.close(), 2000);
           }
         }
-      } catch (e) {
-        console.error("Twilio message error:", e);
+      } catch {
+        console.error("Twilio message processing failed");
       }
     };
 
@@ -231,7 +290,7 @@
       elevenWS?.close();
     };
 
-    twilioWS.onerror = (e) => console.error("Twilio WS error:", e);
+  twilioWS.onerror = () => console.error("Twilio WS error");
 
     return response;
   });

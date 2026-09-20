@@ -65,15 +65,18 @@ serve(async (req) => {
     // Verify Twilio signature to prevent forged webhook calls
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const signature = req.headers.get("x-twilio-signature") || "";
-    if (twilioAuthToken) {
-      const params: Record<string, string> = {};
-      for (const [k, v] of formData.entries()) params[k] = v.toString();
-      const fullUrl = req.url;
-      const valid = await verifyTwilioSignature(twilioAuthToken, signature, fullUrl, params);
-      if (!valid) {
-        console.warn("Invalid Twilio signature for call", callSid);
-        return new Response("Forbidden", { status: 403, headers: corsHeaders });
-      }
+    if (!twilioAuthToken) {
+      console.error("TWILIO_AUTH_TOKEN is not configured");
+      return new Response("Webhook not configured", { status: 503, headers: corsHeaders });
+    }
+
+    const params: Record<string, string> = {};
+    for (const [k, v] of formData.entries()) params[k] = v.toString();
+    const fullUrl = req.url;
+    const valid = await verifyTwilioSignature(twilioAuthToken, signature, fullUrl, params);
+    if (!valid) {
+      console.warn("Invalid Twilio signature for call", callSid);
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
     }
 
     console.log("Twilio webhook:", { callSid, callStatus, callDuration });
@@ -111,6 +114,13 @@ serve(async (req) => {
 
     // Final call → calculate actual duration & refund difference
     if (callStatus === "completed" && callDuration > 0) {
+      if (callLog.ended_at) {
+        return new Response("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response/>", {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/xml" },
+        });
+      }
+
       const actualMinutes = callDuration / 60;
       const actualCost = Math.round(actualMinutes * PRICE_PER_MINUTE * 100) / 100;
       const estimatedCost = Number(callLog.cost || 0);
@@ -122,19 +132,28 @@ serve(async (req) => {
 
       if (refund > 0) {
         try {
-          await supabase.rpc("credit_wallet_balance", {
+          const { error: refundError } = await supabase.rpc("credit_wallet_balance", {
             _user_id: callLog.teacher_id,
             _amount: refund,
             _stripe_session_id: `refund_${callSid}`,
             _description: `استرداد فرق مكالمة (${callDuration}ث فعلي مقابل ${callLog.estimated_minutes}د مقدّرة)`,
           });
+          if (refundError && refundError.code !== "23505") throw refundError;
           console.log(`Refunded ${refund} SAR to teacher ${callLog.teacher_id}`);
         } catch (refundErr) {
           console.error("Refund failed:", refundErr);
+          throw refundErr;
         }
       }
     } else if (["busy", "failed", "no-answer", "canceled"].includes(callStatus || "")) {
       // Call never connected — full refund
+      if (callLog.ended_at) {
+        return new Response("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response/>", {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/xml" },
+        });
+      }
+
       const fullRefund = Number(callLog.cost || 0);
       updates.duration_minutes = 0;
       updates.cost = 0;
@@ -143,15 +162,17 @@ serve(async (req) => {
 
       if (fullRefund > 0) {
         try {
-          await supabase.rpc("credit_wallet_balance", {
+          const { error: refundError } = await supabase.rpc("credit_wallet_balance", {
             _user_id: callLog.teacher_id,
             _amount: fullRefund,
             _stripe_session_id: `refund_${callSid}`,
             _description: `استرداد كامل - مكالمة لم تتم (${callStatus})`,
           });
+          if (refundError && refundError.code !== "23505") throw refundError;
           console.log(`Full refund ${fullRefund} SAR for failed call`);
         } catch (refundErr) {
           console.error("Full refund failed:", refundErr);
+          throw refundErr;
         }
       }
     }
@@ -164,9 +185,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "text/xml" },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown";
-    console.error("call-status-webhook error:", msg);
-    return new Response(JSON.stringify({ error: msg }), {
+    console.error("call-status-webhook error:", err);
+    return new Response(JSON.stringify({ error: "تعذر معالجة حالة المكالمة" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

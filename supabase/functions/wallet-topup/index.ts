@@ -1,14 +1,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getAllowedOrigin, getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "wallet-topup", 5);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
 
   try {
     const supabase = createClient(
@@ -38,7 +43,7 @@ serve(async (req) => {
     const customers = await stripe.customers.list({ email: userData.user.email, limit: 1 });
     const customerId = customers.data[0]?.id;
 
-    const origin = req.headers.get("origin") || "https://ajyalalmaerifa.com";
+    const origin = getAllowedOrigin(req.headers.get("origin"));
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -58,6 +63,7 @@ serve(async (req) => {
       cancel_url: `${origin}/teacher/wallet?topup=cancelled`,
       metadata: {
         type: "wallet_topup",
+        payment_type: "wallet_topup",
         user_id: userData.user.id,
         amount: String(topupAmount),
       },
@@ -68,9 +74,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Wallet top-up error:", err);
     return new Response(
-      JSON.stringify({ error: msg }),
+      JSON.stringify({ error: "تعذر إنشاء عملية شحن المحفظة" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

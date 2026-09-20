@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { toast } from "sonner";
 import loginHero from "@/assets/login-hero.jpg";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
 type Role = "student" | "teacher";
 
@@ -35,6 +36,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const navigate = useNavigate();
 
   const isInIframe = () => {
@@ -103,10 +106,18 @@ const Login = () => {
   const redirectByRole = (userRole?: string) => goToDashboard(userRole);
 
   const handleEmailAuth = async () => {
+    if (!captchaToken) {
+      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
-        const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
+        const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: { captchaToken },
+        }));
         if (error) throw error;
 
         toast.success("تم تسجيل الدخول بنجاح!");
@@ -130,6 +141,7 @@ const Login = () => {
           options: {
             data: { full_name: fullName, role },
             emailRedirectTo: window.location.origin,
+            captchaToken,
           },
         }));
         if (error) throw error;
@@ -145,15 +157,24 @@ const Login = () => {
       toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaKey((key) => key + 1);
     }
   };
 
   const handlePhoneAuth = async () => {
+    if (!captchaToken) {
+      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      return;
+    }
     setLoading(true);
     try {
       const formattedPhone = phone.startsWith("+") ? phone : `+966${phone.replace(/^0/, "")}`;
       if (!otpSent) {
-        const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ phone: formattedPhone }));
+        const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({
+          phone: formattedPhone,
+          options: { captchaToken },
+        }));
         if (error) throw error;
         setOtpSent(true);
         toast.success("تم إرسال رمز التحقق!");
@@ -170,6 +191,8 @@ const Login = () => {
       toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaKey((key) => key + 1);
     }
   };
 
@@ -331,7 +354,7 @@ const Login = () => {
                   { key: "email" as const, icon: Mail, label: "البريد الإلكتروني" },
                   { key: "phone" as const, icon: Phone, label: "رقم الجوال" },
                 ] as const).map((m) => (
-                  <button key={m.key} onClick={() => { setMethod(m.key); setOtpSent(false); }}
+                  <button key={m.key} onClick={() => { setMethod(m.key); setOtpSent(false); setCaptchaToken(null); setCaptchaKey((key) => key + 1); }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${method === m.key ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                     <m.icon className="h-4 w-4" />
                     {m.label}
@@ -366,6 +389,8 @@ const Login = () => {
                 {isLogin && method === "email" && (
                   <Link to="/forgot-password" className="text-sm text-secondary text-left block cursor-pointer hover:underline font-medium">نسيت كلمة المرور؟</Link>
                 )}
+
+                <TurnstileWidget key={`${captchaKey}-${method}-${isLogin}`} onToken={setCaptchaToken} />
 
                 <Button type="submit" disabled={loading} className="w-full h-12 gradient-cta shadow-button text-secondary-foreground text-base rounded-xl font-bold">
                   {loading ? (

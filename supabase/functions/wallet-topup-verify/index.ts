@@ -1,14 +1,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "wallet-topup-verify", 10);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
 
   try {
     const supabase = createClient(
@@ -39,8 +44,25 @@ serve(async (req) => {
       );
     }
 
+    if (session.mode !== "payment" || (session.currency || "").toLowerCase() !== "sar") {
+      return new Response(
+        JSON.stringify({ success: false, error: "جلسة شحن غير صالحة" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (session.metadata?.user_id !== userData.user.id) {
-      throw new Error("Session does not belong to user");
+      return new Response(
+        JSON.stringify({ success: false, error: "غير مصرح بعملية الشحن هذه" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (session.metadata?.type !== "wallet_topup") {
+      return new Response(
+        JSON.stringify({ success: false, error: "جلسة شحن غير صالحة" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Idempotency: check if already credited
@@ -63,21 +85,58 @@ serve(async (req) => {
     }
 
     const amount = Number(session.metadata?.amount || 0);
-    const { data: newBalance } = await supabase.rpc("credit_wallet_balance", {
+    const paidAmount = Number(session.amount_total || 0) / 100;
+    const currency = (session.currency || "").toLowerCase();
+    if (
+      !Number.isFinite(amount) ||
+      amount < 10 ||
+      amount > 5000 ||
+      !Number.isFinite(paidAmount) ||
+      Math.round(amount * 100) !== Math.round(paidAmount * 100) ||
+      currency !== "sar"
+    ) {
+      console.error("Wallet top-up amount mismatch:", {
+        sessionId,
+        metadataAmount: amount,
+        paidAmount,
+        currency,
+      });
+      return new Response(
+        JSON.stringify({ success: false, error: "قيمة عملية الشحن غير صالحة" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: newBalance, error: creditError } = await supabase.rpc("credit_wallet_balance", {
       _user_id: userData.user.id,
       _amount: amount,
       _stripe_session_id: sessionId,
       _description: `شحن محفظة (${amount} ريال)`,
     });
 
+    if (creditError) {
+      if (creditError.code === "23505") {
+        const { data: w } = await supabase
+          .from("wallets")
+          .select("balance")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        return new Response(
+          JSON.stringify({ success: true, alreadyCredited: true, balance: w?.balance }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw creditError;
+    }
+
     return new Response(
       JSON.stringify({ success: true, balance: newBalance, credited: amount }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("Wallet top-up verification error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: msg }),
+      JSON.stringify({ success: false, error: "تعذر التحقق من عملية الشحن" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

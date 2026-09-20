@@ -8,19 +8,30 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Eye, EyeOff, ArrowRight, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      return;
+    }
     setLoading(true);
     try {
-      const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
+      const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: { captchaToken },
+      }));
       if (error) throw error;
 
       // Verify admin role from database
@@ -44,6 +55,8 @@ const AdminLogin = () => {
       toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaKey((key) => key + 1);
     }
   };
 
@@ -96,6 +109,8 @@ const AdminLogin = () => {
                     required
                   />
                 </div>
+
+                <TurnstileWidget key={captchaKey} onToken={setCaptchaToken} />
 
                 <div>
                   <label className="text-xs font-medium text-slate-400 mb-1.5 block">كلمة المرور</label>

@@ -1,13 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  };
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const authHeader = req.headers.get("Authorization") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!serviceKey || authHeader !== `Bearer ${serviceKey}`) {
+      return new Response(JSON.stringify({ error: "غير مصرح" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -63,7 +69,7 @@ Deno.serve(async (req) => {
         .eq("user_id", booking.teacher_id)
         .single();
 
-      const { error } = await supabase.from("session_materials").insert({
+      const { data: insertedMaterial, error } = await supabase.from("session_materials").upsert({
         session_id: session.id,
         teacher_id: booking.teacher_id,
         student_id: booking.student_id,
@@ -72,7 +78,7 @@ Deno.serve(async (req) => {
         recording_url: session.recording_url,
         duration_minutes: session.duration_minutes || 0,
         expires_at: new Date(new Date(session.ended_at).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      });
+      }, { onConflict: "session_id", ignoreDuplicates: true }).select("id");
 
       if (error) {
         failed++;
@@ -82,7 +88,7 @@ Deno.serve(async (req) => {
           message: "Auto-repair failed: " + error.message,
           metadata: { session_id: session.id },
         });
-      } else {
+      } else if (insertedMaterial?.length) {
         repaired++;
       }
     }
@@ -157,7 +163,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("Monitor materials error:", err);
+    return new Response(JSON.stringify({ error: "تعذر فحص مواد الجلسات" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

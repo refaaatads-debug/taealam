@@ -44,7 +44,7 @@ describe("SearchTeacher Page", () => {
     const SearchTeacher = (await import("@/pages/SearchTeacher")).default;
     const { getByText } = render(
       <HelmetProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <SearchTeacher />
         </BrowserRouter>
       </HelmetProvider>

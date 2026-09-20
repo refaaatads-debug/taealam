@@ -50,7 +50,7 @@ describe("Booking Page", () => {
   it("shows booking page content when no teacher param", async () => {
     const Booking = (await import("@/pages/Booking")).default;
     const { getByText } = render(
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Booking />
       </BrowserRouter>
     );
@@ -60,7 +60,7 @@ describe("Booking Page", () => {
   it("shows search button link", async () => {
     const Booking = (await import("@/pages/Booking")).default;
     const { getAllByText } = render(
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Booking />
       </BrowserRouter>
     );

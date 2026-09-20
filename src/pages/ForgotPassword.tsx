@@ -8,18 +8,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, Mail, ArrowRight, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      toast.error("يرجى إكمال التحقق الأمني أولاً");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
+        captchaToken,
       }));
       if (error) throw error;
       setSent(true);
@@ -28,6 +36,8 @@ const ForgotPassword = () => {
       toast.error(getAuthErrorMessage(e));
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaKey((key) => key + 1);
     }
   };
 
@@ -67,6 +77,7 @@ const ForgotPassword = () => {
                     <Input type="email" placeholder="البريد الإلكتروني" value={email} onChange={(e) => setEmail(e.target.value)}
                       className="h-12 text-right pr-10 rounded-xl bg-muted/30 border-border/50 focus:border-secondary" required />
                   </div>
+                  <TurnstileWidget key={captchaKey} onToken={setCaptchaToken} />
                   <Button type="submit" disabled={loading} className="w-full h-12 gradient-cta shadow-button text-secondary-foreground text-base rounded-xl font-bold">
                     {loading ? <div className="w-5 h-5 border-2 border-secondary-foreground border-t-transparent rounded-full animate-spin" /> : (
                       <>إرسال رابط التعيين <ArrowRight className="mr-2 h-4 w-4 rotate-180" /></>

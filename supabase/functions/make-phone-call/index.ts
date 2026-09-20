@@ -1,12 +1,35 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
 const DEFAULT_PRICE_PER_MINUTE = 0.30;
+
+function toBase64Url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+async function signMediaStreamParams(
+  secret: string,
+  teacherId: string,
+  studentId: string,
+  bookingId: string,
+  expiresAt: number,
+): Promise<string> {
+  const canonical = `${teacherId}|${studentId}|${bookingId}|${expiresAt}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(canonical));
+  return toBase64Url(new Uint8Array(signature));
+}
 
 async function getCallPricePerMinute(supabase: any): Promise<number> {
   try {
@@ -23,7 +46,13 @@ async function getCallPricePerMinute(supabase: any): Promise<number> {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "make-phone-call", 5);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
 
   try {
     const supabase = createClient(
@@ -93,6 +122,14 @@ serve(async (req) => {
     // Append apikey as query param — Supabase Edge Functions require it for WS auth even with verify_jwt=false
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const streamWsUrl = `${Deno.env.get("SUPABASE_URL")!.replace("https://", "wss://")}/functions/v1/twilio-media-stream?apikey=${anonKey}`;
+    const streamExpiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+    const streamSignature = await signMediaStreamParams(
+      authToken,
+      teacherId,
+      studentId || "",
+      bookingId || "",
+      streamExpiresAt,
+    );
 
     // ⚠️ Inline TwiML — privacy/legal warning + start media stream for live transcription
     // We need callLogId in stream params, so we insert call_log first (without sid), then issue call.
@@ -107,6 +144,8 @@ serve(async (req) => {
       <Parameter name="teacherId" value="${teacherId}"/>
       <Parameter name="studentId" value="${studentId || ''}"/>
       <Parameter name="bookingId" value="${bookingId || ''}"/>
+      <Parameter name="streamExpiresAt" value="${streamExpiresAt}"/>
+      <Parameter name="streamSignature" value="${streamSignature}"/>
     </Stream>
   </Start>
   <Say voice="Polly.Zeina" language="arb">سيتم الآن وصلكم بالمعلم.</Say>
@@ -200,10 +239,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    console.error("make-phone-call error:", msg);
+    console.error("make-phone-call error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: msg }),
+      JSON.stringify({ success: false, error: "تعذر بدء المكالمة" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
