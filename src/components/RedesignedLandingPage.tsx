@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -10,16 +9,15 @@ import {
   ChevronLeft,
   GraduationCap,
   Headphones,
-  Menu,
   Search,
   ShieldCheck,
   Sparkles,
   Video,
-  X,
 } from "lucide-react";
 import SEOHead from "@/components/SEOHead";
 import SanadGuestChat from "@/components/SanadGuestChat";
-import logo from "@/assets/logo.png";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import heroBanner from "@/assets/hero-banner.jpg";
 
 export type LandingTeacher = {
@@ -52,7 +50,6 @@ const landingFeatures = [
 ];
 
 export default function RedesignedLandingPage({ user, teachers }: Props) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const ctaTarget = user ? "/search" : "/login";
 
   return (
@@ -63,60 +60,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
         canonical="/"
       />
 
-      <header className="sticky top-0 z-40 border-b border-[#102f50]/10 bg-[#f7f9f8]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[78px] max-w-7xl items-center justify-between px-5 md:px-8">
-          <Link to="/" className="flex items-center gap-3" aria-label="العودة إلى الرئيسية">
-            <img src={logo} alt="أجيال المعرفة" className="h-11 w-11 object-contain" />
-            <div>
-              <p className="text-base font-black md:text-lg">أجيال المعرفة</p>
-              <p className="text-[9px] font-bold tracking-[0.2em] text-[#188779]">تعلم بثقة</p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-7 text-xs font-bold text-[#102f50]/65 md:flex" aria-label="التنقل الرئيسي">
-            <Link to="/" className="text-[#188779]">الرئيسية</Link>
-            <a href="#how-it-works">كيف تعمل المنصة</a>
-            <Link to="/search">المعلمون</Link>
-            <Link to="/ai-tutor">المدرس الذكي</Link>
-            <Link to="/pricing">الباقات</Link>
-          </nav>
-
-          <div className="hidden items-center gap-3 md:flex">
-            {!user && <Link to="/login" className="text-xs font-bold text-[#102f50]/65">تسجيل الدخول</Link>}
-            <Link to={ctaTarget} className="rounded-xl bg-[#102f50] px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-[#102f50]/15 transition hover:-translate-y-0.5">
-              {user ? "احجز حصتك" : "ابدأ التعلم"} <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <button
-            type="button"
-            className="rounded-xl p-2 md:hidden"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"}
-            aria-expanded={menuOpen}
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-
-        {menuOpen && (
-          <nav className="border-t border-[#102f50]/10 bg-white px-5 py-3 md:hidden" aria-label="قائمة الجوال">
-            <div className="mx-auto flex max-w-7xl flex-col gap-1">
-              {[
-                ["الرئيسية", "/"],
-                ["المعلمون", "/search"],
-                ["المدرس الذكي", "/ai-tutor"],
-                ["الباقات", "/pricing"],
-              ].map(([label, to]) => (
-                <Link key={to} to={to} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-bold text-[#102f50]/70 hover:bg-[#e8f1ef] hover:text-[#188779]">
-                  {label}
-                </Link>
-              ))}
-              {!user && <Link to="/login" onClick={() => setMenuOpen(false)} className="mt-2 rounded-xl bg-[#102f50] px-3 py-2.5 text-center text-sm font-black text-white">تسجيل الدخول</Link>}
-            </div>
-          </nav>
-        )}
-      </header>
+      <Navbar />
 
       <main>
         <section className="mx-auto max-w-7xl px-5 pb-14 pt-8 md:px-8 md:pb-24 md:pt-14">
@@ -225,13 +169,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
         </section>
       </main>
 
-      <footer className="bg-[#0b243d] px-5 py-10 text-white md:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div><div className="flex items-center gap-2"><img src={logo} alt="أجيال المعرفة" className="h-9 w-9 object-contain brightness-0 invert" /><p className="font-black">أجيال المعرفة</p></div><p className="mt-3 max-w-xs text-xs leading-6 text-white/50">منصة تعليمية تساعدك على التعلم بثقة.</p></div>
-          <div className="flex flex-wrap gap-5 text-[11px] font-bold text-white/60"><Link to="/search">المنصة</Link><Link to="/help">الدعم</Link><Link to="/privacy">الخصوصية</Link><Link to="/terms">الشروط</Link></div>
-          <p className="text-[10px] text-white/40">© 2026 أجيال المعرفة</p>
-        </div>
-      </footer>
+      <Footer />
       <SanadGuestChat />
     </div>
   );
