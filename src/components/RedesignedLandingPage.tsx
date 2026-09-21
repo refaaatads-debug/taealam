@@ -4,14 +4,18 @@ import {
   ArrowLeft,
   ArrowUpLeft,
   BookOpen,
+  BookOpenCheck,
   CalendarDays,
   Check,
   ChevronLeft,
+  Clock3,
+  ClipboardList,
   GraduationCap,
   Headphones,
   Search,
   ShieldCheck,
   Sparkles,
+  UsersRound,
   Video,
 } from "lucide-react";
 import SEOHead from "@/components/SEOHead";
@@ -41,6 +45,14 @@ const capabilities = [
   { icon: Search, title: "اختر ما يناسبك", text: "ابحث عن مدرس أو مادة أو مستوى يناسب هدفك." },
   { icon: CalendarDays, title: "احجز بمرونة", text: "اختر الموعد المناسب وابدأ بخطوة بسيطة." },
   { icon: Video, title: "تعلّم بتركيز", text: "حصة مباشرة وأدوات تساعدك على التقدم." },
+];
+
+const platformStats = [
+  { icon: Clock3, value: "+100,000", label: "الساعة التعليمية" },
+  { icon: UsersRound, value: "+1,500", label: "المدرسين" },
+  { icon: GraduationCap, value: "+6,700", label: "الطلاب" },
+  { icon: ClipboardList, value: "+150", label: "الاختبارات" },
+  { icon: BookOpenCheck, value: "+4,000", label: "المواد" },
 ];
 
 const landingFeatures = [
@@ -113,10 +125,37 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 md:grid-cols-3">
             {capabilities.map(({ icon: Icon, title, text }, index) => (
               <div key={title} className="flex items-center gap-3 border-b border-[#102f50]/10 py-3 last:border-0 md:border-b-0 md:border-l md:px-6 md:first:pr-0 md:last:border-l-0">
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${index === 1 ? "bg-[#f7efe1] text-[#ad7a20]" : "bg-[#e8f1ef] text-[#188779]"}`}><Icon className="h-4.5 w-4.5" /></span>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${index === 1 ? "bg-[#f7efe1] text-[#ad7a20]" : "bg-[#e8f1ef] text-[#188779]"}`}><Icon className="h-4.5 w-4.5" /></span>
                 <div><p className="text-xs font-black">{title}</p><p className="mt-1 text-[10px] text-[#102f50]/55">{text}</p></div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden bg-[#eef3ff] px-5 py-12 md:px-8 md:py-16">
+          <div className="absolute -left-16 top-6 h-44 w-44 rounded-full bg-white/70 blur-3xl" />
+          <div className="absolute -right-12 bottom-0 h-52 w-52 rounded-full bg-[#dfe8ff] blur-2xl" />
+          <div className="relative mx-auto max-w-7xl">
+            <div className="text-center">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">أرقام نفتخر بها</p>
+              <h2 className="mt-3 text-2xl font-black text-[#102f50] md:text-3xl">نتائج حقيقية تصنع فرقًا</h2>
+              <p className="mx-auto mt-3 max-w-xl text-xs leading-6 text-[#102f50]/55 md:text-sm">
+                مجتمع تعليمي ينمو كل يوم ليمنح الطالب والمعلم تجربة أوضح وأكثر فاعلية.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {platformStats.map(({ icon: Icon, value, label }) => (
+                <div key={label} className="group flex items-center gap-3 rounded-[1.35rem] border border-white/80 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[#102f50]/[0.06] lg:flex-col lg:items-center lg:justify-center lg:gap-2 lg:py-5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0f0] text-[#f06b6b] transition-transform group-hover:scale-105">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="lg:text-center">
+                    <p className="text-xl font-black tracking-tight text-[#102f50] md:text-2xl">{value}</p>
+                    <p className="mt-0.5 text-[11px] font-bold text-[#102f50]/50">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
