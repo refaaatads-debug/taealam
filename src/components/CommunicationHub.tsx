@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
+import siteLogo from "@/assets/logo.png";
 
 type HubTab = "support" | "messages" | "assistant";
 
@@ -699,9 +700,17 @@ export default function CommunicationHub() {
           className="group relative flex items-center gap-3 rounded-[22px] bg-gradient-to-l from-[#102e57] via-[#174b78] to-[#14786f] p-2.5 pr-3 text-white shadow-[0_18px_45px_-15px_rgba(17,65,102,0.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-16px_rgba(17,65,102,0.85)] focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/40"
         >
           <span className="absolute inset-0 -z-10 rounded-[24px] bg-emerald-400/20 blur-md transition-transform group-hover:scale-110" />
-          <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner"><MessageCircle className={cn("h-5 w-5 transition-transform", open ? "scale-90" : "group-hover:rotate-[-8deg] group-hover:scale-110")} /><span className="absolute -left-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[#174b78] bg-emerald-300"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-300 opacity-60" /></span></span>
-          <span className="hidden pl-2 text-right sm:block"><span className="block text-xs font-black">تواصل معنا</span><span className="mt-0.5 block text-[9px] text-white/60">متاحون لمساعدتك</span></span>
-          {!open && <Sparkles className="ml-1 hidden h-3.5 w-3.5 text-emerald-200 sm:block" />}
+          <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white p-1.5 shadow-inner transition-transform group-hover:scale-105">
+            <img src={siteLogo} alt="" aria-hidden="true" className="h-full w-full object-contain" />
+            <span className="absolute -left-1 -top-1 h-3 w-3 rounded-full border-2 border-[#174b78] bg-emerald-300">
+              <span className="absolute inset-0 animate-ping rounded-full bg-emerald-300 opacity-60" />
+            </span>
+          </span>
+          <span className="min-w-0 max-w-[150px] pr-1 text-right leading-tight">
+            <span className="block text-xs font-black">سند</span>
+            <span className="mt-1 block text-[9px] font-bold text-white/70">للمساعدة والدعم الفني</span>
+          </span>
+          {!open && <Sparkles className="ml-0.5 h-3.5 w-3.5 shrink-0 text-emerald-200" />}
         </button>
       </div>
     </>
