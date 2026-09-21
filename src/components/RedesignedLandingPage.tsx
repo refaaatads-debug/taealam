@@ -70,20 +70,20 @@ const landingFeatures = [
 
 const testimonials = [
   {
-    name: "أم غازي",
+    name: "أبو غازي",
     role: "ولية أمر",
     quote: "ولدي معلمته محترمة جداً، لاحظنا فرقاً واضحاً في مستواه وثقته بنفسه منذ بدأ الحصص.",
     image: testimonial1,
   },
   {
-    name: "أبو خالد",
-    role: "ولي أمر",
+    name: "أم خالد",
+    role: "ولية أمر",
     quote: "الجدولة سهلة والمتابعة مستمرة. وجدنا مدرساً مناسباً لابننا وكانت الحصص منظمة ومفيدة.",
     image: testimonial2,
   },
   {
-    name: "أم حليمة",
-    role: "ولية أمر",
+    name: "أبو حليمة",
+    role: "ولي أمر",
     quote: "ابنتي أصبحت أكثر حماساً للتعلم، والتواصل مع المعلمة واضح ومريح من أول حصة.",
     image: testimonial3,
   },
@@ -247,9 +247,12 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
               className="relative order-2 flex justify-center md:order-1"
             >
               <div className="absolute bottom-6 h-24 w-56 rounded-full bg-[#188779]/15 blur-2xl" />
-              <div className="relative rounded-[3rem] border-[10px] border-[#102f50] bg-[#102f50] p-1.5 shadow-2xl shadow-[#102f50]/20">
-                <img src={mobileAppPreview} alt="واجهة تطبيق أجيال المعرفة للجوال" className="h-[470px] w-[230px] rounded-[2.35rem] object-cover object-top sm:h-[560px] sm:w-[275px]" loading="lazy" />
-              </div>
+              <img
+                src={mobileAppPreview}
+                alt="واجهة تطبيق أجيال المعرفة للجوال"
+                className="relative h-auto w-[230px] max-w-full object-contain drop-shadow-2xl sm:w-[275px]"
+                loading="lazy"
+              />
               <div className="absolute -right-2 top-16 hidden items-center gap-2 rounded-2xl border border-[#102f50]/10 bg-white px-3 py-2 shadow-lg sm:flex md:-right-8">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#e8f1ef] text-[#188779]"><Smartphone className="h-4 w-4" /></span>
                 <span className="text-[10px] font-black text-[#102f50]">تعلمك معك أينما كنت</span>
