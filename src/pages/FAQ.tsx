@@ -5,6 +5,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { BRAND_NAME } from "@/lib/brand";
+import PublicPageHeader from "@/components/PublicPageHeader";
 
 const faqData = [
   {
@@ -80,16 +82,15 @@ const FAQ = () => {
   })).filter(cat => cat.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
       <Navbar />
-      <main className="container py-16 max-w-4xl">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <HelpCircle className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-3">الأسئلة الشائعة</h1>
-          <p className="text-muted-foreground max-w-lg mx-auto">إجابات سريعة على أكثر الأسئلة شيوعاً حول منصة تعلّم</p>
-        </motion.div>
+      <PublicPageHeader
+        icon={HelpCircle}
+        eyebrow="دعم واضح ومباشر"
+        title="الأسئلة الشائعة"
+        description={`إجابات سريعة على أكثر الأسئلة شيوعاً حول ${BRAND_NAME}`}
+      />
+      <main className="container max-w-4xl py-14">
 
         <div className="relative mb-10 max-w-md mx-auto">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

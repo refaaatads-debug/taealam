@@ -389,17 +389,19 @@ const SearchTeacher = () => {
   return (
     <>
       <SEOHead title="ابحث عن مدرس خصوصي | دروس رياضيات وفيزياء وانجليزي" description="ابحث بين مئات المدرسين المعتمدين في السعودية. فلتر حسب المادة والمستوى والسعر. احجز حصتك الأولى مجاناً." canonical="/search" />
-    <div className="min-h-screen flex flex-col pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0">
       <Navbar />
 
-      <div className="gradient-hero py-10 md:py-14 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 left-10 w-32 h-32 rounded-full border border-primary-foreground/20 animate-float" />
+      <div className="border-b border-[#102f50]/10 bg-[#f7f9f8] py-10 md:py-14 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-50">
+          <div className="absolute -left-16 top-8 h-44 w-44 rounded-full bg-[#e8f1ef]" />
+          <div className="absolute -right-16 bottom-0 h-52 w-52 rounded-full bg-[#f7efe1]" />
         </div>
         <div className="container relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-primary-foreground mb-2">ابحث عن مدرسك المثالي</h1>
-            <p className="text-primary-foreground/70 mb-5 md:mb-6 text-sm md:text-base">
+            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">اعثر على ما يناسبك</p>
+            <h1 className="mb-2 text-2xl font-black tracking-tight text-[#102f50] sm:text-3xl md:text-4xl">ابحث عن مدرسك المثالي</h1>
+            <p className="mb-5 text-sm text-[#102f50]/60 md:mb-6 md:text-base">
               {loading ? "جاري تحميل المدرسين..." : `أكثر من ${teachers.length} مدرس معتمد`}
             </p>
           </motion.div>
@@ -410,12 +412,12 @@ const SearchTeacher = () => {
                 placeholder="ابحث بالاسم أو المادة..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-12 pr-11 bg-card border-0 text-right rounded-xl shadow-card"
+                className="h-12 rounded-xl border border-[#102f50]/10 bg-white pr-11 text-right shadow-sm"
               />
             </div>
             <div className="flex gap-3">
               <Select value={subject} onValueChange={setSubject}>
-                <SelectTrigger className="h-12 w-full md:w-48 bg-card border-0 rounded-xl shadow-card">
+                <SelectTrigger className="h-12 w-full rounded-xl border border-[#102f50]/10 bg-white md:w-48">
                   <SelectValue placeholder="المادة" />
                 </SelectTrigger>
                 <SelectContent>
@@ -426,7 +428,7 @@ const SearchTeacher = () => {
                 </SelectContent>
               </Select>
               <Select value={sort} onValueChange={setSort}>
-                <SelectTrigger className="h-12 w-full md:w-48 bg-card border-0 rounded-xl shadow-card">
+                <SelectTrigger className="h-12 w-full rounded-xl border border-[#102f50]/10 bg-white md:w-48">
                   <Filter className="h-4 w-4 ml-2" />
                   <SelectValue placeholder="ترتيب حسب" />
                 </SelectTrigger>
@@ -729,7 +731,7 @@ const SearchTeacher = () => {
                         )}
                         {pmSlots.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1.5 flex items-center gap-1">
+                            <p className="text-[10px] font-black text-secondary mb-1.5 flex items-center gap-1">
                               🌙 مساءً
                             </p>
                             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">

@@ -5,7 +5,9 @@ import { getAuthErrorMessage, withAuthTimeout } from "@/lib/auth-timeout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { GraduationCap, Mail, ArrowRight, CheckCircle } from "lucide-react";
+import { Mail, ArrowRight, CheckCircle } from "lucide-react";
+import brandLogo from "@/assets/logo.png";
+import { BRAND_NAME } from "@/lib/brand";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
@@ -50,10 +52,8 @@ const ForgotPassword = () => {
         <Card className="border-0 shadow-card-hover overflow-hidden">
           <CardContent className="p-8">
             <Link to="/" className="flex items-center justify-center gap-2.5 mb-6">
-              <div className="w-10 h-10 rounded-xl gradient-cta flex items-center justify-center">
-                <GraduationCap className="h-5 w-5 text-secondary-foreground" />
-              </div>
-              <span className="font-extrabold text-2xl text-foreground">تعلّم</span>
+              <img src={brandLogo} alt={BRAND_NAME} className="h-10 w-10 object-contain" />
+              <span className="font-extrabold text-2xl text-foreground">{BRAND_NAME}</span>
             </Link>
 
             {sent ? (

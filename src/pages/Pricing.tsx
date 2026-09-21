@@ -143,25 +143,24 @@ const Pricing = () => {
   return (
     <>
       <SEOHead title="أسعار الحصص الخصوصية | منصة أجيال المعرفة" description="خطط أسعار مرنة للطلاب وأولياء الأمور. ابدأ بأول حصة مجانية واختر الباقة المناسبة لك." canonical="/pricing" />
-    <div className="min-h-screen flex flex-col pb-20 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-20 md:pb-0">
       <Navbar />
 
       {/* Hero */}
-      <div className="gradient-hero py-14 md:py-20 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-16 right-20 w-56 h-56 rounded-full bg-secondary/40 blur-3xl animate-pulse" />
-          <div className="absolute bottom-10 left-16 w-40 h-40 rounded-full bg-primary-foreground/20 blur-3xl" />
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+      <div className="relative overflow-hidden border-b border-[#102f50]/10 bg-[#f7f9f8] py-14 md:py-20">
+        <div className="absolute inset-0 opacity-60">
+          <div className="absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#e8f1ef]" />
+          <div className="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-[#f7efe1]" />
         </div>
         <div className="container max-w-5xl relative z-10 text-center px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Badge className="mb-5 bg-primary-foreground/15 backdrop-blur-md text-primary-foreground border border-primary-foreground/20 text-sm px-4 py-1.5">
-              <Gift className="h-3.5 w-3.5 ml-1.5" /> وفّر حتى 40% على الباقات السنوية
+            <Badge className="mb-5 border border-[#188779]/20 bg-[#188779]/[0.07] px-4 py-1.5 text-sm text-[#188779]">
+              <Gift className="ml-1.5 h-3.5 w-3.5" /> وفّر حتى 40% على الباقات السنوية
             </Badge>
-            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-primary-foreground mb-4 leading-tight">
-              اختر الباقة <span className="text-secondary-foreground/95 inline-block">المناسبة لك</span>
+            <h1 className="mb-4 text-3xl font-black leading-tight tracking-tight text-[#102f50] sm:text-4xl md:text-6xl">
+              اختر الباقة <span className="inline-block text-[#188779]">المناسبة لك</span>
             </h1>
-            <p className="text-primary-foreground/80 text-base md:text-xl max-w-2xl mx-auto leading-relaxed">
+            <p className="mx-auto max-w-2xl text-base leading-relaxed text-[#102f50]/60 md:text-xl">
               خطط مرنة تناسب جميع المستويات — ابدأ مجاناً وطوّر مسيرتك التعليمية مع نخبة المعلمين
             </p>
           </motion.div>

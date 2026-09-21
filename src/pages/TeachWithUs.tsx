@@ -65,31 +65,26 @@ const stats = [
 
 const TeachWithUs = () => {
   return (
-    <div className="min-h-screen flex flex-col pb-16 md:pb-0 bg-background" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0" dir="rtl">
       <Navbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img src={heroBanner} alt="انضم لطاقم المدرسين" className="w-full h-full object-cover" loading="eager" />
-          <div className="absolute inset-0 bg-gradient-to-l from-primary/95 via-primary/90 to-primary/80" />
-        </div>
-
-        <div className="container py-14 md:py-24 relative z-10">
+      <section className="relative overflow-hidden bg-[#f7f9f8]">
+        <div className="container relative z-10 py-10 md:py-16">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>
-              <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 bg-gold/20 backdrop-blur-sm rounded-full px-4 py-2 text-sm mb-5 border border-gold/30 text-gold font-bold">
+              <motion.div variants={fadeUp} custom={0} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#188779]/20 bg-[#188779]/[0.07] px-4 py-2 text-sm font-bold text-[#188779]">
                 <GraduationCap className="h-4 w-4" />
                 <span>للمدرسين والمدربين</span>
               </motion.div>
 
-              <motion.h1 variants={fadeUp} custom={1} className="text-3xl sm:text-5xl md:text-6xl font-black leading-[1.15] mb-5 text-primary-foreground tracking-tight">
+              <motion.h1 variants={fadeUp} custom={1} className="mb-5 text-3xl font-black leading-[1.15] tracking-tight text-[#102f50] sm:text-5xl md:text-6xl">
                 هل ترغب بالتدريس
                 <br />
-                <span className="opacity-90">أونلاين بمرونة كاملة؟</span>
+                <span className="text-[#188779]">أونلاين بمرونة كاملة؟</span>
               </motion.h1>
 
-              <motion.p variants={fadeUp} custom={2} className="text-base md:text-xl opacity-90 mb-8 max-w-xl leading-relaxed text-primary-foreground">
+              <motion.p variants={fadeUp} custom={2} className="mb-8 max-w-xl text-base leading-relaxed text-[#102f50]/65 md:text-xl">
                 انضم لطاقم المدرسين في <span className="font-bold">منصة أجيال المعرفة</span> وكن مديراً لوقتك ودخلك.
                 شارك خبراتك مع آلاف الطلاب وحقّق دخلاً مستقراً من بيتك.
               </motion.p>
@@ -108,7 +103,7 @@ const TeachWithUs = () => {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-2 border-primary-foreground/40 bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25 rounded-2xl h-14 md:h-16 backdrop-blur-md w-full sm:w-auto font-black"
+                  className="h-14 w-full rounded-2xl border-2 border-[#102f50]/15 bg-white text-[#102f50] hover:bg-[#e8f1ef] md:h-16 sm:w-auto"
                   asChild
                 >
                   <a href="#policy">
@@ -118,10 +113,10 @@ const TeachWithUs = () => {
               </motion.div>
 
               {/* Trust */}
-              <motion.div variants={fadeUp} custom={4} className="flex items-center gap-5 mt-8 pt-8 border-t border-primary-foreground/10">
+              <motion.div variants={fadeUp} custom={4} className="mt-8 flex items-center gap-5 border-t border-[#102f50]/10 pt-8">
                 <div className="flex -space-x-3 space-x-reverse">
                   {[teacher1, teacher2, teacher3].map((img, i) => (
-                    <img key={i} src={img} alt="معلم" className="w-10 h-10 rounded-full border-2 border-primary-foreground/30 object-cover" loading="lazy" />
+                    <img key={i} src={img} alt="معلم" className="h-10 w-10 rounded-full border-2 border-white object-cover" loading="lazy" />
                   ))}
                 </div>
                 <div>
@@ -129,9 +124,9 @@ const TeachWithUs = () => {
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star key={i} className="h-4 w-4 fill-gold text-gold" />
                     ))}
-                    <span className="text-sm font-bold text-gold mr-1">4.9</span>
+                    <span className="mr-1 text-sm font-bold text-[#ad7a20]">4.9</span>
                   </div>
-                  <p className="text-sm opacity-85 text-primary-foreground font-medium">
+                  <p className="text-sm font-medium text-[#102f50]/65">
                     أكثر من <span className="font-black">500</span> معلم انضموا إلينا
                   </p>
                 </div>
@@ -140,24 +135,34 @@ const TeachWithUs = () => {
 
             {/* Stats card */}
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.6 }} className="hidden lg:block">
-              <div className="bg-primary-foreground/10 backdrop-blur-xl rounded-3xl p-8 border border-primary-foreground/20">
+              <div className="overflow-hidden rounded-[2rem] border border-[#102f50]/10 bg-white shadow-2xl shadow-[#102f50]/10">
+                <div className="relative h-64 overflow-hidden bg-[#102f50]">
+                  <img src={heroBanner} alt="انضم لطاقم المدرسين" className="h-full w-full object-cover opacity-70" loading="eager" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#102f50] via-[#102f50]/20 to-transparent" />
+                  <div className="absolute bottom-5 right-5 text-white">
+                    <p className="text-[11px] font-bold text-[#b9e4dc]">تجربة تعليمية مباشرة</p>
+                    <p className="mt-1 text-2xl font-black">علّم بخبرتك<br />وابنِ مستقبلك</p>
+                  </div>
+                </div>
+                <div className="p-7">
                 <div className="grid grid-cols-2 gap-6">
                   {stats.map((s, i) => (
-                    <div key={i} className="text-primary-foreground">
-                      <div className="text-4xl font-black text-gold mb-1">{s.value}</div>
-                      <div className="text-sm opacity-85">{s.label}</div>
+                    <div key={i}>
+                      <div className="mb-1 text-3xl font-black text-[#188779]">{s.value}</div>
+                      <div className="text-sm text-[#102f50]/60">{s.label}</div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-6 pt-6 border-t border-primary-foreground/15 flex items-center gap-3 text-primary-foreground">
-                  <div className="w-10 h-10 rounded-2xl bg-gold/20 flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-gold" />
+                <div className="mt-6 flex items-center gap-3 border-t border-[#102f50]/10 pt-6">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e8f1ef]">
+                    <TrendingUp className="h-5 w-5 text-[#188779]" />
                   </div>
-                  <p className="text-sm">
+                  <p className="text-sm text-[#102f50]/65">
                     <span className="font-black">دخل شهري متوسط</span>
                     <br />
-                    <span className="opacity-85">للمعلم النشط على المنصة</span>
+                    <span>للمعلم النشط على المنصة</span>
                   </p>
+                </div>
                 </div>
               </div>
             </motion.div>

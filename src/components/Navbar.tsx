@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import brandLogo from "@/assets/logo.png";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -14,12 +15,10 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, roles, signOut } = useAuth();
-  const { getSetting, loading } = useSiteSettings("header");
+  const { getSetting } = useSiteSettings("header");
 
-  const siteName = getSetting("site_name", "منصة أجيال المعرفة");
   const loginText = getSetting("header_login_text", "تسجيل الدخول");
   const ctaText = getSetting("header_cta_text", "ابدأ مجاناً");
-  const logoUrl = getSetting("header_logo", "");
 
   useEffect(() => {
     let ticking = false;
@@ -68,34 +67,34 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`sticky top-0 z-50 transition-all duration-500 ${scrolled ? "bg-card/85 backdrop-blur-2xl shadow-[0_4px_30px_-10px_hsl(var(--primary)/0.15)] border-b border-border/40" : "bg-card/40 backdrop-blur-md border-b border-transparent"}`}>
-      <div className="container flex items-center justify-between h-16">
+    <nav className={`sticky top-0 z-50 transition-all duration-500 ${scrolled ? "bg-background/95 backdrop-blur-2xl shadow-[0_4px_30px_-10px_hsl(var(--primary)/0.15)] border-b border-primary/10" : "bg-background/80 backdrop-blur-md border-b border-transparent"}`}>
+      <div className="mx-auto flex h-[78px] max-w-7xl items-center justify-between px-5 md:px-8">
         <Link
           to={isAdmin ? "/admin" : isTeacher ? "/teacher" : isStudent ? "/student" : "/"}
           className="flex items-center gap-2.5 group"
-          title={siteName}
+          title={BRAND_NAME}
         >
           <motion.img
             whileHover={{ rotate: [0, -8, 8, 0], scale: 1.1 }}
             transition={{ duration: 0.5 }}
-            src={logoUrl || brandLogo}
-            alt={siteName}
-            className="h-14 w-14 md:h-16 md:w-16 object-contain"
+            src={brandLogo}
+            alt={BRAND_NAME}
+            className="h-11 w-11 object-contain"
           />
           <div className="flex flex-col leading-tight">
-            <span className="font-black text-xl md:text-2xl text-foreground tracking-tight">{siteName}</span>
-            <span className="text-[10px] md:text-[11px] font-bold text-secondary tracking-widest hidden sm:block">EDUCATION PLATFORM</span>
+            <span className="font-black text-base md:text-lg text-foreground tracking-tight">{BRAND_NAME}</span>
+            <span className="text-[9px] md:text-[10px] font-bold text-secondary tracking-[0.2em] hidden sm:block">{BRAND_TAGLINE}</span>
           </div>
         </Link>
 
-        <div className="hidden md:flex items-center gap-1 bg-muted/30 rounded-full p-1 border border-border/30">
+        <div className="hidden md:flex items-center gap-1 rounded-full border border-primary/10 bg-card/70 p-1">
           {links.map((l) => (
             <Link key={l.to} to={l.to}
               className={`relative px-4 py-1.5 rounded-full text-sm font-bold transition-all duration-300 ${isActive(l.to) ? "text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {isActive(l.to) && (
                 <motion.div
                   layoutId="nav-pill"
-                  className="absolute inset-0 rounded-full bg-gradient-to-l from-secondary to-primary shadow-md shadow-secondary/30"
+                  className="absolute inset-0 rounded-full bg-secondary shadow-md shadow-secondary/20"
                   transition={{ type: "spring", stiffness: 380, damping: 30 }}
                 />
               )}

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { FileText, Users, Shield, CreditCard, BookOpen, AlertTriangle, Settings, RefreshCw } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import PublicPageHeader from "@/components/PublicPageHeader";
 
 const sections = [
   { icon: BookOpen, title: "التعريفات", items: ["\"المنصة\": النظام الإلكتروني", "\"المستخدم\": الطالب أو المعلم", "\"الجلسة\": درس مباشر بين الطرفين"] },
@@ -15,16 +16,10 @@ const sections = [
 ];
 
 const Terms = () => (
-  <div className="min-h-screen bg-background" dir="rtl">
+  <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
     <Navbar />
-    <main className="container py-16 max-w-4xl">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-          <FileText className="h-8 w-8 text-primary" />
-        </div>
-        <h1 className="text-3xl font-bold text-foreground mb-3">الشروط والأحكام</h1>
-        <p className="text-muted-foreground">آخر تحديث: أبريل 2026</p>
-      </motion.div>
+    <PublicPageHeader icon={FileText} eyebrow="وضوح قبل البدء" title="الشروط والأحكام" description="آخر تحديث: أبريل 2026" />
+    <main className="container max-w-4xl py-14">
 
       <div className="space-y-6">
         {sections.map((s, i) => (
