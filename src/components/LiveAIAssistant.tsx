@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, AlertCircle, TrendingUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import sanadAvatar from "@/assets/sanad-avatar.svg";
+import siteLogo from "@/assets/logo.png";
 
 interface ChatMessage {
   sender: string;
@@ -238,7 +238,7 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
-            <img src={sanadAvatar} alt="سند" className="h-7 w-7 rounded-full border border-primary/15 object-cover" />
+            <img src={siteLogo} alt="سند" className="h-7 w-7 rounded-full border border-primary/15 bg-white p-1 object-contain" />
             <h3 className="font-bold text-foreground text-sm">سند</h3>
           {enabled && (
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />

@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
-import sanadAvatar from "@/assets/sanad-avatar.svg";
+import siteLogo from "@/assets/logo.png";
 
 interface Attachment {
   url: string;
@@ -367,7 +367,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
       <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-l from-primary/5 to-transparent rounded-t-xl">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <img src={sanadAvatar} alt="سند" className="h-10 w-10 rounded-full border border-primary/15 object-cover shadow-md" />
+            <img src={siteLogo} alt="سند" className="h-10 w-10 rounded-full border border-primary/15 bg-white p-1 object-contain shadow-md" />
             <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 bg-emerald-500 border-2 border-card rounded-full animate-pulse" />
           </div>
           <div>
@@ -386,7 +386,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-muted/20">
         {messages.length === 0 && (
           <div className="text-center py-8 space-y-3">
-            <img src={sanadAvatar} alt="سند" className="w-16 h-16 mx-auto rounded-full border border-primary/15 object-cover shadow-sm" />
+            <img src={siteLogo} alt="سند" className="w-16 h-16 mx-auto rounded-full border border-primary/15 bg-white p-1 object-contain shadow-sm" />
             <h3 className="font-bold text-foreground">مرحبًا، أنا سند</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               أساعدك في معرفة تفاصيل باقتك، حصصك، واجباتك،
@@ -413,7 +413,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
             >
               {m.role === "assistant" && (
                 <p className="text-[10px] font-bold mb-1 text-primary flex items-center gap-1">
-                  <img src={sanadAvatar} alt="" aria-hidden="true" className="h-4 w-4 rounded-full object-cover" /> سند
+                  <img src={siteLogo} alt="" aria-hidden="true" className="h-4 w-4 rounded-full bg-white p-0.5 object-contain" /> سند
                 </p>
               )}
               {m.attachment && (

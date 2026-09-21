@@ -229,7 +229,7 @@ const PlansManagementTab = () => {
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={newPlan.has_ai_tutor} onCheckedChange={v => setNewPlan(p => ({ ...p, has_ai_tutor: v }))} />
-                مدرس AI
+                المساعد سند الذكي
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={newPlan.has_recording} onCheckedChange={v => setNewPlan(p => ({ ...p, has_recording: v }))} />
@@ -294,7 +294,7 @@ const PlansManagementTab = () => {
                   <div className="flex flex-wrap gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <Switch checked={editData.has_ai_tutor} onCheckedChange={v => setEditData(d => ({ ...d, has_ai_tutor: v }))} />
-                      مدرس AI
+                      المساعد سند الذكي
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <Switch checked={editData.has_recording} onCheckedChange={v => setEditData(d => ({ ...d, has_recording: v }))} />

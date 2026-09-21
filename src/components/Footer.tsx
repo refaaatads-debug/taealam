@@ -113,7 +113,7 @@ const Footer = () => {
               <li><Link to="/search" className="hover:opacity-100 hover:text-gold transition-colors">ابحث عن مدرس</Link></li>
               <li><Link to="/pricing" className="hover:opacity-100 hover:text-gold transition-colors">الباقات والأسعار</Link></li>
               <li><Link to="/teach-with-us" className="hover:opacity-100 hover:text-gold transition-colors">انضم كمعلم</Link></li>
-              <li><Link to="/ai-tutor" className="hover:opacity-100 hover:text-gold transition-colors">المدرس الذكي AI</Link></li>
+              <li><Link to="/ai-tutor" className="hover:opacity-100 hover:text-gold transition-colors">المساعد سند الذكي</Link></li>
             </ul>
           </div>
 

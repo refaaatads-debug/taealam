@@ -20,7 +20,7 @@ const tierIcons: Record<string, typeof Star> = { free: Gift, basic: Star, standa
 
 const comparisonFeatures = [
   { label: "حصص شهرية", key: "sessions" },
-  { label: "مدرس ذكي AI", key: "ai_tutor" },
+  { label: "المساعد سند الذكي", key: "ai_tutor" },
   { label: "تسجيل الحصص", key: "recording" },
   { label: "أولوية الحجز", key: "priority" },
   { label: "تقارير مفصلة", key: "reports" },
@@ -305,7 +305,7 @@ const Pricing = () => {
                       {plan.has_ai_tutor && (
                         <div className="flex items-center gap-2.5 text-sm">
                           <Sparkles className={`h-4.5 w-4.5 shrink-0 ${isPremium ? "text-gold" : "text-secondary"}`} />
-                          <span className="text-foreground font-semibold">مدرس ذكي AI</span>
+                          <span className="text-foreground font-semibold">المساعد سند الذكي</span>
                         </div>
                       )}
                       {plan.has_recording && (

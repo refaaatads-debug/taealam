@@ -197,7 +197,7 @@ const PaymentSuccess = () => {
                     <ul className="space-y-2 text-sm">
                       {plan.has_ai_tutor && (
                         <li className="flex items-center gap-2 text-green-600">
-                          <CheckCircle className="w-4 h-4" /> مدرس ذكي AI
+                          <CheckCircle className="w-4 h-4" /> المساعد سند الذكي
                         </li>
                       )}
                       {plan.has_recording && (

@@ -327,7 +327,7 @@ const StudentDashboard = () => {
 
         {nextClass ? (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-            <Card className="overflow-hidden border-0 bg-gradient-to-l from-[#123d6b] via-[#174f79] to-[#168276] text-white shadow-lg">
+            <Card className="overflow-hidden border-0 gradient-hero text-white shadow-lg">
               <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
@@ -496,10 +496,10 @@ const StudentDashboard = () => {
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles className="h-5 w-5 text-gold" />
-                    <span className="text-sm font-bold">المدرس الذكي AI</span>
+                    <span className="text-sm font-bold">المساعد سند الذكي</span>
                   </div>
                   <p className="text-base font-black mb-1">هل تحتاج مساعدة؟</p>
-                  <p className="text-xs opacity-80 mb-4">اسأل المدرس الذكي أي سؤال واحصل على إجابة فورية</p>
+                  <p className="text-xs opacity-80 mb-4">اسأل المساعد سند الذكي أي سؤال واحصل على إجابة فورية</p>
                   <Button className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0 rounded-xl backdrop-blur-sm" asChild>
                     <Link to="/ai-tutor"><MessageSquare className="ml-2 h-4 w-4" />اسأل الآن</Link>
                   </Button>
