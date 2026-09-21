@@ -251,6 +251,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
                 src={mobileAppPreview}
                 alt="واجهة تطبيق أجيال المعرفة للجوال"
                 className="relative h-auto w-[230px] max-w-full object-contain drop-shadow-2xl sm:w-[275px]"
+                style={{ clipPath: "inset(1.1% 4.1% 1.7% 4.1% round 8%)" }}
                 loading="lazy"
               />
               <div className="absolute -right-2 top-16 hidden items-center gap-2 rounded-2xl border border-[#102f50]/10 bg-white px-3 py-2 shadow-lg sm:flex md:-right-8">
