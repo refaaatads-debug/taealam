@@ -108,8 +108,10 @@ export default function UserManagementTab() {
   const [userRolesMap, setUserRolesMap] = useState<Map<string, string>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [registrationFilter, setRegistrationFilter] = useState<"all" | "last30">("all");
   const [userPermissionsMap, setUserPermissionsMap] = useState<Map<string, string[]>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -192,27 +194,71 @@ export default function UserManagementTab() {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (registration: "all" | "last30" = registrationFilter) => {
     setLoading(true);
-    const [usersRes, rolesRes, permsRes, bannedRes] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("user_roles").select("user_id, role"),
-      (supabase as any).from("user_permissions").select("user_id, permission"),
-      supabase.from("user_warnings").select("user_id, is_banned").eq("warning_type", "admin_ban").eq("is_banned", true),
-    ]);
-    setAllUsers(usersRes.data ?? []);
-    const rMap = new Map((rolesRes.data ?? []).map(r => [r.user_id, r.role]));
-    setUserRolesMap(rMap);
-    // Build permissions map
-    const pMap = new Map<string, string[]>();
-    (permsRes.data ?? []).forEach((p: any) => {
-      const existing = pMap.get(p.user_id) || [];
-      existing.push(p.permission);
-      pMap.set(p.user_id, existing);
-    });
-    setUserPermissionsMap(pMap);
-    setBannedUsers(new Set((bannedRes.data ?? []).map((b: any) => b.user_id)));
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const cutoff = registration === "last30" ? new Date(Date.now() - 30 * 86400000).toISOString() : null;
+      let users: UserProfile[] = [];
+
+      if (cutoff) {
+        for (let from = 0; ; from += 200) {
+          let query = supabase.from("profiles").select("*")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false });
+          query = query.gte("created_at", cutoff);
+          const { data, error } = await query.range(from, from + 199);
+          if (error) throw error;
+          const page = data ?? [];
+          users.push(...page);
+          if (page.length < 200) break;
+        }
+      } else {
+        const { data, error } = await supabase.from("profiles").select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        users = data ?? [];
+      }
+
+      const userIds = [...new Set(users.map(user => user.user_id))];
+      const roleRows: { user_id: string; role: string }[] = [];
+      const permissionRows: { user_id: string; permission: string }[] = [];
+      const bannedRows: { user_id: string; is_banned: boolean | null }[] = [];
+
+      for (let i = 0; i < userIds.length; i += 100) {
+        const userIdChunk = userIds.slice(i, i + 100);
+        const [rolesRes, permsRes, bannedRes] = await Promise.all([
+          supabase.from("user_roles").select("user_id, role").in("user_id", userIdChunk),
+          (supabase as any).from("user_permissions").select("user_id, permission").in("user_id", userIdChunk),
+          supabase.from("user_warnings").select("user_id, is_banned")
+            .in("user_id", userIdChunk).eq("warning_type", "admin_ban").eq("is_banned", true),
+        ]);
+        const queryError = rolesRes.error || permsRes.error || bannedRes.error;
+        if (queryError) throw queryError;
+        roleRows.push(...(rolesRes.data ?? []));
+        permissionRows.push(...(permsRes.data ?? []));
+        bannedRows.push(...(bannedRes.data ?? []));
+      }
+
+      setAllUsers(users);
+      setUserRolesMap(new Map(roleRows.map(role => [role.user_id, role.role])));
+      const pMap = new Map<string, string[]>();
+      permissionRows.forEach(permission => {
+        const existing = pMap.get(permission.user_id) || [];
+        existing.push(permission.permission);
+        pMap.set(permission.user_id, existing);
+      });
+      setUserPermissionsMap(pMap);
+      setBannedUsers(new Set(bannedRows.map(ban => ban.user_id)));
+    } catch (error) {
+      console.error("Failed to load users:", error);
+      setLoadError(true);
+      toast.error("تعذر تحميل قائمة المستخدمين. حاول مرة أخرى.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchUserDetail = async (profile: UserProfile) => {
@@ -447,6 +493,14 @@ export default function UserManagementTab() {
       </div>
     );
   }
+  if (loadError) {
+    return (
+      <div className="py-12 text-center" role="alert">
+        <p className="mb-3 text-sm text-destructive">تعذر تحميل قائمة المستخدمين.</p>
+        <Button variant="outline" onClick={() => void fetchUsers()}>إعادة المحاولة</Button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -477,6 +531,16 @@ export default function UserManagementTab() {
                   { value: "parent", label: "ولي أمر" },
                 ]}
                 placeholder="جميع الأدوار"
+              />
+              <StatusFilter
+                value={registrationFilter}
+                onChange={value => {
+                  const next = value === "last30" ? "last30" : "all";
+                  setRegistrationFilter(next);
+                  void fetchUsers(next);
+                }}
+                options={[{ value: "last30", label: "آخر 30 يوماً" }]}
+                placeholder="كل التسجيلات"
               />
               <ExportCSVButton
                 data={filteredUsers.map(u => ({
@@ -645,6 +709,9 @@ export default function UserManagementTab() {
                     </tr>
                   );
                 })}
+                {filteredUsers.length === 0 && (
+                  <tr><td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">لا توجد تسجيلات تطابق هذه المرشحات</td></tr>
+                )}
               </tbody>
             </table>
           </div>
