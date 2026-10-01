@@ -634,7 +634,7 @@ const Chat = () => {
       </div>
 
       {/* Input */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card border-t p-3 z-40">
+      <div className="fixed bottom-16 left-0 right-0 bg-card border-t p-3 z-40">
         {isStudent && !hasActiveSubscription ? (
           <div className="flex items-center justify-center gap-3 max-w-3xl mx-auto py-2">
             <p className="text-sm text-destructive font-medium">⚠️ يجب تفعيل باقة للتمكن من إرسال الرسائل</p>
