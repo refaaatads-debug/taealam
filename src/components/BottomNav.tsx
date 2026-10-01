@@ -77,9 +77,7 @@ const BottomNav = () => {
     if (navRef.current) navRef.current.inert = !isVisible;
   }, [isVisible]);
 
-  const isTeacher = roles.includes("teacher");
-  const isAdmin = roles.includes("admin");
-  const isStudent = !isTeacher && !isAdmin;
+
 
   const tabs = [
     ...(isStudent && user
