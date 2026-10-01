@@ -18,6 +18,18 @@ const isImageType = (t?: string | null) => !!t && t.startsWith("image/");
 const isPdfType = (t?: string | null, n?: string | null) =>
   t === "application/pdf" || (!!n && n.toLowerCase().endsWith(".pdf"));
 
+const resolveChatMediaUrl = (storedUrl: string) => {
+  const value = storedUrl.trim();
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const path = value
+    .replace(/^\/?storage\/v1\/object\/public\/chat-files\//i, "")
+    .replace(/^\/+/, "")
+    .replace(/^chat-files\//i, "");
+
+  return supabase.storage.from("chat-files").getPublicUrl(path).data.publicUrl;
+};
+
 interface ChatMessage {
   id: string;
   booking_id: string;
@@ -475,18 +487,19 @@ const Chat = () => {
     const isImg = msg.file_type?.startsWith("image/");
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");
     const isMe = msg.sender_id === user?.id;
+    const mediaUrl = isAudio || isImg ? resolveChatMediaUrl(msg.file_url) : msg.file_url;
 
-    if (isAudio) return <VoicePlayer url={msg.file_url} />;
+    if (isAudio) return <VoicePlayer url={mediaUrl} />;
 
     if (isImg) {
       return (
         <div className="mt-2 space-y-1">
-          <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
-            <img src={msg.file_url} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+            <img src={mediaUrl} alt={msg.file_name || "صورة"} className="max-w-[220px] rounded-lg border border-border/30" loading="lazy" />
           </a>
           <button
             type="button"
-            onClick={() => openFileSafely(msg.file_url!, msg.file_name || "image", "download")}
+            onClick={() => openFileSafely(mediaUrl, msg.file_name || "image", "download")}
             className={`flex items-center gap-1 text-[11px] ${isMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Download className="h-3 w-3" /> تحميل الصورة
           </button>
