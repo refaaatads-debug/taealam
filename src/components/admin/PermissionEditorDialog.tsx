@@ -8,6 +8,7 @@ import { Eye, EyeOff, ShieldCheck, AlertTriangle, Save, RotateCcw } from "lucide
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { logAdminAction } from "@/lib/auditLog";
+import { SUPPORT_DEPARTMENT_PERMISSION_KEYS } from "@/lib/supportDepartments";
 
 export type PermDef = { key: string; label: string; group: string };
 
@@ -53,6 +54,12 @@ const IMPACT_DESCRIPTIONS: Record<string, string> = {
   manage_domain_ssl: "متابعة حالة الدومين وشهادات SSL",
   customer_support: "الرد على تذاكر الدعم والمحادثات",
   manage_admins: "⚠️ إنشاء وإدارة فريق الإدارة وصلاحياتهم",
+  support_department_users: "استقبال المحادثات المحوّلة الخاصة بإدارة المستخدمين",
+  support_department_teachers: "استقبال المحادثات المحوّلة الخاصة بالمعلمين",
+  support_department_sessions: "استقبال المحادثات المحوّلة بالحجوزات والحصص",
+  support_department_finance: "استقبال المحادثات المحوّلة بالمدفوعات والخطط والمحافظ",
+  support_department_security: "استقبال المحادثات المحوّلة بالأمان والمخالفات",
+  support_department_system: "استقبال المحادثات المحوّلة بإعدادات النظام",
 };
 
 const HIGH_RISK = new Set([
@@ -92,6 +99,9 @@ export default function PermissionEditorDialog({
     }
     const next = new Set(selected);
     if (v) next.add(key); else next.delete(key);
+    if (key === "customer_support" && !v) {
+      SUPPORT_DEPARTMENT_PERMISSION_KEYS.forEach((departmentKey) => next.delete(departmentKey));
+    }
     setSelected(next);
   };
 
@@ -173,11 +183,18 @@ export default function PermissionEditorDialog({
 
           <ScrollArea className="flex-1 pr-2">
             <div className="space-y-4">
-              {Object.entries(grouped).map(([group, perms]) => (
+              {Object.entries(grouped)
+                .filter(([group]) => group !== "أقسام الدعم الفني" || selected.has("customer_support"))
+                .map(([group, perms]) => (
                 <div key={group}>
                   <p className="text-xs font-bold text-muted-foreground mb-1.5 sticky top-0 bg-background py-1">
                     {group}
                   </p>
+                  {group === "أقسام الدعم الفني" && (
+                    <p className="text-[11px] text-muted-foreground mb-2">
+                      الأقسام المحددة هنا تظهر للموظفين عند اختيار جهة تحويل المحادثة.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                     {perms.map((p) => {
                       const isSel = selected.has(p.key);
@@ -199,6 +216,7 @@ export default function PermissionEditorDialog({
                           } ${blocked ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                           <Checkbox
+                            data-testid={`permission-editor-checkbox-${p.key}`}
                             checked={isSel}
                             onCheckedChange={(v) => toggle(p.key, v)}
                             disabled={blocked}

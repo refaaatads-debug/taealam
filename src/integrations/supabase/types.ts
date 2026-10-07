@@ -2870,6 +2870,14 @@ export type Database = {
         }[]
       }
       get_profile_phone: { Args: { _user_id: string }; Returns: string }
+      get_support_transfer_agents: {
+        Args: never
+        Returns: {
+          full_name: string
+          support_departments: string[]
+          user_id: string
+        }[]
+      }
       get_teacher_earnings_breakdown: {
         Args: { _teacher_id: string }
         Returns: {
@@ -3018,6 +3026,12 @@ export type Database = {
         | "view_call_transcripts"
         | "manage_domain_ssl"
         | "manage_audit_log"
+        | "support_department_users"
+        | "support_department_teachers"
+        | "support_department_sessions"
+        | "support_department_finance"
+        | "support_department_security"
+        | "support_department_system"
       app_role: "student" | "teacher" | "parent" | "admin"
       booking_status: "pending" | "confirmed" | "completed" | "cancelled"
       subscription_tier: "basic" | "standard" | "premium" | "free"

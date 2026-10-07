@@ -21,6 +21,7 @@ import AuditLogExport, { AuditRow } from "./AuditLogExport";
 import AuditAdvancedFilter, { AuditFilters, DEFAULT_FILTERS, applyAuditFilters } from "./AuditAdvancedFilter";
 import PermissionEditorDialog from "./PermissionEditorDialog";
 import { toast } from "sonner";
+import { SUPPORT_DEPARTMENTS, SUPPORT_DEPARTMENT_PERMISSION_KEYS } from "@/lib/supportDepartments";
 
 const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: "view_overview", label: "النظرة العامة", group: "عرض" },
@@ -54,6 +55,11 @@ const ALL_PERMISSIONS: { key: string; label: string; group: string }[] = [
   { key: "manage_notifications", label: "الإشعارات", group: "النظام" },
   { key: "manage_domain_ssl", label: "حالة SSL/HTTPS", group: "النظام" },
   { key: "manage_admins", label: "إدارة فريق الإدارة", group: "حساس" },
+  ...SUPPORT_DEPARTMENTS.map(({ key, label }) => ({
+    key,
+    label,
+    group: "أقسام الدعم الفني",
+  })),
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -215,14 +221,17 @@ export default function AdminTeamManagementTab() {
           metadata: { permission: perm },
         });
       } else {
+        const permissionsToRemove = perm === "customer_support"
+          ? [perm, ...SUPPORT_DEPARTMENT_PERMISSION_KEYS]
+          : [perm];
         const { error } = await (supabase as any).from("user_permissions")
-          .delete().eq("user_id", member.user_id).eq("permission", perm);
+          .delete().eq("user_id", member.user_id).in("permission", permissionsToRemove);
         if (error) throw error;
         await logAdminAction({
           action: "revoke_permission", category: "team_management",
           description: `سحب صلاحية ${perm} من ${member.full_name}`,
           target_table: "user_permissions", target_id: member.user_id,
-          metadata: { permission: perm },
+          metadata: { permission: perm, removed_permissions: permissionsToRemove },
         });
       }
       toast.success(enable ? "تم منح الصلاحية" : "تم سحب الصلاحية");
@@ -350,20 +359,37 @@ export default function AdminTeamManagementTab() {
                           {!form.make_full_admin && (
                             <div className="space-y-3">
                               <Label className="text-sm font-bold">الصلاحيات الممنوحة</Label>
-                              {Object.entries(groupedPerms).map(([group, perms]) => (
+                              {Object.entries(groupedPerms)
+                                .filter(([group]) => group !== "أقسام الدعم الفني" || form.permissions.has("customer_support"))
+                                .map(([group, perms]) => (
                                 <div key={group} className="space-y-1.5">
                                   <p className="text-xs font-bold text-muted-foreground">{group}</p>
+                                  {group === "أقسام الدعم الفني" && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                      حدّد الأقسام التي تظهر لهذا الموظف عند تحويل المحادثات.
+                                    </p>
+                                  )}
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                                     {perms
                                       .filter((p) => p.key !== "manage_admins" || isFullAdmin)
                                       .map((p) => (
                                       <label key={p.key} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/40 cursor-pointer">
                                         <Checkbox
+                                          data-testid={`permission-checkbox-${p.key}`}
                                           checked={form.permissions.has(p.key)}
                                           onCheckedChange={(v) => {
-                                            const next = new Set(form.permissions);
-                                            if (v) next.add(p.key); else next.delete(p.key);
-                                            setForm({ ...form, permissions: next });
+                                            setForm((current) => {
+                                              const next = new Set(current.permissions);
+                                              if (v) {
+                                                next.add(p.key);
+                                              } else {
+                                                next.delete(p.key);
+                                                if (p.key === "customer_support") {
+                                                  SUPPORT_DEPARTMENT_PERMISSION_KEYS.forEach((key) => next.delete(key));
+                                                }
+                                              }
+                                              return { ...current, permissions: next };
+                                            });
                                           }}
                                         />
                                         <span className="text-xs">{p.label}</span>
@@ -424,13 +450,16 @@ export default function AdminTeamManagementTab() {
                       </div>
                       {!m.is_full_admin && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                          {ALL_PERMISSIONS.map((p) => {
+                          {ALL_PERMISSIONS
+                            .filter((p) => p.group !== "أقسام الدعم الفني" || m.permissions.includes("customer_support"))
+                            .map((p) => {
                             const has = m.permissions.includes(p.key);
                             return (
                               <button
                                 key={p.key}
                                 onClick={() => canManage && togglePermission(m, p.key, !has)}
                                 disabled={!canManage}
+                                data-testid={`toggle-permission-${m.user_id}-${p.key}`}
                                 className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
                                   has
                                     ? "bg-primary/10 text-primary border-primary/30"
