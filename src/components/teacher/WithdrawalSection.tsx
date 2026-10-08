@@ -12,8 +12,6 @@ export default function WithdrawalSection() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [pendingTotal, setPendingTotal] = useState(0);
-  const [paidTotal, setPaidTotal] = useState(0);
   const [minWithdrawal, setMinWithdrawal] = useState(100);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,7 +24,24 @@ export default function WithdrawalSection() {
 
   useEffect(() => {
     if (!user) return;
-    fetchData();
+    void fetchData();
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { void fetchData(); }, 150);
+    };
+    const channel = supabase
+      .channel(`teacher-financial-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_earnings", filter: `teacher_id=eq.${user.id}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests", filter: `teacher_id=eq.${user.id}` }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_payments", filter: `teacher_id=eq.${user.id}` }, refresh)
+      .subscribe();
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      window.removeEventListener("focus", refresh);
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchData = async () => {
@@ -34,24 +49,28 @@ export default function WithdrawalSection() {
 
     const currentMonth = new Date().toISOString().slice(0, 7);
     const [breakdownRes, settingsRes, earningsRes, wData, monthBreakdown] = await Promise.all([
-      supabase.rpc("get_teacher_earnings_breakdown" as any, { _teacher_id: user.id }),
+      supabase.rpc("get_teacher_earnings_breakdown", { _teacher_id: user.id }),
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
-      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status, earning_type").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
-      supabase.rpc("get_teacher_net_summary" as any, { _teacher_id: user.id, _month: currentMonth }),
+      supabase.rpc("get_teacher_net_summary", { _teacher_id: user.id, _month: currentMonth }),
     ]);
 
-    const bd = (breakdownRes.data as any[])?.[0] || {};
-    setTotalEarnings(Number(bd.confirmed_total) || 0);
-    setPendingTotal(Number(bd.pending_total) || 0);
-    setPaidTotal(Number(bd.paid_total) || 0);
-    setBalance(Number(bd.available_for_withdrawal) || 0);
+    const financialError = breakdownRes.error || monthBreakdown.error || earningsRes.error || wData.error;
+    if (financialError) {
+      console.error("[teacher-withdrawal] failed to load financial summary:", financialError);
+      toast.error("تعذر تحديث بيانات الأرباح والسحب. أعد المحاولة بعد قليل.");
+      return;
+    }
+
+    const bd = breakdownRes.data?.[0];
+    setTotalEarnings(Number(bd?.paid_total) || 0);
+    setBalance(Number(bd?.available_balance) || 0);
     setMinWithdrawal(Number((settingsRes.data as any)?.min_withdrawal_amount) || 100);
     setManualEarnings((earningsRes.data as any[]) || []);
     setWithdrawals((wData.data as any[]) || []);
     // Teacher view: only the net (final amount due). Internal breakdown remains admin-only.
-    const fb = (monthBreakdown.data as any[])?.[0] || {};
-    setCurrentMonthNet(Number(fb.net_total) || 0);
+    setCurrentMonthNet(Number(monthBreakdown.data?.[0]?.net_total) || 0);
   };
 
   const requestWithdrawal = async () => {
@@ -101,7 +120,7 @@ export default function WithdrawalSection() {
       toast.success("تم إرسال طلب السحب بنجاح!");
       setNotes("");
       setFile(null);
-      fetchData();
+      await fetchData();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
     } finally {
@@ -140,7 +159,7 @@ export default function WithdrawalSection() {
         {/* Teacher-only summary (no internal accounting details) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border bg-card p-4">
-            <p className="text-xs text-muted-foreground mb-1">الأرباح الحالية</p>
+            <p className="text-xs text-muted-foreground mb-1">إجمالي الأرباح المدفوعة</p>
             <p className="text-xl font-black text-foreground">{totalEarnings.toLocaleString()} ر.س</p>
           </div>
           <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
@@ -201,40 +220,46 @@ export default function WithdrawalSection() {
           </Button>
         </div>
 
-        {/* Monthly Earnings Table */}
+        {/* Manual earnings ledger */}
         {manualEarnings.length > 0 && (() => {
-          const byMonth = manualEarnings.reduce((acc: Record<string, { amount: number; hours: number; statuses: Set<string> }>, e: any) => {
+          type ManualEarningGroup = { month: string; earningType: string; amount: number; hours: number; statuses: Set<string> };
+          const byMonth = manualEarnings.reduce<Record<string, ManualEarningGroup>>((acc, e: any) => {
             const m = e.month || "—";
-            if (!acc[m]) acc[m] = { amount: 0, hours: 0, statuses: new Set() };
-            acc[m].amount += Number(e.amount) || 0;
-            acc[m].hours += Number(e.hours) || 0;
-            acc[m].statuses.add(e.status);
+            const earningType = e.earning_type || "monthly_transfer";
+            const key = `${m}:${earningType}`;
+            if (!acc[key]) acc[key] = { month: m, earningType, amount: 0, hours: 0, statuses: new Set() };
+            acc[key].amount += Number(e.amount) || 0;
+            acc[key].hours += Number(e.hours) || 0;
+            acc[key].statuses.add(e.status);
             return acc;
           }, {});
-          const months = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+          const entries = Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month) || a.earningType.localeCompare(b.earningType));
           return (
             <div className="space-y-2">
-              <p className="text-sm font-bold text-foreground">الأرباح الشهرية</p>
+              <p className="text-sm font-bold text-foreground">سجل الأرباح المضافة</p>
               <div className="rounded-xl border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-xs">
                     <tr>
                       <th className="p-2 text-right font-bold">الشهر</th>
+                      <th className="p-2 text-right font-bold">النوع</th>
                       <th className="p-2 text-right font-bold">الساعات</th>
                       <th className="p-2 text-right font-bold">المبلغ</th>
                       <th className="p-2 text-right font-bold">الحالة</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {months.map(([month, raw]) => {
-                      const data = raw as { amount: number; hours: number; statuses: Set<string> };
+                    {entries.map(data => {
                       const isPaid = data.statuses.has("paid") && data.statuses.size === 1;
                       const isConfirmed = data.statuses.has("confirmed");
-                      const label = isPaid ? "مدفوعة" : isConfirmed ? "مؤكدة" : "قيد المراجعة";
+                      const label = isPaid ? "مدفوعة" : isConfirmed ? "مسجلة" : "قيد المراجعة";
                       const variant = isPaid ? "outline" as const : isConfirmed ? "default" as const : "secondary" as const;
                       return (
-                        <tr key={month} className="border-t">
-                          <td className="p-2 font-medium">{month}</td>
+                        <tr key={`${data.month}:${data.earningType}`} className="border-t">
+                          <td className="p-2 font-medium">{data.month}</td>
+                          <td className="p-2 text-xs">
+                            {data.earningType === "bonus" ? "مكافأة إضافية" : data.earningType === "deduction" ? "خصم" : "تحويل من أرباح الشهر"}
+                          </td>
                           <td className="p-2 text-muted-foreground">{data.hours.toFixed(1)} س</td>
                           <td className="p-2 font-bold text-foreground">{data.amount.toLocaleString()} ر.س</td>
                           <td className="p-2"><Badge variant={variant} className="text-xs">{label}</Badge></td>

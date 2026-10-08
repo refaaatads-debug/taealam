@@ -11,7 +11,14 @@ export default function TeacherPaymentsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    const channel = supabase
+      .channel("admin-teacher-payments")
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_payments" }, () => fetchData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const fetchData = async () => {
     const { data } = await supabase

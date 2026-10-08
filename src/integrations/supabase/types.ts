@@ -1938,6 +1938,7 @@ export type Database = {
           hours: number | null
           id: string
           invoice_id: string | null
+          earning_type: string
           minutes_snapshot: number | null
           month: string
           net_amount: number | null
@@ -1959,6 +1960,7 @@ export type Database = {
           hours?: number | null
           id?: string
           invoice_id?: string | null
+          earning_type?: string
           minutes_snapshot?: number | null
           month: string
           net_amount?: number | null
@@ -1980,6 +1982,7 @@ export type Database = {
           hours?: number | null
           id?: string
           invoice_id?: string | null
+          earning_type?: string
           minutes_snapshot?: number | null
           month?: string
           net_amount?: number | null
@@ -2816,6 +2819,10 @@ export type Database = {
         Args: { _request_id: string; _teacher_id: string }
         Returns: boolean
       }
+      approve_teacher_withdrawal_and_record_payment: {
+        Args: { _admin_notes?: string | null; _withdrawal_id: string }
+        Returns: Json
+      }
       auto_close_old_financial_months: { Args: never; Returns: number }
       auto_expire_stale_bookings: {
         Args: never
@@ -2881,12 +2888,12 @@ export type Database = {
       get_teacher_earnings_breakdown: {
         Args: { _teacher_id: string }
         Returns: {
-          available_for_withdrawal: number
+          available_balance: number
           confirmed_total: number
           paid_total: number
           pending_total: number
           total_minutes: number
-          total_sessions: number
+          sessions_count: number
         }[]
       }
       get_teacher_financial_breakdown: {
@@ -2916,6 +2923,19 @@ export type Database = {
           minutes_total: number
           net_total: number
           sessions_count: number
+        }[]
+      }
+      get_teacher_monthly_transfer_capacity: {
+        Args: {
+          _exclude_earning_id?: string | null
+          _month: string
+          _teacher_id: string
+        }
+        Returns: {
+          completed_minutes: number
+          remaining: number
+          session_earnings: number
+          transferred: number
         }[]
       }
       has_permission: {

@@ -25,6 +25,10 @@ interface TeacherBundle {
   bookings: any[];
   sessions: any[];
   earnings: any[];
+  earningsBreakdown: {
+    available_balance?: number | null;
+    paid_total?: number | null;
+  } | null;
   withdrawals: any[];
   payments: any[];
   bookingRequests: any[];
@@ -75,7 +79,7 @@ const AdminTeacherProfile = () => {
       }
 
       const tpId = teacherRes.data?.id;
-      const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes, bookingRequestsRes, callLogsRes, walletTxRes, walletRes] = await Promise.all([
+      const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes, bookingRequestsRes, callLogsRes, walletTxRes, walletRes, earningsBreakdownRes] = await Promise.all([
         tpId ? supabase.from("teacher_subjects").select("subjects(name)").eq("teacher_id", tpId) : Promise.resolve({ data: [] as any[] }),
         supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", id),
         supabase.from("teacher_earnings").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(50),
@@ -85,6 +89,7 @@ const AdminTeacherProfile = () => {
         (supabase.from as any)("call_logs").select("*").eq("teacher_id", id).order("created_at", { ascending: false }).limit(100),
         (supabase.from as any)("wallet_transactions").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(100),
         (supabase.from as any)("wallets").select("*").eq("user_id", id).maybeSingle(),
+        supabase.rpc("get_teacher_earnings_breakdown", { _teacher_id: id }),
       ]);
 
       const bookingIds = (bookingsRes.data || []).map((b: any) => b.id);
@@ -104,6 +109,9 @@ const AdminTeacherProfile = () => {
         bookings: bookingsRes.data || [],
         sessions: sessionsData,
         earnings: earningsRes.data || [],
+        earningsBreakdown: Array.isArray(earningsBreakdownRes.data)
+          ? earningsBreakdownRes.data[0] || null
+          : earningsBreakdownRes.data || null,
         withdrawals: (withdrawalsRes.data as any[]) || [],
         payments: (paymentsRes.data as any[]) || [],
         bookingRequests: (bookingRequestsRes.data as any[]) || [],
@@ -347,8 +355,8 @@ const AdminTeacherProfile = () => {
 
             <TabsContent value="finance" className="m-0 space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatBox label="الرصيد الحالي" value={Number(t.balance || 0).toFixed(2) + " ر.س"} icon={Wallet} />
-                <StatBox label="إجمالي المدفوع" value={data.payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0).toFixed(2) + " ر.س"} icon={CreditCard} tone="success" />
+                <StatBox label="المتاح للسحب" value={data.earningsBreakdown ? Number(data.earningsBreakdown.available_balance || 0).toFixed(2) + " ر.س" : "—"} icon={Wallet} />
+                <StatBox label="إجمالي المدفوع" value={data.earningsBreakdown ? Number(data.earningsBreakdown.paid_total || 0).toFixed(2) + " ر.س" : "—"} icon={CreditCard} tone="success" />
                 <StatBox label="سجلات الأرباح" value={data.earnings.length} icon={CreditCard} />
                 <StatBox label="طلبا֪ السحب" value={data.withdrawals.length} icon={Wallet} />
               </div>
@@ -383,6 +391,9 @@ const AdminTeacherProfile = () => {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <div className="font-bold">{e.month || "—"}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {e.earning_type === "bonus" ? "مكافأة إضافية" : e.earning_type === "deduction" ? "خصم" : "تحويل من أرباح الشهر"}
+                              </div>
                               {e.invoice_id && <div className="text-xs text-muted-foreground">فاتورة: {e.invoice_id}</div>}
                             </div>
                             <Badge variant={e.status === "paid" ? "secondary" : e.status === "pending" ? "outline" : "destructive"} className="text-xs shrink-0">{e.status}</Badge>

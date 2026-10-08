@@ -23,11 +23,20 @@ const STATUS_OPTIONS = [
   { value: "confirmed", label: "مؤكدة", variant: "default" as const },
   { value: "unconfirmed", label: "غير مؤكدة", variant: "destructive" as const },
   { value: "in_progress", label: "جارية", variant: "secondary" as const },
-  { value: "paid", label: "مدفوعة", variant: "outline" as const },
 ];
 
+const EARNING_TYPES = [
+  { value: "monthly_transfer", label: "تحويل من أرباح الشهر" },
+  { value: "bonus", label: "مكافأة إضافية" },
+] as const;
+
 const getStatusInfo = (status: string) =>
-  STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0];
+  status === "paid"
+    ? { value: "paid", label: "مدفوعة", variant: "outline" as const }
+    : STATUS_OPTIONS.find(s => s.value === status)
+      || (status === "pending"
+        ? { value: "pending", label: "قيد المراجعة", variant: "secondary" as const }
+        : STATUS_OPTIONS[0]);
 
 export default function TeacherEarningsTab() {
   const { user } = useAuth();
@@ -38,7 +47,12 @@ export default function TeacherEarningsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, { minutes: number; seconds: number; estimatedEarnings: number }>>(new Map());
+  const [teacherHoursMap, setTeacherHoursMap] = useState<Map<string, {
+    minutes: number;
+    seconds: number;
+    estimatedEarnings: number;
+    remainingTransferable: number;
+  }>>(new Map());
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResults, setReconcileResults] = useState<any[] | null>(null);
@@ -52,66 +66,55 @@ export default function TeacherEarningsTab() {
   });
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("confirmed");
+  const [earningType, setEarningType] = useState<"monthly_transfer" | "bonus">("monthly_transfer");
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    const channel = supabase
+      .channel("admin-teacher-earnings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_earnings" }, () => fetchData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   useEffect(() => {
     if (selectedTeacher && month) fetchTeacherHours(selectedTeacher, month);
-  }, [selectedTeacher, month]);
+  }, [selectedTeacher, month, editingId]);
 
   const fetchTeacherHours = async (teacherId: string, monthStr: string) => {
-    const [year, m] = monthStr.split("-");
-    const startDate = `${year}-${m}-01`;
-    const endMonth = parseInt(m) === 12 ? 1 : parseInt(m) + 1;
-    const endYear = parseInt(m) === 12 ? parseInt(year) + 1 : parseInt(year);
-    const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
-
-    // Query sessions directly (filter by bookings.scheduled_at — same as TeacherPerformanceTab)
-    const { data: bookingIds } = await supabase
-      .from("bookings")
-      .select("id")
-      .eq("teacher_id", teacherId)
-      .gte("scheduled_at", startDate)
-      .lt("scheduled_at", endDate);
-
-    const ids = (bookingIds ?? []).map(b => b.id);
-    let minutes = 0, seconds = 0, estimatedEarnings = 0;
-
-    if (ids.length > 0) {
-      const { data: sessions } = await supabase
-        .from("sessions")
-        .select("deducted_minutes, duration_seconds, teacher_base_amount, short_session")
-        .in("booking_id", ids)
-        .not("ended_at", "is", null)
-        .eq("short_session", false);
-
-      for (const s of sessions ?? []) {
-        const mins = (s.deducted_minutes && s.deducted_minutes > 0)
-          ? s.deducted_minutes
-          : (s.duration_seconds && s.duration_seconds > 0)
-            ? Math.ceil(s.duration_seconds / 60)
-            : 0;
-        const secs = (s.deducted_minutes && s.deducted_minutes > 0)
-          ? s.deducted_minutes * 60
-          : (s.duration_seconds && s.duration_seconds > 0)
-            ? s.duration_seconds
-            : 0;
-        minutes += mins;
-        seconds += secs;
-        estimatedEarnings += Number(s.teacher_base_amount || 0);
-      }
+    const { data: capacityData, error: capacityError } = await supabase.rpc(
+      "get_teacher_monthly_transfer_capacity",
+      {
+        _teacher_id: teacherId,
+        _month: monthStr,
+        _exclude_earning_id: editingId,
+      },
+    );
+    if (capacityError) {
+      setTeacherHoursMap(prev => {
+        const next = new Map(prev);
+        next.delete(`${teacherId}_${monthStr}`);
+        return next;
+      });
+      toast.error("تعذر حساب أرباح الحصص المتبقية للتحويل");
+      return;
     }
 
+    const capacity = capacityData?.[0];
+    const estimatedEarnings = Number(capacity?.session_earnings) || 0;
+    const minutes = Number(capacity?.completed_minutes) || 0;
+    const seconds = minutes * 60;
+    const remainingTransferable = Number(capacity?.remaining) || 0;
     setTeacherHoursMap(prev => {
       const next = new Map(prev);
-      next.set(`${teacherId}_${monthStr}`, { minutes, seconds, estimatedEarnings });
+      next.set(`${teacherId}_${monthStr}`, { minutes, seconds, estimatedEarnings, remainingTransferable });
       return next;
     });
   };
 
   const getComputedHours = () => {
     const key = `${selectedTeacher}_${month}`;
-    const data = teacherHoursMap.get(key) || { minutes: 0, seconds: 0, estimatedEarnings: 0 };
+    const data = teacherHoursMap.get(key) || { minutes: 0, seconds: 0, estimatedEarnings: 0, remainingTransferable: 0 };
     return { minutes: data.minutes, seconds: data.seconds, estimatedEarnings: data.estimatedEarnings, hours: Math.round((data.minutes / 60) * 100) / 100 };
   };
 
@@ -183,7 +186,16 @@ export default function TeacherEarningsTab() {
     setReconciling(true);
     try {
       const results: any[] = [];
-      for (const e of earnings) {
+      const latestMonthlyEarnings = new Map<string, any>();
+      for (const earning of earnings) {
+        if ((earning.earning_type || "monthly_transfer") !== "monthly_transfer") continue;
+        const key = `${earning.teacher_id}:${earning.month}`;
+        const existing = latestMonthlyEarnings.get(key);
+        if (!existing || new Date(earning.created_at) > new Date(existing.created_at)) {
+          latestMonthlyEarnings.set(key, earning);
+        }
+      }
+      for (const e of latestMonthlyEarnings.values()) {
         if (!e.minutes_snapshot && e.minutes_snapshot !== 0) continue;
         // Get actual stats
         const [year, m] = (e.month as string).split("-");
@@ -242,11 +254,20 @@ export default function TeacherEarningsTab() {
     setAmount("");
     setNotes("");
     setStatus("confirmed");
+    setEarningType("monthly_transfer");
     setEditingId(null);
     setShowForm(false);
   };
 
   const startEdit = (e: any) => {
+    if (e.status === "paid") {
+      toast.error("لا يمكن تعديل أرباح تم صرفها");
+      return;
+    }
+    if (e.earning_type === "deduction") {
+      toast.error("يمكن تعديل الخصم من قسم المكافآت والخصومات");
+      return;
+    }
     if (closedMonths.has(e.month)) {
       toast.error("هذا الشهر مقفل ولا يمكن التعديل");
       return;
@@ -257,6 +278,7 @@ export default function TeacherEarningsTab() {
     setMonth(e.month);
     setNotes(e.notes || "");
     setStatus(e.status || "confirmed");
+    setEarningType(e.earning_type === "bonus" ? "bonus" : "monthly_transfer");
     setShowForm(true);
   };
 
@@ -277,6 +299,17 @@ export default function TeacherEarningsTab() {
 
     const { hours, minutes } = getComputedHours();
     const teacherData = teachers.find(t => t.user_id === selectedTeacher);
+    const teacherMonthStats = teacherHoursMap.get(`${selectedTeacher}_${month}`);
+    if (earningType === "monthly_transfer" && status === "confirmed") {
+      if (!teacherMonthStats) {
+        toast.error("انتظر اكتمال حساب أرباح الحصص قبل تسجيل التحويل");
+        return;
+      }
+      if (amountNum > teacherMonthStats.remainingTransferable + 0.01) {
+        toast.error(`المبلغ يتجاوز أرباح الحصص المتبقية للتحويل (${teacherMonthStats.remainingTransferable.toFixed(2)} ر.س)`);
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -290,65 +323,51 @@ export default function TeacherEarningsTab() {
 
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .update({ amount: amountNum, month, notes: notes || null, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any)
+          .update({ amount: amountNum, month, notes: notes || null, status, earning_type: earningType, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any)
           .eq("id", editingId);
         if (error) throw error;
 
-        if (oldEarning && oldEarning.amount !== amountNum) {
-          const diff = amountNum - Number(oldEarning.amount);
-          const teacher = teachers.find(t => t.user_id === selectedTeacher);
-          if (teacher) {
-            await supabase.from("teacher_profiles")
-              .update({ balance: (teacher.balance || 0) + diff } as any)
-              .eq("user_id", selectedTeacher);
-          }
-        }
-
         await supabase.from("system_logs").insert({
           level: "info", source: "admin_earnings",
-          message: `تعديل أرباح ID: ${editingId} - المبلغ: ${amountNum} ر.س - الساعات: ${hours}`,
-          user_id: user?.id, metadata: { earning_id: editingId, amount: amountNum, hours, status, month },
+          message: `تعديل أرباح ID: ${editingId} - النوع: ${earningType} - المبلغ: ${amountNum} ر.س - الساعات: ${hours}`,
+          user_id: user?.id, metadata: { earning_id: editingId, amount: amountNum, hours, status, month, earning_type: earningType },
         });
 
         toast.success("تم تعديل الأرباح بنجاح!");
       } else {
         const { error } = await supabase
           .from("teacher_earnings" as any)
-          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any);
+          .insert({ teacher_id: selectedTeacher, amount: amountNum, month, notes: notes || null, added_by_admin: user?.id, status, earning_type: earningType, hours, minutes_snapshot: minutes, total_sessions_snapshot: teacherData?.total_sessions || 0 } as any);
+        if (error) throw error;
 
-        if (error) {
-          if (error.code === "23505") {
-            toast.error(`يوجد أرباح مسجلة لهذا المعلم في شهر ${month} بالفعل`);
-            setLoading(false);
-            return;
-          }
-          throw error;
-        }
-
-        await supabase.from("teacher_profiles")
-          .update({ balance: (teachers.find(t => t.user_id === selectedTeacher)?.balance || 0) + amountNum } as any)
-          .eq("user_id", selectedTeacher);
-
+        const earningTypeLabel = EARNING_TYPES.find(type => type.value === earningType)?.label || "أرباح يدوية";
         await supabase.from("notifications").insert({
           user_id: selectedTeacher,
-          title: "تم إضافة أرباح جديدة 💰",
-          body: `تم إضافة مبلغ ${amountNum.toLocaleString()} ر.س لحسابك عن شهر ${month} (${computedHours.minutes} دقيقة عمل)`,
+          title: status !== "confirmed"
+            ? "تم تسجيل أرباح بانتظار التأكيد"
+            : earningType === "bonus"
+              ? "تمت إضافة مكافأة جديدة 💰"
+              : "تم تحويل أرباح الشهر إلى رصيد السحب 💰",
+          body: `${status === "confirmed" ? "تم إضافة" : "تم تسجيل"} ${earningTypeLabel} بمبلغ ${amountNum.toLocaleString()} ر.س عن شهر ${month} (${computedHours.minutes} دقيقة عمل)`,
           type: "payment",
         });
 
         await supabase.from("system_logs").insert({
           level: "info", source: "admin_earnings",
-          message: `إضافة أرباح ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month} - ${hours} ساعة`,
-          user_id: user?.id, metadata: { teacher_id: selectedTeacher, amount: amountNum, hours, month, status },
+          message: `إضافة ${earningTypeLabel} ${amountNum} ر.س للمعلم ${selectedTeacher} عن شهر ${month} - ${hours} ساعة`,
+          user_id: user?.id, metadata: { teacher_id: selectedTeacher, amount: amountNum, hours, month, status, earning_type: earningType },
         });
 
         toast.success("تم إضافة الأرباح بنجاح!");
       }
 
       resetForm();
-      fetchData();
+      await fetchData();
     } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+      const message = e.message?.includes("Monthly transfer exceeds")
+        ? "المبلغ يتجاوز أرباح الحصص المتبقية للتحويل لهذا الشهر"
+        : e.message || "حدث خطأ";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -496,8 +515,8 @@ export default function TeacherEarningsTab() {
               </Button>
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
               <ExportCSVButton
-                data={filtered.map(e => ({ invoice: e.invoice_id || "", teacher: e.teacher_name, amount: e.amount, hours: e.hours || 0, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
-                headers={[{ key: "invoice", label: "رقم الفاتورة" }, { key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "hours", label: "الساعات" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
+                data={filtered.map(e => ({ invoice: e.invoice_id || "", teacher: e.teacher_name, type: e.earning_type === "bonus" ? "مكافأة إضافية" : e.earning_type === "deduction" ? "خصم" : "تحويل شهري", amount: e.amount, hours: e.hours || 0, month: e.month, status: getStatusInfo(e.status).label, notes: e.notes || "", date: new Date(e.created_at).toLocaleDateString("ar-SA") }))}
+                headers={[{ key: "invoice", label: "رقم الفاتورة" }, { key: "teacher", label: "المعلم" }, { key: "type", label: "نوع الإضافة" }, { key: "amount", label: "المبلغ" }, { key: "hours", label: "الساعات" }, { key: "month", label: "الشهر" }, { key: "status", label: "الحالة" }, { key: "notes", label: "ملاحظات" }, { key: "date", label: "تاريخ الإضافة" }]}
                 filename="أرباح_المعلمين"
               />
             </div>
@@ -532,6 +551,17 @@ export default function TeacherEarningsTab() {
                   <label className="text-xs text-muted-foreground mb-1 block">الشهر *</label>
                   <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="rounded-xl" />
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">نوع الإضافة *</label>
+                  <Select value={earningType} onValueChange={value => setEarningType(value as "monthly_transfer" | "bonus")}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {EARNING_TYPES.map(type => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {selectedTeacher && month && (
                   <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
@@ -552,10 +582,19 @@ export default function TeacherEarningsTab() {
                         <p className="text-xl font-black text-emerald-600">
                           {computedHours.estimatedEarnings.toFixed(2)} ر.س
                         </p>
-                        <p className="text-[10px] text-muted-foreground">محسوبة تلقائياً من الجلسات</p>
+                        <p className="text-[10px] text-muted-foreground">صافي الحصص المكتملة في الشهر</p>
                       </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">* مُفلترة بتاريخ الحجز (scheduled_at) — نفس منطق قسم أداء المعلمين</p>
+                    {earningType === "monthly_transfer" ? (
+                      <p className="text-xs font-semibold text-emerald-700">
+                        المتبقي للتحويل إلى رصيد السحب: {(teacherHoursMap.get(`${selectedTeacher}_${month}`)?.remainingTransferable || 0).toFixed(2)} ر.س
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        المكافأة تضاف إلى رصيد السحب ولا تخصم من أرباح الحصص الشهرية.
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">* الدقائق معروضة حسب حجوزات الشهر، ومبلغ الشهر محسوب من صافي الجلسات المكتملة.</p>
                   </div>
                 )}
 
@@ -568,7 +607,7 @@ export default function TeacherEarningsTab() {
                   <Select value={status} onValueChange={setStatus}>
                     <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.map(s => (
+                      {STATUS_OPTIONS.filter(s => s.value !== "paid").map(s => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -602,6 +641,7 @@ export default function TeacherEarningsTab() {
                     <th className="text-right pb-3 font-medium">الساعات</th>
                     <th className="text-right pb-3 font-medium">المبلغ</th>
                     <th className="text-right pb-3 font-medium">الشهر</th>
+                    <th className="text-right pb-3 font-medium">نوع الإضافة</th>
                     <th className="text-right pb-3 font-medium">ملاحظات</th>
                     <th className="text-right pb-3 font-medium">الحالة</th>
                     <th className="text-right pb-3 font-medium">إجراءات</th>
@@ -627,6 +667,9 @@ export default function TeacherEarningsTab() {
                             <Badge variant="outline" className="text-xs">{e.month}</Badge>
                             {monthLocked && <Lock className="h-3 w-3 text-destructive" />}
                           </div>
+                        </td>
+                        <td className="py-3 text-xs">
+                          {e.earning_type === "bonus" ? "مكافأة إضافية" : e.earning_type === "deduction" ? "خصم" : "تحويل من أرباح الشهر"}
                         </td>
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
                         <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>
@@ -656,8 +699,11 @@ export default function TeacherEarningsTab() {
         <CardHeader>
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-secondary" />
-            أعلى المعلمين بالرصيد
+            أعلى المعلمين بالرصيد المسجل
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            هذا رصيد الملف، وليس المتاح للسحب؛ الطلبات المفتوحة تظهر محجوزة في قسم السحب.
+          </p>
         </CardHeader>
         <CardContent>
           {teachers.length === 0 ? (

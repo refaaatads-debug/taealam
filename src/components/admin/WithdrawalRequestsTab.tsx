@@ -30,8 +30,17 @@ export default function WithdrawalRequestsTab() {
   const [adjustNotes, setAdjustNotes] = useState("");
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => { fetchData(); fetchTeachers(); }, []);
+  useEffect(() => {
+    fetchData();
+    fetchTeachers();
+    const channel = supabase
+      .channel("admin-withdrawal-requests")
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, () => fetchData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const fetchTeachers = async () => {
     const { data: tps } = await supabase.from("teacher_profiles").select("user_id").eq("is_approved", true);
@@ -79,24 +88,20 @@ export default function WithdrawalRequestsTab() {
       const finalAmount = adjustType === "deduction" ? -amountNum : amountNum;
       const label = adjustType === "bonus" ? "مكافأة" : "خصم";
 
-      // Add as earning entry (negative for deductions)
-      await supabase.from("teacher_earnings" as any).insert({
+      // The database trigger keeps the legacy profile balance mirror in sync.
+      const { error: earningError } = await supabase.from("teacher_earnings" as any).insert({
         teacher_id: adjustTeacher,
         amount: finalAmount,
         month: currentMonth,
         notes: `${label}: ${adjustNotes || "بدون ملاحظات"}`,
         added_by_admin: user.id,
         status: "confirmed",
+        earning_type: adjustType,
         hours: 0,
       } as any);
-
-      // Update teacher balance
-      const { data: tp } = await supabase.from("teacher_profiles").select("balance").eq("user_id", adjustTeacher).single();
-      const newBalance = Math.max(0, (Number(tp?.balance) || 0) + finalAmount);
-      await supabase.from("teacher_profiles").update({ balance: newBalance } as any).eq("user_id", adjustTeacher);
+      if (earningError) throw earningError;
 
       // Notify teacher
-      const teacherName = teachers.find(t => t.user_id === adjustTeacher)?.full_name || "معلم";
       await supabase.from("notifications").insert({
         user_id: adjustTeacher,
         title: adjustType === "bonus" ? "🎁 تمت إضافة مكافأة" : "📋 تم تطبيق خصم",
@@ -109,7 +114,7 @@ export default function WithdrawalRequestsTab() {
       setAdjustTeacher("");
       setAdjustAmount("");
       setAdjustNotes("");
-      fetchData();
+      await fetchData();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
     } finally {
@@ -118,84 +123,109 @@ export default function WithdrawalRequestsTab() {
   };
 
   const updateStatus = async (id: string, status: string, teacherId: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request || updatingId) return;
+    if (
+      status === "paid"
+      && !window.confirm("سيُسجَّل الطلب كمدفوع ويُضاف إلى إجمالي أرباح المعلم. تأكد من تنفيذ التحويل البنكي قبل المتابعة.")
+    ) return;
+
     const notes = adminNotes[id] || null;
-    await supabase.from("withdrawal_requests" as any).update({ status, admin_notes: notes } as any).eq("id", id);
+    setUpdatingId(id);
+    try {
+      if (status === "paid") {
+        const { data, error } = await supabase.rpc(
+          "approve_teacher_withdrawal_and_record_payment",
+          { _withdrawal_id: id, _admin_notes: notes },
+        );
+        if (error) throw error;
 
-    if (status === "paid") {
-      const req = requests.find(r => r.id === id);
-      if (req) {
-        await supabase.from("teacher_payments" as any).insert({
-          teacher_id: teacherId,
-          amount: req.amount,
-          withdrawal_request_id: id,
-          notes: notes || "دفع عبر تحويل بنكي",
-        } as any);
+        const result = data && typeof data === "object" && !Array.isArray(data)
+          ? data as { already_paid?: boolean; teacher_id?: string; amount?: number }
+          : null;
+        const paidTeacherId = result?.teacher_id || teacherId;
+        const paidAmount = Number(result?.amount ?? request.amount);
+        if (!result?.already_paid) {
+          const [sessionsRes, violationsRes, warningsRes] = await Promise.all([
+            supabase.from("bookings").select("scheduled_at, duration_minutes, price, status").eq("teacher_id", paidTeacherId).eq("status", "completed"),
+            (supabase as any).from("violations").select("violation_type, created_at, is_false_positive").eq("user_id", paidTeacherId),
+            supabase.from("user_warnings").select("warning_type, warning_count, is_banned").eq("user_id", paidTeacherId),
+          ]);
 
-        const [sessionsRes, violationsRes, warningsRes] = await Promise.all([
-          supabase.from("bookings").select("scheduled_at, duration_minutes, price, status").eq("teacher_id", teacherId).eq("status", "completed"),
-          (supabase as any).from("violations").select("violation_type, created_at, is_false_positive").eq("user_id", teacherId),
-          supabase.from("user_warnings").select("warning_type, warning_count, is_banned").eq("user_id", teacherId),
-        ]);
+          const sessions = sessionsRes.data ?? [];
+          const totalMinutes = sessions.reduce((sum: number, s: any) => sum + (Number(s.duration_minutes) || 0), 0);
+          const totalHoursFormatted = Math.floor(totalMinutes / 60);
+          const remainingMinutes = totalMinutes % 60;
+          const violations = (violationsRes.data ?? []) as any[];
+          const confirmedViolations = violations.filter((v: any) => !v.is_false_positive);
+          const warnings = (warningsRes.data ?? []) as any[];
+          const totalWarnings = warnings.reduce((sum: number, w: any) => sum + (w.warning_count || 0), 0);
+          const isBanned = warnings.some((w: any) => w.is_banned);
 
-        const sessions = sessionsRes.data ?? [];
-        const totalHours = sessions.reduce((sum: number, s: any) => sum + (Number(s.duration_minutes) || 0), 0);
-        const totalHoursFormatted = Math.floor(totalHours / 60);
-        const totalMinutes = totalHours % 60;
+          const violationSummary = confirmedViolations.length > 0
+            ? `\n📛 المخالفات المؤكدة: ${confirmedViolations.length}\n` +
+              confirmedViolations.slice(0, 5).map((v: any) =>
+                `  • ${v.violation_type === "contact_sharing" ? "مشاركة معلومات اتصال" : v.violation_type === "platform_mention" ? "ذكر منصة خارجية" : "مخالفة"} - ${new Date(v.created_at).toLocaleDateString("ar-SA")}`
+              ).join("\n") +
+              (confirmedViolations.length > 5 ? `\n  ... و${confirmedViolations.length - 5} مخالفات أخرى` : "")
+            : "\n✅ لا توجد مخالفات مسجلة";
 
-        const violations = (violationsRes.data ?? []) as any[];
-        const confirmedViolations = violations.filter((v: any) => !v.is_false_positive);
-        const warnings = (warningsRes.data ?? []) as any[];
-        const totalWarnings = warnings.reduce((sum: number, w: any) => sum + (w.warning_count || 0), 0);
-        const isBanned = warnings.some((w: any) => w.is_banned);
+          const warningLine = totalWarnings > 0
+            ? `\n⚠️ التحذيرات: ${totalWarnings}/3${isBanned ? " (محظور حالياً)" : ""}`
+            : "";
 
-        const violationSummary = confirmedViolations.length > 0
-          ? `\n📛 المخالفات المؤكدة: ${confirmedViolations.length}\n` +
-            confirmedViolations.slice(0, 5).map((v: any) =>
-              `  • ${v.violation_type === "contact_sharing" ? "مشاركة معلومات اتصال" : v.violation_type === "platform_mention" ? "ذكر منصة خارجية" : "مخالفة"} - ${new Date(v.created_at).toLocaleDateString("ar-SA")}`
-            ).join("\n") +
-            (confirmedViolations.length > 5 ? `\n  ... و${confirmedViolations.length - 5} مخالفات أخرى` : "")
-          : "\n✅ لا توجد مخالفات مسجلة";
+          const reportBody =
+            `📊 تقرير الدفع:\n` +
+            `━━━━━━━━━━━━━━━\n` +
+            `💰 المبلغ المدفوع: ${paidAmount.toLocaleString()} ر.س\n` +
+            `📚 إجمالي الحصص المكتملة: ${sessions.length} حصة\n` +
+            `⏱️ إجمالي ساعات التدريس: ${totalHoursFormatted} ساعة${remainingMinutes > 0 ? ` و${remainingMinutes} دقيقة` : ""}\n` +
+            violationSummary +
+            warningLine +
+            `\n━━━━━━━━━━━━━━━\n` +
+            `تم تسجيل المبلغ في سجل المدفوعات وإضافته إلى إجمالي أرباحك.`;
 
-        const warningLine = totalWarnings > 0
-          ? `\n⚠️ التحذيرات: ${totalWarnings}/3${isBanned ? " (محظور حالياً)" : ""}`
-          : "";
-
-        const reportBody =
-          `📊 تقرير الدفع:\n` +
-          `━━━━━━━━━━━━━━━\n` +
-          `💰 المبلغ المحوّل: ${Number(req.amount).toLocaleString()} ر.س\n` +
-          `📚 إجمالي الحصص المكتملة: ${sessions.length} حصة\n` +
-          `⏱️ إجمالي ساعات التدريس: ${totalHoursFormatted} ساعة${totalMinutes > 0 ? ` و${totalMinutes} دقيقة` : ""}\n` +
-          violationSummary +
-          warningLine +
-          `\n━━━━━━━━━━━━━━━\n` +
-          `شكراً لجهودك في التدريس! 🎓`;
+          await supabase.from("notifications").insert({
+            user_id: paidTeacherId,
+            title: "تم اعتماد وصرف طلب سحب الأرباح 💰",
+            body: reportBody,
+            type: "payment",
+          });
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("withdrawal_requests" as any)
+          .update({ status, admin_notes: notes } as any)
+          .eq("id", id)
+          .eq("status", request.status)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("تم تحديث الطلب من مستخدم آخر؛ أعد تحميل القائمة");
 
         await supabase.from("notifications").insert({
           user_id: teacherId,
-          title: "تم تحويل أرباحك! 💰",
-          body: reportBody,
-          type: "payment",
+          title: status === "rejected" ? "تم رفض طلب السحب ❌" : "تم تحديث طلب السحب",
+          body: status === "rejected"
+            ? `تم رفض طلب سحب الأرباح.${notes ? ` السبب: ${notes}` : " تواصل مع الإدارة للمزيد"}`
+            : `تم تحديث حالة طلب السحب إلى: ${statusMap[status]?.label || status}`,
+          type: "withdrawal",
         });
       }
-    } else {
-      await supabase.from("notifications").insert({
-        user_id: teacherId,
-        title: status === "rejected" ? "تم رفض طلب السحب ❌" : "تم تحديث طلب السحب",
-        body: status === "rejected"
-          ? `تم رفض طلب سحب الأرباح.${notes ? ` السبب: ${notes}` : " تواصل مع الإدارة للمزيد"}`
-          : `تم تحديث حالة طلب السحب إلى: ${statusMap[status]?.label || status}`,
-        type: "withdrawal",
-      });
-    }
 
-    toast.success(status === "paid" ? "تم الدفع وإرسال التقرير للمعلم" : "تم تحديث الطلب");
-    fetchData();
+      toast.success(status === "paid" ? "تم اعتماد السحب وإضافته إلى سجل المدفوعات" : "تم تحديث الطلب");
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "حدث خطأ");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     pending: { label: "قيد المراجعة", variant: "outline" },
     approved: { label: "تمت الموافقة", variant: "secondary" },
+    processing: { label: "قيد المعالجة", variant: "secondary" },
     paid: { label: "تم الدفع", variant: "default" },
     rejected: { label: "مرفوض", variant: "destructive" },
   };
@@ -279,6 +309,7 @@ export default function WithdrawalRequestsTab() {
             <div className="flex items-center gap-2 flex-wrap">
               <StatusFilter value={statusFilter} onChange={setStatusFilter} options={[
                 { value: "pending", label: "قيد المراجعة" }, { value: "approved", label: "تمت الموافقة" },
+                { value: "processing", label: "قيد المعالجة" },
                 { value: "paid", label: "تم الدفع" }, { value: "rejected", label: "مرفوض" },
               ]} />
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
@@ -351,7 +382,7 @@ export default function WithdrawalRequestsTab() {
                         {r.bank_info && !r.bank_info.bank_name && !r.bank_info.iban && (
                           <p className="text-xs text-destructive bg-destructive/5 rounded-lg p-2">⚠️ لم يُضف المعلم بيانات الدفع البنكية بعد</p>
                         )}
-                        {r.status === "pending" && (
+                        {["pending", "approved", "processing"].includes(r.status) && (
                           <>
                             <Textarea
                               placeholder="ملاحظات الإدارة (اختياري)..."
@@ -360,10 +391,10 @@ export default function WithdrawalRequestsTab() {
                               className="min-h-[60px] rounded-xl resize-none text-sm"
                             />
                             <div className="flex gap-2">
-                              <Button size="sm" className="rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "paid", r.teacher_id)}>
-                                <CheckCircle className="h-3.5 w-3.5" /> دفع
+                              <Button size="sm" className="rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "paid", r.teacher_id)} disabled={updatingId === r.id}>
+                                <CheckCircle className="h-3.5 w-3.5" /> {r.status === "pending" ? "اعتماد وصرف" : "تسجيل الدفع"}
                               </Button>
-                              <Button size="sm" variant="destructive" className="rounded-lg gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "rejected", r.teacher_id)}>
+                              <Button size="sm" variant="destructive" className="rounded-lg gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "rejected", r.teacher_id)} disabled={updatingId === r.id}>
                                 <XCircle className="h-3.5 w-3.5" /> رفض
                               </Button>
                             </div>

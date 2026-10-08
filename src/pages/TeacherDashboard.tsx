@@ -178,14 +178,15 @@ const TeacherDashboard = () => {
       .select("student_id", { count: "exact", head: true })
       .eq("teacher_id", user.id);
 
-    // Calculate current month earnings from teacher_earnings table
+    // Show net earnings from completed sessions, less amounts already transferred
+    // to the manually withdrawable earnings ledger.
     const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-    const { data: monthEarnings } = await supabase
-      .from("teacher_earnings")
-      .select("amount")
-      .eq("teacher_id", user.id)
-      .eq("month", currentMonth);
-    const totalMonthEarnings = (monthEarnings || []).reduce((sum, e) => sum + Number(e.amount), 0);
+    const { data: monthSummary, error: monthSummaryError } = await supabase.rpc(
+      "get_teacher_net_summary",
+      { _teacher_id: user.id, _month: currentMonth },
+    );
+    if (monthSummaryError) throw monthSummaryError;
+    const totalMonthEarnings = Number(monthSummary?.[0]?.net_total) || 0;
 
     setStats({
       earnings: totalMonthEarnings,

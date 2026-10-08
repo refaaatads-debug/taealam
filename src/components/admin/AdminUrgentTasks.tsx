@@ -180,6 +180,10 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
 
   const approve = async (t: TaskItem) => {
     if (!canActOn(t.kind)) { toast.error("لا تملك صلاحية لتنفيذ هذا الإجراء"); return; }
+    if (
+      t.kind === "withdrawal"
+      && !window.confirm("سيُسجَّل طلب السحب كمدفوع ويُضاف إلى إجمالي أرباح المعلم. تأكد من تنفيذ التحويل البنكي قبل المتابعة.")
+    ) return;
     try {
       let targetTable = ""; let targetId = "";
       if (t.kind === "teacher") {
@@ -188,10 +192,24 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
         targetTable = "teacher_profiles"; targetId = t.raw.id;
         toast.success("تمت الموافقة على المعلم");
       } else if (t.kind === "withdrawal") {
-        const { error } = await (supabase as any).from("withdrawal_requests").update({ status: "approved" }).eq("id", t.raw.id);
+        const { data, error } = await supabase.rpc(
+          "approve_teacher_withdrawal_and_record_payment",
+          { _withdrawal_id: t.raw.id, _admin_notes: null },
+        );
         if (error) throw error;
+        const paymentResult = data && typeof data === "object" && !Array.isArray(data)
+          ? data as { already_paid?: boolean; teacher_id?: string; amount?: number }
+          : null;
+        if (!paymentResult?.already_paid) {
+          await supabase.from("notifications").insert({
+            user_id: paymentResult?.teacher_id || t.raw.teacher_id,
+            title: "تم اعتماد وصرف طلب سحب الأرباح 💰",
+            body: `تم تسجيل مبلغ ${Number(paymentResult?.amount ?? t.raw.amount).toLocaleString()} ر.س في سجل المدفوعات وإضافته إلى إجمالي أرباحك.`,
+            type: "payment",
+          });
+        }
         targetTable = "withdrawal_requests"; targetId = t.raw.id;
-        toast.success("تمت الموافقة على السحب");
+        toast.success("تم اعتماد السحب وإضافته إلى سجل المدفوعات");
       } else if (t.kind === "support") {
         const { error } = await supabase.from("support_tickets").update({ status: "resolved" }).eq("id", t.raw.id);
         if (error) throw error;
@@ -205,7 +223,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
       }
       await logAdminAction({
         action: "approve", category: KIND_AUDIT_CATEGORY[t.kind],
-        description: `موافقة على: ${t.title}`,
+        description: `${t.kind === "withdrawal" ? "اعتماد وصرف" : "موافقة على"}: ${t.title}`,
         target_table: targetTable, target_id: targetId,
         metadata: { source: "urgent_tasks", kind: t.kind },
       });
@@ -358,7 +376,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
                     {canActOn(t.kind) ? (
                       <>
                         <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
-                          <CheckCircle className="h-3 w-3" /> موافقة
+                          <CheckCircle className="h-3 w-3" /> {t.kind === "withdrawal" ? "اعتماد وصرف" : "موافقة"}
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
                           <XCircle className="h-3 w-3" /> رفض
