@@ -54,6 +54,9 @@ export default function TeacherEarningsTab() {
     remainingTransferable: number;
   }>>(new Map());
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
+  const [availableBalance, setAvailableBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResults, setReconcileResults] = useState<any[] | null>(null);
 
@@ -80,6 +83,60 @@ export default function TeacherEarningsTab() {
   useEffect(() => {
     if (selectedTeacher && month) fetchTeacherHours(selectedTeacher, month);
   }, [selectedTeacher, month, editingId]);
+
+  useEffect(() => {
+    if (!selectedTeacher) {
+      setAvailableBalance(null);
+      setBalanceError(false);
+      return;
+    }
+
+    let active = true;
+    const loadBalance = async () => {
+      setBalanceLoading(true);
+      setBalanceError(false);
+      const { data, error } = await supabase.rpc("get_teacher_earnings_breakdown", {
+        _teacher_id: selectedTeacher,
+      });
+      if (!active) return;
+      if (error) {
+        console.error("[admin-teacher-earnings] failed to load withdrawable balance:", error);
+        setAvailableBalance(null);
+        setBalanceError(true);
+      } else {
+        setAvailableBalance(Number(data?.[0]?.available_balance) || 0);
+      }
+      setBalanceLoading(false);
+    };
+
+    void loadBalance();
+    const channel = supabase
+      .channel(`admin-teacher-balance-${selectedTeacher}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "teacher_earnings",
+        filter: `teacher_id=eq.${selectedTeacher}`,
+      }, () => { void loadBalance(); })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "withdrawal_requests",
+        filter: `teacher_id=eq.${selectedTeacher}`,
+      }, () => { void loadBalance(); })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "teacher_payments",
+        filter: `teacher_id=eq.${selectedTeacher}`,
+      }, () => { void loadBalance(); })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [selectedTeacher]);
 
   const fetchTeacherHours = async (teacherId: string, monthStr: string) => {
     const { data: capacityData, error: capacityError } = await supabase.rpc(
@@ -584,12 +641,26 @@ export default function TeacherEarningsTab() {
                         </p>
                         <p className="text-[10px] text-muted-foreground">صافي الحصص المكتملة في الشهر</p>
                       </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">المتبقي للتحويل من أرباح الشهر</p>
+                        <p data-testid="text-monthly-transfer-remaining" className="text-xl font-black text-emerald-600">
+                          {(teacherHoursMap.get(`${selectedTeacher}_${month}`)?.remainingTransferable || 0).toFixed(2)} ر.س
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">بعد خصم التحويلات الشهرية السابقة</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">إجمالي الرصيد المتاح للسحب</p>
+                        <p data-testid="text-total-withdrawable-balance" className="text-xl font-black text-primary">
+                          {balanceLoading
+                            ? <Loader2 className="inline h-4 w-4 animate-spin" />
+                            : balanceError
+                              ? "تعذر التحميل"
+                              : `${(availableBalance ?? 0).toFixed(2)} ر.س`}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">يشمل التحويلات والمكافآت بعد حجز طلبات السحب</p>
+                      </div>
                     </div>
-                    {earningType === "monthly_transfer" ? (
-                      <p className="text-xs font-semibold text-emerald-700">
-                        المتبقي للتحويل إلى رصيد السحب: {(teacherHoursMap.get(`${selectedTeacher}_${month}`)?.remainingTransferable || 0).toFixed(2)} ر.س
-                      </p>
-                    ) : (
+                    {earningType === "bonus" && (
                       <p className="text-xs text-muted-foreground">
                         المكافأة تضاف إلى رصيد السحب ولا تخصم من أرباح الحصص الشهرية.
                       </p>
