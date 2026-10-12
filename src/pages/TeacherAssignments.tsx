@@ -335,24 +335,42 @@ const TeacherAssignments = () => {
 
   const extractFromFile = async (file: File) => {
     if (!user) return;
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    const allowedMimeTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/jpeg", "image/png", "image/webp"];
+    const allowedExtensions = ["pdf", "docx", "jpg", "jpeg", "png", "webp"];
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("حجم الملف يتجاوز 10 ميجابايت. قلّل حجمه ثم حاول مرة أخرى.");
+      return;
+    }
+    if (!allowedExtensions.includes(extension) || (file.type && !allowedMimeTypes.includes(file.type))) {
+      toast.error("نوع الملف غير مدعوم. استخدم PDF أو DOCX أو صورة JPG/PNG/WEBP.");
+      return;
+    }
+
     setExtracting(true);
     try {
       const path = `${user.id}/bank-imports/${Date.now()}-${file.name}`;
       const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
       if (upErr) throw upErr;
-      const { data: signed } = await supabase.storage.from("assignment-files").createSignedUrl(path, 60 * 60);
-      if (!signed?.signedUrl) throw new Error("تعذر إنشاء رابط الملف");
 
       toast.info("جاري استخراج الأسئلة بـ AI...");
       const { data, error } = await supabase.functions.invoke("extract-questions-from-file", {
         body: {
-          file_url: signed.signedUrl,
+          file_path: path,
           file_type: file.type,
+          file_name: file.name,
           subject_id: qSubject || null,
           teaching_stage: qStage || null,
         },
       });
-      if (error) throw error;
+      if (error) {
+        const context = (error as any)?.context;
+        if (context instanceof Response) {
+          const body = await context.clone().json().catch(() => null);
+          throw new Error(body?.error || "تعذر الاتصال بخدمة استخراج الأسئلة.");
+        }
+        throw new Error(error.message || "تعذر الاتصال بخدمة استخراج الأسئلة.");
+      }
       if ((data as any)?.error) throw new Error((data as any).error);
       const count = (data as any)?.count || 0;
       if (count === 0) {
@@ -775,12 +793,12 @@ const TeacherAssignments = () => {
                   <div className="flex-1">
                     <h3 className="font-bold text-sm">استيراد أسئلة من ملف بالذكاء الاصطناعي</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      ارفع ملف PDF / Word / صورة وسيقوم AI باستخراج الأسئلة وتنسيقها وإضافتها للبنك تلقائياً.
+                      ارفع PDF أو DOCX أو صورة JPG/PNG/WEBP (حتى 10 ميجابايت) وسيستخرج AI الأسئلة لإضافتها للبنك.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Input
                         type="file"
-                        accept=".pdf,.doc,.docx,image/*"
+                        accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp"
                         disabled={extracting}
                         onChange={(e) => {
                           const f = e.target.files?.[0];

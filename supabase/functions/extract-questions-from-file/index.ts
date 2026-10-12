@@ -1,7 +1,47 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { strFromU8, unzipSync } from "https://esm.sh/fflate@0.8.2";
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+function toBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
+  }
+  return btoa(chunks.join(""));
+}
+
+function extractDocxText(bytes: Uint8Array): string {
+  const documentXml = unzipSync(bytes)["word/document.xml"];
+  if (!documentXml) throw new Error("تعذر قراءة نص ملف DOCX. احفظه مجدداً بصيغة DOCX ثم حاول.");
+
+  return strFromU8(documentXml)
+    .replace(/<w:tab\b[^>]*\/>/gi, " ")
+    .replace(/<\/w:(?:p|tr)>/gi, "\n")
+    .replace(/<\/w:tc>/gi, " | ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, value) => String.fromCodePoint(Number(value)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, value) => String.fromCodePoint(parseInt(value, 16)))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function jsonResponse(body: unknown, status: number, corsHeaders: HeadersInit) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -13,16 +53,12 @@ Deno.serve(async (req) => {
   });
 
   try {
-    const { file_url, file_type, subject_id, teaching_stage } = await req.json();
-    if (!file_url) {
-      return new Response(JSON.stringify({ error: "file_url required" }), {
+    const { file_path, file_type, file_name, subject_id, teaching_stage } = await req.json();
+    if (!file_path) {
+      return new Response(JSON.stringify({ error: "file_path required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY missing");
-    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -37,11 +73,44 @@ Deno.serve(async (req) => {
       : { data: { user: null } };
     if (!user) throw new Error("Not authenticated");
 
-    const isImage = (file_type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(file_url);
-    const isPdf = (file_type || "").includes("pdf") || /\.pdf$/i.test(file_url);
-    const isWord = (file_type || "").includes("word") || /\.(docx?|odt)$/i.test(file_url);
+    const normalizedPath = String(file_path).replace(/^\/+/, "");
+    if (
+      !normalizedPath.startsWith(`${user.id}/bank-imports/`) ||
+      normalizedPath.split("/").some((segment: string) => segment === "..")
+    ) {
+      return jsonResponse({ error: "لا تملك صلاحية قراءة هذا الملف." }, 403, corsHeaders);
+    }
 
-    let userContent: any[];
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY missing");
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
+
+    const extension = String(file_name || "").split(".").pop()?.toLowerCase() || "";
+    const isPdf = extension === "pdf" || file_type === "application/pdf";
+    const isDocx = extension === "docx" || file_type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const imageMime = file_type === "image/jpeg" || file_type === "image/png" || file_type === "image/webp"
+      ? file_type
+      : ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" } as Record<string, string>)[extension];
+    const isImage = Boolean(imageMime);
+    if (!isPdf && !isDocx && !isImage) {
+      return jsonResponse({ error: "نوع الملف غير مدعوم. استخدم PDF أو DOCX أو صورة JPG/PNG/WEBP." }, 415, corsHeaders);
+    }
+
+    const { data: storedFile, error: fileError } = await supabase.storage
+      .from("assignment-files")
+      .download(normalizedPath);
+    if (fileError || !storedFile) {
+      console.error("Question import file download failed:", fileError);
+      return jsonResponse({ error: "تعذر تحميل الملف من التخزين. أعد رفعه ثم حاول مرة أخرى." }, 400, corsHeaders);
+    }
+    const fileBytes = new Uint8Array(await storedFile.arrayBuffer());
+    if (fileBytes.byteLength === 0) {
+      return jsonResponse({ error: "الملف فارغ." }, 400, corsHeaders);
+    }
+    if (fileBytes.byteLength > MAX_FILE_BYTES) {
+      return jsonResponse({ error: "حجم الملف يتجاوز 10 ميجابايت. قلّل حجمه ثم حاول مرة أخرى." }, 413, corsHeaders);
+    }
+
     const instruction = `أنت مساعد متخصص في استخراج الأسئلة الأكاديمية من المستندات. مهمتك:
 1. استخرج جميع الأسئلة الموجودة في المستند بدقة كاملة دون حذف أو إضافة.
 2. حدد نوع كل سؤال: اختيار من متعدد (multiple_choice) / صح وخطأ (true_false) / نص مفتوح (text).
@@ -52,70 +121,48 @@ Deno.serve(async (req) => {
 7. تجاهل أي محتوى غير علمي/أكاديمي.
 8. كن دقيقاً في النص العربي ولا تُحرّفه.`;
 
-    if (isImage) {
-      userContent = [
-        { type: "text", text: instruction + "\n\nالصورة المرفقة تحتوي على أسئلة. استخرجها." },
-        { type: "image_url", image_url: { url: file_url } },
-      ];
-    } else if (isPdf || isWord) {
-      // For PDF/Word: download and let AI process via document URL or extracted text
-      // Gemini supports PDF directly via file_url in some configs, but safer to fetch text
-      const fileResp = await fetch(file_url);
-      if (!fileResp.ok) throw new Error("تعذر تحميل الملف");
-      const buf = await fileResp.arrayBuffer();
-
-      if (isPdf) {
-        // Send PDF as base64 inline data to Gemini (supports PDFs natively)
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-        userContent = [
-          { type: "text", text: instruction + "\n\nالملف PDF مرفق. استخرج جميع الأسئلة منه." },
-          { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } },
-        ];
-      } else {
-        // Word: extract text crudely (fallback) — Gemini cannot read .docx directly
-        // Convert bytes to string and strip XML tags as a basic extraction
-        const text = new TextDecoder("utf-8", { fatal: false }).decode(buf);
-        const cleaned = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 50000);
-        userContent = [
-          { type: "text", text: instruction + "\n\nنص مستخرج من ملف Word:\n" + cleaned },
-        ];
-      }
+    const parts: Record<string, unknown>[] = [
+      { text: instruction + "\n\nاستخرج الأسئلة من الملف المرفق." },
+    ];
+    if (isDocx) {
+      const text = extractDocxText(fileBytes).slice(0, 50000);
+      if (!text) return jsonResponse({ error: "لم أجد نصاً قابلاً للقراءة في ملف DOCX." }, 422, corsHeaders);
+      parts.push({ text: `\n\nنص ملف DOCX:\n${text}` });
     } else {
-      throw new Error("نوع الملف غير مدعوم. ادعم: PDF أو Word أو صورة.");
+      parts.push({
+        inlineData: {
+          mimeType: isPdf ? "application/pdf" : imageMime,
+          data: toBase64(fileBytes),
+        },
+      });
     }
 
-    const aiResp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    const aiResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+      {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${GEMINI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: geminiModel,
-        messages: [
-          { role: "system", content: "أنت مستخرج أسئلة دقيق من مستندات تعليمية." },
-          { role: "user", content: userContent },
-        ],
+        contents: [{ role: "user", parts }],
         tools: [{
-          type: "function",
-          function: {
+          functionDeclarations: [{
             name: "extract_questions",
             description: "استخراج قائمة الأسئلة من المستند",
             parameters: {
-              type: "object",
+              type: "OBJECT",
               properties: {
                 questions: {
-                  type: "array",
+                  type: "ARRAY",
                   items: {
-                    type: "object",
+                    type: "OBJECT",
                     properties: {
-                      question_text: { type: "string" },
-                      question_type: { type: "string", enum: ["multiple_choice", "true_false", "text"] },
-                      options: { type: "array", items: { type: "string" } },
-                      correct_answer: { type: "string" },
-                      explanation: { type: "string" },
-                      difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
-                      points: { type: "number" },
+                      question_text: { type: "STRING" },
+                      question_type: { type: "STRING", enum: ["multiple_choice", "true_false", "text"] },
+                      options: { type: "ARRAY", items: { type: "STRING" } },
+                      correct_answer: { type: "STRING" },
+                      explanation: { type: "STRING" },
+                      difficulty: { type: "STRING", enum: ["easy", "medium", "hard"] },
+                      points: { type: "NUMBER" },
                     },
                     required: ["question_text", "question_type", "points"],
                   },
@@ -123,33 +170,43 @@ Deno.serve(async (req) => {
               },
               required: ["questions"],
             },
-          },
+          }],
         }],
-        tool_choice: { type: "function", function: { name: "extract_questions" } },
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "ANY",
+            allowedFunctionNames: ["extract_questions"],
+          },
+        },
       }),
     });
 
     if (aiResp.status === 429) {
-      return new Response(JSON.stringify({ error: "تم تجاوز الحد المسموح، حاول لاحقاً" }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "وصلت خدمة الذكاء الاصطناعي إلى حد الطلبات مؤقتاً. انتظر قليلاً ثم حاول." }, 429, corsHeaders);
     }
     if (aiResp.status === 402) {
-      return new Response(JSON.stringify({ error: "نفذت الأرصدة" }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "رصيد خدمة الذكاء الاصطناعي غير كافٍ حالياً. تواصل مع الإدارة." }, 402, corsHeaders);
     }
     if (!aiResp.ok) {
       const t = await aiResp.text();
-      throw new Error(`AI error: ${aiResp.status} ${t}`);
+      console.error("Gemini extraction request failed:", aiResp.status, t);
+      const errorMessage = aiResp.status === 401 || aiResp.status === 403
+        ? "إعدادات خدمة الذكاء الاصطناعي غير صالحة. تواصل مع الإدارة."
+        : aiResp.status === 400
+          ? "تعذر على الذكاء الاصطناعي قراءة هذا الملف. تأكد أن الملف سليم ومن الأنواع المدعومة."
+          : "خدمة الذكاء الاصطناعي لم تتمكن من معالجة الملف الآن. حاول مرة أخرى بعد قليل.";
+      return jsonResponse({ error: errorMessage }, 502, corsHeaders);
     }
 
     const aiData = await aiResp.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("لم يتم استخراج أسئلة");
+    const functionCall = aiData.candidates?.[0]?.content?.parts?.find(
+      (part: any) => part.functionCall?.name === "extract_questions",
+    )?.functionCall;
+    if (!functionCall) {
+      return jsonResponse({ error: "لم أجد أسئلة واضحة في الملف. جرّب ملفاً أوضح أو أضف الأسئلة يدوياً." }, 422, corsHeaders);
+    }
 
-    const result = JSON.parse(toolCall.function.arguments);
-    const questions = Array.isArray(result.questions) ? result.questions : [];
+    const questions = Array.isArray(functionCall.args?.questions) ? functionCall.args.questions : [];
 
     // Insert into question_bank
     const rows = questions.map((q: any) => ({
@@ -167,11 +224,12 @@ Deno.serve(async (req) => {
     })).filter((r: any) => r.question_text.length > 0);
 
     let inserted: any[] = [];
-    if (rows.length > 0) {
-      const { data, error } = await supabase.from("question_bank").insert(rows).select();
-      if (error) throw error;
-      inserted = data || [];
+    if (rows.length === 0) {
+      return jsonResponse({ error: "لم أجد أسئلة قابلة للحفظ في الملف. جرّب ملفاً أوضح." }, 422, corsHeaders);
     }
+    const { data, error } = await supabase.from("question_bank").insert(rows).select();
+    if (error) throw error;
+    inserted = data || [];
 
     return new Response(JSON.stringify({
       success: true,
@@ -182,8 +240,12 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("extract-questions error:", e);
-    return new Response(JSON.stringify({ error: "تعذر استخراج الأسئلة حالياً" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const message = e instanceof Error ? e.message : "";
+    const userMessage = message === "GEMINI_API_KEY missing"
+      ? "خدمة الذكاء الاصطناعي غير مهيأة. تواصل مع الإدارة."
+      : message.startsWith("تعذر قراءة نص ملف DOCX")
+        ? message
+        : "حدث خطأ أثناء قراءة الملف أو حفظ الأسئلة. جرّب ملفاً أصغر أو تواصل مع الدعم.";
+    return jsonResponse({ error: userMessage }, 500, corsHeaders);
   }
 });
