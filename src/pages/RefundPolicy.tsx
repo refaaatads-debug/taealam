@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { RotateCcw, CheckCircle, XCircle, MessageSquare, Clock, Gift } from "lucide-react";
+import { RotateCcw, CheckCircle, XCircle, MessageSquare, Clock } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PublicPageHeader from "@/components/PublicPageHeader";
@@ -7,7 +7,7 @@ import PublicPageHeader from "@/components/PublicPageHeader";
 const RefundPolicy = () => (
   <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
     <Navbar />
-    <PublicPageHeader icon={RotateCcw} eyebrow="وضوح ومرونة" title="سياسة الاسترجاع" description="آخر تحديث: أبريل 2026" />
+    <PublicPageHeader icon={RotateCcw} eyebrow="وضوح ومرونة" title="سياسة الاسترداد" description="متى نراجع طلبات استرداد رسوم الحصص؟" />
     <main className="container max-w-4xl py-14">
 
       <div className="grid gap-6 md:grid-cols-2 mb-6">
@@ -17,10 +17,13 @@ const RefundPolicy = () => (
             <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center">
               <CheckCircle className="h-4 w-4 text-secondary" />
             </div>
-            <h2 className="text-lg font-bold text-foreground">الحالات المؤهلة</h2>
+            <h2 className="text-lg font-bold text-foreground">متى نراجع الطلب؟</h2>
           </div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            نراجع الطلب عند وجود خلل تقني موثّق من المنصة منع إتمام الحصة، ونفحص سجل الحجز والاستخدام. تقديم الطلب لا يعني الموافقة تلقائياً.
+          </p>
           <ul className="space-y-2">
-            {["غياب المعلم", "فشل الاتصال بسبب المنصة", "خطأ تقني يمنع إكمال الجلسة"].map((item, i) => (
+            {["تعذّر إتمام الحصة بسبب خلل تقني في المنصة", "وجود بلاغ أو سجل يدعم تعذّر إكمال الحصة"].map((item, i) => (
               <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
                 <CheckCircle className="h-3.5 w-3.5 text-secondary shrink-0" />
                 {item}
@@ -35,10 +38,10 @@ const RefundPolicy = () => (
             <div className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center">
               <XCircle className="h-4 w-4 text-destructive" />
             </div>
-            <h2 className="text-lg font-bold text-foreground">الحالات غير المؤهلة</h2>
+            <h2 className="text-lg font-bold text-foreground">ما لا يُسترد</h2>
           </div>
           <ul className="space-y-2">
-            {["تأخر الطالب", "ضعف الإنترنت لدى المستخدم", "انتهاء الجلسة بشكل طبيعي"].map((item, i) => (
+            {["قيمة الحصص التي حُجزت أو نُفذت", "قيمة الاشتراك بعد حجز حصص منه", "المشكلات الناتجة عن اتصال المستخدم أو تأخره"].map((item, i) => (
               <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
                 <XCircle className="h-3.5 w-3.5 text-destructive/60 shrink-0" />
                 {item}
@@ -55,10 +58,10 @@ const RefundPolicy = () => (
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <MessageSquare className="h-4 w-4 text-primary" />
             </div>
-            <h2 className="text-lg font-bold text-foreground">طريقة الاسترجاع</h2>
+            <h2 className="text-lg font-bold text-foreground">طريقة مراجعة الطلب</h2>
           </div>
           <div className="flex flex-col gap-3 mr-4">
-            {["يتم تقديم طلب عبر الدعم", "يتم مراجعة الجلسة", "يتم إعادة المبلغ إلى رصيد المستخدم"].map((step, i) => (
+            {["تواصل مع الدعم وأرسل تفاصيل الحجز والخلل", "يتحقق الفريق من البلاغ وسجل الحجز والاستخدام", "يُبلّغك الفريق بالنتيجة والمعالجة المناسبة بعد المراجعة"].map((step, i) => (
               <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
                 {step}
@@ -73,28 +76,9 @@ const RefundPolicy = () => (
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <Clock className="h-4 w-4 text-primary" />
             </div>
-            <h2 className="text-lg font-bold text-foreground">مدة الاسترجاع</h2>
+            <h2 className="text-lg font-bold text-foreground">مدة المراجعة</h2>
           </div>
-          <p className="text-sm text-muted-foreground">من <span className="font-bold text-foreground">3 إلى 7</span> أيام عمل</p>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="bg-card rounded-2xl border shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center">
-              <Gift className="h-4 w-4 text-secondary" />
-            </div>
-            <h2 className="text-lg font-bold text-foreground">التعويضات</h2>
-          </div>
-          <p className="text-sm text-muted-foreground mb-2">في بعض الحالات:</p>
-          <ul className="space-y-1.5 mr-4">
-            <li className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary/40 shrink-0" />يتم تعويض المستخدم بجلسة بديلة
-            </li>
-            <li className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary/40 shrink-0" />أو رصيد إضافي
-            </li>
-          </ul>
+          <p className="text-sm text-muted-foreground">تختلف مدة المراجعة بحسب تفاصيل البلاغ وسجلات الحجز؛ لا توجد مدة ثابتة أو موافقة تلقائية.</p>
         </motion.div>
       </div>
     </main>
