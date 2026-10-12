@@ -349,7 +349,7 @@ const TeacherAssignments = () => {
 
     setExtracting(true);
     try {
-      const path = `${user.id}/bank-imports/${Date.now()}-${file.name}`;
+      const path = `${user.id}/bank-imports/${Date.now()}-${crypto.randomUUID()}.${extension}`;
       const { error: upErr } = await supabase.storage.from("assignment-files").upload(path, file);
       if (upErr) throw upErr;
 
