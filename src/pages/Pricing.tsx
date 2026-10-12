@@ -18,14 +18,30 @@ import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 const tierIcons: Record<string, typeof Star> = { free: Gift, basic: Star, standard: Sparkles, premium: Crown };
 
-const comparisonFeatures = [
-  { label: "حصص شهرية", key: "sessions" },
-  { label: "المساعد سند الذكي", key: "ai_tutor" },
-  { label: "تسجيل الحصص", key: "recording" },
-  { label: "أولوية الحجز", key: "priority" },
-  { label: "تقارير مفصلة", key: "reports" },
-  { label: "دعم فني", key: "support" },
-];
+const getPlanFeatures = (plan: any): string[] =>
+  Array.isArray(plan.features)
+    ? plan.features.filter((feature: unknown): feature is string => typeof feature === "string" && feature.trim().length > 0)
+    : [];
+
+const buildComparisonFeatures = (plans: any[]) => {
+  const builtInFeatures = [
+    { key: "sessions_count", label: "عدد الحصص شهرياً", value: (plan: any) => `${plan.sessions_count ?? 0} حصة` },
+    { key: "session_duration_minutes", label: "مدة الحصة", value: (plan: any) => `${plan.session_duration_minutes ?? 0} دقيقة` },
+    { key: "has_ai_tutor", label: "المساعد سند الذكي", value: (plan: any) => Boolean(plan.has_ai_tutor) },
+    { key: "has_recording", label: "تسجيل الحصص", value: (plan: any) => Boolean(plan.has_recording) },
+    { key: "has_priority_booking", label: "أولوية الحجز", value: (plan: any) => Boolean(plan.has_priority_booking) },
+  ];
+  const customFeatures = Array.from(new Set(plans.flatMap(getPlanFeatures)));
+
+  return [
+    ...builtInFeatures,
+    ...customFeatures.map((feature) => ({
+      key: `custom:${feature}`,
+      label: feature,
+      value: (plan: any) => getPlanFeatures(plan).includes(feature),
+    })),
+  ];
+};
 
 const Pricing = () => {
   const [plans, setPlans] = useState<any[]>([]);
@@ -38,21 +54,41 @@ const Pricing = () => {
   const [freeTrialUsed, setFreeTrialUsed] = useState(false);
 
   useEffect(() => {
-    const loadPricingData = async () => {
-      setLoading(true);
-      const plansPromise = supabase.from("subscription_plans").select("*").order("price");
+    let active = true;
+    const loadPricingData = async (showLoader = false) => {
+      if (showLoader) setLoading(true);
+      let plansPromise = supabase.from("subscription_plans").select("*").eq("is_active", true);
+      plansPromise = user?.id
+        ? plansPromise.or(`assigned_user_id.is.null,assigned_user_id.eq.${user.id}`)
+        : plansPromise.is("assigned_user_id", null);
+      plansPromise = plansPromise.order("price");
       const profilePromise = user?.id
         ? supabase.from("profiles").select("free_trial_used").eq("user_id", user.id).maybeSingle()
         : Promise.resolve({ data: null, error: null });
 
       const [{ data: plansData }, { data: profileData }] = await Promise.all([plansPromise, profilePromise]);
 
+      if (!active) return;
       if (plansData) setPlans(plansData);
       setFreeTrialUsed(Boolean(profileData?.free_trial_used));
       setLoading(false);
     };
 
-    loadPricingData();
+    void loadPricingData(true);
+    const channel = supabase
+      .channel("public-pricing-plans")
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscription_plans" }, () => {
+        void loadPricingData();
+      })
+      .subscribe();
+    const reloadOnFocus = () => void loadPricingData();
+    window.addEventListener("focus", reloadOnFocus);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", reloadOnFocus);
+      void supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   const handleSubscribe = async (plan: any) => {
@@ -128,18 +164,6 @@ const Pricing = () => {
     }
   };
 
-  const getFeatureValue = (plan: any, key: string) => {
-    switch (key) {
-      case "sessions": return `${plan.sessions_count} حصة`;
-      case "ai_tutor": return plan.has_ai_tutor;
-      case "recording": return plan.has_recording;
-      case "priority": return plan.has_priority_booking;
-      case "reports": return plan.tier !== "basic";
-      case "support": return plan.tier === "basic" ? "شات" : plan.tier === "standard" ? "شات + إيميل" : "شات + إيميل + أولوية";
-      default: return false;
-    }
-  };
-
   return (
     <>
       <SEOHead title="أسعار الحصص الخصوصية | منصة أجيال المعرفة" description="خطط أسعار مرنة للطلاب وأولياء الأمور. ابدأ بأول حصة مجانية واختر الباقة المناسبة لك." canonical="/pricing" />
@@ -155,13 +179,13 @@ const Pricing = () => {
         <div className="container max-w-5xl relative z-10 text-center px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Badge className="mb-5 border border-[#188779]/20 bg-[#188779]/[0.07] px-4 py-1.5 text-sm text-[#188779]">
-              <Gift className="ml-1.5 h-3.5 w-3.5" /> وفّر حتى 40% على الباقات السنوية
+              <Gift className="ml-1.5 h-3.5 w-3.5" /> باقات واضحة بمزاياها وعدد حصصها
             </Badge>
             <h1 className="mb-4 text-3xl font-black leading-tight tracking-tight text-[#102f50] sm:text-4xl md:text-6xl">
               اختر الباقة <span className="inline-block text-[#188779]">المناسبة لك</span>
             </h1>
             <p className="mx-auto max-w-2xl text-base leading-relaxed text-[#102f50]/60 md:text-xl">
-              خطط مرنة تناسب جميع المستويات — ابدأ مجاناً وطوّر مسيرتك التعليمية مع نخبة المعلمين
+              اختر الباقة المناسبة، واطّلع على سعرها وعدد حصصها ومزاياها المتاحة
             </p>
           </motion.div>
         </div>
@@ -171,9 +195,9 @@ const Pricing = () => {
         {/* Trust Badges */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-wrap justify-center gap-3 sm:gap-6 mb-10 -mt-16 md:-mt-20 relative z-10">
           {[
-            { icon: Shield, text: "ضمان استرداد 7 أيام" },
+            { icon: Shield, text: "مراجعة الحالات عند وجود خلل تقني" },
             { icon: Zap, text: "تفعيل فوري" },
-            { icon: Users, text: "+10,000 طالب نشط" },
+            { icon: Users, text: "مزايا موضحة لكل باقة" },
           ].map((item, i) => (
             <div key={i} className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground bg-card border border-border rounded-full px-4 py-2 shadow-card">
               <item.icon className="h-4 w-4 text-secondary" />
@@ -280,14 +304,9 @@ const Pricing = () => {
                     </div>
                     <p className="text-xs text-muted-foreground mb-6">شهرياً • {plan.sessions_count} حصة</p>
 
-                    {isPremium && (
-                      <Badge variant="outline" className="mb-5 border-gold/30 text-gold bg-gold/5 text-xs">
-                        وفّر 40% مقارنة بالحصص المفردة
-                      </Badge>
-                    )}
                     {isPopular && (
                       <Badge variant="outline" className="mb-5 border-secondary/30 text-secondary bg-secondary/5 text-xs">
-                        الأفضل قيمة مقابل السعر
+                        خيار مميز
                       </Badge>
                     )}
 
@@ -296,7 +315,11 @@ const Pricing = () => {
                         <CheckCircle className="h-4.5 w-4.5 text-secondary shrink-0" />
                         <span className="text-foreground font-semibold">{plan.sessions_count} حصة شهرياً</span>
                       </div>
-                      {(plan.features as string[])?.map((f: string, j: number) => (
+                      <div className="flex items-center gap-2.5 text-sm">
+                        <CheckCircle className="h-4.5 w-4.5 text-secondary shrink-0" />
+                        <span className="text-foreground">{plan.session_duration_minutes ?? 0} دقيقة للحصة</span>
+                      </div>
+                      {getPlanFeatures(plan).map((f, j) => (
                         <div key={j} className="flex items-center gap-2.5 text-sm">
                           <CheckCircle className="h-4.5 w-4.5 text-secondary shrink-0" />
                           <span className="text-foreground">{f}</span>
@@ -371,11 +394,11 @@ const Pricing = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {comparisonFeatures.map((feature, idx) => (
+                  {buildComparisonFeatures(plans).map((feature, idx) => (
                     <tr key={feature.key} className={`border-b last:border-0 transition-colors hover:bg-muted/20 ${idx % 2 === 0 ? "bg-muted/5" : ""}`}>
                       <td className="p-4 font-semibold text-foreground">{feature.label}</td>
                       {plans.map(plan => {
-                        const value = getFeatureValue(plan, feature.key);
+                        const value = feature.value(plan);
                         return (
                           <td key={plan.id} className="p-4 text-center">
                             {typeof value === "boolean" ? (
@@ -399,8 +422,8 @@ const Pricing = () => {
           <h2 className="text-2xl font-black text-foreground text-center mb-8">أسئلة شائعة</h2>
           <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {[
-              { q: "هل يمكنني تغيير الباقة لاحقاً؟", a: "نعم، يمكنك ترقية أو تخفيض باقتك في أي وقت. سيتم حساب الفرق تلقائياً." },
-              { q: "هل هناك ضمان استرداد؟", a: "نعم، نقدم ضمان استرداد كامل خلال أول 7 أيام من الاشتراك." },
+              { q: "هل يمكنني تغيير الباقة لاحقاً؟", a: "يمكنك الترقية إلى باقة أعلى وفق الخيارات المتاحة. لا يتاح تخفيض الباقة أثناء سريان الاشتراك." },
+              { q: "متى يمكن طلب استرداد؟", a: "تُراجع طلبات الاسترداد عند وجود خلل تقني موثّق من المنصة منع إتمام الحصة. لا تُسترد قيمة الحصص التي حُجزت أو نُفذت؛ وتُراجع الحالة بحسب سجل الحجز والاستخدام." },
               { q: "ماذا يحدث عند انتهاء الحصص؟", a: "سيتم إشعارك عند اقتراب نفاد الحصص ويمكنك تجديد الباقة أو الترقية." },
               { q: "هل يمكنني استخدام كود خصم؟", a: "نعم، أدخل كود الخصم في حقل البروموكود قبل الاشتراك وسيُطبّق الخصم تلقائياً." },
             ].map((item, i) => (

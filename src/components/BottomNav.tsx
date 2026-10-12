@@ -79,6 +79,8 @@ const BottomNav = () => {
 
 
 
+  if (!user) return null;
+
   const tabs = [
     ...(isStudent && user
       ? [{ icon: BookOpen, label: "حصصي", to: "/student" }]
