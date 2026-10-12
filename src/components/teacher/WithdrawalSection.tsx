@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DollarSign, Loader2, Send, Paperclip, FileText, X, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 export default function WithdrawalSection() {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [minWithdrawal, setMinWithdrawal] = useState(100);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
@@ -65,7 +67,14 @@ export default function WithdrawalSection() {
 
     const bd = breakdownRes.data?.[0];
     setTotalEarnings(Number(bd?.paid_total) || 0);
-    setBalance(Number(bd?.available_balance) || 0);
+    const availableBalance = Number(bd?.available_balance) || 0;
+    setBalance(availableBalance);
+    setWithdrawalAmount(current => {
+      const currentAmount = Number(current);
+      return !current || !Number.isFinite(currentAmount) || currentAmount > availableBalance
+        ? availableBalance > 0 ? availableBalance.toFixed(2) : ""
+        : current;
+    });
     setMinWithdrawal(Number((settingsRes.data as any)?.min_withdrawal_amount) || 100);
     setManualEarnings((earningsRes.data as any[]) || []);
     setWithdrawals((wData.data as any[]) || []);
@@ -78,8 +87,17 @@ export default function WithdrawalSection() {
       toast.error("لا يوجد رصيد كافٍ للسحب");
       return;
     }
-    if (balance < minWithdrawal) {
+    const amount = Number(withdrawalAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("أدخل مبلغاً صحيحاً للسحب");
+      return;
+    }
+    if (amount < minWithdrawal) {
       toast.error(`الحد الأدنى للسحب هو ${minWithdrawal} ر.س`);
+      return;
+    }
+    if (amount > balance + 0.01) {
+      toast.error("مبلغ السحب أكبر من الرصيد المتاح");
       return;
     }
     setLoading(true);
@@ -103,7 +121,7 @@ export default function WithdrawalSection() {
         .from("withdrawal_requests" as any)
         .insert({
           teacher_id: user.id,
-          amount: balance,
+          amount,
           teacher_notes: notes || null,
           attachment_url: attachmentUrl,
           attachment_name: attachmentName,
@@ -113,11 +131,12 @@ export default function WithdrawalSection() {
       await supabase.from("notifications").insert({
         user_id: user.id,
         title: "تم إرسال طلب سحب أرباح 💰",
-        body: `تم إرسال طلب سحب بمبلغ ${balance} ر.س وسيتم مراجعته من قبل الإدارة`,
+        body: `تم إرسال طلب سحب بمبلغ ${amount.toLocaleString()} ر.س وسيتم مراجعته من قبل الإدارة`,
         type: "withdrawal",
       });
 
       toast.success("تم إرسال طلب السحب بنجاح!");
+      setWithdrawalAmount("");
       setNotes("");
       setFile(null);
       await fetchData();
@@ -174,6 +193,26 @@ export default function WithdrawalSection() {
 
         {/* Notes & Attachment */}
         <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label htmlFor="teacher-withdrawal-amount" className="text-sm font-medium">
+              مبلغ السحب (ر.س)
+            </label>
+            <Input
+              id="teacher-withdrawal-amount"
+              type="number"
+              inputMode="decimal"
+              min={minWithdrawal}
+              max={balance}
+              step="0.01"
+              value={withdrawalAmount}
+              onChange={e => setWithdrawalAmount(e.target.value)}
+              disabled={loading || balance <= 0}
+              className="rounded-xl"
+            />
+            <p className="text-xs text-muted-foreground">
+              الحد الأدنى {minWithdrawal.toLocaleString()} ر.س — المتاح {balance.toLocaleString()} ر.س. يمكنك طلب جزء من الرصيد.
+            </p>
+          </div>
           <Textarea
             placeholder="أضف ملاحظات مع طلب السحب (اختياري)..."
             value={notes}

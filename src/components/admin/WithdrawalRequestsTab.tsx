@@ -12,10 +12,12 @@ import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import StatusFilter from "./StatusFilter";
+import { summarizeWithdrawalAllocations } from "@/lib/withdrawalAllocationBreakdown";
 
 export default function WithdrawalRequestsTab() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
+  const [allocationLoadError, setAllocationLoadError] = useState(false);
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
@@ -58,16 +60,27 @@ export default function WithdrawalRequestsTab() {
       .order("created_at", { ascending: false });
 
     if (data && (data as any[]).length > 0) {
-      const teacherIds = [...new Set((data as any[]).map((r: any) => r.teacher_id))];
+      const rows = data as any[];
+      const requestIds = rows.map(r => r.id);
+      const { data: allocations, error: allocationsError } = await supabase
+        .from("teacher_withdrawal_earning_allocations" as any)
+        .select("withdrawal_request_id, amount, teacher_earnings!inner(earning_type, month, rollover_source_month)")
+        .in("withdrawal_request_id", requestIds);
+      setAllocationLoadError(Boolean(allocationsError));
+      const allocationMap = summarizeWithdrawalAllocations((allocations as any[] | null) || []);
+      if (allocationsError) toast.error("تعذر تحميل توزيع مبالغ طلبات السحب");
+
+      const teacherIds = [...new Set(rows.map((r: any) => r.teacher_id))];
       const [{ data: profiles }, { data: teacherProfiles }] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name").in("user_id", teacherIds),
         supabase.from("teacher_profiles").select("user_id, bank_name, iban, account_holder_name").in("user_id", teacherIds),
       ]);
       const nameMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
       const bankMap = new Map((teacherProfiles ?? []).map((p: any) => [p.user_id, { bank_name: p.bank_name, iban: p.iban, account_holder_name: p.account_holder_name }]));
-      setRequests((data as any[]).map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم", bank_info: bankMap.get(r.teacher_id) || null })));
+      setRequests(rows.map((r: any) => ({ ...r, teacher_name: nameMap.get(r.teacher_id) || "معلم", bank_info: bankMap.get(r.teacher_id) || null, allocation_breakdown: allocationMap[r.id] || null })));
     } else {
       setRequests([]);
+      setAllocationLoadError(false);
     }
   };
 
@@ -314,8 +327,8 @@ export default function WithdrawalRequestsTab() {
               ]} />
               <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
               <ExportCSVButton
-                data={filtered.map(r => ({ teacher: r.teacher_name, amount: r.amount, status: statusMap[r.status]?.label || r.status, date: new Date(r.created_at).toLocaleDateString("ar-SA"), notes: r.teacher_notes || "" }))}
-                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "المبلغ" }, { key: "status", label: "الحالة" }, { key: "date", label: "التاريخ" }, { key: "notes", label: "ملاحظات" }]}
+                data={filtered.map(r => ({ teacher: r.teacher_name, amount: r.amount, monthly: r.allocation_breakdown?.monthly || 0, bonus: r.allocation_breakdown?.bonus || 0, status: statusMap[r.status]?.label || r.status, date: new Date(r.created_at).toLocaleDateString("ar-SA"), notes: r.teacher_notes || "" }))}
+                headers={[{ key: "teacher", label: "المعلم" }, { key: "amount", label: "إجمالي الطلب" }, { key: "monthly", label: "من الأرباح الشهرية" }, { key: "bonus", label: "من المكافآت" }, { key: "status", label: "الحالة" }, { key: "date", label: "التاريخ" }, { key: "notes", label: "ملاحظات" }]}
                 filename="سحب_الأرباح"
               />
             </div>
@@ -338,6 +351,21 @@ export default function WithdrawalRequestsTab() {
                           <p className="text-xs text-muted-foreground">
                             {Number(r.amount).toLocaleString()} ر.س • {new Date(r.created_at).toLocaleDateString("ar-SA")}
                           </p>
+                          {allocationLoadError ? (
+                            <p className="text-xs text-destructive">تعذر تحميل توزيع مصادر المبلغ</p>
+                          ) : r.allocation_breakdown ? (
+                            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                              <p>
+                                توزيع الطلب: أرباح شهرية {r.allocation_breakdown.monthly.toLocaleString()} ر.س
+                                {" · "}مكافآت {r.allocation_breakdown.bonus.toLocaleString()} ر.س
+                              </p>
+                              {Object.entries(r.allocation_breakdown.monthlyByMonth).map(([month, amount]) => (
+                                <p key={month}>أرباح شهر {month}: {Number(amount).toLocaleString()} ر.س</p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">لم يتوفر سجل تفصيلي لتوزيع هذا الطلب</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
