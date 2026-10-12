@@ -317,6 +317,10 @@ export default function TeacherEarningsTab() {
   };
 
   const startEdit = (e: any) => {
+    if (e.rollover_source_month) {
+      toast.error("لا يمكن تعديل رصيد تم ترحيله تلقائياً");
+      return;
+    }
     if (e.status === "paid") {
       toast.error("لا يمكن تعديل أرباح تم صرفها");
       return;
@@ -740,7 +744,13 @@ export default function TeacherEarningsTab() {
                           </div>
                         </td>
                         <td className="py-3 text-xs">
-                          {e.earning_type === "bonus" ? "مكافأة إضافية" : e.earning_type === "deduction" ? "خصم" : "تحويل من أرباح الشهر"}
+                          {e.rollover_source_month
+                            ? `ترحيل تلقائي من ${e.rollover_source_month}`
+                            : e.earning_type === "bonus"
+                              ? "مكافأة إضافية"
+                              : e.earning_type === "deduction"
+                                ? "خصم"
+                                : "تحويل من أرباح الشهر"}
                         </td>
                         <td className="py-3 text-muted-foreground text-xs">{e.notes || "—"}</td>
                         <td className="py-3"><Badge variant={si.variant} className="text-xs">{si.label}</Badge></td>

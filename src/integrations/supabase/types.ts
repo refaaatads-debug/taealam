@@ -1931,7 +1931,7 @@ export type Database = {
       }
       teacher_earnings: {
         Row: {
-          added_by_admin: string
+          added_by_admin?: string | null | null | null
           amount: number
           created_at: string
           gross_amount: number | null
@@ -1945,6 +1945,7 @@ export type Database = {
           notes: string | null
           platform_fee: number | null
           platform_fee_rate_snapshot: number | null
+          rollover_source_month: string | null
           status: string
           teacher_base_amount: number | null
           teacher_id: string
@@ -1967,6 +1968,8 @@ export type Database = {
           notes?: string | null
           platform_fee?: number | null
           platform_fee_rate_snapshot?: number | null
+          rollover_source_month?: string | null
+          rollover_source_month?: string | null
           status?: string
           teacher_base_amount?: number | null
           teacher_id: string

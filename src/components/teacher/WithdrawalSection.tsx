@@ -51,7 +51,7 @@ export default function WithdrawalSection() {
     const [breakdownRes, settingsRes, earningsRes, wData, monthBreakdown] = await Promise.all([
       supabase.rpc("get_teacher_earnings_breakdown", { _teacher_id: user.id }),
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
-      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status, earning_type").eq("teacher_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status, earning_type, rollover_source_month").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
       supabase.rpc("get_teacher_net_summary", { _teacher_id: user.id, _month: currentMonth }),
     ]);
@@ -222,12 +222,13 @@ export default function WithdrawalSection() {
 
         {/* Manual earnings ledger */}
         {manualEarnings.length > 0 && (() => {
-          type ManualEarningGroup = { month: string; earningType: string; amount: number; hours: number; statuses: Set<string> };
+          type ManualEarningGroup = { month: string; earningType: string; rolloverSourceMonth: string | null; amount: number; hours: number; statuses: Set<string> };
           const byMonth = manualEarnings.reduce<Record<string, ManualEarningGroup>>((acc, e: any) => {
             const m = e.month || "—";
             const earningType = e.earning_type || "monthly_transfer";
-            const key = `${m}:${earningType}`;
-            if (!acc[key]) acc[key] = { month: m, earningType, amount: 0, hours: 0, statuses: new Set() };
+            const rolloverSourceMonth = e.rollover_source_month || null;
+            const key = `${m}:${earningType}:${rolloverSourceMonth || ""}`;
+            if (!acc[key]) acc[key] = { month: m, earningType, rolloverSourceMonth, amount: 0, hours: 0, statuses: new Set() };
             acc[key].amount += Number(e.amount) || 0;
             acc[key].hours += Number(e.hours) || 0;
             acc[key].statuses.add(e.status);
@@ -255,10 +256,16 @@ export default function WithdrawalSection() {
                       const label = isPaid ? "مدفوعة" : isConfirmed ? "مسجلة" : "قيد المراجعة";
                       const variant = isPaid ? "outline" as const : isConfirmed ? "default" as const : "secondary" as const;
                       return (
-                        <tr key={`${data.month}:${data.earningType}`} className="border-t">
+                        <tr key={`${data.month}:${data.earningType}:${data.rolloverSourceMonth || ""}`} className="border-t">
                           <td className="p-2 font-medium">{data.month}</td>
                           <td className="p-2 text-xs">
-                            {data.earningType === "bonus" ? "مكافأة إضافية" : data.earningType === "deduction" ? "خصم" : "تحويل من أرباح الشهر"}
+                            {data.rolloverSourceMonth
+                              ? `ترحيل تلقائي من ${data.rolloverSourceMonth}`
+                              : data.earningType === "bonus"
+                                ? "مكافأة إضافية"
+                                : data.earningType === "deduction"
+                                  ? "خصم"
+                                  : "تحويل من أرباح الشهر"}
                           </td>
                           <td className="p-2 text-muted-foreground">{data.hours.toFixed(1)} س</td>
                           <td className="p-2 font-bold text-foreground">{data.amount.toLocaleString()} ر.س</td>
