@@ -1931,7 +1931,7 @@ export type Database = {
       }
       teacher_earnings: {
         Row: {
-          added_by_admin?: string | null | null | null
+          added_by_admin: string | null
           amount: number
           created_at: string
           gross_amount: number | null
@@ -1954,7 +1954,7 @@ export type Database = {
           vat_rate_snapshot: number | null
         }
         Insert: {
-          added_by_admin: string
+          added_by_admin?: string | null
           amount: number
           created_at?: string
           gross_amount?: number | null
@@ -1978,7 +1978,7 @@ export type Database = {
           vat_rate_snapshot?: number | null
         }
         Update: {
-          added_by_admin?: string
+          added_by_admin?: string | null
           amount?: number
           created_at?: string
           gross_amount?: number | null
