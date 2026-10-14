@@ -13,7 +13,7 @@ import {
   Users, BookOpen, DollarSign, TrendingUp, Search,
   CheckCircle, XCircle, Shield, BarChart3, Clock,
   UserCheck, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings,
-  MessageSquare, UserPlus, Activity, CreditCard, TicketCheck, ArrowLeft,
+  MessageSquare, UserPlus, Activity, CreditCard, TicketCheck, ArrowLeft, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -873,8 +873,16 @@ const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, 
   </div>
 );
 
-const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => (
-  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => {
+  const [expandedTeacherIds, setExpandedTeacherIds] = useState<string[]>([]);
+  const toggleTeacherDetails = (teacherId: string) => {
+    setExpandedTeacherIds(current => current.includes(teacherId)
+      ? current.filter(id => id !== teacherId)
+      : [...current, teacherId]);
+  };
+
+  return (
+    <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
     <CardHeader>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -898,58 +906,91 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
           <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {teachers.map((t: any) => (
-            <div key={t.id} className="p-4 bg-muted/30 rounded-xl space-y-3 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
-                    <GraduationCap className="h-5 w-5 text-secondary" />
+        <div className="space-y-2">
+          {teachers.map((t: any) => {
+            const detailsOpen = expandedTeacherIds.includes(t.id);
+            const subjects = Array.isArray(t.subjects) ? t.subjects : [];
+            const stages = Array.isArray(t.teaching_stages) ? t.teaching_stages : [];
+            const certificates = Array.isArray(t.certificates) ? t.certificates : [];
+
+            return (
+            <div key={t.id} className="rounded-xl border border-border/70 bg-card px-3 py-2.5 shadow-sm transition-colors hover:bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex min-w-[210px] flex-1 items-center gap-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary/10">
+                    <GraduationCap className="h-4 w-4 text-secondary" />
                   </div>
-                  <div>
-                    <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
-                    <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{t.profile?.full_name || "بدون اسم"}</p>
+                    <p className="text-[11px] text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}{t.nationality ? ` · ${t.nationality}` : ""}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="rounded-lg gap-1 border-primary/30 text-primary hover:bg-primary/10" onClick={() => openTeacherSupport(t)}>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">{t.years_experience || 0} سنوات خبرة</span>
+                  <span className="max-w-40 truncate rounded-full bg-secondary/10 px-2 py-1 text-secondary">
+                    {subjects.length > 0 ? `${subjects[0]}${subjects.length > 1 ? ` +${subjects.length - 1}` : ""}` : "لا توجد مواد"}
+                  </span>
+                  <span className="max-w-40 truncate rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                    {stages.length > 0 ? stages.join(" / ") : "المراحل غير محددة"}
+                  </span>
+                  <span className="text-muted-foreground">{new Date(t.created_at).toLocaleDateString("ar-SA")}</span>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button size="sm" variant="outline" className="h-8 rounded-lg gap-1 px-2 text-xs border-primary/30 text-primary hover:bg-primary/10" onClick={() => openTeacherSupport(t)}>
                     <MessageSquare className="h-3.5 w-3.5" />
-                    مراسلة
+                    <span className="hidden sm:inline">مراسلة</span>
                   </Button>
-                  <Button size="sm" className="rounded-lg bg-success hover:bg-success/90 text-success-foreground gap-1" onClick={() => approveTeacher(t.id)}>
+                  <Button size="sm" className="h-8 rounded-lg bg-success hover:bg-success/90 text-success-foreground gap-1 px-2 text-xs" onClick={() => approveTeacher(t.id)}>
                     <CheckCircle className="h-3.5 w-3.5" />
                     موافقة
                   </Button>
-                  <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
+                  <Button size="sm" variant="destructive" className="h-8 rounded-lg gap-1 px-2 text-xs" onClick={() => rejectTeacher(t.id, t.user_id)}>
                     <XCircle className="h-3.5 w-3.5" />
                     رفض
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-background/60 rounded-lg p-3">
-                <div><span className="text-muted-foreground">سنوات الخبرة</span><p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p></div>
-                <div><span className="text-muted-foreground">الجنسية</span><p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p></div>
-                <div><span className="text-muted-foreground">المواد</span><p className="font-medium text-foreground mt-0.5">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</p></div>
-                <div><span className="text-muted-foreground">أوقات التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}</p></div>
-                {t.available_days && t.available_days.length > 0 && (
-                  <div className="col-span-2"><span className="text-muted-foreground">أيام التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p></div>
-                )}
-                {t.teaching_stages && t.teaching_stages.length > 0 && (
-                  <div className="col-span-2"><span className="text-muted-foreground">المراحل الدراسية</span>
-                    <div className="flex flex-wrap gap-1 mt-0.5">{t.teaching_stages.map((stage: string) => <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>)}</div>
+
+              <button
+                type="button"
+                aria-expanded={detailsOpen}
+                onClick={() => toggleTeacherDetails(t.id)}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/5"
+              >
+                {detailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {detailsOpen ? "إخفاء التفاصيل" : `عرض التفاصيل والشهادات (${certificates.length})`}
+              </button>
+
+              {detailsOpen && (
+                <div className="mt-2 grid gap-3 border-t border-border/60 pt-2.5 text-xs md:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-muted/40 p-2.5">
+                    <div><span className="text-muted-foreground">سنوات الخبرة</span><p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p></div>
+                    <div><span className="text-muted-foreground">الجنسية</span><p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p></div>
+                    <div><span className="text-muted-foreground">المواد</span><p className="font-medium text-foreground mt-0.5">{subjects.length > 0 ? subjects.join("، ") : "—"}</p></div>
+                    <div><span className="text-muted-foreground">أوقات التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}</p></div>
+                    {t.available_days?.length > 0 && (
+                      <div className="col-span-2"><span className="text-muted-foreground">أيام التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p></div>
+                    )}
+                    {stages.length > 0 && (
+                      <div className="col-span-2"><span className="text-muted-foreground">المراحل الدراسية</span>
+                        <div className="flex flex-wrap gap-1 mt-0.5">{stages.map((stage: string) => <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>)}</div>
+                      </div>
+                    )}
+                    {t.bio && <div className="col-span-2"><span className="text-muted-foreground">النبذة</span><p className="font-medium text-foreground mt-0.5">{t.bio}</p></div>}
                   </div>
-                )}
-                {t.bio && <div className="col-span-2 md:col-span-4"><span className="text-muted-foreground">النبذة</span><p className="font-medium text-foreground mt-0.5">{t.bio}</p></div>}
-              </div>
-              <TeacherCertificatesList certificates={t.certificates || []} compact />
-              <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
+                  <TeacherCertificatesList certificates={certificates} compact />
+                </div>
+              )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </CardContent>
-  </Card>
-);
+    </Card>
+  );
+};
 
 const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter, bookingDateFrom, bookingDateTo, setBookingDateFrom, setBookingDateTo }: any) => (
   <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
