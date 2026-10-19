@@ -1492,17 +1492,35 @@ export function useWebRTC({
     dataChannelRef.current = null;
     setDataChannelReady(false);
     if (agoraClientRef.current) {
+      const client = agoraClientRef.current;
+      agoraClientRef.current = null;
       try {
         const tracks = [agoraAudioTrackRef.current, agoraScreenTrackRef.current].filter(Boolean);
-        if (tracks.length) await agoraClientRef.current.unpublish(tracks);
+        // Leaving must not depend on unpublish succeeding: Agora can keep
+        // counting a participant if unpublish rejects before leave is reached.
+        const leavePromise = Promise.resolve(client.leave()).catch((error: unknown) => {
+          console.warn("[agora] leave request failed", error);
+        });
         tracks.forEach((track: any) => track.close?.());
-        await agoraClientRef.current.leave();
+        let timeoutId: number | undefined;
+        await Promise.race([
+          leavePromise,
+          new Promise<void>((resolve) => {
+            timeoutId = window.setTimeout(() => {
+              console.warn("[agora] leave request exceeded 5 seconds");
+              resolve();
+            }, 5000);
+          }),
+        ]);
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       } catch (error) {
         console.warn("[agora] leave cleanup failed", error);
+      } finally {
+        agoraAudioTrackRef.current?.close?.();
+        agoraScreenTrackRef.current?.close?.();
+        agoraAudioTrackRef.current = null;
+        agoraScreenTrackRef.current = null;
       }
-      agoraClientRef.current = null;
-      agoraAudioTrackRef.current = null;
-      agoraScreenTrackRef.current = null;
     }
     transportProviderRef.current = "webrtc";
     setTransportProvider("unknown");
@@ -1523,10 +1541,11 @@ export function useWebRTC({
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       if (agoraClientRef.current) {
+        const client = agoraClientRef.current;
+        agoraClientRef.current = null;
+        void client.leave().catch((error: unknown) => console.warn("[agora] unmount leave failed", error));
         const tracks = [agoraAudioTrackRef.current, agoraScreenTrackRef.current].filter(Boolean);
         tracks.forEach((track: any) => track.close?.());
-        void agoraClientRef.current.leave().catch(() => {});
-        agoraClientRef.current = null;
         agoraAudioTrackRef.current = null;
         agoraScreenTrackRef.current = null;
       }

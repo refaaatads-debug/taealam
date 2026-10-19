@@ -57,7 +57,6 @@ const LiveSession = () => {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [remoteHandRaised, setRemoteHandRaised] = useState(false);
-
   const [showReport, setShowReport] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -69,6 +68,12 @@ const LiveSession = () => {
   const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
   const [questionsDetected, setQuestionsDetected] = useState(0);
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
+  const connectionHealthyRef = useRef(false);
+  const teacherSilenceStartedAtRef = useRef<number | null>(null);
+  const teacherSilenceWarningShownRef = useRef(false);
+  const teacherSilenceReportedRef = useRef(false);
+  const teacherSilenceEventIdRef = useRef<string | null>(null);
+  const teacherSilenceLastAttemptRef = useRef(0);
   const [meetingStarted, setMeetingStarted] = useState(false);
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string; _tempId?: string }[]>([]);
   const messagesRef = useRef(messages);
@@ -398,6 +403,7 @@ const LiveSession = () => {
     userId: user?.id || "",
     localStream,
     meetingStarted,
+    audioModerationEnabled: meetingStarted && bothJoined && remoteConnected,
     onMuteUser: () => {
       localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
     },
@@ -517,25 +523,105 @@ const LiveSession = () => {
       } catch { /* ignore */ }
     }
 
-    const threshold = 15;
+    const threshold = 0.022;
+    const readRms = (analyser: AnalyserNode) => {
+      const data = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(data);
+      let squares = 0;
+      for (const value of data) {
+        const sample = (value - 128) / 128;
+        squares += sample * sample;
+      }
+      return Math.sqrt(squares / data.length);
+    };
     const interval = setInterval(() => {
+      let localSpeaking = false;
+      let remoteSpeaking = false;
       if (analysers.local) {
-        const data = new Uint8Array(analysers.local.frequencyBinCount);
-        analysers.local.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        if (avg > threshold) {
+        localSpeaking = readRms(analysers.local) > threshold;
+        if (localSpeaking) {
           if (isTeacher) setTeacherSpeakingSec(p => p + 1);
           else setStudentSpeakingSec(p => p + 1);
         }
       }
       if (analysers.remote) {
-        const data = new Uint8Array(analysers.remote.frequencyBinCount);
-        analysers.remote.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        if (avg > threshold) {
+        remoteSpeaking = readRms(analysers.remote) > threshold;
+        if (remoteSpeaking) {
           if (isTeacher) setStudentSpeakingSec(p => p + 1);
           else setTeacherSpeakingSec(p => p + 1);
         }
+      }
+      voiceActivityRef.current = { localSpeaking, remoteSpeaking };
+
+      // Only the teacher's own client can report this event. Require a live,
+      // unmuted teacher microphone and a healthy connection to avoid counting
+      // intentional mute or network failure as teacher silence.
+      const teacherTrack = isTeacher ? localStream?.getAudioTracks()[0] : null;
+      const canMeasureTeacherSilence =
+        isTeacher &&
+        meetingStarted &&
+        bothJoined &&
+        remoteConnected &&
+        connectionHealthyRef.current &&
+        !!teacherTrack &&
+        teacherTrack.readyState === "live" &&
+        teacherTrack.enabled &&
+        !teacherTrack.muted;
+
+      if (!canMeasureTeacherSilence) {
+        teacherSilenceStartedAtRef.current = null;
+        teacherSilenceWarningShownRef.current = false;
+        teacherSilenceReportedRef.current = false;
+        teacherSilenceEventIdRef.current = null;
+        teacherSilenceLastAttemptRef.current = 0;
+        return;
+      }
+
+      const teacherSpeaking = isTeacher ? localSpeaking : remoteSpeaking;
+      const now = performance.now();
+      if (teacherSpeaking) {
+        teacherSilenceStartedAtRef.current = now;
+        teacherSilenceWarningShownRef.current = false;
+        teacherSilenceReportedRef.current = false;
+        teacherSilenceEventIdRef.current = null;
+        teacherSilenceLastAttemptRef.current = 0;
+        return;
+      }
+
+      if (teacherSilenceStartedAtRef.current === null) {
+        teacherSilenceStartedAtRef.current = now;
+      }
+      const silentForSeconds = Math.floor((now - teacherSilenceStartedAtRef.current) / 1000);
+
+      if (silentForSeconds >= 240 && !teacherSilenceWarningShownRef.current) {
+        teacherSilenceWarningShownRef.current = true;
+        toast.warning("لم يُرصد صوت من المعلم منذ أربع دقائق. سيُسجَّل تنبيه عند استمرار الصمت دقيقة إضافية.");
+      }
+
+      if (
+        silentForSeconds >= 300 &&
+        !teacherSilenceReportedRef.current &&
+        now - teacherSilenceLastAttemptRef.current >= 30_000
+      ) {
+        teacherSilenceLastAttemptRef.current = now;
+        teacherSilenceEventIdRef.current ||= crypto.randomUUID();
+        void supabase.functions.invoke("record-session-violation", {
+          body: {
+            booking_id: bookingId,
+            violation_type: "teacher_silence",
+            source: "voice",
+            duration_seconds: silentForSeconds,
+            source_event_id: teacherSilenceEventIdRef.current,
+          },
+        }).then(({ data, error }) => {
+          if (error) throw error;
+          if (data?.recorded || data?.duplicate) {
+            teacherSilenceReportedRef.current = true;
+            toast.warning("تم تسجيل صمت المعلم في سجل المخالفات لمراجعة الإدارة.");
+          }
+        }).catch((error) => {
+          console.error("Teacher silence violation could not be saved:", error);
+        });
       }
     }, 1000);
 
@@ -543,7 +629,7 @@ const LiveSession = () => {
       clearInterval(interval);
       audioCtx.close().catch(() => {});
     };
-  }, [meetingStarted, localStream, remoteStream, isTeacher]);
+  }, [meetingStarted, localStream, remoteStream, isTeacher, bothJoined, remoteConnected, bookingId]);
 
   useEffect(() => {
     const videoElement = remoteVideoRef.current;
@@ -591,7 +677,7 @@ const LiveSession = () => {
    // Load the same thread even before the media handshake is complete so the
    // history is visible as soon as the session screen opens.
   useEffect(() => {
-     if (!bookingId || !userId) return;
+      if (!bookingId || !userId) return;
 
      let active = true;
      let pairBookingIds: string[] = [bookingId];
@@ -646,7 +732,7 @@ const LiveSession = () => {
         sender: msg.sender_id === userId ? "أنت" : otherNameRef.current,
         text: msg.content,
         time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-        me: msg.sender_id === userId,
+        me: msg.sender_id === user.id,
         fileUrl: msg.file_url,
         fileName: msg.file_name,
         fileType: msg.file_type,
@@ -674,10 +760,10 @@ const LiveSession = () => {
            const msg = payload.new as any;
            if (!pairBookingIds.includes(msg.booking_id)) return;
 
-           const isMe = msg.sender_id === userId;
+            const isMe = msg.sender_id === userId;
            setMessages((prev) => {
              const formatted = {
-               sender: isMe ? "أنت" : otherNameRef.current,
+                sender: isMe ? "أنت" : otherNameRef.current,
                text: msg.content,
                time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
                me: isMe,
@@ -692,8 +778,8 @@ const LiveSession = () => {
              return exists ? withoutOptimistic : [...withoutOptimistic, formatted];
            });
            if (!isMe) {
-             playNotificationSoundRef.current();
-             if (!chatOpenRef.current) setUnreadCount(prev => prev + 1);
+              playNotificationSoundRef.current();
+              if (!chatOpenRef.current) setUnreadCount(prev => prev + 1);
            }
          })
          .subscribe();
@@ -1082,6 +1168,7 @@ const LiveSession = () => {
   //     When the peer's internet drops, the DataChannel closes immediately on our side,
   //     so using dataChannelReady avoids the long lag the user would otherwise see.
   const connectionHealthy = isOnline && connectionState === "connected" && dataChannelReady;
+  connectionHealthyRef.current = connectionHealthy;
   const shouldCount = meetingStarted && bothJoined && connectionHealthy;
   shouldCountRef.current = shouldCount;
 
@@ -1298,6 +1385,7 @@ const LiveSession = () => {
     } catch (error) {
       console.error("[session] transport startup failed:", error);
       try { await stop(); } catch {}
+      setMeetingStarted(false);
       toast.error("تعذّر بدء الاتصال عبر المزوّد المثبّت. لم يتم التحويل تلقائيًا إلى مزوّد آخر.");
       return;
     }
@@ -1324,6 +1412,19 @@ const LiveSession = () => {
     } catch {}
 
     if (isTeacher) {
+      if (!existingStartedAt) {
+        const { data: lateCheckData, error: lateCheckError } = await supabase.functions.invoke("record-session-violation", {
+          body: {
+            booking_id: bookingId,
+            violation_type: "teacher_late",
+            source: "session_join",
+            source_event_id: crypto.randomUUID(),
+          },
+        });
+        if (lateCheckError) console.error("Teacher late check failed:", lateCheckError);
+        else if (lateCheckData?.recorded) toast.warning("تم تسجيل التأخر عن موعد الجلسة لمراجعة الإدارة.");
+      }
+
       let startedAtIso = existingStartedAt;
       if (!startedAtIso) {
         // First time starting - create new started_at
@@ -1603,6 +1704,10 @@ const LiveSession = () => {
       try { await stopRecording(); } catch (e) { console.error("stopRecording failed", e); }
     }
 
+    // Begin closing the RTC client before navigating away. In particular,
+    // Agora's leave must run even if React unmounts this page immediately.
+    const mediaStopPromise = stop();
+
     // 4) Navigate IMMEDIATELY for instant UX — student goes to rating, teacher to dashboard
     if (isTeacher) {
       navigate("/teacher");
@@ -1612,7 +1717,7 @@ const LiveSession = () => {
 
     // 5) Background: cleanup, DB updates, upload (non-blocking — page already navigated)
     void (async () => {
-      const fastTasks: Promise<any>[] = [stop(), cleanupSession()];
+      const fastTasks: Promise<any>[] = [mediaStopPromise, cleanupSession()];
       if (currentBookingId) {
         fastTasks.push(
           supabase.from("bookings")
@@ -1789,7 +1894,7 @@ const LiveSession = () => {
 
 
   // Keep the mic/network check as the only join screen until the transport has started.
-  // This prevents a second join button from appearing while startup is in progress.
+  // This prevents a second "join session" button from appearing after the pre-join check.
   if (!meetingStarted && bookingId) {
     const studentJoinDisabled = !isTeacher && !teacherStarted;
     const lowBalance = hasSubscription && subscriptionRemainingMinutes < 5;
@@ -1806,7 +1911,7 @@ const LiveSession = () => {
         canJoin={canJoin}
         joinDisabledReason={reason}
         onJoin={() => {
-          // Keep the checks visible until Agora has actually started.
+          // Defer the actual start by one tick so state updates flush before getUserMedia runs again
           setTimeout(() => { startMeeting(); }, 50);
         }}
         onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
@@ -1842,7 +1947,11 @@ const LiveSession = () => {
                   iceTransportType.startsWith("Direct") ? "text-green-400 bg-green-400/10" :
                   "text-muted-foreground bg-muted/30"
                 }`}>
-                  {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {transportProvider === "agora" ? "Agora" : transportProvider === "webrtc" ? `WebRTC · ${iceTransportType}` : iceTransportType}
+                  {transportProvider === "agora"
+                    ? "Agora"
+                    : transportProvider === "webrtc"
+                      ? `WebRTC · ${iceTransportType}`
+                      : iceTransportType}
                 </span>
               )}
               {connectionState === "connected" && connectionQuality.level !== "disconnected" && (
@@ -2077,7 +2186,7 @@ const LiveSession = () => {
         {/* Main area */}
          <div className={`order-0 md:order-1 min-h-0 min-w-0 flex-[1.2] md:flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-[#e9eee7] ${showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
-             <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-2xl md:rounded-3xl border border-border/50 shadow-lg shadow-foreground/10"}`}>
+              <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-2xl md:rounded-3xl border border-border/50 shadow-lg shadow-foreground/10"}`}>
                {/* Workspace status: the active teaching surface is always explicit. */}
                <div className="absolute top-3 left-3 right-3 z-40 flex items-center justify-between gap-3 pointer-events-none">
                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0b1424]/85 px-3 py-2 text-white shadow-lg backdrop-blur-xl">
@@ -2261,7 +2370,7 @@ const LiveSession = () => {
               )}
             </div>
           ) : (
-            <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center rounded-2xl">
+           <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center rounded-2xl">
               <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
                 <Headphones className="h-14 w-14 text-primary-foreground/60" />
               </div>
@@ -2333,7 +2442,7 @@ const LiveSession = () => {
 
         {/* Chat Panel */}
          <AnimatePresence initial={false}>
-<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-1 md:order-0 min-h-0 w-full flex-[0.95] md:flex-none md:w-[340px] md:shrink-0 bg-card border border-border/70 md:border-y-0 md:border-l-0 flex flex-col relative z-10 shadow-sm ${chatOpen ? "" : "hidden md:flex"}`}>
+           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-1 md:order-0 min-h-0 w-full flex-[0.95] md:flex-none md:w-[340px] md:shrink-0 bg-card border border-border/70 md:border-y-0 md:border-l-0 flex flex-col relative z-10 shadow-sm ${chatOpen ? "" : "hidden md:flex"}`}>
               <div className="px-4 py-3 border-b border-border/70 bg-gradient-to-l from-primary/10 via-card to-card flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <MessageSquare className="h-5 w-5" />
