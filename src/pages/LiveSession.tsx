@@ -277,6 +277,7 @@ const LiveSession = () => {
     isRecording,
     dataChannelReady,
     iceTransportType,
+    transportProvider,
     start,
     stop,
     toggleMic,
@@ -1231,10 +1232,16 @@ const LiveSession = () => {
       toast.error("هذه الجلسة مفتوحة في تبويب آخر.");
       return;
     }
+    try {
+      await start();
+    } catch (error) {
+      console.error("[session] transport startup failed:", error);
+      try { await stop(); } catch {}
+      toast.error(error instanceof Error ? error.message : "تعذّر بدء الحصة. لم يتم التحويل إلى WebRTC.");
+      return;
+    }
     setMeetingStarted(true);
     logEvent("start_session", { role: isTeacher ? "teacher" : "student" });
-
-    await start();
 
     // Check if session already has a started_at (rejoin scenario)
     const { data: existingSess } = await supabase
@@ -1773,7 +1780,7 @@ const LiveSession = () => {
                   iceTransportType.startsWith("Direct") ? "text-green-400 bg-green-400/10" :
                   "text-muted-foreground bg-muted/30"
                 }`}>
-                  {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {iceTransportType}
+                  {iceTransportType === "TURN Relay" ? "🔁" : iceTransportType === "STUN" ? "🌐" : "⚡"} {transportProvider === "agora" ? "Agora" : transportProvider === "webrtc" ? `WebRTC · ${iceTransportType}` : iceTransportType}
                 </span>
               )}
               {connectionState === "connected" && connectionQuality.level !== "disconnected" && (

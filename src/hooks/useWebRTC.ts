@@ -97,6 +97,10 @@ export function useWebRTC({
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
+  const transportProviderRef = useRef<"webrtc" | "agora">("webrtc");
+  const agoraClientRef = useRef<any>(null);
+  const agoraAudioTrackRef = useRef<any>(null);
+  const agoraScreenTrackRef = useRef<any>(null);
   const isRestartingRef      = useRef(false);   // mutex — prevents concurrent ICE restarts
   const disconnectTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNegotiatingRef     = useRef(false);   // true while onnegotiationneeded offer/answer in flight
@@ -113,6 +117,7 @@ export function useWebRTC({
   const [isRecording, setIsRecording] = useState(false);
   const [dataChannelReady, setDataChannelReady] = useState(false);
   const [iceTransportType, setIceTransportType] = useState<string>("unknown");
+  const [transportProvider, setTransportProvider] = useState<"unknown" | "webrtc" | "agora">("unknown");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -202,6 +207,17 @@ export function useWebRTC({
 
   // Send data via DataChannel
   const sendDataMessage = useCallback((msg: any) => {
+    if (transportProviderRef.current === "agora") {
+      const channel = channelRef.current;
+      if (channel) {
+        void channel.send({
+          type: "broadcast",
+          event: "session-data",
+          payload: { senderId: userId, message: msg },
+        }).catch((error: unknown) => console.warn("[agora] session data send failed", error));
+      }
+      return;
+    }
     const dc = dataChannelRef.current;
     if (dc && dc.readyState === "open") {
       try {
@@ -220,7 +236,7 @@ export function useWebRTC({
     if (typeof msg?.type === "string" && msg.type.startsWith("whiteboard-")) {
       pendingDataMessagesRef.current = [...pendingDataMessagesRef.current, msg].slice(-200);
     }
-  }, []);
+  }, [userId]);
 
   const setupDataChannel = useCallback((dc: RTCDataChannel) => {
     dataChannelRef.current = dc;
@@ -569,6 +585,31 @@ export function useWebRTC({
   }, [userId, sendSignal, createPeerConnection]);
 
   const start = useCallback(async () => {
+    transportProviderRef.current = "webrtc";
+    setTransportProvider("unknown");
+    let transportData: any = null;
+    try {
+      const { data, error } = await supabase.functions.invoke("session-transport-token", {
+        body: { bookingId },
+      });
+      if (error) throw error;
+      transportData = data;
+      if (data?.provider === "agora" && data?.token && data?.appId && data?.channel && data?.uid) {
+        transportProviderRef.current = "agora";
+        setTransportProvider("agora");
+      } else if (data?.provider === "webrtc" && data?.legacyActive === true) {
+        transportProviderRef.current = "webrtc";
+        setTransportProvider("webrtc");
+      } else {
+        throw new Error("مزود الاتصال للحصة غير متاح");
+      }
+    } catch (error) {
+      console.error("[session] transport selection failed; session will not start", error);
+      transportProviderRef.current = "webrtc";
+      setTransportProvider("unknown");
+      throw new Error("تعذّر تثبيت مزوّد الاتصال. لم يبدأ الاتصال؛ أعد المحاولة لاحقًا.");
+    }
+
     await initLocalMedia();
 
     if (channelRef.current) {
@@ -586,6 +627,12 @@ export function useWebRTC({
         if (signal?.senderId !== userId) {
           handleSignal(signal.signalType, signal.payload, signal.senderId);
         }
+      })
+      .on("broadcast", { event: "session-data" }, (event: any) => {
+        const payload = event.payload;
+        if (payload?.senderId !== userId && payload?.message) {
+          onDataMessageRef.current?.(payload.message);
+        }
       });
 
     await waitForChannelSubscription(channel, async () => {
@@ -602,6 +649,96 @@ export function useWebRTC({
       }
     });
     channelRef.current = channel;
+    if (transportProviderRef.current === "agora") {
+      const data = transportData;
+      if (data?.provider !== "agora" || !data?.token || !data?.appId || !data?.channel || !data?.uid) {
+        throw new Error("Agora session token response is incomplete");
+      }
+      if (!localStreamRef.current?.getAudioTracks().length) {
+        throw new Error("Microphone permission is required for Agora sessions");
+      }
+
+      const sdk = await import("agora-rtc-sdk-ng");
+      const AgoraRTC: any = (sdk as any).default || sdk;
+      const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      agoraClientRef.current = client;
+      const remote = new MediaStream();
+      const syncRemote = () => {
+        const updated = new MediaStream(remote.getTracks());
+        latestRemoteStreamRef.current = updated;
+        setRemoteStream(updated);
+        onRemoteStreamRef.current?.(updated);
+      };
+      client.on("user-published", async (remoteUser: any, mediaType: "audio" | "video") => {
+        await client.subscribe(remoteUser, mediaType);
+        const track = mediaType === "audio"
+          ? remoteUser.audioTrack?.getMediaStreamTrack()
+          : remoteUser.videoTrack?.getMediaStreamTrack();
+        if (track && !remote.getTracks().some((existing) => existing.id === track.id)) {
+          remote.addTrack(track);
+          track.addEventListener("ended", () => {
+            remote.removeTrack(track);
+            syncRemote();
+          }, { once: true });
+          syncRemote();
+        }
+        setConnectionState("connected");
+        onConnectionStateRef.current?.("connected");
+        setDataChannelReady(true);
+      });
+      client.on("user-unpublished", (remoteUser: any, mediaType: "audio" | "video") => {
+        const track = mediaType === "audio"
+          ? remoteUser.audioTrack?.getMediaStreamTrack()
+          : remoteUser.videoTrack?.getMediaStreamTrack();
+        if (track) {
+          remote.removeTrack(track);
+          syncRemote();
+        }
+      });
+      client.on("user-joined", () => {
+        onRemoteJoinRef.current?.();
+        setConnectionState("connected");
+        onConnectionStateRef.current?.("connected");
+        setDataChannelReady(true);
+      });
+      client.on("user-left", () => {
+        onRemoteLeaveRef.current?.();
+        remote.getTracks().forEach((track) => remote.removeTrack(track));
+        syncRemote();
+        setConnectionState("disconnected");
+        onConnectionStateRef.current?.("disconnected");
+      });
+      client.on("connection-state-change", (current: string) => {
+        if (current === "RECONNECTING" || current === "DISCONNECTED") {
+          setConnectionState("disconnected");
+          onConnectionStateRef.current?.("disconnected");
+        }
+      });
+      client.on("token-privilege-will-expire", async () => {
+        try {
+          const { data: renewed, error: renewalError } = await supabase.functions.invoke("session-transport-token", {
+            body: { bookingId },
+          });
+          if (renewalError || renewed?.provider !== "agora" || !renewed?.token) {
+            throw renewalError || new Error("Agora token renewal response is incomplete");
+          }
+          await client.renewToken(renewed.token);
+        } catch (error) {
+          console.error("[agora] token renewal failed", error);
+        }
+      });
+      setConnectionState("connecting");
+      const uid = await client.join(data.appId, data.channel, data.token, data.uid);
+      const microphone = AgoraRTC.createCustomAudioTrack({
+        mediaStreamTrack: localStreamRef.current.getAudioTracks()[0],
+      });
+      agoraAudioTrackRef.current = microphone;
+      await client.publish([microphone]);
+      setIceTransportType("Agora");
+      sendDataMessage({ type: "join", userId: uid });
+      return;
+    }
+
     await createPeerConnection();
     await sendSignal("join", { userId });
 
@@ -618,7 +755,7 @@ export function useWebRTC({
       _retryCount++;
       await sendSignal("join", { userId, retry: _retryCount });
     }, 3000);
-  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
+  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal, sendDataMessage]);
 
   const restartConnection = useCallback(async () => {
     if (isRestartingRef.current) return; // prevent concurrent restarts
@@ -676,8 +813,11 @@ export function useWebRTC({
 
   const toggleMic = useCallback(() => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-      setMicEnabled(t.enabled);
+      const enabled = !t.enabled;
+      t.enabled = enabled;
+      if (enabled) agoraAudioTrackRef.current?.setEnabled?.(true);
+      else agoraAudioTrackRef.current?.setEnabled?.(false);
+      setMicEnabled(enabled);
     });
   }, []);
 
@@ -760,6 +900,80 @@ export function useWebRTC({
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
+    if (transportProviderRef.current === "agora") {
+      const client = agoraClientRef.current;
+      if (!client) return;
+      if (screenSharing) {
+        screenEndedCancelledRef.current = true;
+        const track = agoraScreenTrackRef.current;
+        if (track) {
+          try { await client.unpublish([track]); } catch {}
+          track.close();
+          agoraScreenTrackRef.current = null;
+        }
+        screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+        setScreenSharing(false);
+        sendDataMessage({ type: "screen-share-status", active: false });
+        return;
+      }
+
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        alert(isIOS
+          ? "مشاركة الشاشة تتطلب iPadOS 16 أو أحدث مع متصفح Safari."
+          : "مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. يُرجى استخدام Chrome/Edge على الكمبيوتر.");
+        return;
+      }
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 30, max: 60 }, width: { ideal: 1920, max: 1920 }, height: { ideal: 1080, max: 1080 } } as any,
+          audio: false,
+        });
+      } catch (error: any) {
+        if (error?.name !== "NotAllowedError") console.error("[agora] screen share failed", error);
+        return;
+      }
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      try {
+        const sdk = await import("agora-rtc-sdk-ng");
+        const AgoraRTC: any = (sdk as any).default || sdk;
+        const track = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: videoTrack });
+        agoraScreenTrackRef.current = track;
+        await client.publish([track]);
+        screenStreamRef.current = stream;
+        screenEndedCancelledRef.current = false;
+        videoTrack.addEventListener("ended", () => {
+          if (screenEndedCancelledRef.current) return;
+          const endedTrack = agoraScreenTrackRef.current;
+          if (endedTrack) {
+            void client.unpublish([endedTrack]).catch(() => {});
+            endedTrack.close();
+            agoraScreenTrackRef.current = null;
+          }
+          screenStreamRef.current = null;
+          setScreenSharing(false);
+          sendDataMessage({ type: "screen-share-status", active: false });
+        }, { once: true });
+        setScreenSharing(true);
+        sendDataMessage({ type: "screen-share-status", active: true });
+        startDirectScreenRecorder(stream);
+      } catch (error) {
+        console.error("[agora] screen publish failed", error);
+        stream.getTracks().forEach((t) => t.stop());
+        const track = agoraScreenTrackRef.current;
+        track?.close?.();
+        agoraScreenTrackRef.current = null;
+      }
+      return;
+    }
+
     const pc = pcRef.current;
     const transceiver = screenTransceiverRef.current;
     if (!pc || !transceiver) return;
@@ -1229,7 +1443,9 @@ export function useWebRTC({
   }, []);
 
   const stop = useCallback(async () => {
-    await sendSignal("leave", { userId });
+    if (transportProviderRef.current === "webrtc") {
+      await sendSignal("leave", { userId });
+    }
     if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
@@ -1238,6 +1454,21 @@ export function useWebRTC({
     dataChannelRef.current?.close();
     dataChannelRef.current = null;
     setDataChannelReady(false);
+    if (agoraClientRef.current) {
+      try {
+        const tracks = [agoraAudioTrackRef.current, agoraScreenTrackRef.current].filter(Boolean);
+        if (tracks.length) await agoraClientRef.current.unpublish(tracks);
+        tracks.forEach((track: any) => track.close?.());
+        await agoraClientRef.current.leave();
+      } catch (error) {
+        console.warn("[agora] leave cleanup failed", error);
+      }
+      agoraClientRef.current = null;
+      agoraAudioTrackRef.current = null;
+      agoraScreenTrackRef.current = null;
+    }
+    transportProviderRef.current = "webrtc";
+    setTransportProvider("unknown");
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -1254,6 +1485,14 @@ export function useWebRTC({
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (agoraClientRef.current) {
+        const tracks = [agoraAudioTrackRef.current, agoraScreenTrackRef.current].filter(Boolean);
+        tracks.forEach((track: any) => track.close?.());
+        void agoraClientRef.current.leave().catch(() => {});
+        agoraClientRef.current = null;
+        agoraAudioTrackRef.current = null;
+        agoraScreenTrackRef.current = null;
+      }
       dataChannelRef.current?.close();
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
@@ -1269,6 +1508,7 @@ export function useWebRTC({
     isRecording,
     dataChannelReady,
     iceTransportType,
+    transportProvider,
     start,
     stop,
     toggleMic,

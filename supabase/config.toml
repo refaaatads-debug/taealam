@@ -51,3 +51,6 @@ verify_jwt = true
 [functions.cleanup-chat-messages]
 verify_jwt = true
 
+
+[functions.session-transport-token]
+verify_jwt = true
