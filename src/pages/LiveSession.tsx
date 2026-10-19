@@ -2,6 +2,16 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Mic, MicOff, Monitor, MessageSquare,
   PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
@@ -46,6 +56,7 @@ const LiveSession = () => {
   const [remoteHandRaised, setRemoteHandRaised] = useState(false);
   const [showPreJoin, setShowPreJoin] = useState(true);
   const [showReport, setShowReport] = useState(false);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
@@ -104,6 +115,8 @@ const LiveSession = () => {
   const wasWorkspaceSharingRef = useRef(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [chatLoading, setChatLoading] = useState(true);
+  const [chatLoadError, setChatLoadError] = useState(false);
+  const [chatRetryKey, setChatRetryKey] = useState(0);
   const [fileUploading, setFileUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
@@ -574,6 +587,7 @@ const LiveSession = () => {
      let active = true;
      let pairBookingIds: string[] = [bookingId];
       setChatLoading(true);
+      setChatLoadError(false);
     const fetchUnifiedMessages = async () => {
       // Get booking info to find the pair
       const { data: booking, error: bookingError } = await supabase
@@ -677,14 +691,30 @@ const LiveSession = () => {
        chatChannelRef.current = channel;
      };
 
-      void fetchUnifiedMessages()
+      const fetchWithRetry = async () => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            return await fetchUnifiedMessages();
+          } catch (error) {
+            lastError = error;
+            const status = Number((error as any)?.status ?? (error as any)?.statusCode);
+            const retryable = !Number.isFinite(status) || status === 0 || status === 408 || status === 429 || status >= 500;
+            if (!retryable || attempt === 2) throw error;
+            await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
+          }
+        }
+        throw lastError;
+      };
+
+      void fetchWithRetry()
         .then(() => subscribeToPair())
         .catch((error) => {
           console.error("[session-chat] failed to load conversation", error);
           if (active) {
-            setMessages([]);
+            setChatLoadError(true);
             setChatLoading(false);
-            toast.error("تعذر تحميل المحادثة. حاول تحديث الصفحة.");
+            toast.error("تعذر تحميل المحادثة. أعد المحاولة من داخل المحادثة.");
             subscribeToPair();
           }
         });
@@ -696,7 +726,7 @@ const LiveSession = () => {
         chatChannelRef.current = null;
       }
     };
-   }, [bookingId, user, otherName, chatOpen, playNotificationSound]);
+   }, [bookingId, user, otherName, chatOpen, playNotificationSound, chatRetryKey]);
 
   // Fetch booking details
   useEffect(() => {
@@ -2311,7 +2341,25 @@ const LiveSession = () => {
                    <div className="flex h-full min-h-[220px] items-center justify-center">
                      <Loader2 className="h-7 w-7 animate-spin text-primary" />
                    </div>
-                 ) : messages.length === 0 ? (
+                  ) : chatLoadError && messages.length === 0 ? (
+                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-5 text-center">
+                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                        <WifiOff className="h-6 w-6" />
+                      </div>
+                      <p className="text-sm font-black text-foreground">تعذر تحميل الرسائل</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">تحقق من الاتصال ثم أعد المحاولة. لن تُحذف الرسائل السابقة.</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-4 rounded-xl border-primary/30 text-primary hover:bg-primary/10"
+                        onClick={() => setChatRetryKey((key) => key + 1)}
+                      >
+                        <RefreshCw className="ml-2 h-4 w-4" />
+                        إعادة المحاولة
+                      </Button>
+                    </div>
+                  ) : messages.length === 0 ? (
                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-5 text-center">
                      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                        <MessageSquare className="h-6 w-6" />
@@ -2459,7 +2507,7 @@ const LiveSession = () => {
         <div className="w-px h-8 bg-card/15 mx-1" />
 
         {/* End call */}
-        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={() => { if (window.confirm("هل توافق على إغلاق الجلسة؟")) void endSession(); }} title="إنهاء الحصة">
+        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={() => setEndConfirmOpen(true)} title="إنهاء الحصة">
           <Phone className="h-5 w-5 rotate-[135deg]" />
         </Button>
       </div>
@@ -2488,6 +2536,37 @@ const LiveSession = () => {
           </div>
         </div>
       )}
+
+      <AlertDialog open={endConfirmOpen} onOpenChange={setEndConfirmOpen}>
+        <AlertDialogContent dir="rtl" className="max-w-sm overflow-hidden rounded-3xl border-border/70 bg-card p-0 shadow-2xl">
+          <div className="h-1.5 bg-gradient-to-l from-destructive via-orange-400 to-primary" />
+          <div className="px-6 pt-6">
+            <AlertDialogHeader className="items-center space-y-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive ring-1 ring-destructive/15">
+                <AlertTriangle className="h-7 w-7" />
+              </div>
+              <AlertDialogTitle className="text-xl font-black text-foreground">إنهاء الجلسة؟</AlertDialogTitle>
+              <AlertDialogDescription className="text-sm leading-6 text-muted-foreground">
+                سيؤدي التأكيد إلى إنهاء الحصة للطرفين. هل تريد المتابعة؟
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+          </div>
+          <AlertDialogFooter className="flex-row justify-center gap-3 px-6 pb-6 pt-2 sm:space-x-0">
+            <AlertDialogCancel className="mt-0 min-w-32 rounded-xl border-border bg-background hover:bg-muted">
+              متابعة الحصة
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="min-w-32 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setEndConfirmOpen(false);
+                void endSession();
+              }}
+            >
+              إنهاء الجلسة
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Screen-share annotation toolbar removed per request — keeps the shared screen clean */}
     </div>
