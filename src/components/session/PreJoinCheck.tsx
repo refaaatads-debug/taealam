@@ -23,6 +23,8 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   const [micRetryKey, setMicRetryKey] = useState(0);
   const [joining, setJoining] = useState(false);
   const [networkState, setNetworkState] = useState<"checking" | "ok" | "error">("checking");
+  const [deviceOnline, setDeviceOnline] = useState(() => navigator.onLine);
+  const [networkErrorKind, setNetworkErrorKind] = useState<"offline" | "timeout" | "auth" | "blocked" | "service" | null>(null);
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
   const [micErrorName, setMicErrorName] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -32,6 +34,7 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
 
   const checkInternet = async () => {
     setNetworkState("checking");
+    setNetworkErrorKind(null);
     networkCheckRef.current?.abort();
     const controller = new AbortController();
     networkCheckRef.current = controller;
@@ -67,10 +70,20 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
         setNetworkLatency(Math.round(performance.now() - startedAt));
         setNetworkState("ok");
       }
-    } catch {
+    } catch (error) {
       if (networkCheckRef.current === controller) {
         setNetworkState("error");
         setNetworkLatency(null);
+        const message = error instanceof Error ? error.message : String(error ?? "");
+        const status = Number((error as any)?.status ?? (error as any)?.context?.status
+          ?? message.match(/\b(401|403)\b/)?.[1]);
+        setNetworkErrorKind(
+          !navigator.onLine ? "offline"
+            : status === 401 || status === 403 ? "auth"
+              : /abort|timeout/i.test(message) ? "timeout"
+                : /failed to fetch|networkerror|err_blocked_by_client|cors/i.test(message) ? "blocked"
+                  : "service",
+        );
       }
     } finally {
       clearTimeout(timeout);
@@ -80,8 +93,9 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
 
   useEffect(() => {
     void checkInternet();
-    const handleOnline = () => { void checkInternet(); };
+    const handleOnline = () => { setDeviceOnline(true); void checkInternet(); };
     const handleOffline = () => {
+      setDeviceOnline(false);
       const activeCheck = networkCheckRef.current;
       networkCheckRef.current = null;
       activeCheck?.abort();
@@ -218,10 +232,10 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
               {networkState === "checking" && <Loader2 className="h-4 w-4 text-secondary animate-spin" />}
               {networkState === "ok" && <Wifi className="h-4 w-4 text-green-400" />}
               {networkState === "error" && <WifiOff className="h-4 w-4 text-destructive" />}
-              <span className="text-sm font-bold text-card">اختبار اتصال الإنترنت</span>
+              <span className="text-sm font-bold text-card">الوصول إلى خادم الجلسة</span>
             </div>
             {networkState === "ok" ? (
-              <span className="text-xs text-green-400">{networkLatency} ms · متصل</span>
+              <span className="text-xs text-green-400">{networkLatency} ms · متاح</span>
             ) : networkState === "error" ? (
               <button data-testid="button-retry-internet-check" type="button" onClick={() => void checkInternet()} className="text-xs text-secondary flex items-center gap-1">
                 <RefreshCw className="h-3 w-3" /> أعد الفحص
@@ -230,7 +244,22 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
               <span className="text-xs text-card/50">جارٍ الفحص…</span>
             )}
           </div>
-          {networkState === "error" && <p className="mt-2 text-xs leading-5 text-destructive">تعذر الوصول إلى خادم المنصة. تحقق من الإنترنت، واسمح للموقع في إضافة حجب الإعلانات أو الخصوصية إن كنت تستخدمها، ثم أعد الفحص.</p>}
+          <p className="mt-2 text-[11px] leading-5 text-card/50">
+            {deviceOnline ? "الجهاز متصل بالشبكة. هذا الفحص يقيس الوصول إلى خادم الجلسة، وليس سرعة الإنترنت." : "الجهاز غير متصل بالشبكة."}
+          </p>
+          {networkState === "error" && (
+            <p className="mt-2 text-xs leading-5 text-destructive">
+              {networkErrorKind === "offline"
+                ? "لا يوجد اتصال شبكة على هذا الجهاز. أعد الاتصال ثم أعد الفحص."
+                : networkErrorKind === "timeout"
+                  ? "لم يصل رد خادم الجلسة في الوقت المحدد. قد يكون اتصالك جيدًا لكن الخادم لا يستجيب الآن."
+                  : networkErrorKind === "auth"
+                    ? "تعذر التحقق من صلاحية الدخول. حدّث الصفحة أو سجّل الدخول مجددًا."
+                    : networkErrorKind === "blocked"
+                      ? "منعت إضافة في المتصفح أو إعداد شبكة الوصول إلى خادم الجلسة. اسمح للموقع في إضافة الحجب ثم أعد الفحص."
+                      : "خادم الجلسة غير متاح حاليًا. هذا لا يعني بالضرورة أن سرعة الإنترنت ضعيفة؛ أعد الفحص بعد قليل."}
+            </p>
+          )}
         </div>
 
         {/* Mic test */}
@@ -298,7 +327,7 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
 
         <div className="mb-4 rounded-2xl border border-secondary/25 bg-secondary/10 p-4 text-right" role="note">
           <p className="text-xs leading-6 text-card/80">
-            تُرصد المخالفات تلقائياً أثناء الجلسة، بما فيها مشاركة معلومات التواصل أو العناوين والصمت. تُرسل مقاطع صوتية قصيرة إلى ElevenLabs للفحص، ولا تُحفظ هذه المقاطع أو نصوصها ضمن سجل المخالفات؛ يُحفظ تصنيف المخالفة للمراجعة الإدارية. وبشكل منفصل، تُسجَّل الحصة كاملةً وتُحفظ وفق سياسة تسجيل الجلسات.
+            قد تُستخدم فحوص آلية أثناء الجلسة لرصد مخالفات مثل مشاركة معلومات التواصل أو العناوين أو الصمت الطويل. لا تُحفَظ مقاطع الفحص الصوتي القصيرة أو نصوصها في سجل المخالفات؛ يُحفَظ تصنيف المخالفة فقط لمراجعة الإدارة. وبشكل منفصل، تُسجَّل الحصة كاملةً وتُحفَظ وفق سياسة تسجيل الجلسات.
           </p>
         </div>
 

@@ -1381,8 +1381,14 @@ const LiveSession = () => {
       const details = error instanceof Error ? error.message : String(error ?? "");
       const networkFailure = /failed to fetch|networkerror|err_blocked_by_client|fetch failed|timeout|network/i.test(details);
       const permissionFailure = /notallowederror|permission|microphone/i.test(details);
+      const authFailure = /انتهت صلاحية تسجيل الدخول|401|unauthorized|jwt/i.test(details);
+      const forbidden = /غير مخوّل|403|forbidden/i.test(details);
       const userMessage = permissionFailure
         ? "تعذر تشغيل الميكروفون. تحقق من إذن المتصفح وأغلق أي تطبيق آخر يستخدمه ثم أعد المحاولة."
+        : authFailure
+          ? "انتهت صلاحية تسجيل الدخول. أعد تحميل الصفحة وسجّل الدخول مجددًا قبل بدء الحصة."
+          : forbidden
+            ? "هذا الحساب غير مخوّل للانضمام إلى هذه الحصة. تحقق من الحساب أو تواصل مع الإدارة."
         : networkFailure
           ? "تعذر الوصول إلى خادم الجلسة. تحقق من الإنترنت، واسمح للموقع في إضافة الحجب إن وجدت، ثم أعد المحاولة."
           : details || "تعذر بدء الجلسة. أعد المحاولة.";

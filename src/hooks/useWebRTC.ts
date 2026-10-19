@@ -597,10 +597,27 @@ export function useWebRTC({
     setTransportProvider("unknown");
     let transportData: any = null;
     try {
-      const { data, error } = await supabase.functions.invoke("session-transport-token", {
+      let tokenResponse = await supabase.functions.invoke("session-transport-token", {
         body: { bookingId },
       });
-      if (error) throw error;
+      let status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
+      if (status === 401) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed.session?.access_token) {
+          throw new Error("انتهت صلاحية تسجيل الدخول. سجّل الدخول مجددًا قبل الانضمام.");
+        }
+        tokenResponse = await supabase.functions.invoke("session-transport-token", {
+          body: { bookingId },
+          headers: { Authorization: `Bearer ${refreshed.session.access_token}` },
+        });
+        status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
+      }
+      if (tokenResponse.error) {
+        if (status === 401) throw new Error("انتهت صلاحية تسجيل الدخول. أعد تحميل الصفحة وسجّل الدخول مجددًا.");
+        if (status === 403) throw new Error("هذا الحساب غير مخوّل للانضمام إلى هذه الحصة.");
+        throw tokenResponse.error;
+      }
+      const { data } = tokenResponse;
       transportData = data;
       if (data?.provider === "agora" && data?.token && data?.appId && data?.channel && data?.uid) {
         transportProviderRef.current = "agora";
@@ -615,7 +632,11 @@ export function useWebRTC({
       console.error("[session] transport selection failed; session will not start", error);
       transportProviderRef.current = "webrtc";
       setTransportProvider("unknown");
-      throw new Error("تعذّر تثبيت مزوّد الاتصال. لم يبدأ الاتصال؛ أعد المحاولة لاحقًا.");
+      const status = Number((error as any)?.status ?? (error as any)?.context?.status);
+      if (status === 401) throw new Error("انتهت صلاحية تسجيل الدخول. أعد تحميل الصفحة وسجّل الدخول مجددًا.");
+      if (status === 403) throw new Error("هذا الحساب غير مخوّل للانضمام إلى هذه الحصة.");
+      if (status === 429) throw new Error("تكررت محاولات الانضمام بسرعة. انتظر قليلًا ثم أعد المحاولة.");
+      throw new Error("تعذّر الوصول إلى خدمة الاتصال أو تثبيت المزوّد. تحقق من تسجيل الدخول وإعدادات حجب الطلبات ثم أعد المحاولة.");
     }
 
     setDataChannelReady(false);
