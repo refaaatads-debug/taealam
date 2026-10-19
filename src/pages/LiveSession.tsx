@@ -45,6 +45,7 @@ const LiveSession = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const bookingId = searchParams.get("booking");
+  const userId = user?.id;
 
   // Keep the conversation visible beside the call on desktop. On mobile the
   // same button still toggles it to preserve the compact layout.
@@ -70,6 +71,8 @@ const LiveSession = () => {
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const [meetingStarted, setMeetingStarted] = useState(false);
   const [messages, setMessages] = useState<{ sender: string; text: string; time: string; me: boolean; fileUrl?: string; fileName?: string; fileType?: string; _tempId?: string }[]>([]);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const [newMessage, setNewMessage] = useState("");
   const timerRef = useRef<number>();
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -77,6 +80,8 @@ const LiveSession = () => {
 
   const [bookingData, setBookingData] = useState<any>(null);
   const [otherName, setOtherName] = useState("المشارك");
+  const otherNameRef = useRef(otherName);
+  otherNameRef.current = otherName;
   const [subjectName, setSubjectName] = useState("");
   const [sessionDuration, setSessionDuration] = useState(45);
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -122,6 +127,8 @@ const LiveSession = () => {
   const [fileUploading, setFileUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { play: playNotificationSound } = useNotificationSound();
+  const playNotificationSoundRef = useRef(playNotificationSound);
+  playNotificationSoundRef.current = playNotificationSound;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [uiVisible, setUiVisible] = useState(true);
   const uiHideTimerRef = useRef<number>();
@@ -584,11 +591,11 @@ const LiveSession = () => {
    // Load the same thread even before the media handshake is complete so the
    // history is visible as soon as the session screen opens.
   useEffect(() => {
-     if (!bookingId || !user) return;
+     if (!bookingId || !userId) return;
 
      let active = true;
      let pairBookingIds: string[] = [bookingId];
-      setChatLoading(true);
+       if (messagesRef.current.length === 0) setChatLoading(true);
       setChatLoadError(false);
     const fetchUnifiedMessages = async () => {
       // Get booking info to find the pair
@@ -636,10 +643,10 @@ const LiveSession = () => {
         }
 
       setMessages(data.map((msg: any) => ({
-        sender: msg.sender_id === user.id ? "أنت" : otherName,
+        sender: msg.sender_id === userId ? "أنت" : otherNameRef.current,
         text: msg.content,
         time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-        me: msg.sender_id === user.id,
+        me: msg.sender_id === userId,
         fileUrl: msg.file_url,
         fileName: msg.file_name,
         fileType: msg.file_type,
@@ -667,10 +674,10 @@ const LiveSession = () => {
            const msg = payload.new as any;
            if (!pairBookingIds.includes(msg.booking_id)) return;
 
-           const isMe = msg.sender_id === user.id;
+           const isMe = msg.sender_id === userId;
            setMessages((prev) => {
              const formatted = {
-               sender: isMe ? "أنت" : otherName,
+               sender: isMe ? "أنت" : otherNameRef.current,
                text: msg.content,
                time: new Date(msg.created_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
                me: isMe,
@@ -685,7 +692,7 @@ const LiveSession = () => {
              return exists ? withoutOptimistic : [...withoutOptimistic, formatted];
            });
            if (!isMe) {
-             playNotificationSound();
+             playNotificationSoundRef.current();
              if (!chatOpenRef.current) setUnreadCount(prev => prev + 1);
            }
          })
@@ -728,7 +735,7 @@ const LiveSession = () => {
         chatChannelRef.current = null;
       }
     };
-   }, [bookingId, user, otherName, playNotificationSound, chatRetryKey]);
+   }, [bookingId, userId, chatRetryKey]);
 
   // Fetch booking details
   useEffect(() => {
