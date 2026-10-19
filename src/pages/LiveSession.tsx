@@ -49,12 +49,14 @@ const LiveSession = () => {
   // Keep the conversation visible beside the call on desktop. On mobile the
   // same button still toggles it to preserve the compact layout.
   const [chatOpen, setChatOpen] = useState(true);
+  const chatOpenRef = useRef(chatOpen);
+  chatOpenRef.current = chatOpen;
   const [boardOpen, setBoardOpen] = useState(false);
   const [filePreview, setFilePreview] = useState<{ url: string; name: string; type: "pdf" | "image" } | null>(null);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [remoteHandRaised, setRemoteHandRaised] = useState(false);
-  const [showPreJoin, setShowPreJoin] = useState(true);
+
   const [showReport, setShowReport] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -684,7 +686,7 @@ const LiveSession = () => {
            });
            if (!isMe) {
              playNotificationSound();
-             if (!chatOpen) setUnreadCount(prev => prev + 1);
+             if (!chatOpenRef.current) setUnreadCount(prev => prev + 1);
            }
          })
          .subscribe();
@@ -726,7 +728,7 @@ const LiveSession = () => {
         chatChannelRef.current = null;
       }
     };
-   }, [bookingId, user, otherName, chatOpen, playNotificationSound, chatRetryKey]);
+   }, [bookingId, user, otherName, playNotificationSound, chatRetryKey]);
 
   // Fetch booking details
   useEffect(() => {
@@ -1779,9 +1781,9 @@ const LiveSession = () => {
   }, [workspaceSharing]);
 
 
-  // Pre-join screen: show before user clicks "join the session" so they can verify mic.
-  // Skip when meeting already started (rejoin scenarios) or when user dismissed it.
-  if (showPreJoin && !meetingStarted && bookingId) {
+  // Keep the mic/network check as the only join screen until the transport has started.
+  // This prevents a second join button from appearing while startup is in progress.
+  if (!meetingStarted && bookingId) {
     const studentJoinDisabled = !isTeacher && !teacherStarted;
     const lowBalance = hasSubscription && subscriptionRemainingMinutes < 5;
     const canJoin = !studentJoinDisabled && !lowBalance;
@@ -1797,8 +1799,7 @@ const LiveSession = () => {
         canJoin={canJoin}
         joinDisabledReason={reason}
         onJoin={() => {
-          setShowPreJoin(false);
-          // Defer the actual start by one tick so state updates flush before getUserMedia runs again
+          // Keep the checks visible until Agora has actually started.
           setTimeout(() => { startMeeting(); }, 50);
         }}
         onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
