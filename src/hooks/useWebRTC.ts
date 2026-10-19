@@ -94,6 +94,8 @@ export function useWebRTC({
   const channelRef = useRef<any>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const pendingDataMessagesRef = useRef<any[]>([]);
+  const pendingAgoraDataMessagesRef = useRef<any[]>([]);
+  const agoraRealtimeReadyRef = useRef(false);
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
@@ -112,6 +114,7 @@ export function useWebRTC({
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
   const [micEnabled, setMicEnabled] = useState(true);
+  const micEnabledRef = useRef(true);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -209,13 +212,18 @@ export function useWebRTC({
   const sendDataMessage = useCallback((msg: any) => {
     if (transportProviderRef.current === "agora") {
       const channel = channelRef.current;
-      if (channel) {
-        void channel.send({
-          type: "broadcast",
-          event: "session-data",
-          payload: { senderId: userId, message: msg },
-        }).catch((error: unknown) => console.warn("[agora] session data send failed", error));
+      if (!channel || !agoraRealtimeReadyRef.current) {
+        pendingAgoraDataMessagesRef.current = [
+          ...pendingAgoraDataMessagesRef.current,
+          msg,
+        ].slice(-200);
+        return;
       }
+      void channel.send({
+        type: "broadcast",
+        event: "session-data",
+        payload: { senderId: userId, message: msg },
+      }).catch((error: unknown) => console.warn("[agora] session data send failed", error));
       return;
     }
     const dc = dataChannelRef.current;
@@ -612,6 +620,8 @@ export function useWebRTC({
 
     setDataChannelReady(false);
     setConnectionState("connecting");
+    agoraRealtimeReadyRef.current = false;
+    pendingAgoraDataMessagesRef.current = [];
     await initLocalMedia();
 
     if (channelRef.current) {
@@ -638,7 +648,19 @@ export function useWebRTC({
       });
 
     channelRef.current = channel;
+    const flushAgoraData = () => {
+      if (channelRef.current !== channel) return;
+      agoraRealtimeReadyRef.current = true;
+      setDataChannelReady(true);
+      const queued = pendingAgoraDataMessagesRef.current.splice(0);
+      queued.forEach((message) => sendDataMessage(message));
+      sendDataMessage({ type: "join", userId });
+    };
     const realtimeReady = waitForChannelSubscription(channel, async () => {
+      if (transportProviderRef.current === "agora") {
+        flushAgoraData();
+        return;
+      }
       // Realtime channel reconnected after internet outage.
       // If WebRTC is still broken, re-send "join" so the peer rebuilds the connection.
       const pcState = pcRef.current?.connectionState;
@@ -653,11 +675,7 @@ export function useWebRTC({
     });
     if (transportProviderRef.current === "agora") {
       void realtimeReady.then(
-        () => {
-          if (channelRef.current !== channel) return;
-          setDataChannelReady(true);
-          sendDataMessage({ type: "join", userId });
-        },
+        flushAgoraData,
         (error) => {
           console.warn("[agora] realtime session-data channel is unavailable; audio will continue", error);
         },
@@ -822,13 +840,20 @@ export function useWebRTC({
   }, []);
 
   const toggleMic = useCallback(() => {
-    localStreamRef.current?.getAudioTracks().forEach((t) => {
-      const enabled = !t.enabled;
-      t.enabled = enabled;
-      if (enabled) agoraAudioTrackRef.current?.setEnabled?.(true);
-      else agoraAudioTrackRef.current?.setEnabled?.(false);
-      setMicEnabled(enabled);
-    });
+    const tracks = localStreamRef.current?.getAudioTracks() ?? [];
+    const current = tracks[0]?.enabled ?? micEnabledRef.current;
+    const enabled = !current;
+    tracks.forEach((track) => { track.enabled = enabled; });
+    micEnabledRef.current = enabled;
+    setMicEnabled(enabled);
+    try {
+      const result = agoraAudioTrackRef.current?.setEnabled?.(enabled);
+      if (result && typeof result.catch === "function") {
+        result.catch((error: unknown) => console.warn("[agora] microphone toggle failed", error));
+      }
+    } catch (error) {
+      console.warn("[agora] microphone toggle failed", error);
+    }
   }, []);
 
   const toggleVideo = useCallback(() => {
@@ -1461,6 +1486,8 @@ export function useWebRTC({
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    agoraRealtimeReadyRef.current = false;
+    pendingAgoraDataMessagesRef.current = [];
     dataChannelRef.current?.close();
     dataChannelRef.current = null;
     setDataChannelReady(false);

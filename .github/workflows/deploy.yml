@@ -9,6 +9,41 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Create VPS backup before deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -eu
+            backup_dir="/root/backups/ajyal-predeploy-${{ github.sha }}"
+            web_root="/var/www/html"
+            functions_root="/root/taealam/supabase_setup/docker/volumes/functions"
+
+            test -d "$web_root"
+            test -d "$functions_root"
+            mkdir -p "$backup_dir"
+            chmod 700 "$backup_dir"
+            tar -czf "$backup_dir/web-root.tar.gz" -C /var/www html
+            tar -czf "$backup_dir/edge-functions.tar.gz" -C /root/taealam/supabase_setup/docker/volumes functions
+            cp -a /root/deploy-ajyal.sh "$backup_dir/deploy-ajyal.sh"
+            cat > "$backup_dir/restore.sh" <<EOF
+            #!/bin/sh
+            set -eu
+            cd "$backup_dir"
+            tar -xzf web-root.tar.gz -C /var/www
+            tar -xzf edge-functions.tar.gz -C /root/taealam/supabase_setup/docker/volumes
+            docker restart supabase-edge-functions
+            nginx -t
+            systemctl reload nginx
+            EOF
+            chmod 700 "$backup_dir/restore.sh"
+            printf 'backup_sha=%s\ncreated_at_utc=%s\n' '${{ github.sha }}' "$(date -u +%FT%TZ)" > "$backup_dir/MANIFEST.txt"
+            chmod 600 "$backup_dir/"*.tar.gz "$backup_dir/MANIFEST.txt" "$backup_dir/deploy-ajyal.sh"
+            tar -tzf "$backup_dir/web-root.tar.gz" >/dev/null
+            tar -tzf "$backup_dir/edge-functions.tar.gz" >/dev/null
+            echo "VPS backup completed at $backup_dir"
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:

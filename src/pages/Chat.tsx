@@ -58,7 +58,7 @@ interface ConversationSummary {
  * selected thread with the same unified booking logic below.
  */
 const ConversationIndex = () => {
-  const { user, roles } = useAuth();
+  const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,80 +69,104 @@ const ConversationIndex = () => {
     }
 
     let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
     const loadConversations = async () => {
       setLoading(true);
-      const isTeacher = roles.includes("teacher");
-      const roleColumn = isTeacher ? "teacher_id" : "student_id";
-      const { data: bookings, error } = await supabase
-        .from("bookings")
-        .select("id, student_id, teacher_id, scheduled_at")
-        .eq(roleColumn, user.id)
-        .order("scheduled_at", { ascending: false })
-        .limit(1000);
+      try {
+        const columns = "id, student_id, teacher_id, scheduled_at";
+        const [studentResult, teacherResult] = await Promise.all([
+          supabase.from("bookings").select(columns).eq("student_id", user.id).order("scheduled_at", { ascending: false }).limit(1000),
+          supabase.from("bookings").select(columns).eq("teacher_id", user.id).order("scheduled_at", { ascending: false }).limit(1000),
+        ]);
+        if (studentResult.error) throw studentResult.error;
+        if (teacherResult.error) throw teacherResult.error;
+        const bookings = [...new Map(
+          [...(studentResult.data || []), ...(teacherResult.data || [])].map((booking: any) => [booking.id, booking]),
+        ).values()].sort((a: any, b: any) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime());
 
-      if (!active) return;
-      if (error || !bookings?.length) {
-        setConversations([]);
-        setLoading(false);
-        return;
-      }
-
-      const latestByUser = new Map<string, any>();
-      bookings.forEach((booking: any) => {
-        const otherUserId = isTeacher ? booking.student_id : booking.teacher_id;
-        if (otherUserId && !latestByUser.has(otherUserId)) {
-          latestByUser.set(otherUserId, booking);
+        const byOtherUser = new Map<string, { booking: any; bookingIds: string[] }>();
+        const otherByBooking = new Map<string, string>();
+        for (const booking of bookings as any[]) {
+          const otherUserId = booking.student_id === user.id ? booking.teacher_id : booking.student_id;
+          if (!otherUserId) continue;
+          otherByBooking.set(booking.id, otherUserId);
+          const existing = byOtherUser.get(otherUserId);
+          if (existing) existing.bookingIds.push(booking.id);
+          else byOtherUser.set(otherUserId, { booking, bookingIds: [booking.id] });
         }
-      });
 
-      const bookingIds = bookings.map((booking: any) => booking.id);
-      const { data: chatMessages } = await supabase
-        .from("chat_messages")
-        .select("booking_id, content, created_at")
-        .in("booking_id", bookingIds)
-        .gte("created_at", new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1000);
-
-      const lastMessageByBooking = new Map<string, any>();
-      (chatMessages || []).forEach((message: any) => {
-        if (!lastMessageByBooking.has(message.booking_id)) {
-          lastMessageByBooking.set(message.booking_id, message);
+        const bookingIds = bookings.map((booking: any) => booking.id);
+        let chatMessages: any[] = [];
+        if (bookingIds.length) {
+          const { data, error } = await supabase
+            .from("chat_messages")
+            .select("booking_id, content, created_at")
+            .in("booking_id", bookingIds)
+            .gte("created_at", new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+            .order("created_at", { ascending: false })
+            .limit(1000);
+          if (error) console.warn("[chat-list] message previews unavailable", error);
+          chatMessages = data || [];
         }
-      });
 
-      const otherIds = [...latestByUser.keys()];
-      const { data: profiles } = await supabase
-        .from("public_profiles")
-        .select("user_id, full_name")
-        .in("user_id", otherIds);
-      const names = new Map((profiles || []).map((profile: any) => [profile.user_id, profile.full_name]));
+        const lastMessageByUser = new Map<string, any>();
+        chatMessages.forEach((message) => {
+          const otherUserId = otherByBooking.get(message.booking_id);
+          if (otherUserId && !lastMessageByUser.has(otherUserId)) lastMessageByUser.set(otherUserId, message);
+        });
 
-      const result = [...latestByUser.entries()]
-        .map(([otherUserId, booking]) => {
-          const lastMessage = lastMessageByBooking.get(booking.id);
+        const otherIds = [...byOtherUser.keys()];
+        let names = new Map<string, string>();
+        if (otherIds.length) {
+          const { data: profiles, error } = await supabase
+            .from("public_profiles")
+            .select("user_id, full_name")
+            .in("user_id", otherIds);
+          if (error) console.warn("[chat-list] profile names unavailable", error);
+          names = new Map((profiles || []).map((profile: any) => [profile.user_id, profile.full_name]));
+        }
+
+        const result = [...byOtherUser.entries()].map(([otherUserId, { booking }]) => {
+          const lastMessage = lastMessageByUser.get(otherUserId);
           return {
             bookingId: booking.id,
             otherUserId,
-            otherName: names.get(otherUserId) || (isTeacher ? "طالب" : "معلم"),
+            otherName: names.get(otherUserId) || (booking.student_id === user.id ? "معلم" : "طالب"),
             scheduledAt: booking.scheduled_at,
             lastMessage: lastMessage?.content,
             lastMessageAt: lastMessage?.created_at,
           };
-        })
-        .sort((a, b) => new Date(b.lastMessageAt || b.scheduledAt).getTime() - new Date(a.lastMessageAt || a.scheduledAt).getTime());
+        }).sort((a, b) => new Date(b.lastMessageAt || b.scheduledAt).getTime() - new Date(a.lastMessageAt || a.scheduledAt).getTime());
 
-      if (active) {
+        if (!active) return;
         setConversations(result);
         setLoading(false);
+
+        channel = supabase.channel(`chat-list-${user.id}`)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+            const message = payload.new as any;
+            const otherUserId = otherByBooking.get(message.booking_id);
+            if (!otherUserId) return;
+            setConversations((current) => current.map((conversation) => conversation.otherUserId === otherUserId
+              ? { ...conversation, lastMessage: message.content, lastMessageAt: message.created_at }
+              : conversation));
+          }).subscribe();
+      } catch (error) {
+        console.error("[chat-list] failed to load conversations", error);
+        if (active) {
+          setConversations([]);
+          setLoading(false);
+          toast.error("تعذر تحميل قائمة المحادثات");
+        }
       }
     };
 
     loadConversations();
     return () => {
       active = false;
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [user, roles]);
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">

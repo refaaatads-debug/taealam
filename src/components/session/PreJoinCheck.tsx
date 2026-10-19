@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Mic, MicOff, Headphones, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Mic, MicOff, Headphones, Loader2, CheckCircle2, AlertCircle, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PreJoinCheckProps {
@@ -20,9 +20,52 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   const [micState, setMicState] = useState<"checking" | "ok" | "denied" | "error">("checking");
   const [micLevel, setMicLevel] = useState(0);
   const [micEnabled, setMicEnabled] = useState(true);
+  const [networkState, setNetworkState] = useState<"checking" | "ok" | "error">("checking");
+  const [networkLatency, setNetworkLatency] = useState<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
+  const networkCheckRef = useRef<AbortController | null>(null);
+
+  const checkInternet = async () => {
+    setNetworkState("checking");
+    networkCheckRef.current?.abort();
+    const controller = new AbortController();
+    networkCheckRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    const startedAt = performance.now();
+    try {
+      if (!navigator.onLine) throw new Error("offline");
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!baseUrl) throw new Error("missing Supabase URL");
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/auth/v1/health`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (response.status >= 500) throw new Error(`health check ${response.status}`);
+      setNetworkLatency(Math.round(performance.now() - startedAt));
+      setNetworkState("ok");
+    } catch {
+      setNetworkState("error");
+      setNetworkLatency(null);
+    } finally {
+      clearTimeout(timeout);
+      if (networkCheckRef.current === controller) networkCheckRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    void checkInternet();
+    const handleOnline = () => { void checkInternet(); };
+    const handleOffline = () => setNetworkState("error");
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      networkCheckRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -113,6 +156,27 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
           </p>
         </div>
 
+        <div data-testid="status-internet-check" className="bg-card/5 border border-card/10 rounded-2xl p-4 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {networkState === "checking" && <Loader2 className="h-4 w-4 text-secondary animate-spin" />}
+              {networkState === "ok" && <Wifi className="h-4 w-4 text-green-400" />}
+              {networkState === "error" && <WifiOff className="h-4 w-4 text-destructive" />}
+              <span className="text-sm font-bold text-card">اختبار اتصال الإنترنت</span>
+            </div>
+            {networkState === "ok" ? (
+              <span className="text-xs text-green-400">{networkLatency} ms · متصل</span>
+            ) : networkState === "error" ? (
+              <button data-testid="button-retry-internet-check" type="button" onClick={() => void checkInternet()} className="text-xs text-secondary flex items-center gap-1">
+                <RefreshCw className="h-3 w-3" /> أعد الفحص
+              </button>
+            ) : (
+              <span className="text-xs text-card/50">جارٍ الفحص…</span>
+            )}
+          </div>
+          {networkState === "error" && <p className="mt-2 text-xs text-destructive">تعذر الوصول إلى خادم الجلسات. تحقق من الإنترنت قبل الانضمام.</p>}
+        </div>
+
         {/* Mic test */}
         <div className="bg-card/5 border border-card/10 rounded-2xl p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
@@ -173,11 +237,11 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
         {/* Join button */}
         <Button
           onClick={onJoin}
-          disabled={!canJoin || micState === "checking"}
+          disabled={!canJoin || micState !== "ok" || networkState !== "ok"}
           className="w-full h-14 text-lg font-bold gradient-cta text-secondary-foreground shadow-button rounded-2xl gap-2"
         >
           <Headphones className="h-5 w-5" />
-          {canJoin ? "انضم الآن" : (joinDisabledReason || "غير متاح")}
+          {networkState !== "ok" ? "تحقق من الاتصال للمتابعة" : canJoin ? "انضم الآن" : (joinDisabledReason || "غير متاح")}
         </Button>
 
         {onCancel && (

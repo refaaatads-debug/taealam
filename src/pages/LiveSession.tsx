@@ -74,6 +74,15 @@ const LiveSession = () => {
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [bothJoined, setBothJoined] = useState(false);
   const sessionEndingRef = useRef(false);
+  useEffect(() => {
+    const confirmPageExit = (event: BeforeUnloadEvent) => {
+      if (!meetingStarted || sessionEndingRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", confirmPageExit);
+    return () => window.removeEventListener("beforeunload", confirmPageExit);
+  }, [meetingStarted]);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [remoteDrawing, setRemoteDrawing] = useState(false);
   const [whiteboardRemoteActions, setWhiteboardRemoteActions] = useState<any[]>([]);
@@ -567,11 +576,12 @@ const LiveSession = () => {
       setChatLoading(true);
     const fetchUnifiedMessages = async () => {
       // Get booking info to find the pair
-      const { data: booking } = await supabase
+      const { data: booking, error: bookingError } = await supabase
         .from("bookings")
         .select("student_id, teacher_id")
         .eq("id", bookingId)
         .single();
+      if (bookingError) throw bookingError;
 
        if (!booking) {
          if (active) setChatLoading(false);
@@ -581,11 +591,12 @@ const LiveSession = () => {
        // Get ALL booking IDs between this pair. The booking record already
        // provides the canonical direction, so keep this query explicit and
        // deterministic instead of relying on a raw OR filter.
-      const { data: pairBookings } = await supabase
+      const { data: pairBookings, error: pairBookingsError } = await supabase
         .from("bookings")
         .select("id")
          .eq("student_id", booking.student_id)
          .eq("teacher_id", booking.teacher_id);
+      if (pairBookingsError) throw pairBookingsError;
 
        const allIds = [...new Set([bookingId, ...(pairBookings?.map(b => b.id) || [])])];
        pairBookingIds = allIds;
@@ -593,12 +604,13 @@ const LiveSession = () => {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-      const { data } = await supabase
+      const { data, error: messagesError } = await supabase
         .from("chat_messages")
         .select("id, sender_id, content, created_at, file_url, file_name, file_type")
         .in("booking_id", allIds)
         .gte("created_at", oneYearAgo.toISOString())
         .order("created_at", { ascending: true });
+      if (messagesError) throw messagesError;
 
         if (!active) return;
         if (!data) {
@@ -665,7 +677,17 @@ const LiveSession = () => {
        chatChannelRef.current = channel;
      };
 
-     fetchUnifiedMessages().then(() => subscribeToPair());
+      void fetchUnifiedMessages()
+        .then(() => subscribeToPair())
+        .catch((error) => {
+          console.error("[session-chat] failed to load conversation", error);
+          if (active) {
+            setMessages([]);
+            setChatLoading(false);
+            toast.error("تعذر تحميل المحادثة. حاول تحديث الصفحة.");
+            subscribeToPair();
+          }
+        });
 
     return () => {
        active = false;
@@ -1385,6 +1407,7 @@ const LiveSession = () => {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     const msgText = newMessage;
+    let savedMessageId: string | undefined;
 
     const filterResult = filterChatMessage(msgText);
     if (!filterResult.allowed) {
@@ -1407,11 +1430,11 @@ const LiveSession = () => {
     setMessages(prev => [...prev, { sender: "أنت", text: msgText, time: optTime, me: true, _tempId }]);
 
     if (bookingId && user) {
-      const { error } = await supabase.from("chat_messages").insert({
+      const { data: savedMessage, error } = await supabase.from("chat_messages").insert({
         booking_id: bookingId,
         sender_id: user.id,
         content: msgText,
-      });
+      }).select("id").single();
 
       if (error) {
         toast.error("تعذر إرسال الرسالة");
@@ -1420,11 +1443,12 @@ const LiveSession = () => {
         setMessages(prev => prev.filter(m => m._tempId !== _tempId));
         return;
       }
+      savedMessageId = savedMessage?.id;
     }
 
     if (bookingId && user) {
       supabase.functions.invoke("analyze-violations", {
-        body: { messages: [{ text: msgText, sender_id: user.id }], booking_id: bookingId, source: "chat" },
+        body: { messages: [{ text: msgText, id: savedMessageId }], booking_id: bookingId, source: "chat" },
       }).then(({ data }) => {
         if (data?.violations_found > 0) {
           toast.warning("⚠️ تم رصد محتوى مخالف. تجنب مشاركة معلومات اتصال خارجية.");
@@ -2271,7 +2295,7 @@ const LiveSession = () => {
 
         {/* Chat Panel */}
          <AnimatePresence initial={false}>
-           {!workspaceSharing && <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-2 w-full md:w-[360px] md:shrink-0 bg-card/95 backdrop-blur-sm border-l border-border/70 flex flex-col absolute md:relative inset-0 md:inset-auto z-10 shadow-[-10px_0_30px_rgba(15,23,42,0.12)] ${chatOpen ? "" : "hidden md:flex"}`}>
+           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-2 w-full md:w-[360px] md:shrink-0 bg-card/95 backdrop-blur-sm border-l border-border/70 flex flex-col absolute md:relative inset-0 md:inset-auto z-10 shadow-[-10px_0_30px_rgba(15,23,42,0.12)] ${chatOpen ? "" : "hidden md:flex"}`}>
               <div className="px-4 py-3 border-b border-border/70 bg-gradient-to-l from-primary/10 via-card to-card flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <MessageSquare className="h-5 w-5" />
@@ -2367,7 +2391,6 @@ const LiveSession = () => {
                 )}
               </div>
            </motion.div>
-           }
         </AnimatePresence>
       </div>
 
@@ -2436,7 +2459,7 @@ const LiveSession = () => {
         <div className="w-px h-8 bg-card/15 mx-1" />
 
         {/* End call */}
-        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={endSession} title="إنهاء الحصة">
+        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={() => { if (window.confirm("هل توافق على إغلاق الجلسة؟")) void endSession(); }} title="إنهاء الحصة">
           <Phone className="h-5 w-5 rotate-[135deg]" />
         </Button>
       </div>
