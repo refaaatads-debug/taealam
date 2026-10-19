@@ -194,7 +194,7 @@ export function useWebRTC({
       return stream;
     } catch (err) {
       console.error("Failed to get user media:", err);
-      return null;
+      throw err;
     }
   }, []);
 
@@ -700,7 +700,14 @@ export function useWebRTC({
         onRemoteStreamRef.current?.(updated);
       };
       client.on("user-published", async (remoteUser: any, mediaType: "audio" | "video") => {
-        await client.subscribe(remoteUser, mediaType);
+        try {
+          await client.subscribe(remoteUser, mediaType);
+        } catch (error) {
+          console.error(`[agora] failed to subscribe to remote ${mediaType}`, error);
+          setConnectionState("disconnected");
+          onConnectionStateRef.current?.("disconnected");
+          return;
+        }
         const track = mediaType === "audio"
           ? remoteUser.audioTrack?.getMediaStreamTrack()
           : remoteUser.videoTrack?.getMediaStreamTrack();
@@ -740,6 +747,9 @@ export function useWebRTC({
         if (current === "RECONNECTING" || current === "DISCONNECTED") {
           setConnectionState("disconnected");
           onConnectionStateRef.current?.("disconnected");
+        } else if (current === "CONNECTED" || current === "CONNECTING") {
+          setConnectionState(current === "CONNECTED" ? "connected" : "connecting");
+          onConnectionStateRef.current?.(current === "CONNECTED" ? "connected" : "connecting");
         }
       });
       client.on("token-privilege-will-expire", async () => {
@@ -753,6 +763,8 @@ export function useWebRTC({
           await client.renewToken(renewed.token);
         } catch (error) {
           console.error("[agora] token renewal failed", error);
+          setConnectionState("failed");
+          onConnectionStateRef.current?.("failed");
         }
       });
       setConnectionState("connecting");

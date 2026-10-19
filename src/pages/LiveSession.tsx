@@ -97,6 +97,7 @@ const LiveSession = () => {
   const [remoteConnected, setRemoteConnected] = useState(false);
   const [bothJoined, setBothJoined] = useState(false);
   const sessionEndingRef = useRef(false);
+  const startInProgressRef = useRef(false);
   useEffect(() => {
     const confirmPageExit = (event: BeforeUnloadEvent) => {
       if (!meetingStarted || sessionEndingRef.current) return;
@@ -1363,31 +1364,32 @@ const LiveSession = () => {
   };
 
   const startMeeting = async () => {
-    if (!bookingId) {
-      toast.error("لا يوجد حجز محدد");
-      return;
-    }
-
-    if (hasSubscription && subscriptionRemainingMinutes < 5) {
-      toast.error("رصيد الباقة غير كافي. يجب أن يكون لديك 5 دقائق على الأقل.");
-      return;
-    }
-
-    const hasConflict = await checkActiveSession();
-    if (hasConflict) return;
-
-    if (isTabLocked) {
-      toast.error("هذه الجلسة مفتوحة في تبويب آخر.");
-      return;
-    }
+    if (startInProgressRef.current) return;
+    startInProgressRef.current = true;
     try {
+      if (!bookingId) throw new Error("لا يوجد حجز محدد");
+      if (hasSubscription && subscriptionRemainingMinutes < 5) {
+        throw new Error("رصيد الباقة غير كافٍ. يجب أن يكون لديك 5 دقائق على الأقل.");
+      }
+      if (await checkActiveSession()) return;
+      if (isTabLocked) throw new Error("هذه الجلسة مفتوحة في تبويب آخر.");
       await start();
     } catch (error) {
       console.error("[session] transport startup failed:", error);
       try { await stop(); } catch {}
       setMeetingStarted(false);
-      toast.error("تعذّر بدء الاتصال عبر المزوّد المثبّت. لم يتم التحويل تلقائيًا إلى مزوّد آخر.");
+      const details = error instanceof Error ? error.message : String(error ?? "");
+      const networkFailure = /failed to fetch|networkerror|err_blocked_by_client|fetch failed|timeout|network/i.test(details);
+      const permissionFailure = /notallowederror|permission|microphone/i.test(details);
+      const userMessage = permissionFailure
+        ? "تعذر تشغيل الميكروفون. تحقق من إذن المتصفح وأغلق أي تطبيق آخر يستخدمه ثم أعد المحاولة."
+        : networkFailure
+          ? "تعذر الوصول إلى خادم الجلسة. تحقق من الإنترنت، واسمح للموقع في إضافة الحجب إن وجدت، ثم أعد المحاولة."
+          : details || "تعذر بدء الجلسة. أعد المحاولة.";
+      toast.error(userMessage);
       return;
+    } finally {
+      startInProgressRef.current = false;
     }
     setMeetingStarted(true);
     logEvent("start_session", { role: isTeacher ? "teacher" : "student" });
@@ -1911,8 +1913,7 @@ const LiveSession = () => {
         canJoin={canJoin}
         joinDisabledReason={reason}
         onJoin={() => {
-          // Defer the actual start by one tick so state updates flush before getUserMedia runs again
-          setTimeout(() => { startMeeting(); }, 50);
+          void startMeeting();
         }}
         onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
       />

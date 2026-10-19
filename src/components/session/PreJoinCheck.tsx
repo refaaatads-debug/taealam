@@ -20,8 +20,11 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   const [micState, setMicState] = useState<"checking" | "ok" | "denied" | "error">("checking");
   const [micLevel, setMicLevel] = useState(0);
   const [micEnabled, setMicEnabled] = useState(true);
+  const [micRetryKey, setMicRetryKey] = useState(0);
+  const [joining, setJoining] = useState(false);
   const [networkState, setNetworkState] = useState<"checking" | "ok" | "error">("checking");
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
+  const [micErrorName, setMicErrorName] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -42,12 +45,33 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
         cache: "no-store",
         signal: controller.signal,
       });
-      if (response.status >= 500) throw new Error(`health check ${response.status}`);
-      setNetworkLatency(Math.round(performance.now() - startedAt));
-      setNetworkState("ok");
+      if (!response.ok) throw new Error(`health check ${response.status}`);
+      // Probe the real session-token route without creating a session or issuing
+      // a token. The function answers OPTIONS before authentication or writes.
+      const origin = window.location.origin;
+      const canProbeFunction = [
+        "https://ajyalalmaerifa.com",
+        "https://www.ajyalalmaerifa.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ].includes(origin);
+      if (canProbeFunction) {
+        const probe = await fetch(`${baseUrl.replace(/\/$/, "")}/functions/v1/session-transport-token`, {
+          method: "OPTIONS",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!probe.ok) throw new Error(`session route check ${probe.status}`);
+      }
+      if (networkCheckRef.current === controller) {
+        setNetworkLatency(Math.round(performance.now() - startedAt));
+        setNetworkState("ok");
+      }
     } catch {
-      setNetworkState("error");
-      setNetworkLatency(null);
+      if (networkCheckRef.current === controller) {
+        setNetworkState("error");
+        setNetworkLatency(null);
+      }
     } finally {
       clearTimeout(timeout);
       if (networkCheckRef.current === controller) networkCheckRef.current = null;
@@ -57,13 +81,20 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   useEffect(() => {
     void checkInternet();
     const handleOnline = () => { void checkInternet(); };
-    const handleOffline = () => setNetworkState("error");
+    const handleOffline = () => {
+      const activeCheck = networkCheckRef.current;
+      networkCheckRef.current = null;
+      activeCheck?.abort();
+      setNetworkState("error");
+    };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      networkCheckRef.current?.abort();
+      const activeCheck = networkCheckRef.current;
+      networkCheckRef.current = null;
+      activeCheck?.abort();
     };
   }, []);
 
@@ -86,6 +117,7 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
           return;
         }
         streamRef.current = stream;
+        setMicErrorName(null);
         setMicState("ok");
 
         // Setup analyser for live level meter
@@ -118,6 +150,7 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
         } else {
           setMicState("error");
         }
+        setMicErrorName(err?.name || "UnknownError");
         console.error("[pre-join] mic access failed:", err);
       }
     })();
@@ -126,9 +159,32 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
       mounted = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
-      audioCtxRef.current?.close().catch(() => {});
+      streamRef.current = null;
+      void audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      rafRef.current = null;
     };
-  }, []);
+  }, [micRetryKey]);
+
+  const handleJoin = async () => {
+    if (joining) return;
+    setJoining(true);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    try {
+      await onJoin();
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const retryMicrophone = () => {
+    setMicState("checking");
+    setMicRetryKey((key) => key + 1);
+  };
 
   const toggleMic = () => {
     const next = !micEnabled;
@@ -174,7 +230,7 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
               <span className="text-xs text-card/50">جارٍ الفحص…</span>
             )}
           </div>
-          {networkState === "error" && <p className="mt-2 text-xs text-destructive">تعذر الوصول إلى خادم الجلسات. تحقق من الإنترنت قبل الانضمام.</p>}
+          {networkState === "error" && <p className="mt-2 text-xs leading-5 text-destructive">تعذر الوصول إلى خادم المنصة. تحقق من الإنترنت، واسمح للموقع في إضافة حجب الإعلانات أو الخصوصية إن كنت تستخدمها، ثم أعد الفحص.</p>}
         </div>
 
         {/* Mic test */}
@@ -223,25 +279,37 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
             </>
           )}
           {micState === "denied" && (
-            <p className="text-xs text-destructive">
-              تم رفض إذن الميكروفون. الرجاء السماح في إعدادات المتصفح ثم تحديث الصفحة.
-            </p>
+            <div className="text-xs text-destructive">
+              <p>تم رفض إذن الميكروفون. اسمح للموقع باستخدام الميكروفون ثم أعد الفحص.</p>
+              <button type="button" onClick={retryMicrophone} className="mt-2 underline">أعد فحص الميكروفون</button>
+            </div>
           )}
           {micState === "error" && (
-            <p className="text-xs text-destructive">
-              تعذر الوصول للميكروفون. تأكد من توصيل ميكروفون واحد على الأقل.
-            </p>
+            <div className="text-xs text-destructive">
+              <p>{micErrorName === "NotFoundError"
+                ? "لم يتم العثور على ميكروفون. وصّل ميكروفونًا ثم أعد الفحص."
+                : micErrorName === "NotReadableError"
+                  ? "الميكروفون مستخدم من تطبيق آخر أو تعذر تشغيله. أغلق التطبيقات الأخرى ثم أعد الفحص."
+                  : "تعذر الوصول إلى الميكروفون. تحقق من توصيله وصلاحيات المتصفح ثم أعد الفحص."}</p>
+              <button type="button" onClick={retryMicrophone} className="mt-2 underline">أعد فحص الميكروفون</button>
+            </div>
           )}
+        </div>
+
+        <div className="mb-4 rounded-2xl border border-secondary/25 bg-secondary/10 p-4 text-right" role="note">
+          <p className="text-xs leading-6 text-card/80">
+            تُرصد المخالفات تلقائياً أثناء الجلسة، بما فيها مشاركة معلومات التواصل أو العناوين والصمت. تُرسل مقاطع صوتية قصيرة إلى ElevenLabs للفحص، ولا تُحفظ هذه المقاطع أو نصوصها ضمن سجل المخالفات؛ يُحفظ تصنيف المخالفة للمراجعة الإدارية. وبشكل منفصل، تُسجَّل الحصة كاملةً وتُحفظ وفق سياسة تسجيل الجلسات.
+          </p>
         </div>
 
         {/* Join button */}
         <Button
-          onClick={onJoin}
-          disabled={!canJoin || micState !== "ok" || networkState !== "ok"}
+          onClick={handleJoin}
+          disabled={joining || !canJoin || micState !== "ok" || networkState !== "ok"}
           className="w-full h-14 text-lg font-bold gradient-cta text-secondary-foreground shadow-button rounded-2xl gap-2"
         >
-          <Headphones className="h-5 w-5" />
-          {networkState !== "ok" ? "تحقق من الاتصال للمتابعة" : canJoin ? "انضم الآن" : (joinDisabledReason || "غير متاح")}
+          {joining ? <Loader2 className="h-5 w-5 animate-spin" /> : <Headphones className="h-5 w-5" />}
+          {joining ? "جارٍ تجهيز الاتصال..." : networkState !== "ok" ? "تحقق من الاتصال للمتابعة" : canJoin ? "انضم الآن" : (joinDisabledReason || "غير متاح")}
         </Button>
 
         {onCancel && (
