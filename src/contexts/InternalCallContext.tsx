@@ -332,6 +332,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       const { data, error } = await (supabase as any).rpc("respond_internal_call", {
         p_call_id: call.id,
         p_accept: accept,
+        p_transport_provider: call.transport_provider === "agora" ? "agora" : "webrtc",
       });
       if (error) throw error;
       if (!data?.success) {
