@@ -1912,9 +1912,7 @@ const LiveSession = () => {
         isTeacher={isTeacher}
         canJoin={canJoin}
         joinDisabledReason={reason}
-        onJoin={() => {
-          void startMeeting();
-        }}
+        onJoin={startMeeting}
         onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
       />
     );
