@@ -44,11 +44,47 @@ jobs:
             tar -tzf "$backup_dir/web-root.tar.gz" >/dev/null
             tar -tzf "$backup_dir/edge-functions.tar.gz" >/dev/null
             echo "VPS backup completed at $backup_dir"
-      - name: Deploy via SSH
+      - name: Check out the exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Build web app
+        run: npm run build
+        env:
+          VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAE9pV6wv3lWICbVL
+      - name: Transfer built site
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: dist/**
+          target: /tmp/ajyal-deploy-${{ github.sha }}
+          strip_components: 1
+          overwrite: true
+      - name: Activate the built site
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script: /root/deploy-ajyal.sh
+          script: |
+            set -eu
+            staging=/tmp/ajyal-deploy-${{ github.sha }}
+            test -f "$staging/index.html"
+            test -d "$staging/assets"
+            grep -Rql 'internal-call-transport-token' "$staging/assets"
+            nginx -t
+            rsync -a --delete "$staging/" /var/www/html/
+            systemctl reload nginx
+            printf '%s\n' '${{ github.sha }}' > /root/ajyal-web-deployed-sha
+            rm -rf "$staging"
+            echo 'Web deployment activated'
 
