@@ -610,6 +610,8 @@ export function useWebRTC({
       throw new Error("تعذّر تثبيت مزوّد الاتصال. لم يبدأ الاتصال؛ أعد المحاولة لاحقًا.");
     }
 
+    setDataChannelReady(false);
+    setConnectionState("connecting");
     await initLocalMedia();
 
     if (channelRef.current) {
@@ -635,7 +637,8 @@ export function useWebRTC({
         }
       });
 
-    await waitForChannelSubscription(channel, async () => {
+    channelRef.current = channel;
+    const realtimeReady = waitForChannelSubscription(channel, async () => {
       // Realtime channel reconnected after internet outage.
       // If WebRTC is still broken, re-send "join" so the peer rebuilds the connection.
       const pcState = pcRef.current?.connectionState;
@@ -648,8 +651,17 @@ export function useWebRTC({
         }
       }
     });
-    channelRef.current = channel;
     if (transportProviderRef.current === "agora") {
+      void realtimeReady.then(
+        () => {
+          if (channelRef.current !== channel) return;
+          setDataChannelReady(true);
+          sendDataMessage({ type: "join", userId });
+        },
+        (error) => {
+          console.warn("[agora] realtime session-data channel is unavailable; audio will continue", error);
+        },
+      );
       const data = transportData;
       if (data?.provider !== "agora" || !data?.token || !data?.appId || !data?.channel || !data?.uid) {
         throw new Error("Agora session token response is incomplete");
@@ -684,7 +696,6 @@ export function useWebRTC({
         }
         setConnectionState("connected");
         onConnectionStateRef.current?.("connected");
-        setDataChannelReady(true);
       });
       client.on("user-unpublished", (remoteUser: any, mediaType: "audio" | "video") => {
         const track = mediaType === "audio"
@@ -699,7 +710,6 @@ export function useWebRTC({
         onRemoteJoinRef.current?.();
         setConnectionState("connected");
         onConnectionStateRef.current?.("connected");
-        setDataChannelReady(true);
       });
       client.on("user-left", () => {
         onRemoteLeaveRef.current?.();
@@ -735,10 +745,10 @@ export function useWebRTC({
       agoraAudioTrackRef.current = microphone;
       await client.publish([microphone]);
       setIceTransportType("Agora");
-      sendDataMessage({ type: "join", userId: uid });
       return;
     }
 
+    await realtimeReady;
     await createPeerConnection();
     await sendSignal("join", { userId });
 
