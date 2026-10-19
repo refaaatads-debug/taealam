@@ -1916,7 +1916,7 @@ const LiveSession = () => {
         canJoin={canJoin}
         joinDisabledReason={reason}
         onJoin={startMeeting}
-        onCancel={() => navigate(isTeacher ? "/teacher-dashboard" : "/dashboard")}
+        onCancel={() => navigate(isTeacher ? "/teacher" : "/student")}
       />
     );
   }

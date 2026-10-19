@@ -22,10 +22,11 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   const [micEnabled, setMicEnabled] = useState(true);
   const [micRetryKey, setMicRetryKey] = useState(0);
   const [joining, setJoining] = useState(false);
-  const [networkState, setNetworkState] = useState<"checking" | "ok" | "error">("checking");
+  const [networkState, setNetworkState] = useState<"checking" | "ok" | "weak" | "error">("checking");
   const [deviceOnline, setDeviceOnline] = useState(() => navigator.onLine);
-  const [networkErrorKind, setNetworkErrorKind] = useState<"offline" | "timeout" | "auth" | "blocked" | "service" | null>(null);
+  const [networkErrorKind, setNetworkErrorKind] = useState<"offline" | "timeout" | "blocked" | "service" | null>(null);
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
+  const [estimatedDownlink, setEstimatedDownlink] = useState<number | null>(null);
   const [micErrorName, setMicErrorName] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -38,17 +39,24 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
     networkCheckRef.current?.abort();
     const controller = new AbortController();
     networkCheckRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 6000);
-    const startedAt = performance.now();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
       if (!navigator.onLine) throw new Error("offline");
       const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!baseUrl) throw new Error("missing Supabase URL");
-      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/auth/v1/health`, {
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`health check ${response.status}`);
+      const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (!baseUrl || !publishableKey) throw new Error("session health check is not configured");
+      const healthUrl = `${baseUrl.replace(/\/$/, "")}/auth/v1/health`;
+      const samples: number[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const startedAt = performance.now();
+        const response = await fetch(healthUrl, {
+          cache: "no-store",
+          headers: { apikey: publishableKey },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`health check ${response.status}`);
+        samples.push(performance.now() - startedAt);
+      }
       // Probe the real session-token route without creating a session or issuing
       // a token. The function answers OPTIONS before authentication or writes.
       const origin = window.location.origin;
@@ -67,22 +75,31 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
         if (!probe.ok) throw new Error(`session route check ${probe.status}`);
       }
       if (networkCheckRef.current === controller) {
-        setNetworkLatency(Math.round(performance.now() - startedAt));
-        setNetworkState("ok");
+        const averageLatency = Math.round(samples.reduce((sum, value) => sum + value, 0) / samples.length);
+        const connection = (navigator as Navigator & {
+          connection?: { downlink?: number; rtt?: number; effectiveType?: string };
+        }).connection;
+        const downlink = Number.isFinite(connection?.downlink) ? Number(connection?.downlink) : null;
+        const isWeak = averageLatency > 500
+          || (connection?.rtt != null && connection.rtt > 500)
+          || (downlink != null && downlink < 0.5)
+          || connection?.effectiveType === "slow-2g"
+          || connection?.effectiveType === "2g";
+        setNetworkLatency(averageLatency);
+        setEstimatedDownlink(downlink);
+        setNetworkState(isWeak ? "weak" : "ok");
       }
     } catch (error) {
       if (networkCheckRef.current === controller) {
         setNetworkState("error");
         setNetworkLatency(null);
+        setEstimatedDownlink(null);
         const message = error instanceof Error ? error.message : String(error ?? "");
-        const status = Number((error as any)?.status ?? (error as any)?.context?.status
-          ?? message.match(/\b(401|403)\b/)?.[1]);
         setNetworkErrorKind(
           !navigator.onLine ? "offline"
-            : status === 401 || status === 403 ? "auth"
-              : /abort|timeout/i.test(message) ? "timeout"
-                : /failed to fetch|networkerror|err_blocked_by_client|cors/i.test(message) ? "blocked"
-                  : "service",
+            : /abort|timeout/i.test(message) ? "timeout"
+              : /failed to fetch|networkerror|err_blocked_by_client|cors/i.test(message) ? "blocked"
+                : "service",
         );
       }
     } finally {
@@ -230,12 +247,15 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               {networkState === "checking" && <Loader2 className="h-4 w-4 text-secondary animate-spin" />}
-              {networkState === "ok" && <Wifi className="h-4 w-4 text-green-400" />}
+              {(networkState === "ok" || networkState === "weak") && <Wifi className={`h-4 w-4 ${networkState === "ok" ? "text-green-400" : "text-amber-400"}`} />}
               {networkState === "error" && <WifiOff className="h-4 w-4 text-destructive" />}
-              <span className="text-sm font-bold text-card">الوصول إلى خادم الجلسة</span>
+              <span className="text-sm font-bold text-card">اختبار جودة الإنترنت</span>
             </div>
-            {networkState === "ok" ? (
-              <span className="text-xs text-green-400">{networkLatency} ms · متاح</span>
+            {networkState === "ok" || networkState === "weak" ? (
+              <span className={`text-xs ${networkState === "ok" ? "text-green-400" : "text-amber-400"}`}>
+                {estimatedDownlink != null ? `${estimatedDownlink} Mbps · ` : ""}{networkLatency} ms
+                {networkState === "weak" ? " · ضعيف" : " · مناسب للصوت"}
+              </span>
             ) : networkState === "error" ? (
               <button data-testid="button-retry-internet-check" type="button" onClick={() => void checkInternet()} className="text-xs text-secondary flex items-center gap-1">
                 <RefreshCw className="h-3 w-3" /> أعد الفحص
@@ -245,19 +265,22 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
             )}
           </div>
           <p className="mt-2 text-[11px] leading-5 text-card/50">
-            {deviceOnline ? "الجهاز متصل بالشبكة. هذا الفحص يقيس الوصول إلى خادم الجلسة، وليس سرعة الإنترنت." : "الجهاز غير متصل بالشبكة."}
+            {deviceOnline
+              ? estimatedDownlink == null
+                ? "اختبرنا زمن الاستجابة إلى خادم الجلسة. تقدير السرعة غير مدعوم في هذا المتصفح."
+                : "يقيس الفحص تقدير سرعة التنزيل وزمن الاستجابة؛ السرعة التقديرية من المتصفح."
+              : "الجهاز غير متصل بالشبكة."}
           </p>
+          {networkState === "weak" && <p className="mt-2 text-xs leading-5 text-amber-300">الاتصال أبطأ أو أعلى تأخيرًا من المناسب لحصة صوتية مستقرة. جرّب شبكة أقوى ثم أعد الفحص.</p>}
           {networkState === "error" && (
             <p className="mt-2 text-xs leading-5 text-destructive">
               {networkErrorKind === "offline"
                 ? "لا يوجد اتصال شبكة على هذا الجهاز. أعد الاتصال ثم أعد الفحص."
                 : networkErrorKind === "timeout"
                   ? "لم يصل رد خادم الجلسة في الوقت المحدد. قد يكون اتصالك جيدًا لكن الخادم لا يستجيب الآن."
-                  : networkErrorKind === "auth"
-                    ? "تعذر التحقق من صلاحية الدخول. حدّث الصفحة أو سجّل الدخول مجددًا."
-                    : networkErrorKind === "blocked"
-                      ? "منعت إضافة في المتصفح أو إعداد شبكة الوصول إلى خادم الجلسة. اسمح للموقع في إضافة الحجب ثم أعد الفحص."
-                      : "خادم الجلسة غير متاح حاليًا. هذا لا يعني بالضرورة أن سرعة الإنترنت ضعيفة؛ أعد الفحص بعد قليل."}
+                  : networkErrorKind === "blocked"
+                    ? "منعت إضافة في المتصفح أو إعداد شبكة الوصول إلى خادم الفحص. اسمح للموقع في إضافة الحجب ثم أعد الفحص."
+                    : "تعذر الوصول إلى خادم الفحص. لم يبدأ اتصال Agora؛ أعد الفحص بعد قليل."}
             </p>
           )}
         </div>
