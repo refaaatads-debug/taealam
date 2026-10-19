@@ -54,3 +54,6 @@ verify_jwt = true
 
 [functions.session-transport-token]
 verify_jwt = true
+
+[functions.internal-call-transport-token]
+verify_jwt = true

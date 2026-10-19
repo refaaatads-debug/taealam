@@ -4,6 +4,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { useAuth } from "@/contexts/AuthContext";
+import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from "agora-rtc-sdk-ng";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ type InternalCall = {
   end_reason: string | null;
   duration_seconds: number;
   created_at: string;
+  transport_provider?: "agora" | "webrtc";
 };
 
 type StartCallInput = {
@@ -43,6 +45,10 @@ type InternalCallContextValue = {
 
 const InternalCallContext = createContext<InternalCallContextValue | null>(null);
 const TERMINAL: InternalCallStatus[] = ["rejected", "busy", "cancelled", "missed", "ended", "failed"];
+const AGORA_INTERNAL_CALL_TEST_USERS = new Set([
+  "328ac5b7-c495-438d-bdaf-58bdd39cc7f1",
+  "00a39848-081c-499e-bc26-331bf3d4e55d",
+]);
 
 const formatTime = (seconds: number) =>
   `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, "0")}:${(Math.max(0, seconds) % 60).toString().padStart(2, "0")}`;
@@ -74,14 +80,17 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const [otherPartyName, setOtherPartyName] = useState("الطرف الآخر");
   const [remaining, setRemaining] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [peerState, setPeerState] = useState<RTCPeerConnectionState>("new");
+  const [peerState, setPeerState] = useState<"new" | "connecting" | "connected" | "failed">("new");
   const [ending, setEnding] = useState(false);
+  const localTrackRef = useRef<ILocalAudioTrack | null>(null);
+  const remoteTrackRef = useRef<IRemoteAudioTrack | null>(null);
+  const agoraClientRef = useRef<IAgoraRTCClient | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const signalChannelRef = useRef<any>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const offerStartedRef = useRef(false);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const markedConnectedRef = useRef(false);
   const ringtoneContextRef = useRef<AudioContext | null>(null);
   const ringtoneTimerRef = useRef<number | null>(null);
@@ -165,6 +174,11 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   }, [stopIncomingAnnouncement]);
 
   const stopMedia = useCallback(() => {
+    remoteTrackRef.current?.stop();
+    remoteTrackRef.current = null;
+    localTrackRef.current?.stop();
+    localTrackRef.current?.close();
+    localTrackRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
@@ -178,26 +192,32 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
     peerRef.current = null;
     pendingCandidatesRef.current = [];
     offerStartedRef.current = false;
+    const client = agoraClientRef.current;
+    agoraClientRef.current = null;
+    if (client) {
+      client.removeAllListeners();
+      void client.leave().catch(() => undefined);
+    }
     markedConnectedRef.current = false;
     setPeerState("new");
   }, []);
 
-  const ensureMicrophone = useCallback(async () => {
-    if (localStreamRef.current?.active) return localStreamRef.current;
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("المتصفح لا يدعم المكالمات الصوتية");
+  const ensureMicrophone = useCallback(async (provider: "agora" | "webrtc") => {
+    if (provider === "agora" && localTrackRef.current) return;
+    if (provider === "webrtc" && localStreamRef.current?.active) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: false,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        },
-      });
-      localStreamRef.current = stream;
-      return stream;
-    } catch {
+      if (provider === "agora") {
+        localTrackRef.current = await AgoraRTC.createMicrophoneAudioTrack({
+          encoderConfig: "speech_low_quality",
+        });
+      } else {
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        });
+      }
+    } catch (error) {
+      console.warn(`${provider} microphone permission failed:`, error);
       throw new Error("يلزم السماح باستخدام الميكروفون لإجراء الاتصال الداخلي");
     }
   }, []);
@@ -281,12 +301,16 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const startInternalCall = useCallback(async ({ studentId, bookingId, studentName }: StartCallInput) => {
     if (!user) return { success: false, code: "UNAUTHENTICATED", message: "سجّل الدخول أولًا" };
     if (call && !TERMINAL.includes(call.status)) return { success: false, code: "USER_BUSY", message: "لديك مكالمة أخرى جارية" };
+    const transportProvider: "agora" | "webrtc" =
+      AGORA_INTERNAL_CALL_TEST_USERS.has(user.id) && AGORA_INTERNAL_CALL_TEST_USERS.has(studentId)
+        ? "agora"
+        : "webrtc";
     try {
-      await ensureMicrophone();
-      const { data, error } = await (supabase as any).rpc("start_internal_call", {
-        p_student_id: studentId,
-        p_booking_id: bookingId || null,
-      });
+      await ensureMicrophone(transportProvider);
+      const callParams = { p_student_id: studentId, p_booking_id: bookingId || null };
+      const { data, error } = transportProvider === "agora"
+        ? await (supabase as any).rpc("start_internal_call", { ...callParams, p_transport_provider: transportProvider })
+        : await (supabase as any).rpc("start_internal_call", callParams);
       if (error) throw error;
       if (!data?.success) {
         stopMedia();
@@ -304,7 +328,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const respond = useCallback(async (accept: boolean) => {
     if (!call) return;
     try {
-      if (accept) await ensureMicrophone();
+      if (accept) await ensureMicrophone(call.transport_provider === "agora" ? "agora" : "webrtc");
       const { data, error } = await (supabase as any).rpc("respond_internal_call", {
         p_call_id: call.id,
         p_accept: accept,
@@ -339,93 +363,161 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   }, [call, ending, applyCallUpdate, cleanupPeer, stopIncomingAnnouncement, stopMedia, stopRingtone]);
 
   useEffect(() => {
-    if (!call || !user || !["connecting", "connected"].includes(call.status) || !localStreamRef.current) return;
+    if (
+      !call ||
+      !user ||
+      !["connecting", "connected"].includes(call.status) ||
+      (!localTrackRef.current && !localStreamRef.current)
+    ) return;
     let disposed = false;
-    let readyTimer: number | null = null;
+    let readyTimer: ReturnType<typeof window.setInterval> | null = null;
 
     (async () => {
       cleanupPeer();
-      const pc = new RTCPeerConnection(await getIceConfig());
-      if (disposed) return pc.close();
-      peerRef.current = pc;
-      localStreamRef.current?.getAudioTracks().forEach((track) => pc.addTrack(track, localStreamRef.current!));
-      const channel = supabase.channel(`internal-voice-${call.id}`, { config: { broadcast: { self: false } } });
-      signalChannelRef.current = channel;
-
-      const send = (signalType: string, payload: unknown = {}) =>
-        channel.send({ type: "broadcast", event: "signal", payload: { signalType, payload, senderId: user.id } });
-
-      const addOrQueueCandidate = async (candidate: RTCIceCandidateInit) => {
-        if (pc.remoteDescription) await pc.addIceCandidate(candidate).catch(() => {});
-        else pendingCandidatesRef.current.push(candidate);
-      };
-      const flushCandidates = async () => {
-        for (const candidate of pendingCandidatesRef.current.splice(0)) await pc.addIceCandidate(candidate).catch(() => {});
-      };
-      const createOffer = async () => {
-        if (!isCaller || offerStartedRef.current || pc.signalingState !== "stable") return;
-        offerStartedRef.current = true;
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
-        await pc.setLocalDescription(offer);
-        await send("offer", { sdp: pc.localDescription?.toJSON() });
-      };
-
-      pc.onicecandidate = (event) => event.candidate && send("ice", { candidate: event.candidate.toJSON() });
-      pc.ontrack = (event) => {
-        const stream = event.streams[0] || new MediaStream([event.track]);
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-      };
-      pc.onconnectionstatechange = async () => {
-        setPeerState(pc.connectionState);
-        if (pc.connectionState === "connected" && !markedConnectedRef.current) {
-          markedConnectedRef.current = true;
-          const { data } = await (supabase as any).rpc("mark_internal_call_connected", { p_call_id: call.id });
-          if (data?.call) applyCallUpdate(data.call as InternalCall);
-        }
-        if (pc.connectionState === "failed") endCall("connection_failed");
-      };
-
-      channel.on("broadcast", { event: "signal" }, async ({ payload }: any) => {
-        if (!payload || payload.senderId === user.id) return;
-        if (payload.signalType === "ready") {
-          await createOffer();
-        } else if (payload.signalType === "offer" && !isCaller) {
-          await pc.setRemoteDescription(payload.payload.sdp);
-          await flushCandidates();
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await send("answer", { sdp: pc.localDescription?.toJSON() });
-        } else if (payload.signalType === "answer" && isCaller && pc.signalingState === "have-local-offer") {
-          await pc.setRemoteDescription(payload.payload.sdp);
-          await flushCandidates();
-        } else if (payload.signalType === "ice" && payload.payload?.candidate) {
-          await addOrQueueCandidate(payload.payload.candidate);
-        } else if (payload.signalType === "hangup") {
-          endCall("remote_ended");
-        }
-      });
-
-      channel.subscribe((status) => {
-        if (status !== "SUBSCRIBED") return;
-        if (!isCaller) {
-          send("ready");
+      if (call.transport_provider !== "agora") {
+        const pc = new RTCPeerConnection(await getIceConfig());
+        if (disposed) return pc.close();
+        peerRef.current = pc;
+        localStreamRef.current?.getAudioTracks().forEach((track) => pc.addTrack(track, localStreamRef.current!));
+        const channel = supabase.channel(`internal-voice-${call.id}`, { config: { broadcast: { self: false } } });
+        signalChannelRef.current = channel;
+        const send = (signalType: string, payload: unknown = {}) =>
+          channel.send({ type: "broadcast", event: "signal", payload: { signalType, payload, senderId: user.id } });
+        const addCandidate = async (candidate: RTCIceCandidateInit) => {
+          if (pc.remoteDescription) await pc.addIceCandidate(candidate).catch(() => {});
+          else pendingCandidatesRef.current.push(candidate);
+        };
+        const flushCandidates = async () => {
+          for (const candidate of pendingCandidatesRef.current.splice(0)) await pc.addIceCandidate(candidate).catch(() => {});
+        };
+        const createOffer = async () => {
+          if (!isCaller || offerStartedRef.current || pc.signalingState !== "stable") return;
+          offerStartedRef.current = true;
+          const offer = await pc.createOffer({ offerToReceiveAudio: true });
+          await pc.setLocalDescription(offer);
+          await send("offer", { sdp: pc.localDescription?.toJSON() });
+        };
+        pc.onicecandidate = (event) => event.candidate && send("ice", { candidate: event.candidate.toJSON() });
+        pc.ontrack = (event) => {
+          const stream = event.streams[0] || new MediaStream([event.track]);
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = stream;
+            void remoteAudioRef.current.play().catch(() => {});
+          }
+        };
+        pc.onconnectionstatechange = async () => {
+          const state = pc.connectionState;
+          setPeerState(state === "connected" ? "connected" : state === "failed" ? "failed" : "connecting");
+          if (state === "connected" && !markedConnectedRef.current) {
+            markedConnectedRef.current = true;
+            const { data: connectedData } = await (supabase as any).rpc("mark_internal_call_connected", { p_call_id: call.id });
+            if (connectedData?.call) applyCallUpdate(connectedData.call as InternalCall);
+          }
+          if (state === "failed") void endCall("connection_failed");
+        };
+        channel.on("broadcast", { event: "signal" }, async ({ payload }: any) => {
+          if (!payload || payload.senderId === user.id) return;
+          if (payload.signalType === "ready") await createOffer();
+          else if (payload.signalType === "offer" && !isCaller) {
+            await pc.setRemoteDescription(payload.payload.sdp);
+            await flushCandidates();
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await send("answer", { sdp: pc.localDescription?.toJSON() });
+          } else if (payload.signalType === "answer" && isCaller && pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(payload.payload.sdp);
+            await flushCandidates();
+          } else if (payload.signalType === "ice" && payload.payload?.candidate) {
+            await addCandidate(payload.payload.candidate);
+          } else if (payload.signalType === "hangup") {
+            void endCall("remote_ended");
+          }
+        });
+        channel.subscribe((status) => {
+          if (status !== "SUBSCRIBED" || isCaller) return;
+          void send("ready");
           readyTimer = window.setInterval(() => {
-            if (!pc.remoteDescription) send("ready");
+            if (!pc.remoteDescription) void send("ready");
             else if (readyTimer) window.clearInterval(readyTimer);
           }, 900);
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("internal-call-transport-token", {
+        body: { callId: call.id },
+      });
+      if (error || data?.provider !== "agora" || !data?.token || !data?.appId || !data?.channel || !data?.userAccount) {
+        throw error || new Error(data?.error || "تعذر تجهيز اتصال Agora");
+      }
+      if (disposed) return;
+
+      const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      agoraClientRef.current = client;
+      setPeerState("connecting");
+      const markConnected = async () => {
+        if (markedConnectedRef.current || disposed) return;
+        markedConnectedRef.current = true;
+        setPeerState("connected");
+        const { data: connectedData, error: connectedError } = await (supabase as any)
+          .rpc("mark_internal_call_connected", { p_call_id: call.id });
+        if (connectedError) console.warn("Could not update internal call state:", connectedError);
+        if (connectedData?.call) applyCallUpdate(connectedData.call as InternalCall);
+      };
+
+      client.on("connection-state-change", (state) => {
+        if (state === "CONNECTED") setPeerState("connected");
+        else if (state === "RECONNECTING" || state === "CONNECTING") setPeerState("connecting");
+        else if (state === "DISCONNECTED" && !disposed) setPeerState("failed");
+      });
+      client.on("user-published", async (remoteUser, mediaType) => {
+        try {
+          await client.subscribe(remoteUser, mediaType);
+          if (mediaType === "audio" && remoteUser.audioTrack) {
+            remoteTrackRef.current = remoteUser.audioTrack;
+            remoteUser.audioTrack.play();
+            await markConnected();
+          }
+        } catch (subscribeError) {
+          console.warn("Internal Agora subscription failed:", subscribeError);
+          setPeerState("failed");
         }
       });
+      client.on("token-privilege-will-expire", async () => {
+        try {
+          const { data: renewed, error: renewError } = await supabase.functions.invoke("internal-call-transport-token", {
+            body: { callId: call.id },
+          });
+          if (renewError || renewed?.provider !== "agora" || !renewed?.token) throw renewError || new Error("Token غير صالح");
+          await client.renewToken(renewed.token);
+        } catch (renewError) {
+          console.error("Internal Agora token renewal failed:", renewError);
+          setPeerState("failed");
+        }
+      });
+
+      try {
+        await client.join(data.appId, data.channel, data.token, data.userAccount);
+        if (disposed) {
+          await client.leave();
+          return;
+        }
+        await client.publish(localTrackRef.current!);
+      } catch (joinError) {
+        if (!disposed) throw joinError;
+      }
     })().catch((error) => {
       console.error("Internal voice setup failed:", error);
-      endCall("connection_failed");
+      if (!disposed) {
+        setPeerState("failed");
+        void endCall("connection_failed");
+      }
     });
 
     return () => {
       disposed = true;
       if (readyTimer) window.clearInterval(readyTimer);
+      cleanupPeer();
     };
   }, [call?.id, Boolean(call && ["connecting", "connected"].includes(call.status)), user?.id]);
 
@@ -451,7 +543,11 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
 
   const toggleMute = () => {
     const next = !muted;
-    localStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !next; });
+    if (call?.transport_provider === "agora") {
+      void localTrackRef.current?.setMuted(next).catch((error) => console.warn("Agora mute failed:", error));
+    } else {
+      localStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !next; });
+    }
     setMuted(next);
   };
 
