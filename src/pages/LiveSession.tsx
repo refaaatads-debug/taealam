@@ -2064,12 +2064,12 @@ const LiveSession = () => {
       </AnimatePresence>
 
       {/* Main Content */}
-       <div className="flex-1 flex relative overflow-hidden bg-[#0a1220]">
+       <div className="flex-1 min-h-0 flex flex-col md:flex-row relative overflow-hidden bg-[#e9eee7]">
 
         {/* Main area */}
-         <div className={`order-0 min-w-0 flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-gradient-to-br from-[#0b1424] via-[#111c2e] to-[#0a1220] ${showReport ? "hidden md:flex" : ""}`}>
+         <div className={`order-0 md:order-1 min-h-0 min-w-0 flex-[1.2] md:flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-[#e9eee7] ${showReport ? "hidden md:flex" : ""}`}>
           {meetingStarted ? (
-             <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-3xl border border-white/10 shadow-2xl shadow-black/30"}`}>
+             <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-2xl md:rounded-3xl border border-border/50 shadow-lg shadow-foreground/10"}`}>
                {/* Workspace status: the active teaching surface is always explicit. */}
                <div className="absolute top-3 left-3 right-3 z-40 flex items-center justify-between gap-3 pointer-events-none">
                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#0b1424]/85 px-3 py-2 text-white shadow-lg backdrop-blur-xl">
@@ -2253,7 +2253,7 @@ const LiveSession = () => {
               )}
             </div>
           ) : (
-            <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center">
+            <div className="text-center text-primary-foreground gradient-hero w-full h-full flex flex-col items-center justify-center rounded-2xl">
               <div className="w-28 h-28 rounded-3xl bg-primary-foreground/10 backdrop-blur-sm mx-auto mb-5 flex items-center justify-center border border-primary-foreground/10">
                 <Headphones className="h-14 w-14 text-primary-foreground/60" />
               </div>
@@ -2325,7 +2325,7 @@ const LiveSession = () => {
 
         {/* Chat Panel */}
          <AnimatePresence initial={false}>
-           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-2 w-full md:w-[360px] md:shrink-0 bg-card/95 backdrop-blur-sm border-l border-border/70 flex flex-col absolute md:relative inset-0 md:inset-auto z-10 shadow-[-10px_0_30px_rgba(15,23,42,0.12)] ${chatOpen ? "" : "hidden md:flex"}`}>
+<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className={`order-1 md:order-0 min-h-0 w-full flex-[0.95] md:flex-none md:w-[340px] md:shrink-0 bg-card border border-border/70 md:border-y-0 md:border-l-0 flex flex-col relative z-10 shadow-sm ${chatOpen ? "" : "hidden md:flex"}`}>
               <div className="px-4 py-3 border-b border-border/70 bg-gradient-to-l from-primary/10 via-card to-card flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <MessageSquare className="h-5 w-5" />
@@ -2443,25 +2443,29 @@ const LiveSession = () => {
       </div>
 
       {/* Controls */}
-      <div className={`flex items-center justify-center gap-2 md:gap-2.5 px-4 py-3 glass-strong border-t border-border/10 transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-full pointer-events-none absolute bottom-0 inset-x-0 z-40") : ""}`}>
+      <div className={`grid grid-cols-4 md:flex md:flex-wrap md:items-center md:justify-center gap-1.5 md:gap-2 px-2 md:px-4 py-2 glass-strong border-t border-border/10 transition-all duration-300 ${isFullscreen && !isTeacher ? (uiVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-full pointer-events-none absolute bottom-0 inset-x-0 z-40") : ""}`}>
         {/* Teacher controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}>
-              {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}>
+              {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+              <span className="text-[10px] md:text-xs">{micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}</span>
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleScreenShare} disabled={!meetingStarted} title="مشاركة الشاشة">
-              <Monitor className="h-5 w-5" />
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${screenSharing ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleScreenShare} disabled={!meetingStarted} title={screenSharing ? "إيقاف مشاركة الشاشة" : "مشاركة الشاشة"}>
+              <Monitor className="h-4 w-4" />
+              <span className="text-[10px] md:text-xs">{screenSharing ? "إيقاف المشاركة" : "مشاركة الشاشة"}</span>
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !boardOpen; setBoardOpen(next); setShowReport(false); sendDataMessage({ type: "whiteboard-toggle", open: next }); }} disabled={!meetingStarted} title="السبورة">
-              <PenTool className="h-5 w-5" />
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !boardOpen; setBoardOpen(next); setShowReport(false); sendDataMessage({ type: "whiteboard-toggle", open: next }); }} disabled={!meetingStarted} title="السبورة">
+              <PenTool className="h-4 w-4" />
+              <span className="text-[10px] md:text-xs">{boardOpen ? "إخفاء السبورة" : "السبورة"}</span>
             </Button>
           </>
         )}
 
         {/* Chat - for both */}
-         <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20 md:gradient-cta md:text-secondary-foreground md:ring-2 md:ring-secondary/40"}`} onClick={() => { if (window.innerWidth < 768) setChatOpen(!chatOpen); else setChatOpen(true); setUnreadCount(0); }} title="الدردشة">
-          <MessageSquare className="h-5 w-5" />
+         <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all relative ${chatOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20 md:gradient-cta md:text-secondary-foreground md:ring-2 md:ring-secondary/40"}`} onClick={() => { if (window.innerWidth < 768) setChatOpen(!chatOpen); else setChatOpen(true); setUnreadCount(0); }} title="الدردشة">
+           <MessageSquare className="h-4 w-4" />
+           <span className="text-[10px] md:text-xs">المحادثة</span>
           {unreadCount > 0 && !chatOpen && (
             <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-pulse-soft">
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -2472,14 +2476,17 @@ const LiveSession = () => {
         {/* Student controls */}
         {!isTeacher && (
           <>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم" : "تشغيل"}>
-              {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${micEnabled ? "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 ring-2 ring-destructive/40"}`} onClick={toggleMic} title={micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}>
+              {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+              <span className="text-[10px] md:text-xs">{micEnabled ? "كتم الميكروفون" : "تشغيل الميكروفون"}</span>
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
-              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${isFullscreen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={toggleFullscreen} title={isFullscreen ? "إلغاء ملء الشاشة" : "ملء الشاشة"}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              <span className="text-[10px] md:text-xs">{isFullscreen ? "تصغير الشاشة" : "ملء الشاشة"}</span>
             </Button>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !handRaised; setHandRaised(next); try { sendDataMessage({ type: "hand-raise", raised: next }); } catch {} }} title="رفع اليد">
-              <Hand className="h-5 w-5" />
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${handRaised ? "bg-gold text-gold-foreground border-0 ring-2 ring-gold/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !handRaised; setHandRaised(next); try { sendDataMessage({ type: "hand-raise", raised: next }); } catch {} }} title={handRaised ? "إنزال اليد" : "رفع اليد"}>
+              <Hand className="h-4 w-4" />
+              <span className="text-[10px] md:text-xs">{handRaised ? "إنزال اليد" : "رفع اليد"}</span>
             </Button>
           </>
         )}
@@ -2487,28 +2494,31 @@ const LiveSession = () => {
         {/* Teacher extra controls */}
         {isTeacher && (
           <>
-            <Button size="icon" className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }} title="التقرير">
-              <FileText className="h-5 w-5" />
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }} title="التقرير">
+              <FileText className="h-4 w-4" />
+              <span className="text-[10px] md:text-xs">تقرير الحصة</span>
             </Button>
             <Button
-              size="icon"
-              className={`rounded-full h-11 w-11 shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
+              size="sm"
+              className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
               onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
               disabled={!meetingStarted}
               title="سند"
             >
-              <Brain className="h-5 w-5" />
+              <Brain className="h-4 w-4" />
+              <span className="text-[10px] md:text-xs">مساعد سند</span>
             </Button>
             {/* تم إلغاء زر التسجيل اليدوي بناءً على طلب المستخدم */}
           </>
         )}
 
         {/* Visual divider before end-call */}
-        <div className="w-px h-8 bg-card/15 mx-1" />
+        <div className="hidden md:block w-px h-8 bg-card/15 mx-1" />
 
         {/* End call */}
-        <Button size="icon" className="rounded-full h-12 w-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 hover:scale-105 active:scale-95 transition-all duration-200 ring-2 ring-destructive/30" onClick={() => setEndConfirmOpen(true)} title="إنهاء الحصة">
-          <Phone className="h-5 w-5 rotate-[135deg]" />
+        <Button size="sm" className="h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0 shadow-lg shadow-destructive/30 transition-all" onClick={() => setEndConfirmOpen(true)} title="إنهاء الحصة">
+          <Phone className="h-4 w-4 rotate-[135deg]" />
+          <span className="text-[10px] md:text-xs">إنهاء الحصة</span>
         </Button>
       </div>
 
