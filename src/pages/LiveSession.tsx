@@ -1237,7 +1237,7 @@ const LiveSession = () => {
     } catch (error) {
       console.error("[session] transport startup failed:", error);
       try { await stop(); } catch {}
-      toast.error(error instanceof Error ? error.message : "تعذّر بدء الحصة. لم يتم التحويل إلى WebRTC.");
+      toast.error("تعذّر بدء الاتصال عبر المزوّد المثبّت. لم يتم التحويل تلقائيًا إلى مزوّد آخر.");
       return;
     }
     setMeetingStarted(true);
