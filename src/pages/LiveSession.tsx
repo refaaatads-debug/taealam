@@ -874,12 +874,9 @@ const LiveSession = () => {
   useEffect(() => {
     if (!bookingId || !user || !bookingData) return;
     const isStudent = user.id === bookingData.student_id;
-    if (!isStudent || meetingStarted) return;
-
-    if (bookingData.session_status === "in_progress") {
+    if (isStudent && !meetingStarted && bookingData.session_status === "in_progress") {
       setTeacherStarted(true);
       toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
-      return;
     }
 
     const channel = supabase
@@ -891,7 +888,7 @@ const LiveSession = () => {
         filter: `id=eq.${bookingId}`,
       }, (payload) => {
         const updated = payload.new as any;
-        if (updated.session_status === "in_progress" && !meetingStarted) {
+        if (isStudent && updated.session_status === "in_progress" && !meetingStarted) {
           setTeacherStarted(true);
           toast.success("المعلم بدأ الحصة! اضغط انضم للحصة 🎓", { duration: 10000 });
         }

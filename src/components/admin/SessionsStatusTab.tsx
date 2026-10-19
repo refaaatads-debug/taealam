@@ -4,8 +4,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, CalendarClock, Search, RadioTower } from "lucide-react";
+import { Loader2, CheckCircle2, CalendarClock, Search, RadioTower, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Tab = "past" | "live" | "upcoming";
 
@@ -59,7 +66,10 @@ function LiveCounter({ startedAt }: { startedAt: string }) {
 const PAGE_SIZE = 100;
 
 export default function SessionsStatusTab() {
+  const { isFullAdmin } = useAdminPermissions();
   const [activeTab, setActiveTab] = useState<Tab>("live");
+  const [endingId, setEndingId] = useState<string | null>(null);
+  const [confirmEndRow, setConfirmEndRow] = useState<Row | null>(null);
 
   // Per-tab cached data + loading flags
   const [data, setData] = useState<Record<Tab, Row[]>>({ live: [], upcoming: [], past: [] });
@@ -230,6 +240,36 @@ export default function SessionsStatusTab() {
     });
   }, [data, activeTab, filterDate, filterStudent, filterTeacher, filterStatus]);
 
+  const endSessionAsAdmin = async () => {
+    const row = confirmEndRow;
+    if (!row || !isFullAdmin || endingId) return;
+    setEndingId(row.id);
+    const { data: updated, error } = await supabase
+      .from("bookings")
+      .update({ status: "completed", session_status: "completed" })
+      .eq("id", row.id)
+      .eq("session_status", "in_progress")
+      .not("status", "in", "(completed,cancelled)")
+      .select("id")
+      .maybeSingle();
+    setEndingId(null);
+    setConfirmEndRow(null);
+    if (error) {
+      console.error("[admin-sessions] Could not end session", error);
+      toast.error("تعذر إنهاء الجلسة. تحقق من الصلاحية ثم أعد المحاولة.");
+      return;
+    }
+    if (!updated) {
+      toast.info("الجلسة لم تعد جارية؛ حدّث القائمة للتحقق من حالتها.");
+      fetchCounts();
+      fetchTab("live", true);
+      return;
+    }
+    toast.success("أُرسل أمر الإنهاء للطرفين، وسيغلق اتصال الجلسة عند استلامه.");
+    fetchCounts();
+    fetchTab("live", true);
+  };
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
@@ -295,11 +335,12 @@ export default function SessionsStatusTab() {
                       <th className="text-right py-2 px-3">المدة</th>
                       <th className="text-right py-2 px-3">{activeTab === "live" ? "العداد" : "الحالة"}</th>
                       {activeTab === "live" && <th className="text-right py-2 px-3">الحالة</th>}
+                      {activeTab === "live" && isFullAdmin && <th className="text-right py-2 px-3">إجراء</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.length === 0 ? (
-                      <tr><td colSpan={activeTab === "live" ? 8 : 7} className="text-center py-8 text-muted-foreground">لا توجد جلسات</td></tr>
+                      <tr><td colSpan={activeTab === "live" ? (isFullAdmin ? 9 : 8) : 7} className="text-center py-8 text-muted-foreground">لا توجد جلسات</td></tr>
                     ) : filtered.map(r => {
                       const d = new Date(r.scheduled_at);
                       const effectiveStatus = r.session_status === "in_progress" ? "in_progress" : r.status;
@@ -319,6 +360,20 @@ export default function SessionsStatusTab() {
                             <>
                               <td className="py-2 px-3">{r.started_at ? <LiveCounter startedAt={r.started_at} /> : <span className="text-muted-foreground text-xs">لم تبدأ</span>}</td>
                               <td className="py-2 px-3"><Badge className={`${sl.color} border-0 text-[10px]`}>{sl.label}</Badge></td>
+                              {isFullAdmin && (
+                                <td className="py-2 px-3">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-8 gap-1.5 whitespace-nowrap"
+                                    disabled={endingId === r.id}
+                                    onClick={() => setConfirmEndRow(r)}
+                                  >
+                                    {endingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+                                    إنهاء الجلسة
+                                  </Button>
+                                </td>
+                              )}
                             </>
                           ) : (
                             <td className="py-2 px-3">
@@ -340,6 +395,23 @@ export default function SessionsStatusTab() {
           </TabsContent>
         </Tabs>
       </CardContent>
+      <AlertDialog open={!!confirmEndRow} onOpenChange={(open) => !open && !endingId && setConfirmEndRow(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>إنهاء الجلسة الحالية؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم تحديث حالة الحصة وإشعار الطالب والمعلم ليغلقا الاتصال. إذا كان أحدهما غير متصل، فقد لا يستقبل أمر الإنهاء حتى يعود للاتصال.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!endingId}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction disabled={!!endingId} onClick={(event) => { event.preventDefault(); void endSessionAsAdmin(); }}>
+              {endingId ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+              تأكيد الإنهاء
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
