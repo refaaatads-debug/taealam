@@ -32,10 +32,20 @@ describe("booking transport policy", () => {
     ).toEqual({ provider: "agora", legacyActive: false });
   });
 
-  it("preserves an active legacy WebRTC session without switching it", () => {
+  it("selects Agora for an unpinned booking even when its status is in progress", () => {
     expect(
       resolveBookingTransport({
         pinnedProvider: null,
+        sessionStatus: "in_progress",
+        agoraEnabled: true,
+      }),
+    ).toEqual({ provider: "agora", legacyActive: false });
+  });
+
+  it("preserves an active session already pinned to WebRTC", () => {
+    expect(
+      resolveBookingTransport({
+        pinnedProvider: "webrtc",
         sessionStatus: "in_progress",
         agoraEnabled: true,
       }),
