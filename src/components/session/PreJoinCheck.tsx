@@ -36,6 +36,8 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
   const checkInternet = async () => {
     setNetworkState("checking");
     setNetworkErrorKind(null);
+    setNetworkLatency(null);
+    setEstimatedDownlink(null);
     networkCheckRef.current?.abort();
     const controller = new AbortController();
     networkCheckRef.current = controller;
@@ -117,6 +119,9 @@ export function PreJoinCheck({ otherName, isTeacher, canJoin, joinDisabledReason
       networkCheckRef.current = null;
       activeCheck?.abort();
       setNetworkState("error");
+      setNetworkErrorKind("offline");
+      setNetworkLatency(null);
+      setEstimatedDownlink(null);
     };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
