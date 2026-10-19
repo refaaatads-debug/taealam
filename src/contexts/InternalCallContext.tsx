@@ -30,6 +30,7 @@ type InternalCall = {
   duration_seconds: number;
   created_at: string;
   transport_provider?: "agora" | "webrtc";
+  caller_agora_capable?: boolean;
 };
 
 type StartCallInput = {
@@ -45,10 +46,6 @@ type InternalCallContextValue = {
 
 const InternalCallContext = createContext<InternalCallContextValue | null>(null);
 const TERMINAL: InternalCallStatus[] = ["rejected", "busy", "cancelled", "missed", "ended", "failed"];
-const AGORA_INTERNAL_CALL_TEST_USERS = new Set([
-  "328ac5b7-c495-438d-bdaf-58bdd39cc7f1",
-  "00a39848-081c-499e-bc26-331bf3d4e55d",
-]);
 
 const formatTime = (seconds: number) =>
   `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, "0")}:${(Math.max(0, seconds) % 60).toString().padStart(2, "0")}`;
@@ -207,9 +204,10 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
     if (provider === "webrtc" && localStreamRef.current?.active) return;
     try {
       if (provider === "agora") {
-        localTrackRef.current = await AgoraRTC.createMicrophoneAudioTrack({
-          encoderConfig: "speech_low_quality",
-        });
+        const streamTrack = localStreamRef.current?.getAudioTracks()[0];
+        localTrackRef.current = streamTrack
+          ? AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: streamTrack })
+          : await AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: "speech_low_quality" });
       } else {
         localStreamRef.current = await navigator.mediaDevices.getUserMedia({
           video: false,
@@ -301,16 +299,15 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const startInternalCall = useCallback(async ({ studentId, bookingId, studentName }: StartCallInput) => {
     if (!user) return { success: false, code: "UNAUTHENTICATED", message: "سجّل الدخول أولًا" };
     if (call && !TERMINAL.includes(call.status)) return { success: false, code: "USER_BUSY", message: "لديك مكالمة أخرى جارية" };
-    const transportProvider: "agora" | "webrtc" =
-      AGORA_INTERNAL_CALL_TEST_USERS.has(user.id) && AGORA_INTERNAL_CALL_TEST_USERS.has(studentId)
-        ? "agora"
-        : "webrtc";
+    const transportProvider: "agora" | "webrtc" = "webrtc";
     try {
       await ensureMicrophone(transportProvider);
-      const callParams = { p_student_id: studentId, p_booking_id: bookingId || null };
-      const { data, error } = transportProvider === "agora"
-        ? await (supabase as any).rpc("start_internal_call", { ...callParams, p_transport_provider: transportProvider })
-        : await (supabase as any).rpc("start_internal_call", callParams);
+      const { data, error } = await (supabase as any).rpc("start_internal_call", {
+        p_student_id: studentId,
+        p_booking_id: bookingId || null,
+        p_transport_provider: transportProvider,
+        p_caller_agora_capable: true,
+      });
       if (error) throw error;
       if (!data?.success) {
         stopMedia();
@@ -328,11 +325,14 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
   const respond = useCallback(async (accept: boolean) => {
     if (!call) return;
     try {
-      if (accept) await ensureMicrophone(call.transport_provider === "agora" ? "agora" : "webrtc");
+      const provider: "agora" | "webrtc" = call.transport_provider === "agora" || call.caller_agora_capable
+        ? "agora"
+        : "webrtc";
+      if (accept) await ensureMicrophone(provider);
       const { data, error } = await (supabase as any).rpc("respond_internal_call", {
         p_call_id: call.id,
         p_accept: accept,
-        p_transport_provider: call.transport_provider === "agora" ? "agora" : "webrtc",
+        p_transport_provider: provider,
       });
       if (error) throw error;
       if (!data?.success) {
@@ -375,7 +375,11 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       cleanupPeer();
-      if (call.transport_provider !== "agora") {
+      const provider = call.transport_provider === "agora" ? "agora" : "webrtc";
+      if (provider === "agora") {
+        await ensureMicrophone("agora");
+        if (disposed || !localTrackRef.current) return;
+      } else {
         const pc = new RTCPeerConnection(await getIceConfig());
         if (disposed) return pc.close();
         peerRef.current = pc;

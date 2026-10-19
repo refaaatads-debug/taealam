@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     const { data: transportConfig, error: configError } = await db
       .from("internal_call_transport_config")
-      .select("agora_enabled, test_user_ids")
+      .select("agora_enabled")
       .eq("singleton", true)
       .maybeSingle();
     if (configError) throw configError;
