@@ -4,7 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Option = { id: string; name: string };
@@ -32,8 +31,6 @@ export default function InPersonStudentPanel() {
   const [scheduledAt, setScheduledAt] = useState(() => localDateTime(new Date(Date.now() + 3 * 60 * 60_000)));
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
-  const [addressDraft, setAddressDraft] = useState({ street: "", district: "", details: "", latitude: "", longitude: "" });
-  const [savingAddress, setSavingAddress] = useState(false);
 
   const refreshRequests = useCallback(async () => {
     if (!user) return;
@@ -79,52 +76,6 @@ export default function InPersonStudentPanel() {
     setTeachers((data || []) as Teacher[]);
     setSelectedTeachers([]);
     if (!data?.length) toast.info("لا يوجد معلمون معتمدون ضمن نطاق هذا العنوان حالياً");
-  };
-
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error("المتصفح لا يدعم تحديد الموقع؛ أدخل الإحداثيات يدوياً");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => setAddressDraft((current) => ({
-        ...current,
-        latitude: coords.latitude.toFixed(6),
-        longitude: coords.longitude.toFixed(6),
-      })),
-      () => toast.error("لم نتمكن من تحديد الموقع. تحقق من إذن الموقع أو أدخل الإحداثيات يدوياً"),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
-    );
-  };
-
-  const saveAddress = async () => {
-    const latitude = Number(addressDraft.latitude);
-    const longitude = Number(addressDraft.longitude);
-    if (!cityId || !addressDraft.street.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude)
-      || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-      toast.error("اختر المدينة واكتب العنوان وحدد إحداثيات صحيحة");
-      return;
-    }
-    setSavingAddress(true);
-    const { data, error } = await supabase.from("user_addresses" as any).insert({
-      owner_id: user!.id,
-      city_id: cityId,
-      street_address: addressDraft.street.trim(),
-      district: addressDraft.district.trim() || null,
-      additional_details: addressDraft.details.trim() || null,
-      latitude,
-      longitude,
-    }).select("id,street_address,district,city_id").single();
-    setSavingAddress(false);
-    if (error || !data) {
-      toast.error(error?.message || "تعذر حفظ العنوان");
-      return;
-    }
-    const saved = data as any;
-    setAddresses((current) => [{ id: saved.id, city_id: saved.city_id, name: saved.district ? `${saved.district} — ${saved.street_address}` : saved.street_address }, ...current]);
-    setAddressId(saved.id);
-    setAddressDraft({ street: "", district: "", details: "", latitude: "", longitude: "" });
-    toast.success("تم حفظ العنوان واختياره للحصة");
   };
 
   const submitRequest = async () => {
@@ -188,6 +139,7 @@ export default function InPersonStudentPanel() {
   };
 
   if (!enabled) return null;
+  const hasAddressInSelectedCity = addresses.some((address) => address.city_id === cityId);
   return (
     <Card>
       <CardHeader>
@@ -221,46 +173,11 @@ export default function InPersonStudentPanel() {
             <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">إضافة المدينة والعنوان من الملف الشخصي</Link>
           </div>
         )}
-        {cities.length > 0 && addresses.length === 0 && (
+        {cities.length > 0 && addresses.length > 0 && cityId && !hasAddressInSelectedCity && (
           <div className="rounded-md border border-dashed p-3 text-sm" role="status">
-            <p>لا يوجد عنوان زيارة محفوظ لهذا الحساب بعد.</p>
+            <p>لا يوجد عنوان محفوظ لهذه المدينة. أضف العنوان من قسم العناوين في ملفك الشخصي أولاً.</p>
             <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">احفظ عنوانك من الخريطة في الملف الشخصي</Link>
           </div>
-        )}
-        {cityId && (
-          <Card className="border-dashed">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">إضافة عنوان جديد</CardTitle>
-              <p className="text-sm text-muted-foreground">نحفظ الإحداثيات لاختيار المعلمين القريبين. لن نطلب موقعك إلا عند ضغط زر تحديد الموقع.</p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">الحي
-                  <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressDraft.district} onChange={(e) => setAddressDraft((v) => ({ ...v, district: e.target.value }))} />
-                </label>
-                <label className="text-sm">الشارع والعنوان
-                  <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressDraft.street} onChange={(e) => setAddressDraft((v) => ({ ...v, street: e.target.value }))} />
-                </label>
-                <label className="text-sm sm:col-span-2">تفاصيل إضافية (اختياري)
-                  <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressDraft.details} onChange={(e) => setAddressDraft((v) => ({ ...v, details: e.target.value }))} />
-                </label>
-                <label className="text-sm">خط العرض
-                  <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" type="number" step="any" value={addressDraft.latitude} onChange={(e) => setAddressDraft((v) => ({ ...v, latitude: e.target.value }))} />
-                </label>
-                <label className="text-sm">خط الطول
-                  <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" type="number" step="any" value={addressDraft.longitude} onChange={(e) => setAddressDraft((v) => ({ ...v, longitude: e.target.value }))} />
-                </label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" disabled={savingAddress} onClick={useCurrentLocation}>
-                  <MapPin className="ml-2 h-4 w-4" /> تحديد موقعي
-                </Button>
-                <Button type="button" disabled={savingAddress} onClick={saveAddress}>
-                  {savingAddress ? "جارٍ الحفظ..." : "حفظ العنوان"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         )}
         <Button variant="outline" onClick={searchTeachers} disabled={loading}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
         {teachers.length > 0 && (

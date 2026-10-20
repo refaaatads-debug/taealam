@@ -233,7 +233,15 @@ export default function GoogleMapLocationPicker({
           } else toast.error("تعذر قراءة عنوان موقعك.");
         });
       },
-      () => toast.error("لم نتمكن من تحديد الموقع. يمكنك البحث عن عنوان أو وضع العلامة يدوياً."),
+      (error: GeolocationPositionError) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          toast.error("تم رفض إذن الموقع. اسمح للموقع من إعدادات المتصفح، أو ابحث عن العنوان يدوياً.");
+        } else if (error.code === error.TIMEOUT) {
+          toast.error("انتهت مهلة تحديد الموقع. حاول مرة أخرى أو ابحث عن العنوان يدوياً.");
+        } else {
+          toast.error("تعذر تحديد موقعك. ابحث عن العنوان يدوياً أو حرّك العلامة على الخريطة.");
+        }
+      },
       { enableHighAccuracy: true, timeout: 12000 },
     );
   };

@@ -142,6 +142,127 @@ jobs:
             grep -Rql 'internal-call-transport-token' dist/assets
             grep -RFlq -- "$VITE_SUPABASE_URL" dist/assets
             grep -RFlq -- "$VITE_SUPABASE_PUBLISHABLE_KEY" dist/assets
+            policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
+            mkdir -p "$policy_backup_dir"
+            chmod 700 "$policy_backup_dir"
+            AJYAL_POLICY_BACKUP_DIR="$policy_backup_dir" python3 - <<'PY'
+            import hashlib
+            import os
+            import re
+            import shutil
+            import subprocess
+            import sys
+            from pathlib import Path
+
+            dump = subprocess.run(["nginx", "-T"], capture_output=True, text=True)
+            if dump.returncode:
+                sys.exit("Could not inspect the active Nginx configuration.")
+
+            markers = list(re.finditer(r"(?m)^# configuration file (.+):$", dump.stdout))
+            config_paths = []
+            for marker in markers:
+                path = Path(marker.group(1))
+                if path.exists():
+                    resolved = path.resolve()
+                    if resolved not in config_paths:
+                        config_paths.append(resolved)
+
+            def mask_comments(text):
+                return re.sub(r"(?m)^[ \t]*#.*$", lambda match: " " * len(match.group()), text)
+
+            def server_blocks(text):
+                masked = mask_comments(text)
+                for start_match in re.finditer(r"\bserver\s*\{", masked):
+                    opening = masked.find("{", start_match.start(), start_match.end())
+                    depth = 0
+                    for index in range(opening, len(masked)):
+                        if masked[index] == "{":
+                            depth += 1
+                        elif masked[index] == "}":
+                            depth -= 1
+                            if depth == 0:
+                                yield start_match.start(), index + 1, masked[start_match.start():index + 1]
+                                break
+
+            policy_pattern = re.compile(
+                r'(?m)^([ \t]*add_header[ \t]+Permissions-Policy[ \t]+"[^"\n]*?)'
+                r'geolocation=\(\)([^\n]*;[ \t]*)$'
+            )
+            edits = {}
+            already_enabled = False
+            site_https_blocks = 0
+            missing_policy_blocks = 0
+            for config_path in config_paths:
+                try:
+                    source = config_path.read_text()
+                except OSError:
+                    continue
+                for start, end, masked_block in server_blocks(source):
+                    names = re.findall(r"(?m)^\s*server_name\s+([^;]+);", masked_block)
+                    hosts = {host.rstrip(".").lower() for group in names for host in group.split()}
+                    if not hosts.intersection({"ajyalalmaerifa.com", "www.ajyalalmaerifa.com"}):
+                        continue
+                    if not re.search(r"(?m)^\s*listen\s+[^;]*\b443\b[^;]*;", masked_block):
+                        continue
+                    site_https_blocks += 1
+                    original_block = source[start:end]
+                    if re.search(r'(?m)^\s*add_header\s+Permissions-Policy\b', masked_block):
+                        if re.search(r'(?m)^\s*add_header\s+Permissions-Policy\s+"[^"\n]*geolocation=\(self\)', masked_block):
+                            already_enabled = True
+                            continue
+                        replacement, count = policy_pattern.subn(
+                            r"\1geolocation=(self)\2", original_block, count=1
+                        )
+                        if count:
+                            edits.setdefault(config_path, []).append((start, end, replacement))
+                    else:
+                        missing_policy_blocks += 1
+
+            if site_https_blocks == 0:
+                sys.exit("Could not find an active HTTPS server block for the Ajyal site.")
+            if missing_policy_blocks:
+                sys.exit(
+                    "The Ajyal HTTPS server uses an inherited Permissions-Policy; "
+                    "no Nginx files were changed."
+                )
+            if not edits:
+                if already_enabled:
+                    print("The active site policy already permits first-party geolocation.")
+                    sys.exit(0)
+                sys.exit(
+                    "Could not find a direct Permissions-Policy directive in the active "
+                    "Ajyal site server block; no Nginx files were changed."
+                )
+
+            backup_dir = Path(os.environ["AJYAL_POLICY_BACKUP_DIR"])
+            backups = []
+            for config_path, ranges in edits.items():
+                original = config_path.read_text()
+                updated = original
+                for start, end, replacement in sorted(ranges, reverse=True):
+                    updated = updated[:start] + replacement + updated[end:]
+                if updated == original:
+                    continue
+                backup = backup_dir / (
+                    config_path.name + "-" +
+                    hashlib.sha256(str(config_path).encode()).hexdigest()[:10] + ".bak"
+                )
+                shutil.copy2(config_path, backup)
+                config_path.write_text(updated)
+                backups.append((config_path, backup))
+
+            validation = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
+            if validation.returncode:
+                for config_path, backup in backups:
+                    shutil.copy2(backup, config_path)
+                sys.stderr.write(validation.stdout + validation.stderr)
+                sys.exit("Nginx validation failed; the original site config was restored.")
+
+            print(
+                f"Enabled first-party geolocation in {len(backups)} active site config file(s); "
+                f"backups are in {backup_dir}."
+            )
+            PY
             nginx -t
             rsync -a --delete --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r dist/ /var/www/html/
             chmod 755 /var/www/html

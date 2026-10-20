@@ -65,7 +65,12 @@ export default function InPersonAdminPanel() {
       p_rejection_reason: reason || null,
     });
     setBusy(false);
-    if (error) toast.error(error.message || "تعذر حفظ اعتماد المعلم");
+    if (error) {
+      const message = error.message?.includes("Teacher profile must be approved with a complete service location")
+        ? "تعذر تفعيل استقبال الطلبات. يجب اعتماد ملف المعلم الأساسي، واختيار «حضوري» أو «عن بُعد وحضوري»، وحفظ موقع الخدمة ونطاقه من ملف المعلم."
+        : error.message || "تعذر حفظ اعتماد المعلم";
+      toast.error(message);
+    }
     else { toast.success("تم تحديث اعتماد الحضوري"); await refresh(); }
   };
 
