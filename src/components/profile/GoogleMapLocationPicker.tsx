@@ -18,6 +18,8 @@ interface Props {
   value?: Partial<MapLocation> | null;
   onChange: (location: MapLocation | null) => void;
   height?: number;
+  searchPlaceholder?: string;
+  instruction?: string;
 }
 
 let mapsLoader: Promise<void> | undefined;
@@ -48,18 +50,27 @@ function loadGoogleMaps(apiKey: string) {
 function locationFromResult(result: any, lat: number, lng: number): MapLocation {
   const parts = result?.address_components ?? [];
   const get = (...types: string[]) => parts.find((part: any) => types.some(type => part.types.includes(type)))?.long_name ?? "";
+  const city = ["locality", "postal_town", "administrative_area_level_2", "administrative_area_level_1"]
+    .map((type) => parts.find((part: any) => part.types.includes(type))?.long_name)
+    .find(Boolean) ?? "";
   return {
     latitude: lat,
     longitude: lng,
     formattedAddress: result?.formatted_address ?? "",
     country: get("country"),
     countryCode: parts.find((part: any) => part.types.includes("country"))?.short_name ?? "",
-    city: get("locality", "postal_town", "administrative_area_level_2"),
+    city,
     street: [get("route"), get("street_number")].filter(Boolean).join(" "),
   };
 }
 
-export default function GoogleMapLocationPicker({ value, onChange, height = 280 }: Props) {
+export default function GoogleMapLocationPicker({
+  value,
+  onChange,
+  height = 280,
+  searchPlaceholder = "ابحث عن مدينة أو عنوان",
+  instruction = "اختر المدينة أو العنوان من الاقتراحات، ثم حرّك العلامة لتحديد الموقع بدقة.",
+}: Props) {
   const mapElement = useRef<HTMLDivElement>(null);
   const searchElement = useRef<HTMLInputElement>(null);
   const mapRef = useRef<any>(null);
@@ -68,6 +79,8 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState(value?.formattedAddress ?? "");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   useEffect(() => {
@@ -109,6 +122,7 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
             return;
           }
           setSearch(location.formattedAddress);
+          setSearchResults([]);
           onChange(location);
         });
       };
@@ -120,13 +134,13 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
       markerRef.current.addListener("dragend", (event: any) => resolvePoint(event.latLng.lat(), event.latLng.lng()));
       const autocomplete = new window.google.maps.places.Autocomplete(searchElement.current, {
         fields: ["address_components", "formatted_address", "geometry"],
-        types: ["address"],
+        types: ["geocode"],
         componentRestrictions: { country: "sa" },
       });
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (!place.geometry?.location) {
-          toast.error("اختر عنواناً من نتائج البحث.");
+          toast.error("اختر مدينة أو عنواناً من نتائج البحث.");
           return;
         }
         const point = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
@@ -140,12 +154,62 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
           return;
         }
         setSearch(location.formattedAddress);
+        setSearchResults([]);
         onChange(location);
       });
       setReady(true);
     }).catch((err: Error) => alive && setError(err.message));
     return () => { alive = false; };
   }, [apiKey]);
+
+  const selectGeocodedResult = (result: any) => {
+    const point = result.geometry?.location;
+    if (!point) {
+      toast.error("تعذر تحديد إحداثيات نتيجة البحث.");
+      return;
+    }
+    const latitude = typeof point.lat === "function" ? point.lat() : point.lat;
+    const longitude = typeof point.lng === "function" ? point.lng() : point.lng;
+    const location = locationFromResult(result, latitude, longitude);
+    if (location.countryCode !== "SA") {
+      onChange(null);
+      toast.error("اختر موقعاً داخل المملكة العربية السعودية.");
+      return;
+    }
+    mapRef.current?.setCenter({ lat: latitude, lng: longitude });
+    mapRef.current?.setZoom(result.types?.includes("locality") ? 11 : 16);
+    markerRef.current?.setPosition({ lat: latitude, lng: longitude });
+    setSearch(location.formattedAddress);
+    setSearchResults([]);
+    onChange(location);
+  };
+
+  const searchOnMap = () => {
+    const query = search.trim();
+    if (!query) return toast.error("اكتب اسم المدينة أو العنوان أولاً.");
+    if (!geocoderRef.current) return toast.error("الخريطة لم تجهز للبحث بعد.");
+    setSearching(true);
+    geocoderRef.current.geocode(
+      { address: query, componentRestrictions: { country: "SA" } },
+      (results: any[], status: string) => {
+        setSearching(false);
+        const saudiResults = (results || []).filter((result) => {
+          const country = result.address_components?.find((part: any) => part.types.includes("country"));
+          return country?.short_name === "SA";
+        });
+        if (status !== "OK" || saudiResults.length === 0) {
+          setSearchResults([]);
+          toast.error("لم نعثر على مدينة أو عنوان بهذا الاسم داخل السعودية.");
+          return;
+        }
+        if (saudiResults.length === 1) {
+          selectGeocodedResult(saudiResults[0]);
+        } else {
+          setSearchResults(saudiResults.slice(0, 5));
+        }
+      },
+    );
+  };
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) return toast.error("ميزة تحديد الموقع غير متاحة في هذا المتصفح.");
@@ -164,6 +228,7 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
               return;
             }
             setSearch(location.formattedAddress);
+            setSearchResults([]);
             onChange(location);
           } else toast.error("تعذر قراءة عنوان موقعك.");
         });
@@ -180,12 +245,36 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
         <Input
           ref={searchElement}
           value={search}
-          onChange={event => { setSearch(event.target.value); onChange(null); }}
-          placeholder="ابحث عن عنوان أو معلم"
+          onChange={event => { setSearch(event.target.value); setSearchResults([]); onChange(null); }}
+          onKeyDown={event => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              searchOnMap();
+            }
+          }}
+          placeholder={searchPlaceholder}
           className="pr-9"
-          aria-label="البحث عن عنوان على الخريطة"
+          aria-label={searchPlaceholder}
         />
       </label>
+      <Button type="button" variant="outline" size="sm" disabled={!ready || searching || !search.trim()} onClick={searchOnMap}>
+        {searching ? "جارٍ البحث في الخريطة…" : "ابحث بالخريطة"}
+      </Button>
+      {searchResults.length > 0 && (
+        <ul className="overflow-hidden rounded-md border bg-background shadow-sm" aria-label="نتائج المدن والعناوين">
+          {searchResults.map((result, index) => (
+            <li key={`${result.place_id || result.formatted_address}-${index}`}>
+              <button
+                type="button"
+                className="w-full px-3 py-2 text-right text-sm hover:bg-muted"
+                onClick={() => selectGeocodedResult(result)}
+              >
+                {result.formatted_address}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</div>
       ) : (
@@ -195,7 +284,7 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">ابحث عن العنوان أو حرّك العلامة لتحديد الموقع بدقة.</p>
+        <p className="text-xs text-muted-foreground">{instruction}</p>
         <Button type="button" variant="outline" size="sm" onClick={useCurrentLocation}><MapPin className="ml-2 h-4 w-4" />استخدم موقعي</Button>
       </div>
     </div>

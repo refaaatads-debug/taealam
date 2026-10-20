@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
+import { Link } from "react-router-dom";
 
 type Option = { id: string; name: string };
 type Address = Option & { city_id: string; district?: string | null };
@@ -196,12 +197,12 @@ export default function InPersonStudentPanel() {
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">المدينة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={cityId} onChange={(e) => { setCityId(e.target.value); setAddressId(""); }}>
+            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={cityId} disabled={cities.length === 0} onChange={(e) => { setCityId(e.target.value); setAddressId(""); }}>
               <option value="">اختر المدينة</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
           <label className="text-sm">عنوان الزيارة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressId} onChange={(e) => setAddressId(e.target.value)}>
+            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressId} disabled={addresses.length === 0} onChange={(e) => setAddressId(e.target.value)}>
               <option value="">اختر عنواناً محفوظاً</option>{addresses.filter((a) => !cityId || a.city_id === cityId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </label>
@@ -214,6 +215,18 @@ export default function InPersonStudentPanel() {
             <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
           </label>
         </div>
+        {cities.length === 0 && (
+          <div className="rounded-md border border-dashed p-3 text-sm" role="status">
+            <p>لا توجد مدن محفوظة بعد. احفظ مدينتك أو عنوانك من الخريطة في ملفك الشخصي؛ ستظهر المدينة هنا تلقائياً.</p>
+            <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">إضافة المدينة والعنوان من الملف الشخصي</Link>
+          </div>
+        )}
+        {cities.length > 0 && addresses.length === 0 && (
+          <div className="rounded-md border border-dashed p-3 text-sm" role="status">
+            <p>لا يوجد عنوان زيارة محفوظ لهذا الحساب بعد.</p>
+            <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">احفظ عنوانك من الخريطة في الملف الشخصي</Link>
+          </div>
+        )}
         {cityId && (
           <Card className="border-dashed">
             <CardHeader className="pb-3">

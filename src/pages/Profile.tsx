@@ -415,7 +415,12 @@ const Profile = () => {
                     <h3 className="font-bold">عنوانك للحصص الحضورية</h3>
                     <p className="mt-1 text-xs text-muted-foreground">احفظ عنوانك هنا، ثم اختر عنوان الزيارة عند طلب الحصة. لا يُشارك العنوان مع المعلم إلا بعد تأكيد الحجز.</p>
                   </div>
-                  <GoogleMapLocationPicker value={mapLocation} onChange={setMapLocation} />
+                  <GoogleMapLocationPicker
+                    value={mapLocation}
+                    onChange={setMapLocation}
+                    searchPlaceholder="ابحث عن مدينتك أو عنوانك"
+                    instruction="اختر مدينتك أو عنوانك من الاقتراحات، ثم احفظ العنوان للظهور في طلب الحصة."
+                  />
                   {mapLocation && <p className="text-xs text-muted-foreground">{[mapLocation.country, mapLocation.city, mapLocation.formattedAddress].filter(Boolean).join(" · ")}</p>}
                   <Button type="button" onClick={saveStudentAddress} disabled={savingLocation || !mapLocation}>
                     {savingLocation ? "جارٍ الحفظ…" : "حفظ العنوان"}
@@ -603,7 +608,12 @@ const Profile = () => {
                   حالة اعتماد الحضوري: <strong>{teacherApproval === "approved" ? "معتمد" : teacherApproval === "rejected" ? "مرفوض" : teacherApproval === "pending" ? "قيد المراجعة" : "لم يُطلب بعد"}</strong>
                   {teacherApprovalReason && <p className="mt-1 text-muted-foreground">ملاحظة الإدارة: {teacherApprovalReason}</p>}
                 </div>
-                <GoogleMapLocationPicker value={teacherLocation} onChange={setTeacherLocation} />
+                <GoogleMapLocationPicker
+                  value={teacherLocation}
+                  onChange={setTeacherLocation}
+                  searchPlaceholder="ابحث عن مدينة التدريس أو عنوان الخدمة"
+                  instruction="اختر مدينة التدريس أو عنوان الخدمة من الاقتراحات؛ ستُضاف المدينة تلقائياً عند الحفظ."
+                />
                 {teacherLocation && <p className="text-xs text-muted-foreground">{[teacherLocation.country, teacherLocation.city, teacherLocation.formattedAddress].filter(Boolean).join(" · ")}</p>}
                 <div className="max-w-xs">
                   <Label htmlFor="teacher-radius">نطاق الخدمة (كم)</Label>
