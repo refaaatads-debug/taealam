@@ -21,11 +21,16 @@ jobs:
             backup_dir="/root/backups/ajyal-predeploy-${{ github.sha }}"
             web_root="/var/www/html"
             functions_root="/root/taealam/supabase_setup/docker/volumes/functions"
+            db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
 
             test -d "$web_root"
             test -d "$functions_root"
+            test -n "$db_container"
             mkdir -p "$backup_dir"
             chmod 700 "$backup_dir"
+            docker exec -u postgres "$db_container" pg_dump -U postgres -d postgres -Fc --no-owner --no-acl > "$backup_dir/postgres.dump"
+            test -s "$backup_dir/postgres.dump"
+            docker exec -i -u postgres "$db_container" pg_restore --list < "$backup_dir/postgres.dump" >/dev/null
             tar -czf "$backup_dir/web-root.tar.gz" -C /var/www html
             tar -czf "$backup_dir/edge-functions.tar.gz" -C /root/taealam/supabase_setup/docker/volumes functions
             cp -a /root/deploy-ajyal.sh "$backup_dir/deploy-ajyal.sh"
@@ -41,7 +46,7 @@ jobs:
             EOF
             chmod 700 "$backup_dir/restore.sh"
             printf 'backup_sha=%s\ncreated_at_utc=%s\n' '${{ github.sha }}' "$(date -u +%FT%TZ)" > "$backup_dir/MANIFEST.txt"
-            chmod 600 "$backup_dir/"*.tar.gz "$backup_dir/MANIFEST.txt" "$backup_dir/deploy-ajyal.sh"
+            chmod 600 "$backup_dir/"*.tar.gz "$backup_dir/postgres.dump" "$backup_dir/MANIFEST.txt" "$backup_dir/deploy-ajyal.sh"
             tar -tzf "$backup_dir/web-root.tar.gz" >/dev/null
             tar -tzf "$backup_dir/edge-functions.tar.gz" >/dev/null
             echo "VPS backup completed at $backup_dir"
@@ -68,7 +73,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Build and activate on VPS using the verified dependency cache
@@ -88,6 +93,7 @@ jobs:
             chmod 700 "$staging"
             test -f "$staging/index.html"
             test -f "$staging/package-lock.json"
+            test -f "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
             config_exports="$(python3 - <<'PY'
             import shlex
             import sys
@@ -146,6 +152,9 @@ jobs:
             grep -Rql 'internal-call-transport-token' dist/assets
             grep -RFlq -- "$VITE_SUPABASE_URL" dist/assets
             grep -RFlq -- "$VITE_SUPABASE_PUBLISHABLE_KEY" dist/assets
+            db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+            test -n "$db_container"
+            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"
             chmod 700 "$policy_backup_dir"

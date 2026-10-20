@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import GoogleMapLocationPicker, { type MapLocation } from "@/components/profile/GoogleMapLocationPicker";
 
 type TeacherRow = {
   teacher_id: string;
@@ -15,10 +17,13 @@ type TeacherRow = {
   longitude: number | null;
 };
 type FinancialRow = { booking_id: string; scheduled_at: string; teacher_earning: number; teacher_earning_status: string | null; teacher_compensation: number; compensation_status: string | null; platform_revenue: number; revenue_events: number };
+type CityRow = { city_id: string; city_name: string; enabled: boolean; changed_by: string | null; changed_at: string | null };
 
 export default function InPersonAdminPanel() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
-  const [cities, setCities] = useState<{ id: string; name_ar: string }[]>([]);
+  const [cities, setCities] = useState<CityRow[]>([]);
+  const [citySearch, setCitySearch] = useState("");
+  const [newCityLocation, setNewCityLocation] = useState<MapLocation | null>(null);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
   const [sessionCounts, setSessionCounts] = useState({ online: 0, inPerson: 0 });
   const [userId, setUserId] = useState("");
@@ -29,20 +34,21 @@ export default function InPersonAdminPanel() {
   const refresh = useCallback(async () => {
     const [
       { data: teacherRows, error },
-      { data: cityRows },
+      { data: cityRows, error: cityError },
       { data: financialRows },
       onlineCountResult,
       inPersonCountResult,
     ] = await Promise.all([
       supabase.rpc("admin_list_in_person_teachers" as any),
-      supabase.from("cities" as any).select("id,name_ar").order("name_ar"),
+      supabase.rpc("admin_list_in_person_cities" as any),
       supabase.rpc("admin_list_in_person_financials" as any),
       (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "online"),
       (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "in_person"),
     ]);
     if (error) toast.error(error.message || "تعذر تحميل إعدادات الحضوري");
     else setTeachers((teacherRows || []) as TeacherRow[]);
-    setCities((cityRows || []) as { id: string; name_ar: string }[]);
+    if (cityError) toast.error("تعذر تحميل مدن التعليم الحضوري");
+    else setCities((cityRows || []) as CityRow[]);
     setFinancials((financialRows || []) as FinancialRow[]);
     if (onlineCountResult.error || inPersonCountResult.error) {
       toast.error("تعذر تحميل إحصاءات أنواع الحصص");
@@ -87,6 +93,40 @@ export default function InPersonAdminPanel() {
     else { toast.success(enabled ? "تم تفعيل حساب التجربة المحدد" : "تم إيقاف حساب التجربة"); setUserId(""); }
   };
 
+  const saveCity = async () => {
+    if (!newCityLocation || newCityLocation.countryCode.toUpperCase() !== "SA") {
+      toast.error("اختر مدينة سعودية من نتائج خرائط Google");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.rpc("admin_upsert_saudi_city_from_places" as any, {
+      p_name_ar: newCityLocation.city,
+      p_name_en: newCityLocation.city,
+      p_latitude: newCityLocation.latitude,
+      p_longitude: newCityLocation.longitude,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message || "تعذرت إضافة المدينة");
+    else {
+      toast.success("تم تسجيل المدينة، والحضوري متوقف فيها افتراضياً");
+      setNewCityLocation(null);
+      await refresh();
+    }
+  };
+
+  const setCityAvailability = async (city: CityRow, enabled: boolean) => {
+    setBusy(true);
+    const { error } = await supabase.rpc("admin_set_in_person_city_enabled" as any, {
+      p_city_id: city.city_id, p_enabled: enabled,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message || "تعذر تحديث إتاحة المدينة");
+    else {
+      toast.success(enabled ? `تم تفعيل الحضوري في ${city.city_name}` : `تم إيقاف الحضوري في ${city.city_name}`);
+      await refresh();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -115,11 +155,24 @@ export default function InPersonAdminPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>مدن الخدمة</CardTitle>
-          <p className="text-sm text-muted-foreground">تُضاف المدينة تلقائياً من نتائج خرائط Google عند اختيار موقع سعودي؛ لا تُقبل أسماء مدن يدوية.</p>
+          <CardTitle>مدن التعليم الحضوري</CardTitle>
+          <p className="text-sm text-muted-foreground">الإتاحة مستقلة عن حفظ العناوين. لا يؤدي إيقاف مدينة إلى حذفها أو حذف عناوين المستخدمين.</p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">{cities.map((city) => <span key={city.id} className="rounded-full border px-3 py-1 text-sm">{city.name_ar}</span>)}</div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <GoogleMapLocationPicker value={newCityLocation} onChange={setNewCityLocation} height={180} searchPlaceholder="ابحث عن مدينة سعودية" instruction="اختر المدينة من نتائج خرائط Google؛ لن يُنشأ عنوان مستخدم." />
+            <Button disabled={busy || !newCityLocation} onClick={() => void saveCity()}>إضافة مدينة (متوقفة افتراضياً)</Button>
+          </div>
+          <Input value={citySearch} onChange={(event) => setCitySearch(event.target.value)} placeholder="ابحث باسم المدينة" aria-label="البحث في المدن" />
+          <div className="space-y-2">
+            {cities.filter((city) => city.city_name.toLocaleLowerCase().includes(citySearch.trim().toLocaleLowerCase())).map((city) => (
+              <div key={city.city_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                <div><strong>{city.city_name}</strong><div className="text-xs text-muted-foreground">{city.enabled ? "الحضوري متاح" : "الحضوري متوقف"}{city.changed_at ? ` · آخر تغيير ${new Date(city.changed_at).toLocaleString("ar-SA")}` : " · لم تُفعّل بعد"}</div></div>
+                <Button size="sm" variant={city.enabled ? "outline" : "default"} disabled={busy} onClick={() => void setCityAvailability(city, !city.enabled)}>{city.enabled ? "إيقاف الحضوري" : "تفعيل الحضوري"}</Button>
+              </div>
+            ))}
+            {cities.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مدن مسجلة.</p>}
+          </div>
         </CardContent>
       </Card>
 

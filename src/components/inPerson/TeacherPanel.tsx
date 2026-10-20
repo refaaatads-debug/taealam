@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string };
 type BookingRow = { id: string; scheduled_at: string; subject_name?: string; subjects?: { name: string } | null };
 type EarningRow = { booking_id: string; amount: number; status: string; available_at: string; scheduled_at: string };
+type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
 export default function InPersonTeacherPanel() {
   const { user } = useAuth();
@@ -17,18 +18,20 @@ export default function InPersonTeacherPanel() {
   const [earnings, setEarnings] = useState<EarningRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [cityStatus, setCityStatus] = useState<CityStatus | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) return;
     const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
     if (!pilotEnabled) { setEnabled(false); return; }
     setEnabled(true);
-    const [{ data: incoming, error }, { data: upcoming }, { data: earningRows }] = await Promise.all([
+    const [{ data: incoming, error }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
       supabase.rpc("list_teacher_in_person_requests" as any),
       supabase.from("bookings" as any).select("id,scheduled_at,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
       supabase.rpc("list_my_in_person_teacher_earnings" as any),
+      supabase.rpc("get_my_in_person_city_status" as any),
     ]);
     if (error) {
       if (!error.message.toLowerCase().includes("pilot")) toast.error(error.message);
@@ -36,6 +39,7 @@ export default function InPersonTeacherPanel() {
     } else setRequests((incoming || []) as RequestRow[]);
     setBookings((upcoming || []) as BookingRow[]);
     setEarnings((earningRows || []) as EarningRow[]);
+    setCityStatus(((cityRows || [])[0] as CityStatus | undefined) || null);
   }, [user]);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -67,7 +71,9 @@ export default function InPersonTeacherPanel() {
   if (!enabled) return null;
   return (
     <Card>
-      <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">يُغلق القبول قبل الموعد بساعة. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p></CardHeader>
+      <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">يُغلق القبول قبل الموعد بساعة. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
+        {cityStatus?.city_name && cityStatus.city_enabled === false && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">الخدمة لم تُفعّل في مدينتك بعد.</p>}
+      </CardHeader>
       <CardContent className="space-y-5">
         <section className="space-y-2">
           <h3 className="font-semibold">طلبات بانتظارك</h3>

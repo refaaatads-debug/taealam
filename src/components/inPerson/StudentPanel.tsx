@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
 type RequestRow = { request_group_id: string; subject_name: string; scheduled_at: string; status: string; acceptance_deadline: string; booking_id: string | null; attendance_confirmed_at: string | null };
@@ -31,6 +31,10 @@ export default function InPersonStudentPanel() {
   const [scheduledAt, setScheduledAt] = useState(() => localDateTime(new Date(Date.now() + 3 * 60 * 60_000)));
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [cityUnavailableMessage, setCityUnavailableMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const refreshRequests = useCallback(async () => {
     if (!user) return;
@@ -47,35 +51,60 @@ export default function InPersonStudentPanel() {
       if (!active || !pilotEnabled) return;
       setEnabled(true);
       const [cityResult, addressResult, subjectResult] = await Promise.all([
-        supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar"),
+        supabase.from("cities" as any).select("id,name_ar,in_person_enabled").eq("is_active", true).order("name_ar"),
         supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false }),
         supabase.from("subjects").select("id,name").order("name"),
       ]);
-      setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar })));
+      if (cityResult.error || addressResult.error || subjectResult.error) {
+        if (!active) return;
+        setLoadError(true);
+        return;
+      }
+      setLoadError(false);
+      setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
       setAddresses(((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id })));
       setSubjects(((subjectResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name })));
       await refreshRequests();
     })();
     return () => { active = false; };
-  }, [user, refreshRequests]);
+  }, [user, refreshRequests, reloadKey]);
 
   const searchTeachers = async () => {
     if (!cityId || !addressId || !subjectId) {
       toast.error("اختر المدينة والعنوان والمادة أولاً");
       return;
     }
+    const selectedCity = cities.find((city) => city.id === cityId);
+    if (!selectedCity?.enabled) {
+      setTeachers([]);
+      setSelectedTeachers([]);
+      setSearchError("");
+      setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${selectedCity?.name || "هذه المدينة"} حاليًا. يمكنك حجز حصة أونلاين.`);
+      return;
+    }
+    setCityUnavailableMessage("");
     setLoading(true);
     const { data, error } = await supabase.rpc("search_in_person_teachers" as any, {
       p_city_id: cityId, p_subject_id: subjectId, p_address_id: addressId,
+      p_scheduled_at: new Date(scheduledAt).toISOString(),
     });
     setLoading(false);
     if (error) {
-      toast.error(error.message || "تعذر البحث عن المعلمين");
+      if (error.message?.includes("In-person service is unavailable in this city")) {
+        setTeachers([]);
+        setSelectedTeachers([]);
+        setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${selectedCity?.name || "هذه المدينة"} حاليًا. يمكنك حجز حصة أونلاين.`);
+        setSearchError("");
+        return;
+      }
+      setSearchError("تعذر تحميل بيانات البحث. تحقق من الاتصال ثم أعد المحاولة.");
+      toast.error("تعذر تحميل البيانات. يمكنك إعادة المحاولة.");
       return;
     }
+    setSearchError("");
     setTeachers((data || []) as Teacher[]);
     setSelectedTeachers([]);
-    if (!data?.length) toast.info("لا يوجد معلمون معتمدون ضمن نطاق هذا العنوان حالياً");
+    if (!data?.length) toast.info("لا يوجد معلمون متاحون لهذه المادة في مدينتك حاليًا.");
   };
 
   const submitRequest = async () => {
@@ -100,7 +129,13 @@ export default function InPersonStudentPanel() {
     });
     setLoading(false);
     if (error) {
-      toast.error(error.message || "تعذر إرسال طلب الحصة");
+      if (error.message?.includes("In-person service is unavailable in this city")) {
+        const city = cities.find((item) => item.id === cityId)?.name || "";
+        setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${city} حاليًا. يمكنك حجز حصة أونلاين.`);
+        setSearchError("");
+      } else {
+        toast.error(error.message || "تعذر إرسال طلب الحصة");
+      }
       return;
     }
     toast.success("تم إرسال الطلب وحجز 100 دقيقة مؤقتاً حتى القبول أو انتهاء المهلة");
@@ -140,6 +175,7 @@ export default function InPersonStudentPanel() {
 
   if (!enabled) return null;
   const hasAddressInSelectedCity = addresses.some((address) => address.city_id === cityId);
+  const selectedCity = cities.find((city) => city.id === cityId);
   return (
     <Card>
       <CardHeader>
@@ -147,15 +183,18 @@ export default function InPersonStudentPanel() {
         <p className="text-sm text-muted-foreground">مدة التدريس 60 دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {loadError && <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">تعذر تحميل بيانات المدن أو العناوين. أعد المحاولة قبل المتابعة. <Button size="sm" variant="outline" className="ms-2" onClick={() => setReloadKey((value) => value + 1)}>إعادة المحاولة</Button></div>}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">المدينة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={cityId} disabled={cities.length === 0} onChange={(e) => { setCityId(e.target.value); setAddressId(""); }}>
-              <option value="">اختر المدينة</option>{cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={cityId} onChange={(e) => { setCityId(e.target.value); setCityUnavailableMessage(""); setAddressId((current) => addresses.some((a) => a.id === current && a.city_id === e.target.value) ? current : ""); }}>
+              <option value="">اختر مدينة متاحة</option>
+              {cities.filter((c) => c.enabled).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {selectedCity && !selectedCity.enabled && <option value={selectedCity.id} disabled>{selectedCity.name} · الحضوري غير متاح</option>}
             </select>
           </label>
           <label className="text-sm">عنوان الزيارة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressId} disabled={addresses.length === 0} onChange={(e) => setAddressId(e.target.value)}>
-              <option value="">اختر عنواناً محفوظاً</option>{addresses.filter((a) => !cityId || a.city_id === cityId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressId} disabled={addresses.length === 0} onChange={(e) => { const address = addresses.find((item) => item.id === e.target.value); setAddressId(e.target.value); setCityUnavailableMessage(""); if (address) setCityId(address.city_id); }}>
+              <option value="">اختر عنوان الحصة</option>{addresses.map((a) => <option key={a.id} value={a.id}>{a.name} · {cities.find((city) => city.id === a.city_id)?.name || "مدينة"}</option>)}
             </select>
           </label>
           <label className="text-sm">المادة
@@ -167,19 +206,21 @@ export default function InPersonStudentPanel() {
             <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
           </label>
         </div>
-        {cities.length === 0 && (
+        {addresses.length === 0 && (
           <div className="rounded-md border border-dashed p-3 text-sm" role="status">
-            <p>لا توجد مدن محفوظة بعد. احفظ مدينتك أو عنوانك من الخريطة في ملفك الشخصي؛ ستظهر المدينة هنا تلقائياً.</p>
-            <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">إضافة المدينة والعنوان من الملف الشخصي</Link>
+            <p>لا يوجد عنوان محفوظ. أكمل عنوانك أولاً من ملفك الشخصي لتحديد المدينة.</p>
+            <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">إضافة عنوان من الملف الشخصي</Link>
           </div>
         )}
-        {cities.length > 0 && addresses.length > 0 && cityId && !hasAddressInSelectedCity && (
+        {addresses.length > 0 && cityId && !hasAddressInSelectedCity && (
           <div className="rounded-md border border-dashed p-3 text-sm" role="status">
             <p>لا يوجد عنوان محفوظ لهذه المدينة. أضف العنوان من قسم العناوين في ملفك الشخصي أولاً.</p>
             <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">احفظ عنوانك من الخريطة في الملف الشخصي</Link>
           </div>
         )}
-        <Button variant="outline" onClick={searchTeachers} disabled={loading}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
+        {((selectedCity && !selectedCity.enabled && addressId) || cityUnavailableMessage) && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage || `الحصص الحضورية غير متاحة في ${selectedCity?.name} حاليًا. يمكنك حجز حصة أونلاين.`} <Link className="font-semibold underline" to="/booking">الحجز الأونلاين</Link></div>}
+        {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
+        <Button variant="outline" onClick={searchTeachers} disabled={loading || !addressId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
         {teachers.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-semibold">الأقرب أولاً، ثم التقييم</p>
