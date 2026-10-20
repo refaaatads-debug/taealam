@@ -194,6 +194,7 @@ jobs:
             )
             edits = {}
             already_enabled = False
+            unrecognized_policy_blocks = 0
             site_https_blocks = 0
             missing_policy_blocks = 0
             for config_path in config_paths:
@@ -211,14 +212,15 @@ jobs:
                     site_https_blocks += 1
                     original_block = source[start:end]
                     if re.search(r'(?m)^\s*add_header\s+Permissions-Policy\b', masked_block):
-                        if re.search(r'(?m)^\s*add_header\s+Permissions-Policy\s+"[^"\n]*geolocation=\(self\)', masked_block):
-                            already_enabled = True
-                            continue
                         replacement, count = policy_pattern.subn(
-                            r"\1geolocation=(self)\2", original_block, count=1
+                            r"\1geolocation=(self)\2", original_block
                         )
                         if count:
                             edits.setdefault(config_path, []).append((start, end, replacement))
+                        elif re.search(r'(?m)^\s*add_header\s+Permissions-Policy\s+"[^"\n]*geolocation=\(self\)', masked_block):
+                            already_enabled = True
+                        else:
+                            unrecognized_policy_blocks += 1
                     else:
                         missing_policy_blocks += 1
 
@@ -229,6 +231,14 @@ jobs:
                     "The Ajyal HTTPS server uses an inherited Permissions-Policy; "
                     "no Nginx files were changed."
                 )
+            if unrecognized_policy_blocks:
+                sys.exit(
+                    "The Ajyal HTTPS server has an unrecognized Permissions-Policy; "
+                    "no Nginx files were changed."
+                )
+            backup_dir = Path(os.environ["AJYAL_POLICY_BACKUP_DIR"])
+            manifest = backup_dir / "restore-manifest.tsv"
+            manifest.write_text("")
             if not edits:
                 if already_enabled:
                     print("The active site policy already permits first-party geolocation.")
@@ -238,7 +248,6 @@ jobs:
                     "Ajyal site server block; no Nginx files were changed."
                 )
 
-            backup_dir = Path(os.environ["AJYAL_POLICY_BACKUP_DIR"])
             backups = []
             for config_path, ranges in edits.items():
                 original = config_path.read_text()
@@ -255,6 +264,7 @@ jobs:
                 config_path.write_text(updated)
                 backups.append((config_path, backup))
 
+            manifest.write_text("".join(f"{path}\t{backup}\n" for path, backup in backups))
             validation = subprocess.run(["nginx", "-t"], capture_output=True, text=True)
             if validation.returncode:
                 for config_path, backup in backups:
@@ -273,6 +283,18 @@ jobs:
             runuser -u www-data -- test -r /var/www/html/index.html
             runuser -u www-data -- test -r /var/www/html/assets/$(find /var/www/html/assets -maxdepth 1 -type f -name '*.js' -printf '%f\n' | head -n 1)
             systemctl reload nginx
+            live_policy="$(curl -kfsSI --max-time 15 --resolve 'ajyalalmaerifa.com:443:127.0.0.1' https://ajyalalmaerifa.com/ | awk 'tolower($1) == "permissions-policy:" { print tolower($0) }')"
+            if [[ "$live_policy" != *"geolocation=(self)"* ]]; then
+              echo "Local Nginx response did not enable first-party geolocation; restoring the saved policy."
+              if [ -s "$policy_backup_dir/restore-manifest.tsv" ]; then
+                while IFS="$(printf '\t')" read -r config_path backup_path; do
+                  cp -a "$backup_path" "$config_path"
+                done < "$policy_backup_dir/restore-manifest.tsv"
+                nginx -t
+                systemctl reload nginx
+              fi
+              exit 1
+            fi
             printf '%s\n' '${{ github.sha }}' > /root/ajyal-web-deployed-sha
             rm -rf "$staging"
             echo 'Web deployment activated'
