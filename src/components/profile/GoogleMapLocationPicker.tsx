@@ -9,13 +9,14 @@ export interface MapLocation {
   longitude: number;
   formattedAddress: string;
   country: string;
+  countryCode: string;
   city: string;
   street: string;
 }
 
 interface Props {
   value?: Partial<MapLocation> | null;
-  onChange: (location: MapLocation) => void;
+  onChange: (location: MapLocation | null) => void;
   height?: number;
 }
 
@@ -52,6 +53,7 @@ function locationFromResult(result: any, lat: number, lng: number): MapLocation 
     longitude: lng,
     formattedAddress: result?.formatted_address ?? "",
     country: get("country"),
+    countryCode: parts.find((part: any) => part.types.includes("country"))?.short_name ?? "",
     city: get("locality", "postal_town", "administrative_area_level_2"),
     street: [get("route"), get("street_number")].filter(Boolean).join(" "),
   };
@@ -101,6 +103,11 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
             return;
           }
           const location = locationFromResult(results[0], lat, lng);
+          if (location.countryCode !== "SA") {
+            onChange(null);
+            toast.error("اختر موقعاً داخل المملكة العربية السعودية.");
+            return;
+          }
           setSearch(location.formattedAddress);
           onChange(location);
         });
@@ -114,6 +121,7 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
       const autocomplete = new window.google.maps.places.Autocomplete(searchElement.current, {
         fields: ["address_components", "formatted_address", "geometry"],
         types: ["address"],
+        componentRestrictions: { country: "sa" },
       });
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
@@ -126,6 +134,11 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
         mapRef.current.setZoom(16);
         markerRef.current.setPosition(point);
         const location = locationFromResult(place, point.lat, point.lng);
+        if (location.countryCode !== "SA") {
+          onChange(null);
+          toast.error("اختر موقعاً داخل المملكة العربية السعودية.");
+          return;
+        }
         setSearch(location.formattedAddress);
         onChange(location);
       });
@@ -145,6 +158,11 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
         geocoderRef.current?.geocode({ location: point }, (results: any[], status: string) => {
           if (status === "OK" && results?.[0]) {
             const location = locationFromResult(results[0], point.lat, point.lng);
+            if (location.countryCode !== "SA") {
+              onChange(null);
+              toast.error("لم يتم تحديد موقع داخل المملكة العربية السعودية.");
+              return;
+            }
             setSearch(location.formattedAddress);
             onChange(location);
           } else toast.error("تعذر قراءة عنوان موقعك.");
@@ -159,7 +177,14 @@ export default function GoogleMapLocationPicker({ value, onChange, height = 280 
     <div className="space-y-2">
       <label className="relative block">
         <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input ref={searchElement} value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث عن عنوان أو معلم" className="pr-9" aria-label="البحث عن عنوان على الخريطة" />
+        <Input
+          ref={searchElement}
+          value={search}
+          onChange={event => { setSearch(event.target.value); onChange(null); }}
+          placeholder="ابحث عن عنوان أو معلم"
+          className="pr-9"
+          aria-label="البحث عن عنوان على الخريطة"
+        />
       </label>
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{error}</div>

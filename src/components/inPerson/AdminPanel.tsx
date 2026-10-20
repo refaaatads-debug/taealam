@@ -20,10 +20,10 @@ export default function InPersonAdminPanel() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [cities, setCities] = useState<{ id: string; name_ar: string }[]>([]);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
-  const [cityName, setCityName] = useState("");
   const [userId, setUserId] = useState("");
   const [pilotRole, setPilotRole] = useState("student");
   const [busy, setBusy] = useState(false);
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     const [{ data: teacherRows, error }, { data: cityRows }, { data: financialRows }] = await Promise.all([
@@ -39,12 +39,13 @@ export default function InPersonAdminPanel() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const saveTeacher = async (teacher: TeacherRow, status: string, enabled: boolean) => {
+  const saveTeacher = async (teacher: TeacherRow, status: string, enabled: boolean, reason = "") => {
     setBusy(true);
-    const { error } = await supabase.rpc("admin_set_in_person_teacher" as any, {
+    const { error } = await supabase.rpc("admin_set_in_person_teacher_review" as any, {
       p_teacher_id: teacher.teacher_id,
       p_approval_status: status,
       p_enabled: enabled,
+      p_rejection_reason: reason || null,
     });
     setBusy(false);
     if (error) toast.error(error.message || "تعذر حفظ اعتماد المعلم");
@@ -64,16 +65,6 @@ export default function InPersonAdminPanel() {
     else { toast.success(enabled ? "تم تفعيل حساب التجربة المحدد" : "تم إيقاف حساب التجربة"); setUserId(""); }
   };
 
-  const addCity = async () => {
-    const name = cityName.trim();
-    if (!name) return;
-    setBusy(true);
-    const { error } = await supabase.from("cities" as any).insert({ name_ar: name });
-    setBusy(false);
-    if (error) toast.error(error.message || "تعذر إضافة المدينة");
-    else { setCityName(""); await refresh(); }
-  };
-
   return (
     <div className="space-y-6">
       <Card>
@@ -91,9 +82,11 @@ export default function InPersonAdminPanel() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>المدن المتاحة</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>مدن الخدمة</CardTitle>
+          <p className="text-sm text-muted-foreground">تُضاف المدينة تلقائياً من نتائج خرائط Google عند اختيار موقع سعودي؛ لا تُقبل أسماء مدن يدوية.</p>
+        </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2"><input className="h-10 flex-1 rounded-md border bg-background px-3 text-sm" value={cityName} onChange={(e) => setCityName(e.target.value)} placeholder="اسم المدينة بالعربية" /><Button disabled={busy} onClick={addCity}>إضافة مدينة</Button></div>
           <div className="flex flex-wrap gap-2">{cities.map((city) => <span key={city.id} className="rounded-full border px-3 py-1 text-sm">{city.name_ar}</span>)}</div>
         </CardContent>
       </Card>
@@ -105,9 +98,25 @@ export default function InPersonAdminPanel() {
           {teachers.map((teacher) => (
             <div key={teacher.teacher_id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
               <div className="min-w-40 flex-1"><strong>{teacher.full_name}</strong><div className="text-xs text-muted-foreground">{teacher.city_name || "لم تُحدد مدينة"} · {teacher.latitude == null ? "الموقع غير مكتمل" : `${teacher.service_radius_km} كم نطاق`}</div><div className="text-xs text-muted-foreground" dir="ltr">{teacher.teacher_id}</div></div>
-              <select className="h-9 rounded-md border bg-background px-2 text-sm" defaultValue={teacher.approval_status} onChange={(e) => void saveTeacher(teacher, e.target.value, e.target.value === "approved" && teacher.is_enabled)}>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                defaultValue={teacher.approval_status}
+                onChange={(e) => void saveTeacher(
+                  teacher,
+                  e.target.value,
+                  e.target.value === "approved" && teacher.is_enabled,
+                  rejectionReasons[teacher.teacher_id] || "",
+                )}
+              >
                 <option value="pending">بانتظار المراجعة</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="not_requested">غير مقدم</option>
               </select>
+              <input
+                className="h-9 min-w-48 rounded-md border bg-background px-2 text-sm"
+                aria-label={`سبب الرفض للمعلم ${teacher.full_name}`}
+                placeholder="سبب الرفض (مطلوب عند الرفض)"
+                value={rejectionReasons[teacher.teacher_id] || ""}
+                onChange={(e) => setRejectionReasons((current) => ({ ...current, [teacher.teacher_id]: e.target.value }))}
+              />
               <Button size="sm" variant={teacher.is_enabled ? "outline" : "default"} disabled={busy || teacher.approval_status !== "approved"} onClick={() => void saveTeacher(teacher, "approved", !teacher.is_enabled)}>
                 {teacher.is_enabled ? "إيقاف استقبال الطلبات" : "تفعيل الاستقبال"}
               </Button>

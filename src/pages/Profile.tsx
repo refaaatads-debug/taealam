@@ -35,6 +35,7 @@ const Profile = () => {
   const [nationality, setNationality] = useState("");
   const [availFrom, setAvailFrom] = useState("");
   const [availTo, setAvailTo] = useState("");
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [teacherSubjects, setTeacherSubjects] = useState<string[]>([]);
   const [allSubjects, setAllSubjects] = useState<{ id: string; name: string }[]>([]);
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null);
@@ -45,6 +46,9 @@ const Profile = () => {
   const [teacherLocation, setTeacherLocation] = useState<MapLocation | null>(null);
   const [teacherRadius, setTeacherRadius] = useState("10");
   const [teacherApproval, setTeacherApproval] = useState("not_requested");
+  const [teacherApprovalReason, setTeacherApprovalReason] = useState("");
+  const [teachingMode, setTeachingMode] = useState<"online" | "in_person" | "both">("online");
+  const [inPersonPilot, setInPersonPilot] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<{ id: string; name: string; city_id: string }[]>([]);
   const [savingLocation, setSavingLocation] = useState(false);
 
@@ -69,6 +73,8 @@ const Profile = () => {
 
   useEffect(() => {
     if (!user) return;
+    supabase.rpc("is_in_person_test_user" as any)
+      .then(({ data }) => setInPersonPilot(Boolean(data)));
 
     supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar")
       .then(({ data }) => setCities((data || []) as { id: string; name_ar: string }[]));
@@ -97,7 +103,8 @@ const Profile = () => {
         supabase.from("teacher_profiles").select("*").eq("user_id", user.id).single(),
         supabase.from("subjects").select("id, name").order("name"),
         supabase.from("teacher_certificates" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }),
-      ]).then(([{ data: tp }, { data: subs }, { data: certs }]) => {
+        supabase.rpc("get_my_teacher_in_person_settings" as any),
+      ]).then(([{ data: tp }, { data: subs }, { data: certs }, { data: locationSettings }]) => {
         if (tp) {
           setTeacherProfileId(tp.id);
           setBio(tp.bio || "");
@@ -105,20 +112,25 @@ const Profile = () => {
           setNationality((tp as any).nationality || "");
           setAvailFrom(tp.available_from || "");
           setAvailTo(tp.available_to || "");
+          setAvailableDays(((tp as any).available_days || []) as string[]);
           setBankName((tp as any).bank_name || "");
           setIban((tp as any).iban || "");
           setAccountHolder((tp as any).account_holder_name || "");
           setTeachingStages((tp as any).teaching_stages || []);
-          setTeacherApproval((tp as any).in_person_approval_status || "not_requested");
-          setTeacherRadius(String((tp as any).in_person_service_radius_km || 10));
-          if ((tp as any).in_person_latitude != null && (tp as any).in_person_longitude != null) {
+          const settings = ((locationSettings || []) as any[])[0];
+          setTeacherApproval(settings?.approval_status || (tp as any).in_person_approval_status || "not_requested");
+          setTeacherApprovalReason(settings?.rejection_reason || "");
+          setTeachingMode(settings?.teaching_mode || "online");
+          setTeacherRadius(String(settings?.service_radius_km || 10));
+          if (settings?.latitude != null && settings?.longitude != null) {
             setTeacherLocation({
-              latitude: (tp as any).in_person_latitude,
-              longitude: (tp as any).in_person_longitude,
-              formattedAddress: "",
-              country: "",
-              city: "",
-              street: "",
+              latitude: settings.latitude,
+              longitude: settings.longitude,
+              formattedAddress: [settings.street_address, settings.city_name].filter(Boolean).join("، "),
+              country: "المملكة العربية السعودية",
+              countryCode: "SA",
+              city: settings.city_name || "",
+              street: settings.street_address || "",
             });
           }
           supabase.from("teacher_subjects").select("subject_id").eq("teacher_id", tp.id).then(({ data: ts }) => {
@@ -132,47 +144,71 @@ const Profile = () => {
     }
   }, [user, isTeacher]);
 
-  const matchingCityId = (cityName: string) => {
-    const normalized = cityName.trim().toLocaleLowerCase("ar");
-    return cities.find((city) => city.name_ar.trim().toLocaleLowerCase("ar") === normalized)?.id;
+  const registerMapCity = async (location: MapLocation) => {
+    if (location.countryCode !== "SA" || !location.city.trim()) {
+      throw new Error("اختر مدينة سعودية من نتائج خرائط Google.");
+    }
+    const { data, error } = await supabase.rpc("upsert_saudi_city_from_places" as any, {
+      p_name_ar: location.city,
+      p_name_en: null,
+      p_latitude: location.latitude,
+      p_longitude: location.longitude,
+      p_country_iso2: location.countryCode,
+    });
+    if (error) throw error;
+    if (!data) throw new Error("لم يتم إرجاع معرّف للمدينة.");
+    setCities((current) => current.some((city) => city.id === data)
+      ? current
+      : [...current, { id: data as string, name_ar: location.city }]);
+    return data as string;
   };
 
   const saveStudentAddress = async () => {
     if (!user || !mapLocation) return toast.error("حدد موقع العنوان على الخريطة أولاً.");
-    const cityId = matchingCityId(mapLocation.city);
-    if (!cityId) return toast.error("مدينة العنوان غير موجودة في القائمة المعتمدة. تواصل مع الإدارة لإضافتها.");
     setSavingLocation(true);
-    const { data, error } = await supabase.from("user_addresses" as any).insert({
-      owner_id: user.id,
-      city_id: cityId,
-      street_address: mapLocation.formattedAddress || mapLocation.street,
-      latitude: mapLocation.latitude,
-      longitude: mapLocation.longitude,
-      is_primary: savedAddresses.length === 0,
-    }).select("id,street_address,district,city_id").single();
-    setSavingLocation(false);
-    if (error || !data) return toast.error(error?.message || "تعذر حفظ العنوان.");
-    const saved = data as any;
-    setSavedAddresses((current) => [{ id: saved.id, city_id: saved.city_id, name: saved.street_address }, ...current]);
-    setMapLocation(null);
-    toast.success("تم حفظ عنوانك. سيبقى هذا العنوان محفوظاً بعد تسجيل الخروج.");
+    try {
+      const cityId = await registerMapCity(mapLocation);
+      const { data, error } = await supabase.from("user_addresses" as any).insert({
+        owner_id: user.id,
+        city_id: cityId,
+        street_address: mapLocation.formattedAddress || mapLocation.street,
+        latitude: mapLocation.latitude,
+        longitude: mapLocation.longitude,
+        is_primary: savedAddresses.length === 0,
+      }).select("id,street_address,district,city_id").single();
+      if (error || !data) throw error || new Error("تعذر حفظ العنوان.");
+      const saved = data as any;
+      setSavedAddresses((current) => [{ id: saved.id, city_id: saved.city_id, name: saved.street_address }, ...current]);
+      setMapLocation(null);
+      toast.success("تم حفظ عنوانك. سيبقى هذا العنوان محفوظاً بعد تسجيل الخروج.");
+    } catch (error: any) {
+      toast.error(error.message || "تعذر حفظ العنوان.");
+    } finally {
+      setSavingLocation(false);
+    }
   };
 
   const saveTeacherLocation = async () => {
     if (!teacherLocation) return toast.error("حدد موقع التدريس على الخريطة أولاً.");
-    const cityId = matchingCityId(teacherLocation.city);
-    if (!cityId) return toast.error("مدينة موقع التدريس غير موجودة في القائمة المعتمدة. تواصل مع الإدارة لإضافتها.");
     setSavingLocation(true);
-    const { error } = await supabase.rpc("set_in_person_teacher_location" as any, {
-      p_city_id: cityId,
-      p_latitude: teacherLocation.latitude,
-      p_longitude: teacherLocation.longitude,
-      p_service_radius_km: Number(teacherRadius),
-    });
-    setSavingLocation(false);
-    if (error) return toast.error(error.message || "تعذر حفظ الموقع وإرسال طلب الاعتماد.");
-    setTeacherApproval("pending");
-    toast.success("تم إرسال موقع التدريس لمراجعة الإدارة. لن يظهر للطلاب قبل الموافقة.");
+    try {
+      const cityId = await registerMapCity(teacherLocation);
+      const { error } = await supabase.rpc("save_my_teacher_service_location" as any, {
+        p_city_id: cityId,
+        p_street_address: teacherLocation.formattedAddress || teacherLocation.street,
+        p_latitude: teacherLocation.latitude,
+        p_longitude: teacherLocation.longitude,
+        p_service_radius_km: Number(teacherRadius),
+      });
+      if (error) throw error;
+      setTeacherApproval("pending");
+      setTeacherApprovalReason("");
+      toast.success("تم إرسال موقع التدريس لمراجعة الإدارة. لن يظهر للطلاب قبل الموافقة.");
+    } catch (error: any) {
+      toast.error(error.message || "تعذر حفظ الموقع وإرسال طلب الاعتماد.");
+    } finally {
+      setSavingLocation(false);
+    }
   };
 
   const toggleSubject = (subjectId: string) => {
@@ -199,11 +235,16 @@ const Profile = () => {
       console.log("[Profile] profiles updated OK");
 
       if (isTeacher && teacherProfileId) {
+        if (inPersonPilot) {
+          const { error: modeError } = await supabase.rpc("set_my_teacher_teaching_mode" as any, { p_mode: teachingMode });
+          if (modeError) throw modeError;
+        }
         const updatePayload = {
           bio,
           years_experience: Number(yearsExp) || 0,
           available_from: availFrom || null,
           available_to: availTo || null,
+          available_days: availableDays,
           nationality: nationality || null,
           bank_name: bankName || null,
           iban: iban || null,
@@ -349,7 +390,7 @@ const Profile = () => {
                 <Label className="text-xs font-bold text-muted-foreground">رقم الجوال</Label>
                 <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="966 5X XXX XXXX" className="mt-1.5 h-11 text-right rounded-xl bg-muted/30 border-border/50" dir="ltr" />
               </div>
-              {isStudent && (
+              {isStudent && inPersonPilot && (
                 <div>
                   <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
                     <GraduationCap className="h-3.5 w-3.5" /> المرحلة الدراسية
@@ -463,6 +504,25 @@ const Profile = () => {
                           <Input type="time" value={availTo} onChange={e => setAvailTo(e.target.value)} className="mt-1 h-11 rounded-xl bg-muted/30 border-border/50" dir="ltr" />
                         </div>
                       </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {[
+                          ["sunday", "الأحد"], ["monday", "الاثنين"], ["tuesday", "الثلاثاء"],
+                          ["wednesday", "الأربعاء"], ["thursday", "الخميس"], ["friday", "الجمعة"], ["saturday", "السبت"],
+                        ].map(([value, label]) => {
+                          const selected = availableDays.includes(value);
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => setAvailableDays((days) => selected ? days.filter((day) => day !== value) : [...days, value])}
+                              className={`rounded-full border px-3 py-1.5 text-xs ${selected ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
@@ -519,7 +579,7 @@ const Profile = () => {
           </motion.div>
         )}
 
-        {isTeacher && (
+        {isTeacher && inPersonPilot && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
             <Card className="border-0 shadow-card mb-6">
               <CardHeader>
@@ -527,6 +587,22 @@ const Profile = () => {
                 <p className="text-xs text-muted-foreground">يُحفظ موقع الخدمة بشكل خاص. لن يظهر موقعك أو تُفعّل الحصص الحضورية قبل موافقة الإدارة.</p>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="teaching-mode">طريقة التدريس</Label>
+                  <Select value={teachingMode} onValueChange={(value) => setTeachingMode(value as typeof teachingMode)}>
+                    <SelectTrigger id="teaching-mode"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="online">عن بُعد</SelectItem>
+                      <SelectItem value="in_person">حضوري</SelectItem>
+                      <SelectItem value="both">عن بُعد وحضوري</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">لا يظهر خيار الحضوري للطلاب قبل اعتماد الإدارة.</p>
+                </div>
+                <div className="rounded-md border p-3 text-sm" role="status">
+                  حالة اعتماد الحضوري: <strong>{teacherApproval === "approved" ? "معتمد" : teacherApproval === "rejected" ? "مرفوض" : teacherApproval === "pending" ? "قيد المراجعة" : "لم يُطلب بعد"}</strong>
+                  {teacherApprovalReason && <p className="mt-1 text-muted-foreground">ملاحظة الإدارة: {teacherApprovalReason}</p>}
+                </div>
                 <GoogleMapLocationPicker value={teacherLocation} onChange={setTeacherLocation} />
                 {teacherLocation && <p className="text-xs text-muted-foreground">{[teacherLocation.country, teacherLocation.city, teacherLocation.formattedAddress].filter(Boolean).join(" · ")}</p>}
                 <div className="max-w-xs">
