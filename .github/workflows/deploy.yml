@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      apply_database_migrations:
+        description: Apply the in-person database migrations
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -54,6 +60,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Detect in-person migration changes
+        id: migration-scope
+        shell: bash
+        run: |
+          run_migrations=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021000100_city_in_person_availability.sql supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql | grep -q .; then
+              run_migrations=true
+            fi
+          elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
+            run_migrations=true
+          fi
+          echo "run=$run_migrations" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -81,12 +103,13 @@ jobs:
         env:
           VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAE9pV6wv3lWICbVL
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          RUN_CITY_MIGRATIONS: ${{ steps.migration-scope.outputs.run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY
+          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -153,12 +176,16 @@ jobs:
             grep -Rql 'internal-call-transport-token' dist/assets
             grep -RFlq -- "$VITE_SUPABASE_URL" dist/assets
             grep -RFlq -- "$VITE_SUPABASE_PUBLISHABLE_KEY" dist/assets
-            db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
-            test -n "$db_container"
-            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
-            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql"
-            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql"
-            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql"
+            if [ "${RUN_CITY_MIGRATIONS:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql"
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql"
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql"
+            else
+              echo "Skipping in-person database migrations: this change did not modify their SQL files."
+            fi
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"
             chmod 700 "$policy_backup_dir"
