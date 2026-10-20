@@ -90,6 +90,8 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const [teacherCancelTarget, setTeacherCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const [studentCancelTarget, setStudentCancelTarget] = useState<Row | null>(null);
   const [cancellingStudent, setCancellingStudent] = useState(false);
+  const [attendanceCodes, setAttendanceCodes] = useState<Record<string, string>>({});
+  const [attendanceConfirmed, setAttendanceConfirmed] = useState<Set<string>>(new Set());
   const unreadCounts = useUnreadMessages(rows.map((row) => row.id));
 
   // Filters
@@ -126,6 +128,12 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       .select("user_id, full_name")
       .in("user_id", otherIds);
     const nameMap = new Map((profiles ?? []).map((p) => [p.user_id, p.full_name]));
+    if (role === "student" && (data as any[]).some((booking) => booking.delivery_mode === "in_person")) {
+      const { data: requests } = await supabase.rpc("list_my_in_person_request_groups" as any);
+      setAttendanceConfirmed(new Set(((requests || []) as any[])
+        .filter((request) => request.booking_id && request.attendance_confirmed_at)
+        .map((request) => request.booking_id)));
+    }
 
     setRows(
       (data as any[]).map((b) => ({
@@ -142,6 +150,25 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       }))
     );
     setLoading(false);
+  };
+
+  const confirmInPersonCode = async (bookingId: string) => {
+    const code = (attendanceCodes[bookingId] || "").replace(/\D/g, "").slice(0, 4);
+    if (code.length !== 4) return toast.error("أدخل رمز الحضور المكوّن من أربعة أرقام");
+    setJoining(bookingId);
+    const { data, error } = await supabase.rpc("confirm_in_person_attendance_code" as any, {
+      p_booking_id: bookingId,
+      p_code: code,
+    });
+    setJoining(null);
+    if (error) toast.error(error.message || "تعذر تأكيد الحضور");
+    else if (!data) toast.error("رمز الحضور غير صحيح");
+    else {
+      toast.success("تم تأكيد الحضور");
+      setAttendanceConfirmed((current) => new Set(current).add(bookingId));
+      setAttendanceCodes((current) => ({ ...current, [bookingId]: "" }));
+      fetchRows();
+    }
   };
 
   useEffect(() => {
@@ -559,7 +586,22 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-black text-foreground truncate">{s.subject_name}</p>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-sm font-black text-foreground truncate">{s.subject_name}</p>
+                                <Badge variant="outline" className={s.delivery_mode === "in_person" ? "shrink-0 border-amber-300 bg-amber-50 text-amber-800 text-[10px]" : "shrink-0 border-sky-200 bg-sky-50 text-sky-800 text-[10px]"}>
+                                  {s.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}
+                                </Badge>
+                              </div>
+                              {role === "student" && s.delivery_mode === "in_person" && s.status === "confirmed" && (
+                                attendanceConfirmed.has(s.id)
+                                  ? <Badge className="mt-2 bg-green-100 text-green-800 border-0 text-[10px]">تم تأكيد الحضور</Badge>
+                                  : now >= new Date(s.scheduled_at).getTime() && now < new Date(s.scheduled_at).getTime() + 15 * 60_000
+                                    ? <div className="mt-2 flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                                      <input aria-label={`رمز حضور الحصة ${s.subject_name}`} inputMode="numeric" maxLength={4} placeholder="رمز الحضور" className="h-8 w-28 rounded-md border bg-background px-2 text-center text-xs tracking-widest" value={attendanceCodes[s.id] || ""} onChange={(event) => setAttendanceCodes((current) => ({ ...current, [s.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
+                                      <Button size="sm" className="h-8 px-2 text-xs" disabled={joining === s.id} onClick={() => void confirmInPersonCode(s.id)}>تأكيد الحضور</Button>
+                                    </div>
+                                    : <span className="mt-2 block text-xs text-muted-foreground">يظهر إدخال الرمز عند بداية الحصة</span>
+                              )}
                               {live ? (
                                 <Badge className="bg-secondary/15 text-secondary border-0 text-[10px] animate-pulse">جارية الآن</Badge>
                               ) : s.session_status === "waiting_acceptance" ? (

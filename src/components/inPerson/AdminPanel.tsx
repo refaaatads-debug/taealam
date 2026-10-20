@@ -15,6 +15,7 @@ type TeacherRow = {
   service_radius_km: number | null;
   latitude: number | null;
   longitude: number | null;
+  created_at: string;
 };
 type FinancialRow = { booking_id: string; scheduled_at: string; teacher_earning: number; teacher_earning_status: string | null; teacher_compensation: number; compensation_status: string | null; platform_revenue: number; revenue_events: number };
 type CityRow = { city_id: string; city_name: string; enabled: boolean; changed_by: string | null; changed_at: string | null };
@@ -30,6 +31,18 @@ export default function InPersonAdminPanel() {
   const [pilotRole, setPilotRole] = useState("student");
   const [busy, setBusy] = useState(false);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
+  const [cityEnabledFilter, setCityEnabledFilter] = useState("all");
+  const [cityFrom, setCityFrom] = useState("");
+  const [cityTo, setCityTo] = useState("");
+  const [cityDayFilter, setCityDayFilter] = useState("all");
+  const [teacherApprovalFilter, setTeacherApprovalFilter] = useState("all");
+  const [teacherFrom, setTeacherFrom] = useState("");
+  const [teacherTo, setTeacherTo] = useState("");
+  const [teacherDay, setTeacherDay] = useState("all");
+  const [financialStatusFilter, setFinancialStatusFilter] = useState("all");
+  const [financialFrom, setFinancialFrom] = useState("");
+  const [financialTo, setFinancialTo] = useState("");
+  const [financialDay, setFinancialDay] = useState("all");
 
   const refresh = useCallback(async () => {
     const [
@@ -39,7 +52,7 @@ export default function InPersonAdminPanel() {
       onlineCountResult,
       inPersonCountResult,
     ] = await Promise.all([
-      supabase.rpc("admin_list_in_person_teachers" as any),
+      supabase.rpc("admin_list_in_person_teachers_with_dates" as any),
       supabase.rpc("admin_list_in_person_cities" as any),
       supabase.rpc("admin_list_in_person_financials" as any),
       (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "online"),
@@ -128,7 +141,7 @@ export default function InPersonAdminPanel() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="grid gap-3 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">حصص أونلاين</CardTitle></CardHeader>
@@ -153,7 +166,7 @@ export default function InPersonAdminPanel() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="order-5">
         <CardHeader>
           <CardTitle>مدن التعليم الحضوري</CardTitle>
           <p className="text-sm text-muted-foreground">الإتاحة مستقلة عن حفظ العناوين. لا يؤدي إيقاف مدينة إلى حذفها أو حذف عناوين المستخدمين.</p>
@@ -164,8 +177,26 @@ export default function InPersonAdminPanel() {
             <Button disabled={busy || !newCityLocation} onClick={() => void saveCity()}>إضافة مدينة (متوقفة افتراضياً)</Button>
           </div>
           <Input value={citySearch} onChange={(event) => setCitySearch(event.target.value)} placeholder="ابحث باسم المدينة" aria-label="البحث في المدن" />
+          <select className="h-9 rounded-md border bg-background px-2 text-sm" value={cityEnabledFilter} onChange={(e) => setCityEnabledFilter(e.target.value)} aria-label="حالة إتاحة المدن">
+            <option value="all">كل حالات المدن</option><option value="enabled">الحضوري مفعّل</option><option value="disabled">الحضوري متوقف</option>
+          </select>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Input type="date" value={cityFrom} onChange={(e) => setCityFrom(e.target.value)} aria-label="المدن من تاريخ التغيير" />
+            <Input type="date" value={cityTo} onChange={(e) => setCityTo(e.target.value)} aria-label="المدن إلى تاريخ التغيير" />
+            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={cityDayFilter} onChange={(e) => setCityDayFilter(e.target.value)} aria-label="يوم تغيير حالة المدينة">
+              <option value="all">كل أيام التغيير</option>{["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"].map((day, index) => <option key={day} value={String(index)}>{day}</option>)}
+            </select>
+          </div>
           <div className="space-y-2">
-            {cities.filter((city) => city.city_name.toLocaleLowerCase().includes(citySearch.trim().toLocaleLowerCase())).map((city) => (
+            {cities.filter((city) => {
+              const changed = city.changed_at ? new Date(city.changed_at) : null;
+              const dateKey = changed?.toISOString().slice(0, 10) || "";
+              return (cityEnabledFilter === "all" || city.enabled === (cityEnabledFilter === "enabled"))
+                && (!cityFrom || Boolean(dateKey && dateKey >= cityFrom))
+                && (!cityTo || Boolean(dateKey && dateKey <= cityTo))
+                && (cityDayFilter === "all" || changed?.getDay().toString() === cityDayFilter)
+                && city.city_name.toLocaleLowerCase().includes(citySearch.trim().toLocaleLowerCase());
+            }).map((city) => (
               <div key={city.city_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
                 <div><strong>{city.city_name}</strong><div className="text-xs text-muted-foreground">{city.enabled ? "الحضوري متاح" : "الحضوري متوقف"}{city.changed_at ? ` · آخر تغيير ${new Date(city.changed_at).toLocaleString("ar-SA")}` : " · لم تُفعّل بعد"}</div></div>
                 <Button size="sm" variant={city.enabled ? "outline" : "default"} disabled={busy} onClick={() => void setCityAvailability(city, !city.enabled)}>{city.enabled ? "إيقاف الحضوري" : "تفعيل الحضوري"}</Button>
@@ -179,8 +210,32 @@ export default function InPersonAdminPanel() {
       <Card>
         <CardHeader><CardTitle>اعتماد المعلمين الحضوريين</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {teachers.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات اعتماد حالياً.</p>}
-          {teachers.map((teacher) => (
+          <div className="grid gap-2 sm:grid-cols-4">
+            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={teacherApprovalFilter} onChange={(e) => setTeacherApprovalFilter(e.target.value)} aria-label="حالة اعتماد المعلمين الحضوريين">
+              <option value="all">كل حالات الاعتماد</option><option value="pending">بانتظار المراجعة</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="not_requested">غير مقدم</option>
+            </select>
+            <Input type="date" value={teacherFrom} onChange={(e) => setTeacherFrom(e.target.value)} aria-label="المعلمون من تاريخ" />
+            <Input type="date" value={teacherTo} onChange={(e) => setTeacherTo(e.target.value)} aria-label="المعلمون إلى تاريخ" />
+            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={teacherDay} onChange={(e) => setTeacherDay(e.target.value)} aria-label="يوم تقديم طلب الاعتماد">
+              <option value="all">كل أيام التقديم</option>{["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"].map((day, index) => <option key={day} value={String(index)}>{day}</option>)}
+            </select>
+          </div>
+          {teachers.filter((teacher) => {
+            const created = teacher.created_at ? new Date(teacher.created_at) : null;
+            const date = created?.toISOString().slice(0, 10) || "";
+            return (teacherApprovalFilter === "all" || teacher.approval_status === teacherApprovalFilter)
+              && (!teacherFrom || Boolean(date && date >= teacherFrom))
+              && (!teacherTo || Boolean(date && date <= teacherTo))
+              && (teacherDay === "all" || created?.getDay().toString() === teacherDay);
+          }).length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات اعتماد مطابقة.</p>}
+          {teachers.filter((teacher) => {
+            const created = teacher.created_at ? new Date(teacher.created_at) : null;
+            const date = created?.toISOString().slice(0, 10) || "";
+            return (teacherApprovalFilter === "all" || teacher.approval_status === teacherApprovalFilter)
+              && (!teacherFrom || Boolean(date && date >= teacherFrom))
+              && (!teacherTo || Boolean(date && date <= teacherTo))
+              && (teacherDay === "all" || created?.getDay().toString() === teacherDay);
+          }).map((teacher) => (
             <div key={teacher.teacher_id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
               <div className="min-w-40 flex-1"><strong>{teacher.full_name}</strong><div className="text-xs text-muted-foreground">{teacher.city_name || "لم تُحدد مدينة"} · {teacher.latitude == null ? "الموقع غير مكتمل" : `${teacher.service_radius_km} كم نطاق`}</div><div className="text-xs text-muted-foreground" dir="ltr">{teacher.teacher_id}</div></div>
               <select
@@ -209,10 +264,27 @@ export default function InPersonAdminPanel() {
           ))}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="order-6">
         <CardHeader><CardTitle>تسوية مستحقات الحضوري</CardTitle><p className="text-sm text-muted-foreground">تظهر 60 ر.س للمعلم و40 ر.س للمنصة بعد تأكيد الرمز، أو 30 ر.س للمعلم و20 ر.س للمنصة عند الإلغاء المتأخر.</p></CardHeader>
         <CardContent className="space-y-2">
-          {financials.slice(0, 20).map((row) => <div key={row.booking_id} className="grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-5">
+          <div className="grid gap-2 sm:grid-cols-4">
+            <Input type="date" value={financialFrom} onChange={(e) => setFinancialFrom(e.target.value)} aria-label="المستحقات من تاريخ" />
+            <Input type="date" value={financialTo} onChange={(e) => setFinancialTo(e.target.value)} aria-label="المستحقات إلى تاريخ" />
+            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={financialDay} onChange={(e) => setFinancialDay(e.target.value)} aria-label="يوم الأسبوع">
+              <option value="all">كل الأيام</option>{["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"].map((day, index) => <option key={day} value={String(index)}>{day}</option>)}
+            </select>
+            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={financialStatusFilter} onChange={(e) => setFinancialStatusFilter(e.target.value)} aria-label="حالة التسوية">
+              <option value="all">كل الحالات</option><option value="available">متاح</option><option value="pending">معلّق</option><option value="adjusted">معدّل</option>
+            </select>
+          </div>
+          {financials.filter((row) => {
+            const date = new Date(row.scheduled_at);
+            const dateKey = date.toISOString().slice(0, 10);
+            const status = row.teacher_earning_status || row.compensation_status;
+            return (!financialFrom || dateKey >= financialFrom) && (!financialTo || dateKey <= financialTo)
+              && (financialDay === "all" || date.getDay().toString() === financialDay)
+              && (financialStatusFilter === "all" || status === financialStatusFilter);
+          }).slice(0, 20).map((row) => <div key={row.booking_id} className="grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-5">
             <span>{new Date(row.scheduled_at).toLocaleString("ar-SA")}</span><span>أجر المعلم: {row.teacher_earning} ر.س</span>
             <span>تعويض: {row.teacher_compensation} ر.س {row.compensation_status ? `(${row.compensation_status === "available" ? "متاح" : "معلّق"})` : ""}</span>
             <span>إيراد المنصة: {row.platform_revenue} ر.س</span><span>{row.teacher_earning_status === "available" ? "متاح" : row.teacher_earning_status || "لا يوجد أجر"}</span>

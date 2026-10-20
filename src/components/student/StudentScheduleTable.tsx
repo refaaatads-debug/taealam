@@ -48,6 +48,8 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
   const [joinRequest, setJoinRequest] = useState<{ bookingId: string; teacherName: string } | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [isTableCollapsed, setIsTableCollapsed] = useState(false);
+  const [attendanceCodes, setAttendanceCodes] = useState<Record<string, string>>({});
+  const [attendanceConfirmed, setAttendanceConfirmed] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (user?.id) setHiddenIds(getHiddenBookings(user.id));
   }, [user?.id]);
@@ -150,6 +152,12 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
       Promise.all(tChunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").eq("user_id", user.id).eq("is_active", true),
     ]);
+    if (data.some((booking) => (booking as any).delivery_mode === "in_person")) {
+      const { data: inPersonRows } = await supabase.rpc("list_my_in_person_request_groups" as any);
+      setAttendanceConfirmed(new Set(((inPersonRows || []) as any[])
+        .filter((row) => row.booking_id && row.attendance_confirmed_at)
+        .map((row) => row.booking_id)));
+    }
     const profiles = profileResults.flatMap(r => r.data ?? []);
     const subs = subResult.data ?? [];
     const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
@@ -189,6 +197,23 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
       };
     }));
     setLoading(false);
+  };
+
+  const confirmInPersonCode = async (bookingId: string) => {
+    const code = (attendanceCodes[bookingId] || "").replace(/\D/g, "").slice(0, 4);
+    if (code.length !== 4) return toast.error("أدخل رمز الحضور المكوّن من أربعة أرقام");
+    const { data, error } = await supabase.rpc("confirm_in_person_attendance_code" as any, {
+      p_booking_id: bookingId,
+      p_code: code,
+    });
+    if (error) toast.error(error.message || "تعذر تأكيد الحضور");
+    else if (!data) toast.error("رمز الحضور غير صحيح");
+    else {
+      toast.success("تم تأكيد الحضور");
+      setAttendanceConfirmed((current) => new Set(current).add(bookingId));
+      setAttendanceCodes((current) => ({ ...current, [bookingId]: "" }));
+      fetchBookings();
+    }
   };
 
   const handleInstantSession = async (teacherId: string, teacherName: string) => {
@@ -599,6 +624,14 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-2">
                                         {getStatusBadge(b.status, isLive)}
+                                        {b.delivery_mode === "in_person" && b.status === "confirmed" && (
+                                          attendanceConfirmed.has(b.id)
+                                            ? <Badge className="bg-green-100 text-green-800 border-0 text-[10px]">تم تأكيد الحضور</Badge>
+                                            : <div className="flex items-center gap-1">
+                                                <input aria-label={`رمز حضور الحصة ${b.subject_name || ""}`} inputMode="numeric" maxLength={4} placeholder="رمز الحضور" className="h-8 w-24 rounded-md border bg-background px-2 text-center text-xs tracking-widest" value={attendanceCodes[b.id] || ""} onChange={(event) => setAttendanceCodes((current) => ({ ...current, [b.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
+                                                <Button size="sm" className="h-8 px-2 text-xs" onClick={() => void confirmInPersonCode(b.id)}>تأكيد</Button>
+                                              </div>
+                                        )}
                                       </div>
                                     </td>
                                     <td className="py-2.5 px-3">

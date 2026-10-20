@@ -188,8 +188,8 @@ export default function InPersonStudentPanel() {
   const hasAddressInSelectedCity = addresses.some((address) => address.city_id === cityId);
   const selectedCity = cities.find((city) => city.id === cityId);
   return (
-    <Card>
-      <CardHeader>
+    <Card className="overflow-hidden rounded-2xl border-0 shadow-card">
+      <CardHeader className="border-b bg-gradient-to-l from-primary/10 via-background to-secondary/10">
         <CardTitle>الحصص الحضورية</CardTitle>
         <p className="text-sm text-muted-foreground">مدة التدريس 60 دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
@@ -273,13 +273,15 @@ export default function InPersonStudentPanel() {
           {requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات حالية.</p>}
           {requests.slice(0, 5).map((row) => (
             <div key={row.request_group_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-              <div><strong>{row.subject_name || "حصة حضورية"}</strong><div className="text-muted-foreground">{new Date(row.scheduled_at).toLocaleString("ar-SA")} · {row.status === "open" ? `قبول حتى ${new Date(row.acceptance_deadline).toLocaleTimeString("ar-SA")}` : row.status}</div></div>
+              <div><strong>{row.subject_name || "حصة حضورية"}</strong><div className="text-muted-foreground">{new Date(row.scheduled_at).toLocaleString("ar-SA")} · {row.status === "open" ? `قبول حتى ${new Date(row.acceptance_deadline).toLocaleTimeString("ar-SA")}` : row.status === "accepted" ? "تم قبول الطلب" : row.status === "expired" ? "انتهت المهلة أو اعتذر جميع المعلمين" : row.status === "cancelled" ? "تم إلغاء الطلب" : row.status}</div></div>
               {row.booking_id && row.status === "accepted" && (row.attendance_confirmed_at
                 ? <span className="text-xs font-medium text-green-700">تم تأكيد الحضور</span>
-                : <div className="flex items-center gap-2">
+                : Date.now() >= new Date(row.scheduled_at).getTime() && Date.now() < new Date(row.scheduled_at).getTime() + 15 * 60_000
+                  ? <div className="flex items-center gap-2">
                   <input aria-label="رمز الحضور" className="h-9 w-28 rounded-md border bg-background px-2 text-center tracking-widest" inputMode="numeric" maxLength={4} placeholder="••••" value={attendanceCodes[row.booking_id] || ""} onChange={(e) => setAttendanceCodes((current) => ({ ...current, [row.booking_id!]: e.target.value.replace(/\D/g, "").slice(0, 4) }))} />
                   <Button size="sm" disabled={loading} onClick={() => confirmAttendance(row.booking_id!)}>تأكيد الحضور</Button>
-                </div>)}
+                  </div>
+                  : <span className="text-xs text-muted-foreground">يظهر إدخال الرمز عند بداية الحصة</span>)}
               {["open", "accepted"].includes(row.status) && !row.attendance_confirmed_at && <Button size="sm" variant="outline" disabled={loading} onClick={() => cancelRequest(row)}>إلغاء</Button>}
             </div>
           ))}

@@ -122,3 +122,40 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.reject_in_person_request(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.reject_in_person_request(uuid) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_list_in_person_teachers_with_dates()
+RETURNS TABLE(
+  teacher_id uuid,
+  full_name text,
+  is_enabled boolean,
+  approval_status text,
+  city_id uuid,
+  city_name text,
+  service_radius_km integer,
+  latitude double precision,
+  longitude double precision,
+  created_at timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NOT public.has_role(auth.uid(), 'admin'::public.app_role) THEN
+    RAISE EXCEPTION 'Administrator access required' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+  SELECT tp.user_id, COALESCE(pp.full_name, 'معلم')::text, tp.in_person_enabled,
+         tp.in_person_approval_status, tp.city_id, c.name_ar,
+         tp.in_person_service_radius_km, tp.in_person_latitude,
+         tp.in_person_longitude, tp.created_at
+  FROM public.teacher_profiles tp
+  LEFT JOIN public.public_profiles pp ON pp.user_id = tp.user_id
+  LEFT JOIN public.cities c ON c.id = tp.city_id
+  WHERE tp.in_person_approval_status <> 'not_requested'
+     OR tp.in_person_enabled
+  ORDER BY tp.created_at DESC;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_list_in_person_teachers_with_dates() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_list_in_person_teachers_with_dates() TO authenticated;
