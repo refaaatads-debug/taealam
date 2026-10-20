@@ -358,6 +358,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
             const waitingBooking = group.bookings.find(b => b.session_status === "waiting_acceptance");
             const groupUnread = unreadByStudent[group.studentId] || 0;
             const chatBookingId = latestBookingByStudent[group.studentId];
+            const chatBookingMode = group.bookings.find((booking) => booking.id === chatBookingId)?.delivery_mode;
 
             return (
               <div key={group.studentId} className={`rounded-xl border overflow-hidden ${hasLive ? "border-secondary/50 bg-secondary/5" : "bg-muted/20"}`}>
@@ -420,6 +421,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
                           variant="outline"
                           size="sm"
                           iconOnly
+                          allowPhoneCall={chatBookingMode !== "in_person"}
                           className="rounded-lg h-7 w-7 p-0 border-secondary/30 text-secondary hover:bg-secondary/10"
                         />
                       </div>

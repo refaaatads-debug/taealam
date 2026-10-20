@@ -309,10 +309,15 @@ const TeacherDashboard = () => {
                   <div>
                     <p className="text-[11px] font-bold text-white/70">{nextSession.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
                     <h2 className="mt-0.5 text-lg font-black">{nextSession.subjects?.name || "حصة تعليمية"}</h2>
+                    <Badge className="mt-1 border-0 bg-white/15 text-white">{nextSession.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}</Badge>
                     <p className="mt-1 text-xs text-white/75">مع {nextSession.student_profile?.full_name || "الطالب"} · {new Date(nextSession.scheduled_at).toLocaleString("ar-SA", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
                 </div>
-                {!isPhone && (
+                {nextSession.delivery_mode === "in_person" ? (
+                  <Button className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90" onClick={() => document.getElementById("in-person-sessions")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                    عرض عنوان الحصة <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                ) : !isPhone && (
                   <Button asChild className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
                     <Link to={`/session?booking=${nextSession.id}`}>ابدأ الحصة <ArrowLeft className="h-4 w-4" /></Link>
                   </Button>

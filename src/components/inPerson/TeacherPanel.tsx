@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { ExternalLink, MapPin } from "lucide-react";
 
-type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string };
-type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; subjects?: { name: string } | null };
+type AddressSnapshot = { street_address?: string | null; district?: string | null; latitude?: number | string | null; longitude?: number | string | null };
+type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
+type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
 type EarningRow = { booking_id: string; amount: number; status: string; available_at: string; scheduled_at: string };
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
@@ -20,6 +22,7 @@ export default function InPersonTeacherPanel() {
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [cityStatus, setCityStatus] = useState<CityStatus | null>(null);
+  const [locationError, setLocationError] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
 
@@ -28,9 +31,10 @@ export default function InPersonTeacherPanel() {
     const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
     if (!pilotEnabled) { setEnabled(false); return; }
     setEnabled(true);
-    const [{ data: incoming, error }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
+    const [{ data: incoming, error }, { data: requestLocations, error: locationsError }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
       supabase.rpc("list_teacher_in_person_requests" as any),
-      supabase.from("bookings" as any).select("id,student_id,scheduled_at,subjects(name)")
+      supabase.rpc("list_teacher_in_person_request_locations" as any),
+      supabase.from("bookings" as any).select("id,student_id,scheduled_at,visit_address_snapshot,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
       supabase.rpc("list_my_in_person_teacher_earnings" as any),
@@ -39,7 +43,12 @@ export default function InPersonTeacherPanel() {
     if (error) {
       if (!error.message.toLowerCase().includes("pilot")) toast.error(error.message);
       setRequests([]);
-    } else setRequests((incoming || []) as RequestRow[]);
+    } else {
+      const locations = new Map((requestLocations || []).map((location: any) => [location.request_group_id, location]));
+      setRequests((incoming || []).map((request: any) => ({ ...request, ...(locations.get(request.request_group_id) || {}) })) as RequestRow[]);
+    }
+    setLocationError(Boolean(locationsError));
+    if (locationsError) toast.error("تعذر تحميل موقع الحصة الحضورية");
     setBookings((upcoming || []) as unknown as BookingRow[]);
     setEarnings((earningRows || []) as EarningRow[]);
     setCityStatus(((cityRows || [])[0] as CityStatus | undefined) || null);
@@ -74,30 +83,53 @@ export default function InPersonTeacherPanel() {
     else setCodes((current) => ({ ...current, [bookingId]: data as string }));
   };
 
+  const mapUrl = (latitude?: number | string | null, longitude?: number | string | null) => {
+    if (latitude == null || longitude == null || String(latitude).trim() === "" || String(longitude).trim() === "") return null;
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  };
+  const locationDetails = (address?: AddressSnapshot | RequestRow | null, cityName?: string | null) => {
+    if (!address) return null;
+    const street = address.street_address?.trim();
+    const district = address.district?.trim();
+    const url = mapUrl(address.latitude, address.longitude);
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted/50 px-3 py-2 text-xs">
+        <MapPin className="h-4 w-4 shrink-0 text-primary" />
+        <span className="font-medium">{[street, district, cityName].filter(Boolean).join(" · ") || "العنوان غير متاح"}</span>
+        {url && <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary underline underline-offset-2">عرض الموقع <ExternalLink className="h-3 w-3" /></a>}
+      </div>
+    );
+  };
+
   if (!enabled) return null;
   return (
-    <Card>
+    <Card id="in-person-sessions" className="overflow-hidden rounded-2xl border-0 shadow-card">
       <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">يُغلق القبول قبل الموعد بساعة. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
         {cityStatus?.city_name && cityStatus.city_enabled === false && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">الخدمة لم تُفعّل في مدينتك بعد.</p>}
       </CardHeader>
       <CardContent className="space-y-5">
         <section className="space-y-2">
           <h3 className="font-semibold">طلبات بانتظارك</h3>
+          {locationError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">تعذر تحميل عنوان الحصة. أعد تحميل الصفحة قبل قبول طلب حضوري.</p>}
           {requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات جديدة ضمن نطاقك.</p>}
           {requests.map((request) => <div key={request.request_group_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-            <div><strong>{request.subject_name} · {request.student_name}</strong><div className="text-sm text-muted-foreground">{request.city_name} · {new Date(request.scheduled_at).toLocaleString("ar-SA")}</div></div>
+            <div className="min-w-0 flex-1"><strong>{request.subject_name} · {request.student_name} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(request.scheduled_at).toLocaleString("ar-SA")}</div>{locationDetails(request, request.city_name)}</div>
              <div className="flex gap-2">
                <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" disabled={busy || rejecting === request.request_group_id} onClick={() => void reject(request)}>
                  {rejecting === request.request_group_id ? "جارٍ الرفض..." : "رفض الطلب"}
                </Button>
-               <Button disabled={busy || Boolean(rejecting)} onClick={() => accept(request)}>قبول الحصة</Button>
+                <Button disabled={busy || Boolean(rejecting) || locationError || (!request.street_address && !mapUrl(request.latitude, request.longitude))} onClick={() => accept(request)}>قبول الحصة</Button>
              </div>
           </div>)}
         </section>
         <section className="space-y-2 border-t pt-4">
           <h3 className="font-semibold">مواعيدي القادمة</h3>
           {bookings.map((booking) => <div key={booking.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-            <div><strong>{booking.subjects?.name || "حصة حضورية"}</strong><div className="text-sm text-muted-foreground">{new Date(booking.scheduled_at).toLocaleString("ar-SA")}</div>
+            <div className="min-w-0 flex-1"><strong>{booking.subjects?.name || "حصة حضورية"} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(booking.scheduled_at).toLocaleString("ar-SA")}</div>
+              {locationDetails(booking.visit_address_snapshot, null)}
               {codes[booking.id] && <div className="mt-2 text-lg font-bold tracking-[0.3em]">{codes[booking.id]}</div>}
             </div>
             <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button><Button size="sm" variant="destructive" disabled={busy} onClick={() => setCancelTarget(booking)}>إلغاء</Button></div>

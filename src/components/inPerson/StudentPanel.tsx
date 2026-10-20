@@ -218,27 +218,40 @@ export default function InPersonStudentPanel() {
           </DialogContent>
         </Dialog>
         {loadError && <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">تعذر تحميل بيانات المدن أو العناوين. أعد المحاولة قبل المتابعة. <Button size="sm" variant="outline" className="ms-2" onClick={() => setReloadKey((value) => value + 1)}>إعادة المحاولة</Button></div>}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">المدينة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={cityId} onChange={(e) => { setCityId(e.target.value); setCityUnavailableMessage(""); setAddressId((current) => addresses.some((a) => a.id === current && a.city_id === e.target.value) ? current : ""); }}>
+        <div className="flex items-center justify-center gap-2 py-1">
+          <span className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-sm">1 · بيانات الحصة</span>
+          <span className="h-px w-8 bg-border" />
+          <span className={`rounded-xl px-3 py-2 text-xs font-bold ${teachers.length ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"}`}>2 · اختيار المعلم</span>
+          <span className="h-px w-8 bg-border" />
+          <span className="rounded-xl bg-muted px-3 py-2 text-xs font-bold text-muted-foreground">3 · إرسال الطلب</span>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.03] via-card to-secondary/[0.04] p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
+            <div><h3 className="font-black text-foreground">بيانات الحصة الحضورية</h3><p className="mt-1 text-xs text-muted-foreground">اختر عنوان الزيارة والمادة والموعد المناسب.</p></div>
+            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">60 دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">100 دقيقة من الرصيد</span></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-semibold">المدينة
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={cityId} onChange={(e) => { setCityId(e.target.value); setCityUnavailableMessage(""); setAddressId((current) => addresses.some((a) => a.id === current && a.city_id === e.target.value) ? current : ""); }}>
               <option value="">اختر مدينة متاحة</option>
               {cities.filter((c) => c.enabled).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               {selectedCity && !selectedCity.enabled && <option value={selectedCity.id} disabled>{selectedCity.name} · الحضوري غير متاح</option>}
             </select>
           </label>
-          <label className="text-sm">عنوان الزيارة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={addressId} disabled={addresses.length === 0} onChange={(e) => { const address = addresses.find((item) => item.id === e.target.value); setAddressId(e.target.value); setCityUnavailableMessage(""); if (address) setCityId(address.city_id); }}>
+          <label className="text-sm font-semibold">عنوان الزيارة
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={addressId} disabled={addresses.length === 0} onChange={(e) => { const address = addresses.find((item) => item.id === e.target.value); setAddressId(e.target.value); setCityUnavailableMessage(""); if (address) setCityId(address.city_id); }}>
               <option value="">اختر عنوان الحصة</option>{addresses.map((a) => <option key={a.id} value={a.id}>{a.name} · {cities.find((city) => city.id === a.city_id)?.name || "مدينة"}</option>)}
             </select>
           </label>
-          <label className="text-sm">المادة
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+          <label className="text-sm font-semibold">المادة
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
               <option value="">اختر المادة</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </label>
-          <label className="text-sm">موعد الحصة
-            <input className="mt-1 h-10 w-full rounded-md border bg-background px-3" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          <label className="text-sm font-semibold">موعد الحصة
+            <input className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
           </label>
+        </div>
         </div>
         {addresses.length === 0 && (
           <div className="rounded-md border border-dashed p-3 text-sm" role="status">
@@ -254,7 +267,7 @@ export default function InPersonStudentPanel() {
         )}
         {((selectedCity && !selectedCity.enabled && addressId) || cityUnavailableMessage) && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage || `الحصص الحضورية غير متاحة في ${selectedCity?.name} حاليًا. يمكنك حجز حصة أونلاين.`} <Link className="font-semibold underline" to="/booking">الحجز الأونلاين</Link></div>}
         {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
-        <Button variant="outline" onClick={searchTeachers} disabled={loading || !addressId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
+        <Button variant="outline" className="h-11 rounded-xl px-5" onClick={searchTeachers} disabled={loading || !addressId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
         {teachers.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-semibold">الأقرب أولاً، ثم التقييم</p>

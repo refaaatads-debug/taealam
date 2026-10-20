@@ -16,6 +16,7 @@ interface CallStudentButtonProps {
   size?: "default" | "sm" | "icon";
   className?: string;
   iconOnly?: boolean;
+  allowPhoneCall?: boolean;
 }
 
 export default function CallStudentButton({
@@ -26,6 +27,7 @@ export default function CallStudentButton({
   size = "sm",
   className,
   iconOnly = false,
+  allowPhoneCall = true,
 }: CallStudentButtonProps) {
   const { startInternalCall, hasActiveCall } = useInternalCall();
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -51,15 +53,17 @@ export default function CallStudentButton({
       }
       if (resolvedStudentId) {
         setStudentId(resolvedStudentId);
-        const [{ data: privateProfile }, { data: publicProfile }] = await Promise.all([
-          supabase.from("profiles").select("phone").eq("user_id", resolvedStudentId).maybeSingle(),
-          supabase.from("public_profiles").select("full_name").eq("user_id", resolvedStudentId).maybeSingle(),
-        ]);
-        setStudentPhone(privateProfile?.phone || "");
+        const { data: publicProfile } = await supabase.from("public_profiles").select("full_name").eq("user_id", resolvedStudentId).maybeSingle();
+        if (allowPhoneCall) {
+          const { data: privateProfile } = await supabase.from("profiles").select("phone").eq("user_id", resolvedStudentId).maybeSingle();
+          setStudentPhone(privateProfile?.phone || "");
+        } else {
+          setStudentPhone("");
+        }
         setResolvedName(studentName || publicProfile?.full_name || "الطالب");
       }
     })().finally(() => setLoading(false));
-  }, [chooserOpen, bookingId, targetStudentId, studentName]);
+  }, [chooserOpen, bookingId, targetStudentId, studentName, allowPhoneCall]);
 
   const handleInternalCall = async () => {
     if (!studentId) return toast.error("تعذر تحديد الطالب");
@@ -124,7 +128,7 @@ export default function CallStudentButton({
                 {startingInternal && <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700"><Loader2 className="h-3.5 w-3.5 animate-spin" />جارٍ فحص حالة الطالب…</div>}
               </button>
 
-              {bookingId && (
+              {bookingId && allowPhoneCall && (
                 <button
                   type="button"
                   onClick={() => { setChooserOpen(false); setPhoneOpen(true); }}
