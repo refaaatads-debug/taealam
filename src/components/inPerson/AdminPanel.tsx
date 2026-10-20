@@ -20,21 +20,38 @@ export default function InPersonAdminPanel() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [cities, setCities] = useState<{ id: string; name_ar: string }[]>([]);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
+  const [sessionCounts, setSessionCounts] = useState({ online: 0, inPerson: 0 });
   const [userId, setUserId] = useState("");
   const [pilotRole, setPilotRole] = useState("student");
   const [busy, setBusy] = useState(false);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
-    const [{ data: teacherRows, error }, { data: cityRows }, { data: financialRows }] = await Promise.all([
+    const [
+      { data: teacherRows, error },
+      { data: cityRows },
+      { data: financialRows },
+      onlineCountResult,
+      inPersonCountResult,
+    ] = await Promise.all([
       supabase.rpc("admin_list_in_person_teachers" as any),
       supabase.from("cities" as any).select("id,name_ar").order("name_ar"),
       supabase.rpc("admin_list_in_person_financials" as any),
+      (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "online"),
+      (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "in_person"),
     ]);
     if (error) toast.error(error.message || "تعذر تحميل إعدادات الحضوري");
     else setTeachers((teacherRows || []) as TeacherRow[]);
     setCities((cityRows || []) as { id: string; name_ar: string }[]);
     setFinancials((financialRows || []) as FinancialRow[]);
+    if (onlineCountResult.error || inPersonCountResult.error) {
+      toast.error("تعذر تحميل إحصاءات أنواع الحصص");
+    } else {
+      setSessionCounts({
+        online: onlineCountResult.count || 0,
+        inPerson: inPersonCountResult.count || 0,
+      });
+    }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -67,6 +84,16 @@ export default function InPersonAdminPanel() {
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">حصص أونلاين</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-black tabular-nums">{sessionCounts.online.toLocaleString("ar-SA")}</p><p className="text-xs text-muted-foreground">إجمالي الحجوزات المسجلة</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">حصص حضورية</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-black tabular-nums">{sessionCounts.inPerson.toLocaleString("ar-SA")}</p><p className="text-xs text-muted-foreground">إجمالي الحجوزات المسجلة</p></CardContent>
+        </Card>
+      </div>
       <Card>
         <CardHeader><CardTitle>إدارة الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">لا يُفعّل أي حساب تلقائياً. أضف فقط معرّفات حسابات التجربة التي تم التحقق منها.</p></CardHeader>
         <CardContent className="space-y-3">

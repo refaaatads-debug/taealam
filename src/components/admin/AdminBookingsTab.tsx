@@ -28,6 +28,7 @@ type BookingRecord = {
   subject_id: string | null;
   scheduled_at: string;
   duration_minutes: number;
+  delivery_mode?: "online" | "in_person" | null;
   price: number | null;
   notes: string | null;
   created_at: string;
@@ -252,6 +253,7 @@ export default function AdminBookingsTab() {
         return {
           ...row,
           source: "request",
+          delivery_mode: row.delivery_mode || "online",
           teacher_id: row.accepted_by || null,
           student_name: student.name,
           student_phone: student.phone,
@@ -566,11 +568,12 @@ export default function AdminBookingsTab() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[950px] text-right">
+              <table className="w-full min-w-[1050px] text-right">
                 <thead className="bg-slate-50/80 text-[11px] font-bold text-muted-foreground">
                   <tr>
                     <th className="px-5 py-3">الطالب / المعلم</th>
                     <th className="px-4 py-3">نوع الطلب</th>
+                    <th className="px-4 py-3">طريقة الحصة</th>
                     <th className="px-4 py-3">الحصة</th>
                     <th className="px-4 py-3">الموعد</th>
                     <th className="px-4 py-3">الحالة</th>
@@ -592,6 +595,11 @@ export default function AdminBookingsTab() {
                       <td className="px-4 py-3.5">
                         <Badge variant="outline" className={`rounded-lg text-[10px] ${record.source === "request" ? "border-sky-200 bg-sky-50 text-sky-700" : "border-violet-200 bg-violet-50 text-violet-700"}`}>
                           {record.source === "request" ? "طلب حجز" : "حجز مؤكد"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <Badge variant="outline" className={`rounded-lg text-[10px] ${record.delivery_mode === "in_person" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-700"}`}>
+                          {record.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}
                         </Badge>
                       </td>
                       <td className="px-4 py-3.5">
@@ -651,8 +659,9 @@ export default function AdminBookingsTab() {
 
                 <Card className="border-border/60 shadow-none">
                   <CardHeader className="border-b border-border/50 px-4 py-3"><CardTitle className="flex items-center gap-2 text-sm font-black"><FileText className="h-4 w-4 text-primary" /> تفاصيل الحصة</CardTitle></CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-4">
+                  <CardContent className="grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-5">
                     <div><p className="text-[11px] text-muted-foreground">المادة</p><p className="mt-1 font-bold">{selected.subject_name}</p></div>
+                    <div><p className="text-[11px] text-muted-foreground">طريقة الحصة</p><p className="mt-1 font-bold">{selected.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}</p></div>
                     <div><p className="text-[11px] text-muted-foreground">الموعد</p><p className="mt-1 font-bold">{dateTime(selected.scheduled_at)}</p></div>
                     <div><p className="text-[11px] text-muted-foreground">المدة</p><p className="mt-1 font-bold">{selected.duration_minutes || 0} دقيقة</p></div>
                     <div><p className="text-[11px] text-muted-foreground">القيمة</p><p className="mt-1 font-bold text-secondary">{money(selected.price)}</p></div>
