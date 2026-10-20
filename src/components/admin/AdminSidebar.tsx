@@ -18,7 +18,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity,
+  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";

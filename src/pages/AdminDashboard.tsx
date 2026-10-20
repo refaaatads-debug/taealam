@@ -55,6 +55,7 @@ import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList"
 import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
 import AdminPlatformHealthTab from "@/components/admin/AdminPlatformHealthTab";
 import InPersonAdminPanel from "@/components/inPerson/AdminPanel";
+import AdminPanelErrorBoundary from "@/components/inPerson/AdminPanelErrorBoundary";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -544,7 +545,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
       case "teacher_profiles": return <TeacherProfilesTab />;
-      case "in_person": return <InPersonAdminPanel />;
+      case "in_person": return <AdminPanelErrorBoundary><InPersonAdminPanel /></AdminPanelErrorBoundary>;
        case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} openTeacherSupport={openTeacherSupport} />;
        case "bookings": return <AdminBookingsTab />;
       case "sessions_status": return <SessionsStatusTab />;
