@@ -15,6 +15,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
           script: |
             set -eu
             backup_dir="/root/backups/ajyal-predeploy-${{ github.sha }}"
@@ -54,6 +55,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -65,6 +67,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
           source: src/**,public/**,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
@@ -77,6 +80,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
           envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY
           script: |
             set -eu
