@@ -617,7 +617,7 @@ const Profile = () => {
                     {savingLocation ? "جارٍ الإرسال…" : "حفظ الموقع وإرساله للاعتماد"}
                   </Button>
                 </div>
-                {cities.length === 0 && <p className="text-xs text-destructive">قائمة المدن المعتمدة فارغة حالياً؛ يلزم تهيئة المدن قبل حفظ المواقع.</p>}
+                {cities.length === 0 && <p className="text-xs text-muted-foreground">ستُضاف المدينة تلقائياً عند اختيار موقع داخل السعودية من نتائج خرائط Google.</p>}
               </CardContent>
             </Card>
           </motion.div>
