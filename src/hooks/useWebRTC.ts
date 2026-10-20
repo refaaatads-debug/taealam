@@ -72,19 +72,23 @@ const buildIceServers = async (): Promise<RTCConfiguration> => {
 interface UseWebRTCOptions {
   bookingId: string;
   userId: string;
+  expectedRemoteUserId?: string;
   onRemoteStream?: (stream: MediaStream) => void;
   onConnectionState?: (state: RTCPeerConnectionState) => void;
-  onRemoteJoin?: () => void;
-  onRemoteLeave?: () => void;
+  onRemoteJoin?: (remoteUserId: string) => void;
+  onRemoteReady?: (remoteUserId: string) => void;
+  onRemoteLeave?: (remoteUserId: string) => void;
   onDataMessage?: (msg: any) => void;
 }
 
 export function useWebRTC({
   bookingId,
   userId,
+  expectedRemoteUserId,
   onRemoteStream,
   onConnectionState,
   onRemoteJoin,
+  onRemoteReady,
   onRemoteLeave,
   onDataMessage,
 }: UseWebRTCOptions) {
@@ -146,8 +150,13 @@ export function useWebRTC({
   onConnectionStateRef.current = onConnectionState;
   const onRemoteJoinRef = useRef(onRemoteJoin);
   onRemoteJoinRef.current = onRemoteJoin;
+  const onRemoteReadyRef = useRef(onRemoteReady);
+  onRemoteReadyRef.current = onRemoteReady;
   const onRemoteLeaveRef = useRef(onRemoteLeave);
   onRemoteLeaveRef.current = onRemoteLeave;
+  const expectedRemoteUserIdRef = useRef(expectedRemoteUserId);
+  expectedRemoteUserIdRef.current = expectedRemoteUserId;
+  const remotePeerUserIdRef = useRef<string | null>(null);
 
   const waitForChannelSubscription = useCallback((
     channel: any,
@@ -210,26 +219,27 @@ export function useWebRTC({
 
   // Send data via DataChannel
   const sendDataMessage = useCallback((msg: any) => {
+    const message = { ...msg, _senderId: userId };
     if (transportProviderRef.current === "agora") {
       const channel = channelRef.current;
       if (!channel || !agoraRealtimeReadyRef.current) {
         pendingAgoraDataMessagesRef.current = [
           ...pendingAgoraDataMessagesRef.current,
-          msg,
+          message,
         ].slice(-200);
         return;
       }
       void channel.send({
         type: "broadcast",
         event: "session-data",
-        payload: { senderId: userId, message: msg },
+        payload: { senderId: userId, message },
       }).catch((error: unknown) => console.warn("[agora] session data send failed", error));
       return;
     }
     const dc = dataChannelRef.current;
     if (dc && dc.readyState === "open") {
       try {
-        dc.send(JSON.stringify(msg));
+        dc.send(JSON.stringify(message));
       } catch {
         // Preserve whiteboard events during a transient channel transition.
         if (typeof msg?.type === "string" && msg.type.startsWith("whiteboard-")) {
@@ -271,7 +281,7 @@ export function useWebRTC({
         onDataMessageRef.current?.(msg);
       } catch {}
     };
-  }, []);
+  }, [userId]);
 
   const createPeerConnection = useCallback(async () => {
     if (pcRef.current) pcRef.current.close();
@@ -355,6 +365,7 @@ export function useWebRTC({
       setConnectionState(state);
       onConnectionStateRef.current?.(state);
       if (state === "connected") {
+        if (remotePeerUserIdRef.current) onRemoteReadyRef.current?.(remotePeerUserIdRef.current);
         // M4: Merged into one block — release mutex, reset backoff, detect ICE type
         isRestartingRef.current = false;
         reconnectAttemptsRef.current = 0;
@@ -497,7 +508,7 @@ export function useWebRTC({
   }, []);
 
   const handleSignal = useCallback(async (signalType: string, payload: any, senderId: string) => {
-    if (senderId === userId) return;
+    if (senderId === userId || (expectedRemoteUserIdRef.current && senderId !== expectedRemoteUserIdRef.current)) return;
     const pc = pcRef.current;
     if (!pc) return;
 
@@ -569,7 +580,8 @@ export function useWebRTC({
           pendingCandidatesRef.current.push(payload.candidate);
         }
       } else if (signalType === "join") {
-        onRemoteJoinRef.current?.();
+        remotePeerUserIdRef.current = senderId;
+        onRemoteJoinRef.current?.(senderId);
         if (isRestartingRef.current) {
           // M3: A join arrived mid-ICE-restart — rebuilding the PC now would create
           // offer glare and abort the ongoing restart. Skip the rebuild; the ICE
@@ -585,7 +597,10 @@ export function useWebRTC({
         makingOfferRef.current = false;
         await createPeerConnection();
       } else if (signalType === "leave") {
-        onRemoteLeaveRef.current?.();
+        if (remotePeerUserIdRef.current === senderId) {
+          remotePeerUserIdRef.current = null;
+          onRemoteLeaveRef.current?.(senderId);
+        }
       }
     } catch (err) {
       console.error("Signal handling error:", err);
@@ -664,7 +679,7 @@ export function useWebRTC({
       .on("broadcast", { event: "session-data" }, (event: any) => {
         const payload = event.payload;
         if (payload?.senderId !== userId && payload?.message) {
-          onDataMessageRef.current?.(payload.message);
+          onDataMessageRef.current?.({ ...payload.message, _senderId: payload.senderId });
         }
       });
 
@@ -721,6 +736,8 @@ export function useWebRTC({
         onRemoteStreamRef.current?.(updated);
       };
       client.on("user-published", async (remoteUser: any, mediaType: "audio" | "video") => {
+        const remoteUserId = String(remoteUser.uid);
+        if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
         try {
           await client.subscribe(remoteUser, mediaType);
         } catch (error) {
@@ -740,6 +757,10 @@ export function useWebRTC({
           }, { once: true });
           syncRemote();
         }
+        if (mediaType === "audio") {
+          remotePeerUserIdRef.current = remoteUserId;
+          onRemoteReadyRef.current?.(remoteUserId);
+        }
         setConnectionState("connected");
         onConnectionStateRef.current?.("connected");
       });
@@ -752,13 +773,17 @@ export function useWebRTC({
           syncRemote();
         }
       });
-      client.on("user-joined", () => {
-        onRemoteJoinRef.current?.();
-        setConnectionState("connected");
-        onConnectionStateRef.current?.("connected");
+      client.on("user-joined", (remoteUser: any) => {
+        const remoteUserId = String(remoteUser.uid);
+        if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
+        remotePeerUserIdRef.current = remoteUserId;
+        onRemoteJoinRef.current?.(remoteUserId);
       });
-      client.on("user-left", () => {
-        onRemoteLeaveRef.current?.();
+      client.on("user-left", (remoteUser: any) => {
+        const remoteUserId = String(remoteUser.uid);
+        if (remotePeerUserIdRef.current !== remoteUserId) return;
+        remotePeerUserIdRef.current = null;
+        onRemoteLeaveRef.current?.(remoteUserId);
         remote.getTracks().forEach((track) => remote.removeTrack(track));
         syncRemote();
         setConnectionState("disconnected");
@@ -1523,6 +1548,7 @@ export function useWebRTC({
     pendingAgoraDataMessagesRef.current = [];
     dataChannelRef.current?.close();
     dataChannelRef.current = null;
+    remotePeerUserIdRef.current = null;
     setDataChannelReady(false);
     if (agoraClientRef.current) {
       const client = agoraClientRef.current;

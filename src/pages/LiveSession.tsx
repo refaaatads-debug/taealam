@@ -39,6 +39,15 @@ import ScreenShareToolbar from "@/components/teacher/ScreenShareToolbar";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import VoicePlayer from "@/components/VoicePlayer";
 import { useIsPhoneDevice } from "@/hooks/use-is-phone";
+import {
+  advanceSessionClock,
+  canAccumulateSessionTime,
+  isAuthoritativeTimerSync,
+  isExpectedSessionPeer,
+  isValidTimerRequest,
+  resolveRemoteEndElapsed,
+  restoreSessionClock,
+} from "@/lib/sessionClock";
 
 const LiveSession = () => {
   const { user, profile } = useAuth();
@@ -199,6 +208,9 @@ const LiveSession = () => {
     return () => window.removeEventListener("open-session-chat", handleOpenChat);
   }, []);
   const isTeacher = user && bookingData ? user.id === bookingData.teacher_id : false;
+  const expectedRemoteUserId = user && bookingData
+    ? (user.id === bookingData.student_id ? bookingData.teacher_id : bookingData.student_id)
+    : "";
 
   // Block teachers from starting/joining session on phone devices
   const isPhone = useIsPhoneDevice();
@@ -272,9 +284,16 @@ const LiveSession = () => {
       if (!isTeacher) setPageFrozen(msg.active);
     } else if (msg.type === "session-end") {
       // The other party ended the session - auto-end for this party too
-      if (!sessionEndingRef.current) {
+      const finalElapsed = resolveRemoteEndElapsed(
+        msg._senderId,
+        expectedRemoteUserId,
+        isTeacher,
+        msg.elapsed,
+        elapsedRef.current,
+      );
+      if (!sessionEndingRef.current && finalElapsed !== null) {
         toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
-        setTimeout(() => endSession(), 1500);
+        setTimeout(() => endSession(finalElapsed), 1500);
       }
     } else if (msg.type === "timer-start") {
       // Authoritative session start time from the teacher (source of truth)
@@ -284,7 +303,7 @@ const LiveSession = () => {
     } else if (msg.type === "timer-sync") {
       // Teacher is the SOLE source of truth. Student mirrors teacher's value exactly
       // (both forward and backward correction allowed) so paused/resumed states stay aligned.
-      if (!isTeacher && typeof msg.elapsed === "number") {
+      if (isAuthoritativeTimerSync(msg._senderId, bookingData?.teacher_id, isTeacher) && typeof msg.elapsed === "number") {
         const paused = msg.paused === true;
         const latencySec = !paused && typeof msg.ts === "number"
           ? Math.max(0, (Date.now() - msg.ts) / 1000)
@@ -293,7 +312,7 @@ const LiveSession = () => {
         setElapsed(target);
       }
     } else if (msg.type === "timer-request") {
-      if (isTeacher) {
+      if (isValidTimerRequest(msg._senderId, bookingData?.student_id, isTeacher)) {
         sendDataMessage({ type: "timer-sync", elapsed: elapsedRef.current, ts: Date.now(), paused: !shouldCountRef.current });
       }
     } else if (msg.type === "hand-raise") {
@@ -303,7 +322,7 @@ const LiveSession = () => {
         toast.info(isTeacher ? "✋ الطالب رفع يده" : "✋ المعلم رفع يده", { id: "hand-raise" });
       }
     }
-  }, [isTeacher, pushDebugEvent]);
+  }, [isTeacher, pushDebugEvent, bookingData?.teacher_id, bookingData?.student_id, expectedRemoteUserId]);
 
   const {
     localStream,
@@ -330,6 +349,7 @@ const LiveSession = () => {
   } = useWebRTC({
     bookingId: bookingId || "",
     userId: user?.id || "",
+    expectedRemoteUserId,
     onRemoteStream: (stream) => {
       const audioTracks = stream.getAudioTracks().length;
       const videoTracks = stream.getVideoTracks().length;
@@ -369,24 +389,21 @@ const LiveSession = () => {
         }
       };
     },
-    onRemoteJoin: () => {
-      setRemoteConnected(true);
+    onRemoteJoin: (remoteUserId) => {
+      if (!isExpectedSessionPeer(remoteUserId, expectedRemoteUserId)) return;
       try { playJoinSound(); } catch {}
-      if (meetingStarted) {
-        setBothJoined(true);
-        toast.success("انضم المشارك الآخر! بدأ العداد 🎉");
-      } else {
-        toast.success("انضم المشارك الآخر! 🎉");
-      }
+      toast.success("انضم الطرف الآخر؛ جارٍ تأكيد جاهزية الاتصال.");
     },
-    onRemoteLeave: () => {
+    onRemoteReady: (remoteUserId) => {
+      if (!isExpectedSessionPeer(remoteUserId, expectedRemoteUserId)) return;
+      setRemoteConnected(true);
+    },
+    onRemoteLeave: (remoteUserId) => {
+      if (!isExpectedSessionPeer(remoteUserId, expectedRemoteUserId)) return;
       setRemoteConnected(false);
+      setBothJoined(false);
       try { playLeaveSound(); } catch {}
-      toast.info("غادر المشارك الآخر الجلسة");
-    },
-    onConnectionState: (state) => {
-      if (state === "connected") setRemoteConnected(true);
-      else if (state === "disconnected" || state === "failed") setRemoteConnected(false);
+      toast.info("غادر الطرف الآخر الجلسة؛ تم إيقاف العداد مؤقتاً");
     },
     onDataMessage: handleDataMessage,
   });
@@ -912,10 +929,17 @@ const LiveSession = () => {
           setTimeout(() => endSession(), 1000);
         }
       })
-      .on("broadcast", { event: "session-end" }, () => {
-        if (!sessionEndingRef.current && meetingStarted) {
+      .on("broadcast", { event: "session-end" }, ({ payload }: any) => {
+        const finalElapsed = resolveRemoteEndElapsed(
+          payload?.by,
+          expectedRemoteUserId,
+          isTeacher,
+          payload?.elapsed,
+          elapsedRef.current,
+        );
+        if (!sessionEndingRef.current && meetingStarted && finalElapsed !== null) {
           toast.info("أنهى الطرف الآخر الجلسة. جارٍ إغلاق الجلسة...");
-          setTimeout(() => endSession(), 1000);
+          setTimeout(() => endSession(finalElapsed), 1000);
         }
       })
       .subscribe();
@@ -1131,12 +1155,10 @@ const LiveSession = () => {
   // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
   // ───────────────────────────────────────────────────────────
-  // Counter policy (per product spec):
-  //   • Starts when BOTH parties are in the session (bothJoined).
-  //   • NEVER pauses for tab switch, screen share, network drop, or RTC state.
-  //   • Stops ONLY when one party explicitly ends the session.
-  //   • On reconnect, the teacher broadcasts authoritative elapsed so the
-  //     student resyncs from the exact same point (monotonic forward only).
+  // Counter policy:
+  //   • Starts only after the expected peer is present and media/transport is ready.
+  //   • Pauses on peer/network/RTC disconnect; mute, silence, and tab visibility do not pause it.
+  //   • The teacher is the authoritative accumulator; timer-sync mirrors the same value to the student.
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === "undefined" ? true : navigator.onLine);
   // isPageVisible removed (M1) — tab visibility does not pause the timer per spec.
   const wasCountingRef = useRef(false);
@@ -1158,16 +1180,18 @@ const LiveSession = () => {
     };
   }, [logEvent]);
 
-  // Counter runs after both parties join. Pauses when:
-  //   • Local network is offline
-  //   • WebRTC connectionState is not "connected"
-  //   • DataChannel is closed — fastest peer-disconnect signal (fires within seconds,
-  //     before the 20-30s ICE keepalive timeout that changes connectionState).
-  //     When the peer's internet drops, the DataChannel closes immediately on our side,
-  //     so using dataChannelReady avoids the long lag the user would otherwise see.
+  // Counting requires both expected participants, local transport readiness,
+  // the signaling data channel, and local internet. Mute/silence are deliberately
+  // excluded so they never look like an absent participant.
   const connectionHealthy = isOnline && connectionState === "connected" && dataChannelReady;
   connectionHealthyRef.current = connectionHealthy;
-  const shouldCount = meetingStarted && bothJoined && connectionHealthy;
+  const shouldCount = canAccumulateSessionTime({
+    meetingStarted,
+    expectedPeerReady: bothJoined && remoteConnected,
+    isOnline,
+    rtcConnected: connectionState === "connected",
+    signalingReady: dataChannelReady,
+  });
   shouldCountRef.current = shouldCount;
 
   // ── Reconnection banner lifecycle ────────────────────────────────────────
@@ -1261,12 +1285,13 @@ const LiveSession = () => {
     lastTickRef.current = Date.now();
     const tick = () => {
       const now = Date.now();
-      const deltaSec = lastTickRef.current ? Math.max(0, Math.round((now - lastTickRef.current) / 1000)) : 1;
-      lastTickRef.current = now;
-      const inc = Math.min(deltaSec || 1, 5);
+      const currentElapsed = elapsedRef.current;
+      const advanced = advanceSessionClock(currentElapsed, lastTickRef.current, now, true);
+      lastTickRef.current = advanced.lastTickAt;
+      const increment = advanced.elapsed - currentElapsed;
 
       setElapsed((prev) => {
-        const next = prev + inc;
+        const next = prev + increment;
         if (!isTeacher) return next; // student doesn't enforce limits
         const maxSeconds = hasSubscription ? subscriptionRemainingMinutes * 60 : sessionDuration * 60;
         const warningSeconds = maxSeconds - 5 * 60;
@@ -1312,7 +1337,7 @@ const LiveSession = () => {
           JSON.stringify({ elapsed: elapsedRef.current, ts: Date.now() })
         );
       } catch {}
-    }, 5_000);
+    }, 1_000);
     return () => clearInterval(id);
   }, [bookingId, meetingStarted]);
 
@@ -1325,12 +1350,10 @@ const LiveSession = () => {
       const saved = localStorage.getItem(`session_elapsed_${bookingId}`);
       if (!saved) return;
       const { elapsed: savedElapsed, ts } = JSON.parse(saved);
-      if (typeof savedElapsed !== "number" || savedElapsed <= 0) return;
-      const ageSec = Math.max(0, (Date.now() - ts) / 1000);
-      if (ageSec > 300) return; // stale (>5 min) — ignore, likely a different session
-      const restored = Math.round(savedElapsed + ageSec);
+      const restored = restoreSessionClock(savedElapsed, ts, Date.now());
+      if (restored === null) return;
       setElapsed(restored);
-      console.log(`[timer] restored elapsed from localStorage: ${restored}s (saved=${savedElapsed}s + ${Math.round(ageSec)}s drift)`);
+      console.log(`[timer] restored elapsed from localStorage: ${restored}s`);
     } catch { /* ignore parse errors */ }
   }, [isTeacher, meetingStarted, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1670,28 +1693,33 @@ const LiveSession = () => {
     }
   };
 
-  const endSession = async () => {
+  const endSession = async (authoritativeElapsed?: number) => {
     if (sessionEndingRef.current) return;
     sessionEndingRef.current = true;
     clearInterval(timerRef.current);
+    const finalElapsed = typeof authoritativeElapsed === "number" && Number.isFinite(authoritativeElapsed)
+      ? Math.max(0, Math.floor(authoritativeElapsed))
+      : elapsedRef.current;
+    elapsedRef.current = finalElapsed;
+    setElapsed(finalElapsed);
     // Clear local timer persistence — session is ending
     try { localStorage.removeItem(`session_elapsed_${bookingId}`); } catch {}
 
     // 1) Notify peer immediately so their side starts closing in parallel
-    try { sendDataMessage({ type: "session-end", elapsed }); } catch {}
+    try { sendDataMessage({ type: "session-end", elapsed: finalElapsed }); } catch {}
     // Also broadcast via Supabase Realtime in case DataChannel isn't connected
     try {
       sessionStatusChannelRef.current?.send({
         type: "broadcast",
         event: "session-end",
-        payload: { elapsed, by: user?.id },
+        payload: { elapsed: finalElapsed, by: user?.id },
       });
     } catch {}
 
     // 2) Show success toast right away — UX feels instant
     toast.success("تم إنهاء الحصة ✅");
 
-    const durationSeconds = elapsedRef.current; // use ref to avoid stale closure (elapsed state may be 0)
+    const durationSeconds = finalElapsed;
     const durationMinutes = Math.ceil(durationSeconds / 60);
     const isShortSession = durationMinutes < 5;
     const currentBookingId = bookingId;
