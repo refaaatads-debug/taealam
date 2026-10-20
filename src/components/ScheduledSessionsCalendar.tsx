@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Row {
   id: string;
@@ -92,6 +93,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const [cancellingStudent, setCancellingStudent] = useState(false);
   const [attendanceCodes, setAttendanceCodes] = useState<Record<string, string>>({});
   const [attendanceConfirmed, setAttendanceConfirmed] = useState<Set<string>>(new Set());
+  const [attendanceCodeTarget, setAttendanceCodeTarget] = useState<Row | null>(null);
+  const [teacherAttendanceCodes, setTeacherAttendanceCodes] = useState<Record<string, string>>({});
+  const [loadingTeacherCode, setLoadingTeacherCode] = useState<string | null>(null);
   const unreadCounts = useUnreadMessages(rows.map((row) => row.id));
 
   // Filters
@@ -168,7 +172,16 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       setAttendanceConfirmed((current) => new Set(current).add(bookingId));
       setAttendanceCodes((current) => ({ ...current, [bookingId]: "" }));
       fetchRows();
+      setAttendanceCodeTarget(null);
     }
+  };
+
+  const showTeacherAttendanceCode = async (bookingId: string) => {
+    setLoadingTeacherCode(bookingId);
+    const { data, error } = await supabase.rpc("get_in_person_attendance_code" as any, { p_booking_id: bookingId });
+    setLoadingTeacherCode(null);
+    if (error) toast.error(error.message || "سيظهر الرمز قبل الموعد بساعة");
+    else setTeacherAttendanceCodes((current) => ({ ...current, [bookingId]: String(data) }));
   };
 
   useEffect(() => {
@@ -597,11 +610,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                               {role === "student" && s.delivery_mode === "in_person" && s.status === "confirmed" && (
                                 attendanceConfirmed.has(s.id)
                                   ? <Badge className="mt-2 bg-green-100 text-green-800 border-0 text-[10px]">تم تأكيد الحضور</Badge>
-                                  : <div className="mt-2 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                                      <input aria-label={`رمز حضور الحصة ${s.subject_name}`} inputMode="numeric" maxLength={4} placeholder={attendanceWindowOpen ? "أدخل رمز الحضور" : "رمز الحضور عند بدء الحصة"} disabled={!attendanceWindowOpen} className="h-8 w-40 rounded-md border bg-background px-2 text-center text-xs tracking-widest disabled:cursor-not-allowed disabled:opacity-70" value={attendanceCodes[s.id] || ""} onChange={(event) => setAttendanceCodes((current) => ({ ...current, [s.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
-                                      <Button size="sm" className="h-8 px-2 text-xs" disabled={!attendanceWindowOpen || joining === s.id} onClick={() => void confirmInPersonCode(s.id)}>تأكيد الحضور</Button>
-                                      {!attendanceWindowOpen && <span className="text-[10px] text-muted-foreground">يتاح إدخال الرمز من بداية الحصة ولمدة 15 دقيقة</span>}
-                                    </div>
+                                  : <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" disabled={!attendanceWindowOpen} onClick={(event) => { event.stopPropagation(); setAttendanceCodeTarget(s); }}>
+                                      إدخال كود الحضور
+                                    </Button>
                               )}
                               {live ? (
                                 <Badge className="bg-secondary/15 text-secondary border-0 text-[10px] animate-pulse">جارية الآن</Badge>
@@ -621,6 +632,13 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                              )}
                           </div>
                           <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0">
+                            {role === "teacher" && s.delivery_mode === "in_person" && confirmed && (
+                              teacherAttendanceCodes[s.id]
+                                ? <span className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-black tracking-[0.3em] text-amber-900">رمز الحضور: {teacherAttendanceCodes[s.id]}</span>
+                                : <Button size="sm" variant="outline" className="h-8 text-[10px]" disabled={loadingTeacherCode === s.id} onClick={() => void showTeacherAttendanceCode(s.id)}>
+                                    {loadingTeacherCode === s.id ? "جارٍ تحميل الرمز..." : "عرض كود الحضور"}
+                                  </Button>
+                            )}
                             <Button size="sm" variant="outline" className="h-8 min-w-0 flex-1 rounded-lg gap-1 px-2.5 text-[10px] relative sm:flex-none" onClick={() => navigate(`/chat?booking=${s.id}`)}>
                               <MessageSquare className="h-3.5 w-3.5" />
                               محادثة
@@ -672,6 +690,21 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
           fetchRows();
         }}
       />
+
+      <Dialog open={role === "student" && Boolean(attendanceCodeTarget)} onOpenChange={(open) => !open && setAttendanceCodeTarget(null)}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>إدخال كود الحضور</DialogTitle>
+            <DialogDescription>أدخل الرمز المكوّن من أربعة أرقام الذي أعطاك إياه المعلم للحصة الحضورية.</DialogDescription>
+          </DialogHeader>
+          <p className="text-sm font-semibold">{attendanceCodeTarget?.subject_name} · {attendanceCodeTarget?.other_name}</p>
+          <input aria-label="كود الحضور المكوّن من أربعة أرقام" inputMode="numeric" maxLength={4} autoFocus placeholder="••••" className="h-12 rounded-xl border bg-background text-center text-lg tracking-[0.5em]" value={attendanceCodeTarget ? attendanceCodes[attendanceCodeTarget.id] || "" : ""} onChange={(event) => attendanceCodeTarget && setAttendanceCodes((current) => ({ ...current, [attendanceCodeTarget.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAttendanceCodeTarget(null)}>إلغاء</Button>
+            <Button disabled={!attendanceCodeTarget || (attendanceCodes[attendanceCodeTarget.id] || "").length !== 4 || joining === attendanceCodeTarget?.id} onClick={() => attendanceCodeTarget && void confirmInPersonCode(attendanceCodeTarget.id)}>تأكيد الحضور</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={role === "student" && !!studentCancelTarget}
