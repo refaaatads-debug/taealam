@@ -89,16 +89,22 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
   const fetchRequests = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("booking_requests" as any)
-      .select("*")
-      .eq("status", "open")
-      .order("scheduled_at", { ascending: true });
+    const [{ data }, { data: rejectedIds, error: rejectedError }] = await Promise.all([
+      supabase.from("booking_requests" as any).select("*").eq("status", "open").order("scheduled_at", { ascending: true }),
+      supabase.rpc("list_my_booking_request_rejection_ids" as any),
+    ]);
+    if (rejectedError) {
+      toast.error("تعذر تحميل الطلبات التي رفضتها. أعد تحميل الصفحة.");
+      setRequests([]);
+      return;
+    }
+    const rejected = new Set((rejectedIds || []) as string[]);
 
     if (!data || data.length === 0) { setRequests([]); return; }
 
     const now = Date.now();
     const validData = (data as any[]).filter((r: any) => {
+      if (rejected.has(r.id)) return false;
       if (!r.expires_at) return true;
       return new Date(r.expires_at).getTime() > now;
     });

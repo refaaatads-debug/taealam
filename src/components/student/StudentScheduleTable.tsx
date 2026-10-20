@@ -27,6 +27,7 @@ interface BookingRow {
   duration_minutes: number;
   status: string;
   session_status?: string | null;
+  delivery_mode?: "online" | "in_person" | null;
   teacher_name?: string;
   subject_name?: string;
   teacher_id?: string;
@@ -132,7 +133,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, teacher_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
+      .select("id, scheduled_at, duration_minutes, status, session_status, delivery_mode, teacher_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
       .eq("student_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
@@ -179,6 +180,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
         duration_minutes: b.duration_minutes,
         status: b.status,
         session_status: b.session_status,
+        delivery_mode: b.delivery_mode,
         teacher_id: b.teacher_id,
         teacher_name: profileMap.get(b.teacher_id) || "معلم",
         subject_name: (b.subjects as any)?.name || "مادة",
@@ -576,7 +578,14 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                                 const isLive = liveSessionIds.has(b.id);
                                 return (
                                   <tr key={b.id} className={`border-b border-border/20 transition-colors ${isLive ? "bg-secondary/10" : b.status === "completed" ? "bg-destructive/5" : "hover:bg-muted/50"}`}>
-                                    <td className="py-2.5 px-3 text-muted-foreground">{b.subject_name}</td>
+                                    <td className="py-2.5 px-3 text-muted-foreground">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span>{b.subject_name}</span>
+                                        <Badge variant="outline" className={b.delivery_mode === "in_person" ? "border-amber-300 bg-amber-50 text-amber-800 text-[10px]" : "border-sky-200 bg-sky-50 text-sky-800 text-[10px]"}>
+                                          {b.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}
+                                        </Badge>
+                                      </div>
+                                    </td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
                                     <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>

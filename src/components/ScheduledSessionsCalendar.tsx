@@ -46,6 +46,7 @@ interface Row {
   other_id: string;
   session_status?: string | null;
   status?: string | null;
+  delivery_mode?: "online" | "in_person" | null;
 }
 
 interface Props {
@@ -107,7 +108,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     const otherCol = role === "student" ? "teacher_id" : "student_id";
     const { data } = await supabase
       .from("bookings")
-      .select(`id, scheduled_at, duration_minutes, session_status, status, ${otherCol}, subject_id, subjects(name)`)
+      .select(`id, scheduled_at, duration_minutes, session_status, status, delivery_mode, ${otherCol}, subject_id, subjects(name)`)
       .eq(filterCol, user.id)
       .in("status", ["confirmed", "pending"]) // exclude cancelled / completed
       .gte("scheduled_at", new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString())
@@ -133,6 +134,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
         duration_minutes: b.duration_minutes,
         session_status: b.session_status,
         status: b.status,
+        delivery_mode: b.delivery_mode,
         subject_id: b.subject_id,
         subject_name: (b.subjects as any)?.name || "—",
         other_id: b[otherCol],

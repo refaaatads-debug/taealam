@@ -21,6 +21,7 @@ export default function InPersonTeacherPanel() {
   const [enabled, setEnabled] = useState(false);
   const [cityStatus, setCityStatus] = useState<CityStatus | null>(null);
   const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -54,6 +55,17 @@ export default function InPersonTeacherPanel() {
     else { toast.success("تم قبول الحصة وتأكيد الموعد"); await refresh(); }
   };
 
+  const reject = async (request: RequestRow) => {
+    setRejecting(request.request_group_id);
+    const { data, error } = await supabase.rpc("reject_in_person_request" as any, {
+      p_request_group_id: request.request_group_id,
+    });
+    setRejecting(null);
+    if (error) toast.error(error.message || "تعذر رفض الطلب");
+    else if (!data) toast.info("تمت معالجة الطلب أو انتهت مهلة القبول");
+    else { toast.success("تم رفض الطلب؛ سيظل متاحاً للمعلمين الآخرين"); await refresh(); }
+  };
+
   const showCode = async (bookingId: string) => {
     setBusy(true);
     const { data, error } = await supabase.rpc("get_in_person_attendance_code" as any, { p_booking_id: bookingId });
@@ -74,7 +86,12 @@ export default function InPersonTeacherPanel() {
           {requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات جديدة ضمن نطاقك.</p>}
           {requests.map((request) => <div key={request.request_group_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
             <div><strong>{request.subject_name} · {request.student_name}</strong><div className="text-sm text-muted-foreground">{request.city_name} · {new Date(request.scheduled_at).toLocaleString("ar-SA")}</div></div>
-            <Button disabled={busy} onClick={() => accept(request)}>قبول الحصة</Button>
+             <div className="flex gap-2">
+               <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" disabled={busy || rejecting === request.request_group_id} onClick={() => void reject(request)}>
+                 {rejecting === request.request_group_id ? "جارٍ الرفض..." : "رفض الطلب"}
+               </Button>
+               <Button disabled={busy || Boolean(rejecting)} onClick={() => accept(request)}>قبول الحصة</Button>
+             </div>
           </div>)}
         </section>
         <section className="space-y-2 border-t pt-4">

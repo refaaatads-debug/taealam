@@ -21,6 +21,7 @@ interface UpcomingRow {
   other_name: string;
   other_id: string;
   session_status?: string | null;
+  delivery_mode?: "online" | "in_person" | null;
 }
 
 interface Props {
@@ -86,7 +87,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
     const otherCol = role === "student" ? "teacher_id" : "student_id";
     const { data } = await supabase
       .from("bookings")
-      .select(`id, scheduled_at, duration_minutes, session_status, ${otherCol}, subject_id, subjects(name)`)
+      .select(`id, scheduled_at, duration_minutes, session_status, delivery_mode, ${otherCol}, subject_id, subjects(name)`)
       .eq(filterCol, user.id)
       .in("status", ["confirmed", "pending"])
       .gte("scheduled_at", new Date(Date.now() - 30 * 60_000).toISOString())
@@ -111,6 +112,7 @@ export default function UpcomingSessionsTable({ role }: Props) {
         scheduled_at: b.scheduled_at,
         duration_minutes: b.duration_minutes,
         session_status: b.session_status,
+        delivery_mode: b.delivery_mode,
         subject_name: (b.subjects as any)?.name || "—",
         other_id: b[otherCol],
         other_name: nameMap.get(b[otherCol]) || (role === "student" ? "معلم" : "طالب"),
@@ -308,6 +310,9 @@ export default function UpcomingSessionsTable({ role }: Props) {
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <BookOpen className="h-3.5 w-3.5" />
                           {r.subject_name}
+                          <Badge variant="outline" className={r.delivery_mode === "in_person" ? "border-amber-300 bg-amber-50 text-amber-800 text-[10px]" : "border-sky-200 bg-sky-50 text-sky-800 text-[10px]"}>
+                            {r.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}
+                          </Badge>
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-muted-foreground text-xs">
