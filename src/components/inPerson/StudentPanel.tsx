@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
@@ -35,6 +36,7 @@ export default function InPersonStudentPanel() {
   const [cityUnavailableMessage, setCityUnavailableMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string } | null>(null);
 
   const refreshRequests = useCallback(async () => {
     if (!user) return;
@@ -134,11 +136,20 @@ export default function InPersonStudentPanel() {
         setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${city} حاليًا. يمكنك حجز حصة أونلاين.`);
         setSearchError("");
       } else {
-        toast.error(error.message || "تعذر إرسال طلب الحصة");
+        toast.error(
+          error.message?.includes("already has an online lesson")
+            ? "لديك حصة أونلاين في هذا الموعد. اختر وقتاً آخر."
+            : error.message || "تعذر إرسال طلب الحصة"
+        );
       }
       return;
     }
-    toast.success("تم إرسال الطلب وحجز 100 دقيقة مؤقتاً حتى القبول أو انتهاء المهلة");
+    setBookingSuccess({
+      subject: subjects.find((subject) => subject.id === subjectId)?.name || "المادة المختارة",
+      teacherCount: selectedTeachers.length,
+      scheduledAt: scheduled.toISOString(),
+    });
+    setSelectedTeachers([]);
     await refreshRequests();
   };
 
@@ -183,6 +194,29 @@ export default function InPersonStudentPanel() {
         <p className="text-sm text-muted-foreground">مدة التدريس 60 دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Dialog open={Boolean(bookingSuccess)} onOpenChange={(open) => !open && setBookingSuccess(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>تم إرسال طلبك بنجاح! 🎉</DialogTitle>
+              <DialogDescription>
+                تم إرسال طلب حصة حضورية إلى {bookingSuccess?.teacherCount} معلم متخصص في {bookingSuccess?.subject}.
+                تم حجز الرصيد مؤقتاً حتى القبول أو انتهاء المهلة.
+              </DialogDescription>
+            </DialogHeader>
+            {bookingSuccess && (
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                {new Date(bookingSuccess.scheduledAt).toLocaleString("ar-SA", { weekday: "long", hour: "numeric", minute: "2-digit" })}
+                <div className="mt-1 text-muted-foreground">
+                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · 60 دقيقة · {bookingSuccess.subject}
+                </div>
+              </div>
+            )}
+            <DialogFooter className="gap-2 sm:justify-center">
+              <Button variant="outline" onClick={() => setBookingSuccess(null)}>حجز حصة أخرى</Button>
+              <Button asChild><Link to="/student">متابعة للوحة الطالب</Link></Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         {loadError && <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">تعذر تحميل بيانات المدن أو العناوين. أعد المحاولة قبل المتابعة. <Button size="sm" variant="outline" className="ms-2" onClick={() => setReloadKey((value) => value + 1)}>إعادة المحاولة</Button></div>}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm">المدينة

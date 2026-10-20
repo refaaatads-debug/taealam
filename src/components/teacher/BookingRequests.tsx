@@ -353,7 +353,12 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
       fetchRequests();
     } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+      const message = String(e?.message || "");
+      toast.error(
+        message.includes("already has an in-person lesson")
+          ? "تعارض موعد: لديك حصة حضورية في هذا الوقت."
+          : message || "حدث خطأ"
+      );
       fetchRequests();
     } finally {
       setAccepting(null);

@@ -335,7 +335,7 @@ const Booking = () => {
         const scheduled = new Date(day);
         scheduled.setHours(hour, 0, 0, 0);
         return { ...slot, scheduled };
-      }).filter(Boolean) as typeof selectedSlots[0] & { scheduled: Date }[];
+      }).filter(Boolean) as Array<(typeof selectedSlots)[number] & { scheduled: Date }>;
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const subjectName = (directTeacherId ? teacherSubjects : subjects).find(s => s.id === selectedSubject)?.name || "مادة";
@@ -425,7 +425,12 @@ const Booking = () => {
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setStep(3);
     } catch (e: any) {
-      toast.error(e.message || "حدث خطأ أثناء إرسال الطلب");
+      const message = String(e?.message || "");
+      toast.error(
+        message.includes("already has an in-person lesson")
+          ? "لديك حصة حضورية في هذا الموعد. اختر وقتاً آخر."
+          : message || "حدث خطأ أثناء إرسال الطلب"
+      );
     } finally {
       setLoading(false);
     }

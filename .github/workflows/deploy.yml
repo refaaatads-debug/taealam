@@ -73,7 +73,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Build and activate on VPS using the verified dependency cache
@@ -157,6 +157,7 @@ jobs:
             test -n "$db_container"
             docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
             docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql"
+            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql"
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"
             chmod 700 "$policy_backup_dir"

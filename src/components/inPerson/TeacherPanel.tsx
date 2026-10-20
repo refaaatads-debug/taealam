@@ -4,9 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 
 type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string };
-type BookingRow = { id: string; scheduled_at: string; subject_name?: string; subjects?: { name: string } | null };
+type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; subjects?: { name: string } | null };
 type EarningRow = { booking_id: string; amount: number; status: string; available_at: string; scheduled_at: string };
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
@@ -19,6 +20,7 @@ export default function InPersonTeacherPanel() {
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [cityStatus, setCityStatus] = useState<CityStatus | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -27,7 +29,7 @@ export default function InPersonTeacherPanel() {
     setEnabled(true);
     const [{ data: incoming, error }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
       supabase.rpc("list_teacher_in_person_requests" as any),
-      supabase.from("bookings" as any).select("id,scheduled_at,subjects(name)")
+      supabase.from("bookings" as any).select("id,student_id,scheduled_at,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
       supabase.rpc("list_my_in_person_teacher_earnings" as any),
@@ -37,7 +39,7 @@ export default function InPersonTeacherPanel() {
       if (!error.message.toLowerCase().includes("pilot")) toast.error(error.message);
       setRequests([]);
     } else setRequests((incoming || []) as RequestRow[]);
-    setBookings((upcoming || []) as BookingRow[]);
+    setBookings((upcoming || []) as unknown as BookingRow[]);
     setEarnings((earningRows || []) as EarningRow[]);
     setCityStatus(((cityRows || [])[0] as CityStatus | undefined) || null);
   }, [user]);
@@ -58,14 +60,6 @@ export default function InPersonTeacherPanel() {
     setBusy(false);
     if (error) toast.error(error.message || "سيظهر الرمز قبل الموعد بساعة");
     else setCodes((current) => ({ ...current, [bookingId]: data as string }));
-  };
-
-  const cancel = async (bookingId: string) => {
-    setBusy(true);
-    const { error } = await supabase.rpc("cancel_in_person_booking" as any, { p_booking_id: bookingId, p_reason: "teacher_cancelled" });
-    setBusy(false);
-    if (error) toast.error(error.message || "تعذر إلغاء الحصة");
-    else { toast.success("تم الإلغاء وإعادة الرصيد كاملاً للطالب"); await refresh(); }
   };
 
   if (!enabled) return null;
@@ -89,7 +83,7 @@ export default function InPersonTeacherPanel() {
             <div><strong>{booking.subjects?.name || "حصة حضورية"}</strong><div className="text-sm text-muted-foreground">{new Date(booking.scheduled_at).toLocaleString("ar-SA")}</div>
               {codes[booking.id] && <div className="mt-2 text-lg font-bold tracking-[0.3em]">{codes[booking.id]}</div>}
             </div>
-            <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button><Button size="sm" variant="destructive" disabled={busy} onClick={() => cancel(booking.id)}>إلغاء</Button></div>
+            <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button><Button size="sm" variant="destructive" disabled={busy} onClick={() => setCancelTarget(booking)}>إلغاء</Button></div>
           </div>)}
         </section>
         <section className="space-y-2 border-t pt-4">
@@ -101,6 +95,14 @@ export default function InPersonTeacherPanel() {
           </div>)}
         </section>
       </CardContent>
+      <CancelSessionDialog
+        open={Boolean(cancelTarget)}
+        onOpenChange={(open) => !open && setCancelTarget(null)}
+        bookingId={cancelTarget?.id ?? null}
+        studentId={cancelTarget?.student_id}
+        deliveryMode="in_person"
+        onCancelled={() => { setCancelTarget(null); void refresh(); }}
+      />
     </Card>
   );
 }

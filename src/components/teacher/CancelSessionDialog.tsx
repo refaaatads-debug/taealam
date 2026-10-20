@@ -21,6 +21,7 @@ interface Props {
   bookingId: string | null;
   studentId?: string | null;
   onCancelled?: () => void;
+  deliveryMode?: "online" | "in_person";
 }
 
 const MONTHLY_LIMIT = 3;
@@ -31,6 +32,7 @@ export default function CancelSessionDialog({
   bookingId,
   studentId,
   onCancelled,
+  deliveryMode = "online",
 }: Props) {
   const { user, profile } = useAuth();
   const [reason, setReason] = useState("");
@@ -69,19 +71,26 @@ export default function CancelSessionDialog({
     try {
       const now = new Date().toISOString();
       const trimmedReason = reason.trim();
-      const { error: updateErr } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          session_status: "cancelled",
-          cancellation_reason: trimmedReason,
-          cancelled_at: now,
-          cancelled_by: user.id,
-        } as any)
-        .eq("id", bookingId)
-        .eq("teacher_id", user.id);
-
-      if (updateErr) throw updateErr;
+      if (deliveryMode === "in_person") {
+        const { error } = await supabase.rpc("cancel_in_person_booking" as any, {
+          p_booking_id: bookingId,
+          p_reason: trimmedReason,
+        });
+        if (error) throw error;
+      } else {
+        const { error: updateErr } = await supabase
+          .from("bookings")
+          .update({
+            status: "cancelled",
+            session_status: "cancelled",
+            cancellation_reason: trimmedReason,
+            cancelled_at: now,
+            cancelled_by: user.id,
+          } as any)
+          .eq("id", bookingId)
+          .eq("teacher_id", user.id);
+        if (updateErr) throw updateErr;
+      }
 
       const newCount = monthCount + 1;
       const { data: notifyAdminsData, error: notifyAdminsError } = await supabase.functions.invoke("send-notification", {

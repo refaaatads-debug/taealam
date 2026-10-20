@@ -252,9 +252,6 @@ export default function GoogleMapLocationPicker({
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const point = { lat: coords.latitude, lng: coords.longitude };
-        mapRef.current?.setCenter(point);
-        mapRef.current?.setZoom(16);
-        markerRef.current?.setPosition(point);
         geocoderRef.current?.geocode({ location: point }, (results: any[], status: string) => {
           if (status === "OK" && results?.[0]) {
             const location = locationFromResult(results[0], point.lat, point.lng);
@@ -263,6 +260,9 @@ export default function GoogleMapLocationPicker({
               toast.error("لم يتم تحديد موقع داخل المملكة العربية السعودية.");
               return;
             }
+            mapRef.current?.setCenter(point);
+            mapRef.current?.setZoom(16);
+            markerRef.current?.setPosition(point);
             setSearch(location.formattedAddress);
             setSearchResults([]);
             onChange(location);
@@ -278,7 +278,7 @@ export default function GoogleMapLocationPicker({
           toast.error("تعذر تحديد موقعك. ابحث عن العنوان يدوياً أو حرّك العلامة على الخريطة.");
         }
       },
-      { enableHighAccuracy: true, timeout: 12000 },
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 },
     );
   };
 
