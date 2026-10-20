@@ -366,7 +366,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   }
 
   return (
-    <Card className="border-0 shadow-card">
+    <Card id={role === "student" ? "student-daily-schedule" : undefined} className="border-0 shadow-card">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg flex items-center gap-2 font-bold">
@@ -570,7 +570,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                   // The teacher starts it from the pre-join screen; the student
                   // waits there until the teacher changes the status to live.
                   const closed = s.session_status === "completed" || s.session_status === "cancelled";
-                  const canEnterSession = live || (confirmed && !waitingAcceptance && !closed);
+                  const canEnterSession = s.delivery_mode !== "in_person" && (live || (confirmed && !waitingAcceptance && !closed));
+                  const attendanceWindowOpen = now >= new Date(s.scheduled_at).getTime()
+                    && now < new Date(s.scheduled_at).getTime() + 15 * 60_000;
                   const isJoining = joining === s.id;
                   const unread = unreadCounts[s.id] || 0;
                   return (
@@ -595,12 +597,11 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                               {role === "student" && s.delivery_mode === "in_person" && s.status === "confirmed" && (
                                 attendanceConfirmed.has(s.id)
                                   ? <Badge className="mt-2 bg-green-100 text-green-800 border-0 text-[10px]">تم تأكيد الحضور</Badge>
-                                  : now >= new Date(s.scheduled_at).getTime() && now < new Date(s.scheduled_at).getTime() + 15 * 60_000
-                                    ? <div className="mt-2 flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                                      <input aria-label={`رمز حضور الحصة ${s.subject_name}`} inputMode="numeric" maxLength={4} placeholder="رمز الحضور" className="h-8 w-28 rounded-md border bg-background px-2 text-center text-xs tracking-widest" value={attendanceCodes[s.id] || ""} onChange={(event) => setAttendanceCodes((current) => ({ ...current, [s.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
-                                      <Button size="sm" className="h-8 px-2 text-xs" disabled={joining === s.id} onClick={() => void confirmInPersonCode(s.id)}>تأكيد الحضور</Button>
+                                  : <div className="mt-2 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                                      <input aria-label={`رمز حضور الحصة ${s.subject_name}`} inputMode="numeric" maxLength={4} placeholder={attendanceWindowOpen ? "أدخل رمز الحضور" : "رمز الحضور عند بدء الحصة"} disabled={!attendanceWindowOpen} className="h-8 w-40 rounded-md border bg-background px-2 text-center text-xs tracking-widest disabled:cursor-not-allowed disabled:opacity-70" value={attendanceCodes[s.id] || ""} onChange={(event) => setAttendanceCodes((current) => ({ ...current, [s.id]: event.target.value.replace(/\D/g, "").slice(0, 4) }))} />
+                                      <Button size="sm" className="h-8 px-2 text-xs" disabled={!attendanceWindowOpen || joining === s.id} onClick={() => void confirmInPersonCode(s.id)}>تأكيد الحضور</Button>
+                                      {!attendanceWindowOpen && <span className="text-[10px] text-muted-foreground">يتاح إدخال الرمز من بداية الحصة ولمدة 15 دقيقة</span>}
                                     </div>
-                                    : <span className="mt-2 block text-xs text-muted-foreground">يظهر إدخال الرمز عند بداية الحصة</span>
                               )}
                               {live ? (
                                 <Badge className="bg-secondary/15 text-secondary border-0 text-[10px] animate-pulse">جارية الآن</Badge>

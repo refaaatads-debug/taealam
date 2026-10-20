@@ -331,7 +331,7 @@ const StudentDashboard = () => {
               <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15">
-                    {nextClass.session_status === "in_progress" ? <Video className="h-6 w-6" /> : <CalendarDays className="h-6 w-6" />}
+                    {nextClass.delivery_mode !== "in_person" && nextClass.session_status === "in_progress" ? <Video className="h-6 w-6" /> : <CalendarDays className="h-6 w-6" />}
                   </div>
                   <div>
                     <p className="text-[11px] font-bold text-white/70">{nextClass.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
@@ -339,11 +339,15 @@ const StudentDashboard = () => {
                     <p className="mt-1 text-xs text-white/75">مع {nextClass.teacher_name || "المعلم"} · {new Date(nextClass.scheduled_at).toLocaleString("ar-SA", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
                 </div>
-                {nextClass.status === "confirmed" && (
+                {nextClass.status === "confirmed" && (nextClass.delivery_mode === "in_person" ? (
+                  <Button className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90" onClick={() => document.getElementById("student-daily-schedule")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                    إدخال رمز الحضور <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                ) : (
                   <Button asChild className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
                     <Link to={`/session?booking=${nextClass.id}`}>انضم للجلسة <ArrowLeft className="h-4 w-4" /></Link>
                   </Button>
-                )}
+                ))}
               </CardContent>
             </Card>
           </motion.div>
