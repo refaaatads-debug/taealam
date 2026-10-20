@@ -62,6 +62,7 @@ jobs:
         run: bun run build
         env:
           VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAE9pV6wv3lWICbVL
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
       - name: Transfer built site
         uses: appleboy/scp-action@v0.1.7
         with:

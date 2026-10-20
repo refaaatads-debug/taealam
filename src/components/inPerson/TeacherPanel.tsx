@@ -16,8 +16,6 @@ export default function InPersonTeacherPanel() {
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [earnings, setEarnings] = useState<EarningRow[]>([]);
   const [busy, setBusy] = useState(false);
-  const [cities, setCities] = useState<{ id: string; name_ar: string }[]>([]);
-  const [location, setLocation] = useState({ city_id: "", latitude: "", longitude: "", radius: "10" });
   const [enabled, setEnabled] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -41,40 +39,6 @@ export default function InPersonTeacherPanel() {
   }, [user]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!user) return;
-    void (async () => {
-      const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
-      if (!pilotEnabled) return;
-      const [cityResult, profileResult] = await Promise.all([
-      supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar"),
-      supabase.from("teacher_profiles" as any)
-        .select("city_id,in_person_latitude,in_person_longitude,in_person_service_radius_km")
-        .eq("user_id", user.id).maybeSingle(),
-      ]);
-      setCities((cityResult.data || []) as { id: string; name_ar: string }[]);
-      if (profileResult.data) setLocation({
-        city_id: profileResult.data.city_id || "",
-        latitude: profileResult.data.in_person_latitude?.toString() || "",
-        longitude: profileResult.data.in_person_longitude?.toString() || "",
-        radius: profileResult.data.in_person_service_radius_km?.toString() || "10",
-      });
-    })();
-  }, [user]);
-
-  const submitLocation = async () => {
-    setBusy(true);
-    const { error } = await supabase.rpc("set_in_person_teacher_location" as any, {
-      p_city_id: location.city_id,
-      p_latitude: Number(location.latitude),
-      p_longitude: Number(location.longitude),
-      p_service_radius_km: Number(location.radius),
-    });
-    setBusy(false);
-    if (error) toast.error(error.message || "تعذر إرسال موقع الخدمة");
-    else toast.success("تم حفظ نطاق الخدمة وإرسال الطلب لمراجعة الإدارة");
-  };
 
   const accept = async (request: RequestRow) => {
     setBusy(true);
@@ -105,19 +69,6 @@ export default function InPersonTeacherPanel() {
     <Card>
       <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">يُغلق القبول قبل الموعد بساعة. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p></CardHeader>
       <CardContent className="space-y-5">
-        <section className="space-y-3 rounded-lg border p-3">
-          <h3 className="font-semibold">موقع التدريس ونطاق الخدمة</h3>
-          <p className="text-xs text-muted-foreground">أدخل إحداثيات نقطة الانطلاق؛ لن يظهر ملفك للطلاب قبل اعتماد الإدارة للموقع والطلب.</p>
-          <div className="grid gap-2 sm:grid-cols-4">
-            <select className="h-10 rounded-md border bg-background px-2 text-sm" value={location.city_id} onChange={(e) => setLocation({ ...location, city_id: e.target.value })}>
-              <option value="">المدينة</option>{cities.map((city) => <option key={city.id} value={city.id}>{city.name_ar}</option>)}
-            </select>
-            <input aria-label="خط العرض" className="h-10 rounded-md border bg-background px-3 text-sm" type="number" step="any" placeholder="خط العرض" value={location.latitude} onChange={(e) => setLocation({ ...location, latitude: e.target.value })} />
-            <input aria-label="خط الطول" className="h-10 rounded-md border bg-background px-3 text-sm" type="number" step="any" placeholder="خط الطول" value={location.longitude} onChange={(e) => setLocation({ ...location, longitude: e.target.value })} />
-            <input aria-label="نطاق الخدمة بالكيلومتر" className="h-10 rounded-md border bg-background px-3 text-sm" type="number" min="1" max="100" placeholder="النطاق كم" value={location.radius} onChange={(e) => setLocation({ ...location, radius: e.target.value })} />
-          </div>
-          <Button size="sm" variant="outline" disabled={busy || !location.city_id || !location.latitude || !location.longitude} onClick={submitLocation}>حفظ الموقع وطلب الاعتماد</Button>
-        </section>
         <section className="space-y-2">
           <h3 className="font-semibold">طلبات بانتظارك</h3>
           {requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات جديدة ضمن نطاقك.</p>}

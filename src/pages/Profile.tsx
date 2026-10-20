@@ -14,6 +14,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import GoogleMapLocationPicker, { type MapLocation } from "@/components/profile/GoogleMapLocationPicker";
 
 const Profile = () => {
   const { user, profile, roles, signOut, refreshProfile } = useAuth();
@@ -39,6 +40,13 @@ const Profile = () => {
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null);
   const [loadingTeacher, setLoadingTeacher] = useState(false);
   const [teachingStages, setTeachingStages] = useState<string[]>([]);
+  const [cities, setCities] = useState<{ id: string; name_ar: string }[]>([]);
+  const [mapLocation, setMapLocation] = useState<MapLocation | null>(null);
+  const [teacherLocation, setTeacherLocation] = useState<MapLocation | null>(null);
+  const [teacherRadius, setTeacherRadius] = useState("10");
+  const [teacherApproval, setTeacherApproval] = useState("not_requested");
+  const [savedAddresses, setSavedAddresses] = useState<{ id: string; name: string; city_id: string }[]>([]);
+  const [savingLocation, setSavingLocation] = useState(false);
 
   // Payment details
   const [bankName, setBankName] = useState("");
@@ -61,6 +69,17 @@ const Profile = () => {
 
   useEffect(() => {
     if (!user) return;
+
+    supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar")
+      .then(({ data }) => setCities((data || []) as { id: string; name_ar: string }[]));
+    if (isStudent) {
+      supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false })
+        .then(({ data }) => setSavedAddresses(((data || []) as any[]).map((address) => ({
+          id: address.id,
+          city_id: address.city_id,
+          name: [address.district, address.street_address].filter(Boolean).join(" — "),
+        }))));
+    }
 
     supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry, teaching_stage")
       .eq("user_id", user.id).single().then(({ data }) => {
@@ -90,6 +109,18 @@ const Profile = () => {
           setIban((tp as any).iban || "");
           setAccountHolder((tp as any).account_holder_name || "");
           setTeachingStages((tp as any).teaching_stages || []);
+          setTeacherApproval((tp as any).in_person_approval_status || "not_requested");
+          setTeacherRadius(String((tp as any).in_person_service_radius_km || 10));
+          if ((tp as any).in_person_latitude != null && (tp as any).in_person_longitude != null) {
+            setTeacherLocation({
+              latitude: (tp as any).in_person_latitude,
+              longitude: (tp as any).in_person_longitude,
+              formattedAddress: "",
+              country: "",
+              city: "",
+              street: "",
+            });
+          }
           supabase.from("teacher_subjects").select("subject_id").eq("teacher_id", tp.id).then(({ data: ts }) => {
             if (ts) setTeacherSubjects(ts.map(t => t.subject_id));
           });
@@ -100,6 +131,49 @@ const Profile = () => {
       });
     }
   }, [user, isTeacher]);
+
+  const matchingCityId = (cityName: string) => {
+    const normalized = cityName.trim().toLocaleLowerCase("ar");
+    return cities.find((city) => city.name_ar.trim().toLocaleLowerCase("ar") === normalized)?.id;
+  };
+
+  const saveStudentAddress = async () => {
+    if (!user || !mapLocation) return toast.error("حدد موقع العنوان على الخريطة أولاً.");
+    const cityId = matchingCityId(mapLocation.city);
+    if (!cityId) return toast.error("مدينة العنوان غير موجودة في القائمة المعتمدة. تواصل مع الإدارة لإضافتها.");
+    setSavingLocation(true);
+    const { data, error } = await supabase.from("user_addresses" as any).insert({
+      owner_id: user.id,
+      city_id: cityId,
+      street_address: mapLocation.formattedAddress || mapLocation.street,
+      latitude: mapLocation.latitude,
+      longitude: mapLocation.longitude,
+      is_primary: savedAddresses.length === 0,
+    }).select("id,street_address,district,city_id").single();
+    setSavingLocation(false);
+    if (error || !data) return toast.error(error?.message || "تعذر حفظ العنوان.");
+    const saved = data as any;
+    setSavedAddresses((current) => [{ id: saved.id, city_id: saved.city_id, name: saved.street_address }, ...current]);
+    setMapLocation(null);
+    toast.success("تم حفظ عنوانك. سيبقى هذا العنوان محفوظاً بعد تسجيل الخروج.");
+  };
+
+  const saveTeacherLocation = async () => {
+    if (!teacherLocation) return toast.error("حدد موقع التدريس على الخريطة أولاً.");
+    const cityId = matchingCityId(teacherLocation.city);
+    if (!cityId) return toast.error("مدينة موقع التدريس غير موجودة في القائمة المعتمدة. تواصل مع الإدارة لإضافتها.");
+    setSavingLocation(true);
+    const { error } = await supabase.rpc("set_in_person_teacher_location" as any, {
+      p_city_id: cityId,
+      p_latitude: teacherLocation.latitude,
+      p_longitude: teacherLocation.longitude,
+      p_service_radius_km: Number(teacherRadius),
+    });
+    setSavingLocation(false);
+    if (error) return toast.error(error.message || "تعذر حفظ الموقع وإرسال طلب الاعتماد.");
+    setTeacherApproval("pending");
+    toast.success("تم إرسال موقع التدريس لمراجعة الإدارة. لن يظهر للطلاب قبل الموافقة.");
+  };
 
   const toggleSubject = (subjectId: string) => {
     // Allow only one subject per teacher
@@ -294,6 +368,28 @@ const Profile = () => {
                   </Select>
                 </div>
               )}
+              {isStudent && (
+                <section className="space-y-4 border-t pt-5">
+                  <div>
+                    <h3 className="font-bold">عنوانك للحصص الحضورية</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">احفظ عنوانك هنا، ثم اختر عنوان الزيارة عند طلب الحصة. لا يُشارك العنوان مع المعلم إلا بعد تأكيد الحجز.</p>
+                  </div>
+                  <GoogleMapLocationPicker value={mapLocation} onChange={setMapLocation} />
+                  {mapLocation && <p className="text-xs text-muted-foreground">{[mapLocation.country, mapLocation.city, mapLocation.formattedAddress].filter(Boolean).join(" · ")}</p>}
+                  <Button type="button" onClick={saveStudentAddress} disabled={savingLocation || !mapLocation}>
+                    {savingLocation ? "جارٍ الحفظ…" : "حفظ العنوان"}
+                  </Button>
+                  {savedAddresses.length > 0 && (
+                    <ul className="space-y-2" aria-label="العناوين المحفوظة">
+                      {savedAddresses.map((address) => (
+                        <li key={address.id} className="rounded-lg border p-3 text-sm">
+                          {address.name} <span className="text-muted-foreground">· {cities.find((city) => city.id === address.city_id)?.name_ar || "مدينة محفوظة"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -418,6 +514,34 @@ const Profile = () => {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {isTeacher && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+            <Card className="border-0 shadow-card mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold">موقع التدريس الحضوري</CardTitle>
+                <p className="text-xs text-muted-foreground">يُحفظ موقع الخدمة بشكل خاص. لن يظهر موقعك أو تُفعّل الحصص الحضورية قبل موافقة الإدارة.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <GoogleMapLocationPicker value={teacherLocation} onChange={setTeacherLocation} />
+                {teacherLocation && <p className="text-xs text-muted-foreground">{[teacherLocation.country, teacherLocation.city, teacherLocation.formattedAddress].filter(Boolean).join(" · ")}</p>}
+                <div className="max-w-xs">
+                  <Label htmlFor="teacher-radius">نطاق الخدمة (كم)</Label>
+                  <Input id="teacher-radius" type="number" min="1" max="100" value={teacherRadius} onChange={(event) => setTeacherRadius(event.target.value)} />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant={teacherApproval === "approved" ? "default" : "outline"}>
+                    حالة الاعتماد: {teacherApproval === "approved" ? "معتمد" : teacherApproval === "pending" ? "بانتظار المراجعة" : teacherApproval === "rejected" ? "مرفوض" : "لم يُرسل"}
+                  </Badge>
+                  <Button type="button" variant="outline" disabled={savingLocation || !teacherLocation} onClick={saveTeacherLocation}>
+                    {savingLocation ? "جارٍ الإرسال…" : "حفظ الموقع وإرساله للاعتماد"}
+                  </Button>
+                </div>
+                {cities.length === 0 && <p className="text-xs text-destructive">قائمة المدن المعتمدة فارغة حالياً؛ يلزم تهيئة المدن قبل حفظ المواقع.</p>}
               </CardContent>
             </Card>
           </motion.div>

@@ -8,7 +8,6 @@ import SessionMaterials from "@/components/student/SessionMaterials";
 import StudentScheduleTable from "@/components/student/StudentScheduleTable";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
-import InPersonStudentPanel from "@/components/inPerson/StudentPanel";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -474,7 +473,15 @@ const StudentDashboard = () => {
           <div className="lg:col-span-2 space-y-6">
             <ScheduledSessionsCalendar role="student" />
 
-            <InPersonStudentPanel />
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-bold">تبحث عن حصة حضورية؟</h2>
+                  <p className="text-sm text-muted-foreground">ابدأ طلبك واختر عنوان الزيارة من صفحة البحث.</p>
+                </div>
+                <Button asChild><Link to="/search">الانتقال إلى البحث</Link></Button>
+              </CardContent>
+            </Card>
 
             {/* Booking requests are kept directly below the unified schedule. */}
             <PendingBookingRequests />
