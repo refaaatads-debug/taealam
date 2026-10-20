@@ -1,4 +1,283 @@
-ct", head: true }).eq("status", "pending"),
+import { useState, useEffect } from "react";
+import BrandLoader from "@/components/BrandLoader";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { safeErrorMessage } from "@/lib/safeErrorMessage";
+import {
+  Users, BookOpen, DollarSign, TrendingUp, Search,
+  CheckCircle, XCircle, Shield, BarChart3, Clock,
+  UserCheck, GraduationCap, AlertTriangle, ShieldAlert, FileWarning, FileText, Trash2, Settings,
+  MessageSquare, UserPlus, Activity, CreditCard, TicketCheck, ArrowLeft, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
+import FeaturedTeachersTab from "@/components/admin/FeaturedTeachersTab";
+import DomainSSLTab from "@/components/admin/DomainSSLTab";
+import PlansManagementTab from "@/components/admin/PlansManagementTab";
+import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
+import TeacherPaymentsTab from "@/components/admin/TeacherPaymentsTab";
+import SupportTicketsTab from "@/components/admin/SupportTicketsTab";
+import DateFilter from "@/components/admin/DateFilter";
+import ExportCSVButton from "@/components/admin/ExportCSVButton";
+import StatusFilter from "@/components/admin/StatusFilter";
+import CouponsManagementTab from "@/components/admin/CouponsManagementTab";
+import TeacherPerformanceTab from "@/components/admin/TeacherPerformanceTab";
+import UserManagementTab from "@/components/admin/UserManagementTab";
+import StudentProfilesTab from "@/components/admin/StudentProfilesTab";
+import TeacherProfilesTab from "@/components/admin/TeacherProfilesTab";
+import SessionReportsTab from "@/components/admin/SessionReportsTab";
+import AIAuditTab from "@/components/admin/AIAuditTab";
+import AIModelsManagementTab from "@/components/admin/AIModelsManagementTab";
+import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
+import FinancialHubTab from "@/components/admin/FinancialHubTab";
+import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
+import SessionPricingTab from "@/components/admin/SessionPricingTab";
+import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
+import AdminTeamManagementTab from "@/components/admin/AdminTeamManagementTab";
+import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
+import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
+import ViolationsTab from "@/components/admin/ViolationsTab";
+import SessionsStatusTab from "@/components/admin/SessionsStatusTab";
+import AdvancedAnalyticsTab from "@/components/admin/AdvancedAnalyticsTab";
+import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
+import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
+import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
+import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
+import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
+import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
+import AdminPlatformHealthTab from "@/components/admin/AdminPlatformHealthTab";
+import InPersonAdminPanel from "@/components/inPerson/AdminPanel";
+import AdminPanelErrorBoundary from "@/components/inPerson/AdminPanelErrorBoundary";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { Lock } from "lucide-react";
+
+const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
+
+type OverviewEvent = {
+  id: string;
+  label: string;
+  detail: string;
+  created_at: string;
+  tab: string;
+};
+
+type OverviewSnapshot = {
+  newUsers: number;
+  newTeachers: number;
+  newSupportTickets: number;
+  openSupportTickets: number;
+  newBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  newPayments: number;
+  paymentTotal: number;
+  pendingWithdrawals: number;
+  unreviewedViolations: number;
+  supportMessages: number;
+  recentEvents: OverviewEvent[];
+};
+
+const EMPTY_OVERVIEW: OverviewSnapshot = {
+  newUsers: 0,
+  newTeachers: 0,
+  newSupportTickets: 0,
+  openSupportTickets: 0,
+  newBookings: 0,
+  completedBookings: 0,
+  cancelledBookings: 0,
+  newPayments: 0,
+  paymentTotal: 0,
+  pendingWithdrawals: 0,
+  unreviewedViolations: 0,
+  supportMessages: 0,
+  recentEvents: [],
+};
+
+const TAB_TITLES: Record<string, string> = {
+  overview: "نظرة عامة",
+  users: "إدارة المستخدمين",
+  student_profiles: "ملفات الطلاب",
+  teacher_profiles: "ملفات المعلمين",
+  in_person: "نظرة عامة على التعليم الحضوري",
+  in_person_approvals: "اعتماد المعلمين الحضوريين",
+  in_person_settlements: "تسوية مستحقات الحضوري",
+  in_person_cities: "مدن التعليم الحضوري",
+  teachers: "طلبات تسجيل المعلمين",
+  teacher_performance: "أداء المعلمين",
+  bookings: "إدارة الحجوزات",
+  sessions_status: "حالات الجلسات",
+  session_reports: "تقارير الحصص",
+  session_pricing: "أسعار الحصص",
+  materials_monitor: "مركز مراقبة المواد التعليمية",
+  plans: "إدارة الباقات",
+  coupons: "إدارة الكوبونات",
+  withdrawals: "طلبات سحب الأرباح",
+  teacher_payments: "سجل المدفوعات",
+  teacher_earnings: "الأرباح اليدوية",
+  violations: "المخالفات المكتشفة",
+  call_transcripts: "تفريغ المكالمات الهاتفية",
+  ai_audit: "فحص الذكاء الاصطناعي",
+  ai_models: "نماذج الذكاء الاصطناعي",
+  site: "إدارة المحتوى",
+  support: "الدعم الفني",
+  admin_notifications: "مركز الإشعارات",
+  wallets: "المحافظ والمكالمات",
+  team: "فريق الإدارة وسجل العمليات",
+  advanced_analytics: "التحليلات المتقدمة",
+  featured_teachers: "المدرسون المميزون",
+  financial_hub: "المركز المالي",
+  domain_ssl: "تقرير حالة HTTPS / SSL",
+  platform_health: "صحة المنصة وجودة البيانات",
+};
+
+const AdminDashboard = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const access = useAdminPermissions();
+  const [stats, setStats] = useState({ users: 0, teachers: 0, bookings: 0, revenue: 0, violations: 0, pendingTeachers: 0, completedSessions: 0, cancelledBookings: 0 });
+  const [pendingTeachers, setPendingTeachers] = useState<any[]>([]);
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [violations, setViolations] = useState<any[]>([]);
+  const [violationSearchQuery, setViolationSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [monthlyBookings, setMonthlyBookings] = useState<any[]>([]);
+  const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
+  const [overview, setOverview] = useState<OverviewSnapshot>(EMPTY_OVERVIEW);
+  const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
+  });
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+  const [supportTarget, setSupportTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+
+  // Sync tab when ?tab= changes (e.g. from a notification link)
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t) setActiveTab(t);
+  }, [searchParams]);
+  const [teacherDateFrom, setTeacherDateFrom] = useState("");
+  const [teacherDateTo, setTeacherDateTo] = useState("");
+  const [bookingDateFrom, setBookingDateFrom] = useState("");
+  const [bookingDateTo, setBookingDateTo] = useState("");
+  const [violationDateFrom, setViolationDateFrom] = useState("");
+  const [violationDateTo, setViolationDateTo] = useState("");
+  const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
+  const [violationStatusFilter, setViolationStatusFilter] = useState("all");
+  const [adminVerified, setAdminVerified] = useState(false);
+  const [period, setPeriod] = useState<AdminPeriod>("month");
+
+  useEffect(() => {
+    if (!user) { navigate("/login"); return; }
+    const verifyAdmin = async () => {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!data) { navigate("/login"); } else { setAdminVerified(true); }
+    };
+    verifyAdmin();
+  }, [user, navigate]);
+
+  const fetchBadgeCounts = async () => {
+    const ts = seenTimestamps;
+    let withdrawalsQuery = supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.withdrawals) withdrawalsQuery = withdrawalsQuery.gt("created_at", ts.withdrawals);
+    let supportQuery = supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open");
+    if (ts.support) supportQuery = supportQuery.gt("created_at", ts.support);
+    let bookingsQuery = supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending");
+    if (ts.bookings) bookingsQuery = bookingsQuery.gt("created_at", ts.bookings);
+    let violationsQuery = (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false);
+    if (ts.violations) violationsQuery = violationsQuery.gt("created_at", ts.violations);
+    const [withdrawalsRes, supportRes, pendingBookingsRes, unreviewedRes] = await Promise.all([withdrawalsQuery, supportQuery, bookingsQuery, violationsQuery]);
+    setBadgeCounts({ withdrawals: withdrawalsRes.count ?? 0, support: supportRes.count ?? 0, pendingBookings: pendingBookingsRes.count ?? 0, unreviewed: unreviewedRes.count ?? 0 });
+  };
+
+  const markTabSeen = (tabKey: string) => {
+    const now = new Date().toISOString();
+    const updated = { ...seenTimestamps, [tabKey]: now };
+    setSeenTimestamps(updated);
+    localStorage.setItem("admin_seen_tabs", JSON.stringify(updated));
+  };
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    if (val === "withdrawals") { markTabSeen("withdrawals"); setBadgeCounts(prev => ({ ...prev, withdrawals: 0 })); }
+    if (val === "support") { markTabSeen("support"); setBadgeCounts(prev => ({ ...prev, support: 0 })); }
+    if (val === "bookings") { markTabSeen("bookings"); setBadgeCounts(prev => ({ ...prev, pendingBookings: 0 })); }
+    if (val === "violations") { markTabSeen("violations"); setBadgeCounts(prev => ({ ...prev, unreviewed: 0 })); }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const refresh = () => { fetchBadgeCounts(); fetchData(true); };
+
+    const channels = [
+      supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, refresh),
+      supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, refresh),
+      supabase.channel("admin-bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refresh),
+      supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, refresh),
+      supabase.channel("admin-teacher-profiles").on("postgres_changes", { event: "*", schema: "public", table: "teacher_profiles" }, refresh),
+      supabase.channel("admin-payments").on("postgres_changes", { event: "*", schema: "public", table: "payment_records" }, refresh),
+    ];
+    channels.forEach(ch => ch.subscribe());
+    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const periodStart = getPeriodStart(period);
+      const periodFilterIso = periodStart ? periodStart.toISOString() : null;
+
+      let bookingsCountQ = supabase.from("bookings").select("id", { count: "exact", head: true });
+      let paymentsQ = supabase.from("payment_records").select("amount, created_at").eq("status", "completed");
+      let violationsCountQ = (supabase as any).from("violations").select("id", { count: "exact", head: true });
+      if (periodFilterIso) {
+        bookingsCountQ = bookingsCountQ.gte("created_at", periodFilterIso);
+        paymentsQ = paymentsQ.gte("created_at", periodFilterIso);
+        violationsCountQ = violationsCountQ.gte("created_at", periodFilterIso);
+      }
+
+      const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
+        bookingsCountQ,
+        paymentsQ,
+        violationsCountQ,
+      ]);
+
+      // Operational snapshot: every number here comes from the selected period,
+      // while queue counts (open support, pending withdrawals, violations) are
+      // intentionally current-state counts.
+      const [
+        newUsersRes,
+        newTeachersRes,
+        newSupportRes,
+        openSupportRes,
+        newBookingsRes,
+        completedRes,
+        cancelledRes,
+        newPaymentsRes,
+        pendingWithdrawalsRes,
+        unreviewedViolationsRes,
+        supportMessagesRes,
+      ] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("teacher_profiles").select("user_id, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("support_tickets").select("id, subject, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("support_tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
+        supabase.from("bookings").select("id, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "completed").gte("created_at", periodFilterIso || "1970-01-01"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "cancelled").gte("created_at", periodFilterIso || "1970-01-01"),
+        supabase.from("payment_records").select("amount, created_at", { count: "exact" }).eq("status", "completed").gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        (supabase as any).from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
         (supabase as any).from("violations").select("id", { count: "exact", head: true }).eq("is_reviewed", false),
         supabase.from("support_messages").select("id", { count: "exact", head: true }).gte("created_at", periodFilterIso || "1970-01-01"),
       ]);
