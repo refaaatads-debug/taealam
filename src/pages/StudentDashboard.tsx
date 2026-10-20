@@ -8,6 +8,7 @@ import SessionMaterials from "@/components/student/SessionMaterials";
 import StudentScheduleTable from "@/components/student/StudentScheduleTable";
 import CustomerServiceButton from "@/components/student/CustomerServiceButton";
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
+import InPersonStudentPanel from "@/components/inPerson/StudentPanel";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -472,6 +473,8 @@ const StudentDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <ScheduledSessionsCalendar role="student" />
+
+            <InPersonStudentPanel />
 
             {/* Booking requests are kept directly below the unified schedule. */}
             <PendingBookingRequests />

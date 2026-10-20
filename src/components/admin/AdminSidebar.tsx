@@ -70,6 +70,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "users", title: "إدارة المستخدمين", icon: Users, permission: "manage_users" },
         { id: "student_profiles", title: "ملفات الطلاب", icon: FolderOpen, permission: "manage_student_profiles" },
         { id: "teacher_profiles", title: "ملفات المعلمين", icon: FolderOpen, permission: "manage_teacher_profiles" },
+        { id: "in_person", title: "الحصص الحضورية", icon: CalendarDays, permission: "manage_teacher_profiles" },
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },

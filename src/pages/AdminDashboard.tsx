@@ -54,6 +54,7 @@ import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/adm
 import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
 import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
 import AdminPlatformHealthTab from "@/components/admin/AdminPlatformHealthTab";
+import InPersonAdminPanel from "@/components/inPerson/AdminPanel";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
 
@@ -104,6 +105,7 @@ const TAB_TITLES: Record<string, string> = {
   users: "إدارة المستخدمين",
   student_profiles: "ملفات الطلاب",
   teacher_profiles: "ملفات المعلمين",
+  in_person: "الحصص الحضورية",
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",
   bookings: "إدارة الحجوزات",
@@ -497,6 +499,7 @@ const AdminDashboard = () => {
     users: "manage_users",
     student_profiles: "manage_student_profiles",
     teacher_profiles: "manage_teacher_profiles",
+    in_person: "manage_teacher_profiles",
     teachers: "manage_pending_teachers",
     teacher_performance: "view_teacher_performance",
     featured_teachers: "manage_featured_teachers",
@@ -541,6 +544,7 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
       case "teacher_profiles": return <TeacherProfilesTab />;
+      case "in_person": return <InPersonAdminPanel />;
        case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} openTeacherSupport={openTeacherSupport} />;
        case "bookings": return <AdminBookingsTab />;
       case "sessions_status": return <SessionsStatusTab />;

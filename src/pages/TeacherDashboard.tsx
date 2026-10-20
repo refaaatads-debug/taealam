@@ -13,6 +13,7 @@ import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
 import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
 import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterials";
 import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
+import InPersonTeacherPanel from "@/components/inPerson/TeacherPanel";
 
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -349,6 +350,7 @@ const TeacherDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="lg:col-span-2 space-y-6">
+            <InPersonTeacherPanel />
             <div id="booking-requests"><BookingRequests onAccepted={fetchData} /></div>
             <ScheduledSessionsCalendar role="teacher" />
             <TeacherScheduleTable historyOnly onInstantSessionSent={fetchData} />

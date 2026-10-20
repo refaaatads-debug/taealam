@@ -2955,6 +2955,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_in_person_test_user: {
+        Args: never
+        Returns: boolean
+      }
       list_all_students: {
         Args: never
         Returns: {

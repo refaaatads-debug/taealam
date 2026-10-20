@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
-import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper, Sparkles } from "lucide-react";
+import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper, Sparkles, MapPin, Monitor } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import InPersonStudentPanel from "@/components/inPerson/StudentPanel";
+import { useInPersonFeatureGate } from "@/hooks/useInPersonFeatureGate";
 
 interface TeacherResult {
   id: string;
@@ -50,7 +52,9 @@ const parseTimeSlotHour = (slot: string): number => {
 
 const SearchTeacher = () => {
   const { user } = useAuth();
+  const { enabled: inPersonPilotEnabled } = useInPersonFeatureGate();
   const navigate = useNavigate();
+  const [sessionMode, setSessionMode] = useState<"online" | "in_person">("online");
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("all");
   const [sort, setSort] = useState("rating");
@@ -443,6 +447,39 @@ const SearchTeacher = () => {
       </div>
 
       <div className="container py-6 md:py-8 flex-1">
+        <div className="mb-6 flex flex-wrap items-center gap-3" role="radiogroup" aria-label="طريقة الحصة">
+          <span className="text-sm font-bold">طريقة الحصة:</span>
+          <Button
+            type="button"
+            variant={sessionMode === "online" ? "default" : "outline"}
+            role="radio"
+            aria-checked={sessionMode === "online"}
+            onClick={() => setSessionMode("online")}
+            className="rounded-xl"
+            data-testid="search-mode-online"
+          >
+            <Monitor className="ml-2 h-4 w-4" aria-hidden="true" />
+            عن بُعد
+          </Button>
+          {inPersonPilotEnabled && (
+            <Button
+              type="button"
+              variant={sessionMode === "in_person" ? "default" : "outline"}
+              role="radio"
+              aria-checked={sessionMode === "in_person"}
+              onClick={() => setSessionMode("in_person")}
+              className="rounded-xl"
+              data-testid="search-mode-in-person"
+            >
+              <MapPin className="ml-2 h-4 w-4" aria-hidden="true" />
+              حضوري
+            </Button>
+          )}
+        </div>
+        {sessionMode === "in_person" ? (
+          <InPersonStudentPanel />
+        ) : (
+        <>
         {/* Quick Booking Form - Redesigned */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8">
           {bookingSuccess ? (
@@ -978,6 +1015,8 @@ const SearchTeacher = () => {
               );
             })}
           </div>
+        )}
+        </>
         )}
       </div>
       {!user && <Footer />}
