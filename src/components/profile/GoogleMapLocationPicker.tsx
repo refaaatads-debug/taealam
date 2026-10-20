@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MapPin, Search } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 export interface MapLocation {
@@ -25,7 +24,7 @@ interface Props {
 let mapsLoader: Promise<void> | undefined;
 
 function loadGoogleMaps(apiKey: string) {
-  if (window.google?.maps) return Promise.resolve();
+  if ((window as any).google?.maps) return Promise.resolve();
   if (!mapsLoader) {
     mapsLoader = new Promise<void>((resolve, reject) => {
       const existing = document.querySelector<HTMLScriptElement>("script[data-google-maps]");
@@ -64,6 +63,18 @@ function locationFromResult(result: any, lat: number, lng: number): MapLocation 
   };
 }
 
+function locationFromPlace(place: any, lat: number, lng: number): MapLocation {
+  const addressComponents = (place.addressComponents ?? []).map((part: any) => ({
+    long_name: part.longText ?? part.long_name ?? "",
+    short_name: part.shortText ?? part.short_name ?? "",
+    types: part.types ?? [],
+  }));
+  return locationFromResult({
+    address_components: addressComponents,
+    formatted_address: place.formattedAddress ?? "",
+  }, lat, lng);
+}
+
 export default function GoogleMapLocationPicker({
   value,
   onChange,
@@ -72,7 +83,7 @@ export default function GoogleMapLocationPicker({
   instruction = "اختر المدينة أو العنوان من الاقتراحات، ثم حرّك العلامة لتحديد الموقع بدقة.",
 }: Props) {
   const mapElement = useRef<HTMLDivElement>(null);
-  const searchElement = useRef<HTMLInputElement>(null);
+  const autocompleteContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const geocoderRef = useRef<any>(null);
@@ -91,11 +102,12 @@ export default function GoogleMapLocationPicker({
     }
     loadGoogleMaps(apiKey).then(() => {
       if (!alive || !mapElement.current) return;
+      const maps = (window as any).google.maps;
       const center = {
         lat: value?.latitude ?? 24.7136,
         lng: value?.longitude ?? 46.6753,
       };
-      mapRef.current = new window.google.maps.Map(mapElement.current, {
+      mapRef.current = new maps.Map(mapElement.current, {
         center,
         zoom: value?.latitude != null ? 16 : 11,
         mapTypeControl: false,
@@ -103,12 +115,12 @@ export default function GoogleMapLocationPicker({
         fullscreenControl: false,
         clickableIcons: false,
       });
-      markerRef.current = new window.google.maps.Marker({
+      markerRef.current = new maps.Marker({
         map: mapRef.current,
         position: value?.latitude != null ? center : null,
         draggable: true,
       });
-      geocoderRef.current = new window.google.maps.Geocoder();
+      geocoderRef.current = new maps.Geocoder();
       const resolvePoint = (lat: number, lng: number) => {
         geocoderRef.current.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
           if (status !== "OK" || !results?.[0]) {
@@ -132,31 +144,55 @@ export default function GoogleMapLocationPicker({
         resolvePoint(point.lat, point.lng);
       });
       markerRef.current.addListener("dragend", (event: any) => resolvePoint(event.latLng.lat(), event.latLng.lng()));
-      const autocomplete = new window.google.maps.places.Autocomplete(searchElement.current, {
-        fields: ["address_components", "formatted_address", "geometry"],
-        types: ["geocode"],
-        componentRestrictions: { country: "sa" },
+      const autocomplete = new maps.places.PlaceAutocompleteElement({
+        includedRegionCodes: ["sa"],
       });
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry?.location) {
-          toast.error("اختر مدينة أو عنواناً من نتائج البحث.");
-          return;
-        }
-        const point = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-        mapRef.current.setCenter(point);
-        mapRef.current.setZoom(16);
-        markerRef.current.setPosition(point);
-        const location = locationFromResult(place, point.lat, point.lng);
-        if (location.countryCode !== "SA") {
-          onChange(null);
-          toast.error("اختر موقعاً داخل المملكة العربية السعودية.");
-          return;
-        }
-        setSearch(location.formattedAddress);
+      autocomplete.placeholder = searchPlaceholder;
+      autocomplete.setAttribute("aria-label", searchPlaceholder);
+      autocomplete.value = value?.formattedAddress ?? "";
+      autocomplete.setAttribute("dir", "rtl");
+      autocomplete.style.width = "100%";
+      autocomplete.style.minHeight = "40px";
+      autocomplete.style.border = "1px solid hsl(var(--border))";
+      autocomplete.style.borderRadius = "0.5rem";
+      autocomplete.style.background = "hsl(var(--background))";
+      autocomplete.addEventListener("input", () => {
+        setSearch(autocomplete.value);
         setSearchResults([]);
-        onChange(location);
+        onChange(null);
       });
+      autocomplete.addEventListener("gmp-select", async (event: any) => {
+        setSearching(true);
+        try {
+          const place = event.placePrediction.toPlace();
+          await place.fetchFields({
+            fields: ["addressComponents", "formattedAddress", "location", "types", "viewport"],
+          });
+          if (!place.location) {
+            toast.error("تعذر تحديد إحداثيات نتيجة البحث.");
+            return;
+          }
+          const point = { lat: place.location.lat(), lng: place.location.lng() };
+          mapRef.current.setCenter(point);
+          mapRef.current.setZoom(place.types?.includes("locality") ? 11 : 16);
+          markerRef.current.setPosition(point);
+          const location = locationFromPlace(place, point.lat, point.lng);
+          if (location.countryCode !== "SA") {
+            onChange(null);
+            toast.error("اختر موقعاً داخل المملكة العربية السعودية.");
+            return;
+          }
+          setSearch(location.formattedAddress);
+          autocomplete.value = location.formattedAddress;
+          setSearchResults([]);
+          onChange(location);
+        } catch {
+          toast.error("تعذر تحميل بيانات المكان. تحقق من تفعيل Places API (New) ثم أعد المحاولة.");
+        } finally {
+          setSearching(false);
+        }
+      });
+      autocompleteContainer.current?.replaceChildren(autocomplete);
       setReady(true);
     }).catch((err: Error) => alive && setError(err.message));
     return () => { alive = false; };
@@ -248,23 +284,7 @@ export default function GoogleMapLocationPicker({
 
   return (
     <div className="space-y-2">
-      <label className="relative block">
-        <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={searchElement}
-          value={search}
-          onChange={event => { setSearch(event.target.value); setSearchResults([]); onChange(null); }}
-          onKeyDown={event => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              searchOnMap();
-            }
-          }}
-          placeholder={searchPlaceholder}
-          className="pr-9"
-          aria-label={searchPlaceholder}
-        />
-      </label>
+      <div ref={autocompleteContainer} />
       <Button type="button" variant="outline" size="sm" disabled={!ready || searching || !search.trim()} onClick={searchOnMap}>
         {searching ? "جارٍ البحث في الخريطة…" : "ابحث بالخريطة"}
       </Button>
