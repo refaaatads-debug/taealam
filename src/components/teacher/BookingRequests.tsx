@@ -380,7 +380,12 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
       fetchRequests();
     } catch (e: any) {
-      toast.error(arabicBookingError(e, "تعذر قبول الطلب بسبب تعارض أو مشكلة في الموعد."));
+      const message = String(e?.message || "");
+      toast.error(
+        message.includes("already has an in-person lesson")
+          ? "تعارض موعد: لديك حصة حضورية في هذا الوقت."
+          : arabicBookingError(e, "تعذر قبول الطلب بسبب تعارض أو مشكلة في الموعد.")
+      );
       fetchRequests();
     } finally {
       setAccepting(null);

@@ -103,6 +103,26 @@ describe("shouldAutoExpire", () => {
     });
   });
 
+  describe("in-person bookings", () => {
+    it("never expires an in-person lesson through the online no-show rule", () => {
+      const now = new Date(baseScheduled.getTime() + minutes(1000));
+      expect(shouldAutoExpire({
+        ...baseBooking,
+        delivery_mode: "in_person",
+        session_started: false,
+      }, now)).toBe(false);
+    });
+
+    it("does not expire a lesson whose attendance code was confirmed", () => {
+      const now = new Date(baseScheduled.getTime() + minutes(1000));
+      expect(shouldAutoExpire({
+        ...baseBooking,
+        attendance_confirmed: true,
+        session_started: false,
+      }, now)).toBe(false);
+    });
+  });
+
   describe("late start scenarios (student/teacher delayed)", () => {
     it("a 20-minute late start with no session started yet — still inside grace window", () => {
       // 20 min after scheduled, nothing started; 45+30=75min grace, so we are at 20

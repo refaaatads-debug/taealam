@@ -84,7 +84,8 @@ export default function InPersonStudentPanel() {
   const [cityUnavailableMessage, setCityUnavailableMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string } | null>(null);
+  const [instructionDuration, setInstructionDuration] = useState<45 | 60>(60);
+  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number } | null>(null);
 
   const refreshRequests = useCallback(async () => {
     if (!user) return;
@@ -106,16 +107,24 @@ export default function InPersonStudentPanel() {
       const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
       if (!active || !pilotEnabled) return;
       setEnabled(true);
-      const [cityResult, addressResult, subjectResult] = await Promise.all([
+      const [cityResult, addressResult, subjectResult, durationResult] = await Promise.all([
         supabase.from("cities" as any).select("id,name_ar,in_person_enabled").eq("is_active", true).order("name_ar"),
         supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false }),
         supabase.from("subjects").select("id,name").order("name"),
+        supabase.rpc("get_in_person_instruction_duration" as any),
       ]);
-      if (cityResult.error || addressResult.error || subjectResult.error) {
+      if (cityResult.error || addressResult.error || subjectResult.error || durationResult.error) {
         if (!active) return;
         setLoadError(true);
         return;
       }
+      const savedDuration = Number(durationResult.data);
+      if (savedDuration !== 45 && savedDuration !== 60) {
+        if (!active) return;
+        setLoadError(true);
+        return;
+      }
+      setInstructionDuration(savedDuration);
       setLoadError(false);
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
       setAddresses(((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id })));
@@ -210,7 +219,9 @@ export default function InPersonStudentPanel() {
         setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${city} حاليًا. يمكنك حجز حصة أونلاين.`);
         setSearchError("");
       } else {
-        toast.error(arabicBookingError(error, "تعذر إرسال طلب الحصة. اختر موعدًا آخر ثم حاول مجددًا."));
+        toast.error(error.message?.includes("already has an online lesson")
+          ? "لديك حصة أونلاين في هذا الموعد. اختر وقتاً آخر."
+          : arabicBookingError(error, "تعذر إرسال طلب الحصة. اختر موعدًا آخر ثم حاول مجددًا."));
       }
       return;
     }
@@ -218,6 +229,7 @@ export default function InPersonStudentPanel() {
       subject: subjects.find((subject) => subject.id === subjectId)?.name || "المادة المختارة",
       teacherCount: selectedTeachers.length,
       scheduledAt: scheduled.toISOString(),
+      durationMinutes: instructionDuration,
     });
     setSelectedTeachers([]);
     await refreshRequests();
@@ -261,7 +273,7 @@ export default function InPersonStudentPanel() {
     <Card className="overflow-hidden rounded-2xl border-0 shadow-card">
       <CardHeader className="border-b bg-gradient-to-l from-primary/10 via-background to-secondary/10">
         <CardTitle>الحصص الحضورية</CardTitle>
-        <p className="text-sm text-muted-foreground">مدة التدريس 60 دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
+        <p className="text-sm text-muted-foreground">مدة التدريس {instructionDuration} دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <Dialog open={Boolean(bookingSuccess)} onOpenChange={(open) => !open && setBookingSuccess(null)}>
@@ -277,7 +289,7 @@ export default function InPersonStudentPanel() {
               <div className="rounded-lg border bg-muted/40 p-4 text-sm">
                 {new Date(bookingSuccess.scheduledAt).toLocaleString("ar-SA", { weekday: "long", hour: "numeric", minute: "2-digit" })}
                 <div className="mt-1 text-muted-foreground">
-                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · 60 دقيقة · {bookingSuccess.subject}
+                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · {bookingSuccess.durationMinutes} دقيقة · {bookingSuccess.subject}
                 </div>
               </div>
             )}

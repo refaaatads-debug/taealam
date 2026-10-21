@@ -50,6 +50,8 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
   const [newCityLocation, setNewCityLocation] = useState<MapLocation | null>(null);
   const [financials, setFinancials] = useState<FinancialRow[]>([]);
   const [sessionCounts, setSessionCounts] = useState({ online: 0, inPerson: 0 });
+  const [userId, setUserId] = useState("");
+  const [pilotRole, setPilotRole] = useState("student");
   const [busy, setBusy] = useState(false);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
   const [cityEnabledFilter, setCityEnabledFilter] = useState("all");
@@ -174,9 +176,25 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
     });
     setBusy(false);
     if (error) {
-      toast.error(arabicBookingError(error, "تعذر حفظ اعتماد المعلم الحضوري."));
+      const message = error.message?.includes("Teacher profile must be approved with a complete service location")
+        ? "تعذر تفعيل استقبال الطلبات. يجب اعتماد ملف المعلم الأساسي، واختيار «حضوري» أو «عن بُعد وحضوري»، وحفظ موقع الخدمة ونطاقه من ملف المعلم."
+        : arabicBookingError(error, "تعذر حفظ اعتماد المعلم الحضوري.");
+      toast.error(message);
     }
     else { toast.success("تم تحديث اعتماد الحضوري"); await refresh(); }
+  };
+
+  const setPilot = async (enabled: boolean) => {
+    if (!userId.trim()) return toast.error("أدخل معرّف الحساب الذي تم التحقق منه");
+    setBusy(true);
+    const { error } = await supabase.rpc("admin_set_in_person_tester" as any, {
+      p_user_id: userId.trim(),
+      p_role: pilotRole,
+      p_enabled: enabled,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message || "تعذر تحديث حساب التجربة");
+    else { toast.success(enabled ? "تم تفعيل حساب التجربة المحدد" : "تم إيقاف حساب التجربة"); setUserId(""); }
   };
 
   const saveCity = async () => {
@@ -283,16 +301,24 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
 
       {section === "overview" && <Card className="border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle>إتاحة الحصص الحضورية</CardTitle>
+          <CardTitle>إدارة الحصص الحضورية</CardTitle>
           <p className="text-sm text-muted-foreground">
-            الميزة متاحة لحسابات الطلاب والمعلمين والإدارة بحسب الدور والصلاحيات؛ لا يلزم تفعيل حسابات تجريبية منفردة.
+            إدارة الإتاحة واعتمادات المعلمين والمدن، وإدارة حسابات التجربة للحسابات التي تم التحقق منها فقط.
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <p className="rounded-lg border bg-muted/40 p-3 text-sm leading-6">
             الإتاحة لا تعتمد المعلم أو تفعّل المدن تلقائيًا. يظل الحجز مشروطًا باعتماد المعلم للحضوري،
             وتفعيل المدينة، وتوفر المعلم ومادة التدريس والرصيد، مع تطبيق صلاحيات كل دور.
           </p>
+          <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto_auto]">
+            <input className="h-10 rounded-md border bg-background px-3 text-sm" value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="معرّف الحساب (UUID)" dir="ltr" />
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={pilotRole} onChange={(e) => setPilotRole(e.target.value)}>
+              <option value="student">طالب</option><option value="teacher">معلم</option><option value="admin">إدارة</option>
+            </select>
+            <Button disabled={busy} onClick={() => setPilot(true)}>تفعيل الحساب المحدد</Button>
+            <Button variant="outline" disabled={busy} onClick={() => setPilot(false)}>إيقاف الحساب</Button>
+          </div>
         </CardContent>
       </Card>}
 

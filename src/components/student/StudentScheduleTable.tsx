@@ -135,7 +135,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, delivery_mode, teacher_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
+      .select("id, scheduled_at, duration_minutes, instruction_duration_minutes, status, session_status, delivery_mode, teacher_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
       .eq("student_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
@@ -173,7 +173,9 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
       // Priority: deducted_minutes (trigger, authoritative) → duration_seconds → duration_minutes → wall-clock
       // This order matches TeacherPerformanceTab and SubscriptionDetails for consistency.
       let actualMins: number | null = null;
-      if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
+      if (b.delivery_mode === "in_person" && b.status === "completed") {
+        actualMins = b.instruction_duration_minutes ?? b.duration_minutes;
+      } else if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
         actualMins = sess.deducted_minutes;
       } else if (sess?.duration_seconds && sess.duration_seconds > 0) {
         actualMins = Math.ceil(sess.duration_seconds / 60);
@@ -185,7 +187,9 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
       return {
         id: b.id,
         scheduled_at: b.scheduled_at,
-        duration_minutes: b.duration_minutes,
+        duration_minutes: b.delivery_mode === "in_person"
+          ? (b.instruction_duration_minutes ?? b.duration_minutes)
+          : b.duration_minutes,
         status: b.status,
         session_status: b.session_status,
         delivery_mode: b.delivery_mode,

@@ -126,7 +126,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
     if (!user) return;
     const { data } = await supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, delivery_mode, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
+      .select("id, scheduled_at, duration_minutes, instruction_duration_minutes, status, session_status, delivery_mode, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
       .eq("teacher_id", user.id)
       .in("status", ["confirmed", "completed", "pending", "cancelled"])
       .order("scheduled_at", { ascending: false });
@@ -158,7 +158,9 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
       // Priority: deducted_minutes (trigger, authoritative) → duration_seconds → duration_minutes → wall-clock
       // This order matches TeacherPerformanceTab and SubscriptionDetails for consistency.
       let actualMins: number | null = null;
-      if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
+      if (b.delivery_mode === "in_person" && b.status === "completed") {
+        actualMins = b.instruction_duration_minutes ?? b.duration_minutes;
+      } else if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
         actualMins = sess.deducted_minutes;
       } else if (sess?.duration_seconds && sess.duration_seconds > 0) {
         actualMins = Math.ceil(sess.duration_seconds / 60);
@@ -170,7 +172,9 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
       return {
         id: b.id,
         scheduled_at: b.scheduled_at,
-        duration_minutes: b.duration_minutes,
+        duration_minutes: b.delivery_mode === "in_person"
+          ? (b.instruction_duration_minutes ?? b.duration_minutes)
+          : b.duration_minutes,
         status: b.status,
         session_status: b.session_status,
         delivery_mode: b.delivery_mode,
@@ -269,7 +273,8 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
     setCancelTarget({ id: bookingId, studentId });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, isLive: boolean) => {
+    if (isLive) return <Badge className="bg-secondary/10 text-secondary border-0 text-[10px] animate-pulse">🔴 جارية الآن</Badge>;
     switch (status) {
       case "completed":
         return <Badge className="bg-primary/10 text-primary border-0 text-[10px]">مكتملة</Badge>;
@@ -473,7 +478,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
                                       ? <span className="text-xs text-amber-500/80">جلسة قصيرة</span>
                                       : <span className="text-muted-foreground/40 text-xs">—</span>}
                                 </td>
-                                <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
+                                 <td className="py-2.5 px-3">{getStatusBadge(b.status, liveSessionIds.has(b.id))}</td>
                                 <td className="py-2.5 px-3">
                                   <div className="flex items-center gap-1">
                                     {b.status !== "completed" && b.status !== "cancelled" && (

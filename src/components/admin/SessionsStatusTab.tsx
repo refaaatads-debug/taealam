@@ -22,6 +22,7 @@ interface Row {
   duration_minutes: number;
   status: string;
   session_status?: string | null;
+  delivery_mode?: "online" | "in_person" | null;
   student_id: string;
   teacher_id: string;
   student_name: string;
@@ -113,7 +114,7 @@ export default function SessionsStatusTab() {
     const nowIso = new Date().toISOString();
     let q = supabase
       .from("bookings")
-      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, teacher_id, subject_id, cancellation_reason, subjects(name)")
+      .select("id, scheduled_at, duration_minutes, instruction_duration_minutes, status, session_status, delivery_mode, student_id, teacher_id, subject_id, cancellation_reason, subjects(name)")
       .order("scheduled_at", { ascending: tab === "upcoming" })
       .limit(PAGE_SIZE);
 
@@ -162,9 +163,12 @@ export default function SessionsStatusTab() {
       return {
         id: b.id,
         scheduled_at: b.scheduled_at,
-        duration_minutes: b.duration_minutes,
+        duration_minutes: b.delivery_mode === "in_person"
+          ? (b.instruction_duration_minutes ?? b.duration_minutes)
+          : b.duration_minutes,
         status: b.status,
         session_status: b.session_status,
+        delivery_mode: b.delivery_mode,
         student_id: b.student_id,
         teacher_id: b.teacher_id,
         student_name: nameMap.get(b.student_id) || "—",

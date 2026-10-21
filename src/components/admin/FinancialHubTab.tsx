@@ -25,6 +25,7 @@ interface FinancialSettings {
   auto_close_months_after_days: number;
   large_withdrawal_threshold: number;
   enable_auto_reconciliation: boolean;
+  in_person_instruction_duration_minutes: 45 | 60;
 }
 
 function AuditRow({ a }: { a: any }) {
@@ -254,6 +255,7 @@ export default function FinancialHubTab() {
           auto_close_months_after_days: settings.auto_close_months_after_days,
           large_withdrawal_threshold: settings.large_withdrawal_threshold,
           enable_auto_reconciliation: settings.enable_auto_reconciliation,
+          in_person_instruction_duration_minutes: settings.in_person_instruction_duration_minutes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", settings.id);
@@ -954,6 +956,22 @@ export default function FinancialHubTab() {
                         value={settings.large_withdrawal_threshold}
                         onChange={(e) => setSettings({ ...settings, large_withdrawal_threshold: Number(e.target.value) })}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="in-person-duration">مدة الحصة الحضورية للحجوزات الجديدة</Label>
+                      <select
+                        id="in-person-duration"
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={String(settings.in_person_instruction_duration_minutes ?? 60)}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          in_person_instruction_duration_minutes: Number(e.target.value) as 45 | 60,
+                        })}
+                      >
+                        <option value="45">45 دقيقة</option>
+                        <option value="60">60 دقيقة</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">يثبت الاختيار على الطلب والحجز عند إنشائه، ولا يغيّر الحجوزات السابقة.</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border p-3">

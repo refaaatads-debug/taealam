@@ -1,5 +1,6 @@
 /**
- * Booking expiry logic - mirrors the SQL function `auto_expire_stale_bookings`.
+ * Online-booking expiry logic - mirrors the SQL function
+ * `auto_expire_stale_bookings`. In-person deadlines are processed separately.
  * 
  * A booking is considered "stale" (eligible for auto-cancellation) when:
  *   1. Status is 'pending' or 'confirmed'
@@ -17,6 +18,8 @@ export interface BookingLike {
   status: string;
   scheduled_at: Date | string;
   duration_minutes: number;
+  delivery_mode?: "online" | "in_person";
+  attendance_confirmed?: boolean;
   /** True if a session row exists with started_at !== null */
   session_started?: boolean;
 }
@@ -41,6 +44,12 @@ export function shouldAutoExpire(
   booking: BookingLike,
   now: Date = new Date(),
 ): boolean {
+  // In-person requests have their own attendance-code deadline processor.
+  // They must never be treated as online no-shows.
+  if (booking.delivery_mode === "in_person" || booking.attendance_confirmed === true) {
+    return false;
+  }
+
   // Only pending/confirmed bookings are candidates
   if (booking.status !== "pending" && booking.status !== "confirmed") {
     return false;

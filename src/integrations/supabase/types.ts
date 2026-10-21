@@ -421,6 +421,9 @@ export type Database = {
           cancelled_by: string | null
           created_at: string
           duration_minutes: number
+          delivery_mode: "online" | "in_person"
+          instruction_duration_minutes: number | null
+          attendance_confirmed_at: string | null
           id: string
           meeting_link: string | null
           notes: string | null
@@ -441,6 +444,9 @@ export type Database = {
           cancelled_by?: string | null
           created_at?: string
           duration_minutes?: number
+          delivery_mode?: string
+          instruction_duration_minutes?: number | null
+          attendance_confirmed_at?: string | null
           id?: string
           meeting_link?: string | null
           notes?: string | null
@@ -461,6 +467,9 @@ export type Database = {
           cancelled_by?: string | null
           created_at?: string
           duration_minutes?: number
+          delivery_mode?: string
+          instruction_duration_minutes?: number | null
+          attendance_confirmed_at?: string | null
           id?: string
           meeting_link?: string | null
           notes?: string | null
@@ -1486,6 +1495,7 @@ export type Database = {
           created_at: string
           deducted_minutes: number | null
           duration_minutes: number | null
+          duration_seconds: number
           ended_at: string | null
           gross_amount: number | null
           id: string
@@ -1507,6 +1517,7 @@ export type Database = {
           created_at?: string
           deducted_minutes?: number | null
           duration_minutes?: number | null
+          duration_seconds?: number
           ended_at?: string | null
           gross_amount?: number | null
           id?: string
@@ -1528,6 +1539,7 @@ export type Database = {
           created_at?: string
           deducted_minutes?: number | null
           duration_minutes?: number | null
+          duration_seconds?: number
           ended_at?: string | null
           gross_amount?: number | null
           id?: string

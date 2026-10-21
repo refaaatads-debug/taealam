@@ -155,6 +155,21 @@ jobs:
             run_inperson_pricing_migration=true
           fi
           echo "run=$run_inperson_pricing_migration" >> "$GITHUB_OUTPUT"
+      - name: Detect session finance migrations
+        id: financial-migration-scope
+        shell: bash
+        run: |
+          run_financial_migrations=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021001300_in_person_session_financial_gates.sql supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql | grep -q .; then
+              run_financial_migrations=true
+            fi
+          elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
+            run_financial_migrations=true
+          fi
+          echo "run=$run_financial_migrations" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -196,12 +211,13 @@ jobs:
           RUN_INPERSON_ROLES_MIGRATION: ${{ steps.inperson-roles-scope.outputs.run }}
           RUN_TEACHER_DOUBLE_BOOKING_MIGRATION: ${{ steps.teacher-double-booking-scope.outputs.run }}
           RUN_INPERSON_PRICING_MIGRATION: ${{ steps.inperson-pricing-scope.outputs.run }}
+          RUN_FINANCIAL_MIGRATIONS: ${{ steps.financial-migration-scope.outputs.run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION
+          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION,RUN_FINANCIAL_MIGRATIONS
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -214,6 +230,11 @@ jobs:
             test -f "$staging/supabase/migrations/20261021000700_in_person_notifications.sql"
             test -f "$staging/supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql"
             test -f "$staging/supabase/migrations/20261021001000_in_person_teacher_pricing.sql"
+            test -f "$staging/supabase/migrations/20261021001100_in_person_session_lifecycle.sql"
+            test -f "$staging/supabase/migrations/20261021001200_mode_aware_booking_expiry.sql"
+            test -f "$staging/supabase/migrations/20261021001300_in_person_session_financial_gates.sql"
+            test -f "$staging/supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql"
+            test -f "$staging/supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql"
             config_exports="$(python3 - <<'PY'
             import shlex
             import sys
@@ -341,6 +362,68 @@ jobs:
               fi
             else
               echo "Skipping in-person pricing migration: this change did not modify its SQL file."
+            fi
+            if [ "${RUN_FINANCIAL_MIGRATIONS:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              hash_011="$(sha256sum "$staging/supabase/migrations/20261021001100_in_person_session_lifecycle.sql" | awk '{print $1}')"
+              hash_012="$(sha256sum "$staging/supabase/migrations/20261021001200_mode_aware_booking_expiry.sql" | awk '{print $1}')"
+              test "$hash_011" = "4f30245ae45bcf4da440307526346f701542d504b1187f0692c683e20092a647"
+              test "$hash_012" = "18d3e3961b2813b6e40e98770214dc49c40e16bf09f82b876e27d8037cb8a822"
+              legacy_applied="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT to_regprocedure('public.confirm_in_person_attendance_code(uuid,text)') IS NOT NULL AND to_regprocedure('public.process_in_person_session_completions()') IS NOT NULL AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'process-in-person-session-completions') AND pg_get_functiondef('public.auto_expire_stale_bookings()'::regprocedure) LIKE '%delivery_mode%'")"
+              if [ "$legacy_applied" != "t" ]; then
+                echo "Refusing to run finance migrations: live 011/012 markers are not present; they will not be reapplied automatically." >&2
+                exit 1
+              fi
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+            CREATE TABLE IF NOT EXISTS public.deployed_migration_fingerprints (
+              migration_name text PRIMARY KEY,
+              sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+              recorded_at timestamptz NOT NULL DEFAULT now(),
+              source text NOT NULL
+            );
+            ALTER TABLE public.deployed_migration_fingerprints ENABLE ROW LEVEL SECURITY;
+            REVOKE ALL ON TABLE public.deployed_migration_fingerprints FROM PUBLIC, anon, authenticated, service_role;
+            SQL
+              record_legacy_fingerprint() {
+                name="$1"
+                file_hash="$2"
+                existing="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$name'")"
+                if [ -n "$existing" ] && [ "$existing" != "$file_hash" ]; then
+                  echo "Stored fingerprint mismatch for $name; refusing to continue." >&2
+                  exit 1
+                fi
+                if [ -z "$existing" ]; then
+                  docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "INSERT INTO public.deployed_migration_fingerprints(migration_name,sha256,source) VALUES ('$name','$file_hash','verified existing production migration')"
+                fi
+              }
+              record_legacy_fingerprint "20261021001100_in_person_session_lifecycle.sql" "$hash_011"
+              record_legacy_fingerprint "20261021001200_mode_aware_booking_expiry.sql" "$hash_012"
+              apply_guarded_migration() {
+                migration_file="$1"
+                migration_name="$(basename "$migration_file")"
+                migration_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                stored_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                if [ -n "$stored_hash" ]; then
+                  if [ "$stored_hash" != "$migration_hash" ]; then
+                    echo "Stored fingerprint mismatch for $migration_name; refusing to reapply." >&2
+                    exit 1
+                  fi
+                  echo "Skipping already-applied migration $migration_name (fingerprint matches)."
+                  return
+                fi
+                {
+                  printf 'BEGIN;\n'
+                  cat "$migration_file"
+                  printf "\nINSERT INTO public.deployed_migration_fingerprints(migration_name,sha256,source) VALUES ('%s','%s','GitHub Actions') ON CONFLICT (migration_name) DO NOTHING;\nCOMMIT;\n" "$migration_name" "$migration_hash"
+                } | docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+              }
+              apply_guarded_migration "$staging/supabase/migrations/20261021001300_in_person_session_financial_gates.sql"
+              apply_guarded_migration "$staging/supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql"
+              apply_guarded_migration "$staging/supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql"
+              echo "Migrations 013-015 applied or verified; 011/012 were fingerprinted and never re-run."
+            else
+              echo "Skipping session finance migrations: no related SQL file changed."
             fi
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"
