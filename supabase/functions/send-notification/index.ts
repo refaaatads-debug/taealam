@@ -70,8 +70,9 @@ serve(async (req) => {
       const in30min = new Date(now.getTime() + 30 * 60 * 1000);
       const { data: upcoming } = await supabase
         .from("bookings")
-        .select("id, student_id, teacher_id, scheduled_at, subjects(name)")
+        .select("id, student_id, teacher_id, scheduled_at, delivery_mode, subjects(name)")
         .eq("status", "confirmed")
+        .neq("delivery_mode", "in_person")
         .gte("scheduled_at", now.toISOString())
         .lte("scheduled_at", in30min.toISOString());
 
@@ -185,7 +186,8 @@ serve(async (req) => {
     }
 
     if (notifications.length > 0) {
-      await supabase.from("notifications").insert(notifications);
+      const { error: insertError } = await supabase.from("notifications").insert(notifications);
+      if (insertError) throw insertError;
     }
 
     return new Response(JSON.stringify({ sent: notifications.length }), {

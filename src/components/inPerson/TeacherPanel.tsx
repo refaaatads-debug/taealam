@@ -56,6 +56,12 @@ export default function InPersonTeacherPanel() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  useEffect(() => {
+    if (!user || !enabled) return;
+    const interval = window.setInterval(() => void refresh(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [user, enabled, refresh]);
+
   const accept = async (request: RequestRow) => {
     setBusy(true);
     const { error } = await supabase.rpc("accept_in_person_request" as any, { p_request_group_id: request.request_group_id });
@@ -107,7 +113,7 @@ export default function InPersonTeacherPanel() {
   if (!enabled) return null;
   return (
     <Card id="in-person-sessions" className="overflow-hidden rounded-2xl border-0 shadow-card">
-      <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">يُغلق القبول قبل الموعد بساعة. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
+      <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">مهلة قبول الطلب ساعة من إرساله. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
         {cityStatus?.city_name && cityStatus.city_enabled === false && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">الخدمة لم تُفعّل في مدينتك بعد.</p>}
       </CardHeader>
       <CardContent className="space-y-5">

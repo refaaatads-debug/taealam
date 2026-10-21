@@ -11,6 +11,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -18,7 +21,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays,
+  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +33,7 @@ interface MenuItemConfig {
   icon: React.ElementType;
   badge?: number;
   permission?: string;
+  children?: MenuItemConfig[];
 }
 
 interface MenuGroupConfig {
@@ -70,7 +74,17 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "users", title: "إدارة المستخدمين", icon: Users, permission: "manage_users" },
         { id: "student_profiles", title: "ملفات الطلاب", icon: FolderOpen, permission: "manage_student_profiles" },
         { id: "teacher_profiles", title: "ملفات المعلمين", icon: FolderOpen, permission: "manage_teacher_profiles" },
-        { id: "in_person", title: "الحصص الحضورية", icon: CalendarDays, permission: "manage_teacher_profiles" },
+        {
+          id: "in_person",
+          title: "الحصص الحضورية",
+          icon: CalendarDays,
+          permission: "manage_teacher_profiles",
+          children: [
+            { id: "in_person_approvals", title: "اعتماد المعلمين الحضوريين", icon: UserCheck, permission: "manage_teacher_profiles" },
+            { id: "in_person_settlements", title: "تسوية مستحقات الحضوري", icon: Wallet, permission: "manage_teacher_earnings" },
+            { id: "in_person_cities", title: "مدن التعليم الحضوري", icon: MapPin, permission: "manage_teacher_profiles" },
+          ],
+        },
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
@@ -131,7 +145,15 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
   ];
 
   const menuGroups = allGroups
-    .map(g => ({ ...g, items: g.items.filter(i => isFullAdmin || !i.permission || permissions.has(i.permission)) }))
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .map((item) => ({
+          ...item,
+          children: item.children?.filter((child) => isFullAdmin || !child.permission || permissions.has(child.permission)),
+        }))
+        .filter((item) => isFullAdmin || !item.permission || permissions.has(item.permission) || Boolean(item.children?.length)),
+    }))
     .filter(g => g.items.length > 0);
 
   const handleLogout = async () => {
@@ -159,8 +181,11 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
-                      isActive={activeTab === item.id}
-                      onClick={() => onTabChange(item.id)}
+                      isActive={activeTab === item.id || Boolean(item.children?.some((child) => child.id === activeTab))}
+                      onClick={() => {
+                        const canOpenOverview = isFullAdmin || !item.permission || permissions.has(item.permission);
+                        onTabChange(canOpenOverview ? item.id : item.children?.[0]?.id || item.id);
+                      }}
                       tooltip={item.title}
                       className="relative h-11 rounded-xl text-[13px] font-semibold leading-5 text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
                     >
@@ -175,6 +200,23 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                         </Badge>
                       ) : null}
                     </SidebarMenuButton>
+                    {item.children && item.children.length > 0 && (
+                      <SidebarMenuSub>
+                        {item.children.map((child) => (
+                          <SidebarMenuSubItem key={child.id}>
+                            <SidebarMenuSubButton
+                              href="#"
+                              isActive={activeTab === child.id}
+                              onClick={(event) => { event.preventDefault(); onTabChange(child.id); }}
+                              className="h-8 text-xs font-medium"
+                            >
+                              <child.icon className="h-3.5 w-3.5" />
+                              <span className="truncate">{child.title}</span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

@@ -11,10 +11,27 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ajyal-production-vps-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out the exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Refuse to deploy a stale commit
+        shell: bash
+        run: |
+          current_main="$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')"
+          if [ -z "$current_main" ] || [ "$current_main" != "$GITHUB_SHA" ]; then
+            echo "Refusing stale deployment: workflow=$GITHUB_SHA main=${current_main:-unavailable}."
+            exit 1
+          fi
       - name: Create VPS backup before deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -56,11 +73,6 @@ jobs:
             tar -tzf "$backup_dir/web-root.tar.gz" >/dev/null
             tar -tzf "$backup_dir/edge-functions.tar.gz" >/dev/null
             echo "VPS backup completed at $backup_dir"
-      - name: Check out the exact commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
       - name: Detect in-person migration changes
         id: migration-scope
         shell: bash
@@ -76,6 +88,45 @@ jobs:
             run_migrations=true
           fi
           echo "run=$run_migrations" >> "$GITHUB_OUTPUT"
+      - name: Detect one-hour acceptance migration
+        id: acceptance-migration-scope
+        shell: bash
+        run: |
+          run_acceptance_migration=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql | grep -q .; then
+              run_acceptance_migration=true
+            fi
+          fi
+          echo "run=$run_acceptance_migration" >> "$GITHUB_OUTPUT"
+      - name: Detect in-person notifications migration
+        id: notifications-migration-scope
+        shell: bash
+        run: |
+          run_notifications_migration=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021000700_in_person_notifications.sql | grep -q .; then
+              run_notifications_migration=true
+            fi
+          fi
+          echo "run=$run_notifications_migration" >> "$GITHUB_OUTPUT"
+      - name: Detect in-person role rollout migration
+        id: inperson-roles-scope
+        shell: bash
+        run: |
+          run_inperson_roles_migration=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql | grep -q .; then
+              run_inperson_roles_migration=true
+            fi
+          fi
+          echo "run=$run_inperson_roles_migration" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -95,21 +146,32 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
+      - name: Recheck main immediately before VPS activation
+        shell: bash
+        run: |
+          current_main="$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')"
+          if [ -z "$current_main" ] || [ "$current_main" != "$GITHUB_SHA" ]; then
+            echo "Refusing VPS activation: workflow=$GITHUB_SHA main=${current_main:-unavailable}."
+            exit 1
+          fi
       - name: Build and activate on VPS using the verified dependency cache
         uses: appleboy/ssh-action@v1.0.3
         env:
           VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAE9pV6wv3lWICbVL
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           RUN_CITY_MIGRATIONS: ${{ steps.migration-scope.outputs.run }}
+          RUN_ACCEPTANCE_MIGRATION: ${{ steps.acceptance-migration-scope.outputs.run }}
+          RUN_NOTIFICATIONS_MIGRATION: ${{ steps.notifications-migration-scope.outputs.run }}
+          RUN_INPERSON_ROLES_MIGRATION: ${{ steps.inperson-roles-scope.outputs.run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS
+          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -118,6 +180,9 @@ jobs:
             test -f "$staging/package-lock.json"
             test -f "$staging/supabase/migrations/20261021000100_city_in_person_availability.sql"
             test -f "$staging/supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql"
+            test -f "$staging/supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql"
+            test -f "$staging/supabase/migrations/20261021000700_in_person_notifications.sql"
+            test -f "$staging/supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql"
             config_exports="$(python3 - <<'PY'
             import shlex
             import sys
@@ -185,6 +250,42 @@ jobs:
               docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql"
             else
               echo "Skipping in-person database migrations: this change did not modify their SQL files."
+            fi
+            if [ "${RUN_ACCEPTANCE_MIGRATION:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              acceptance_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'set_in_person_request_acceptance_deadline_trigger') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.in_person_request_groups'::regclass AND conname = 'in_person_request_groups_acceptance_before_lesson_check')")"
+              if [ "$acceptance_migration_applied" = "t" ]; then
+                echo "Skipping one-hour acceptance migration: its production schema marker already exists."
+              else
+                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql"
+              fi
+            else
+              echo "Skipping one-hour acceptance migration: this change did not modify its SQL file."
+            fi
+            if [ "${RUN_NOTIFICATIONS_MIGRATION:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              notifications_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT to_regclass('public.in_person_notification_events') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'notify_in_person_group_insert') AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'process-in-person-session-reminders')")"
+              if [ "$notifications_migration_applied" = "t" ]; then
+                echo "Skipping in-person notifications migration: its production schema markers already exist."
+              else
+                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000700_in_person_notifications.sql"
+              fi
+            else
+              echo "Skipping in-person notifications migration: this change did not modify its SQL file."
+            fi
+            if [ "${RUN_INPERSON_ROLES_MIGRATION:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              roles_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT pg_get_functiondef('public.is_in_person_test_user()'::regprocedure) LIKE '%has_role%'")"
+              if [ "$roles_migration_applied" = "t" ]; then
+                echo "Skipping in-person role migration: its production function marker already exists."
+              else
+                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql"
+              fi
+            else
+              echo "Skipping in-person role rollout migration: this change did not modify its SQL file."
             fi
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"

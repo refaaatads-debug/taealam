@@ -106,7 +106,10 @@ const TAB_TITLES: Record<string, string> = {
   users: "إدارة المستخدمين",
   student_profiles: "ملفات الطلاب",
   teacher_profiles: "ملفات المعلمين",
-  in_person: "الحصص الحضورية",
+  in_person: "نظرة عامة على التعليم الحضوري",
+  in_person_approvals: "اعتماد المعلمين الحضوريين",
+  in_person_settlements: "تسوية مستحقات الحضوري",
+  in_person_cities: "مدن التعليم الحضوري",
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",
   bookings: "إدارة الحجوزات",
@@ -501,6 +504,9 @@ const AdminDashboard = () => {
     student_profiles: "manage_student_profiles",
     teacher_profiles: "manage_teacher_profiles",
     in_person: "manage_teacher_profiles",
+    in_person_approvals: "manage_teacher_profiles",
+    in_person_settlements: "manage_teacher_earnings",
+    in_person_cities: "manage_teacher_profiles",
     teachers: "manage_pending_teachers",
     teacher_performance: "view_teacher_performance",
     featured_teachers: "manage_featured_teachers",
@@ -545,7 +551,10 @@ const AdminDashboard = () => {
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
       case "teacher_profiles": return <TeacherProfilesTab />;
-      case "in_person": return <AdminPanelErrorBoundary><InPersonAdminPanel /></AdminPanelErrorBoundary>;
+      case "in_person": return <AdminPanelErrorBoundary><InPersonAdminPanel section="overview" /></AdminPanelErrorBoundary>;
+      case "in_person_approvals": return <AdminPanelErrorBoundary><InPersonAdminPanel section="approvals" /></AdminPanelErrorBoundary>;
+      case "in_person_settlements": return <AdminPanelErrorBoundary><InPersonAdminPanel section="settlements" /></AdminPanelErrorBoundary>;
+      case "in_person_cities": return <AdminPanelErrorBoundary><InPersonAdminPanel section="cities" /></AdminPanelErrorBoundary>;
        case "teachers": return <TeachersContent teachers={filteredTeachers} teacherDateFrom={teacherDateFrom} teacherDateTo={teacherDateTo} setTeacherDateFrom={setTeacherDateFrom} setTeacherDateTo={setTeacherDateTo} approveTeacher={approveTeacher} rejectTeacher={rejectTeacher} openTeacherSupport={openTeacherSupport} />;
        case "bookings": return <AdminBookingsTab />;
       case "sessions_status": return <SessionsStatusTab />;
