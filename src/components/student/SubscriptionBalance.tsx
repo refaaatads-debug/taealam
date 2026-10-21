@@ -9,9 +9,12 @@ import { motion } from "framer-motion";
 interface Props {
   subscription: any;
   stripeSubscription: any;
+  loading?: boolean;
+  loadError?: boolean;
+  onRetry?: () => void;
 }
 
-export default function SubscriptionBalance({ subscription, stripeSubscription }: Props) {
+export default function SubscriptionBalance({ subscription, stripeSubscription, loading = false, loadError = false, onRetry }: Props) {
   const hasSubscription = subscription || stripeSubscription?.subscribed;
 
   const remainingMinutes = subscription?.remaining_minutes ?? 0;
@@ -50,7 +53,19 @@ export default function SubscriptionBalance({ subscription, stripeSubscription }
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isExpired ? (
+          {loadError ? (
+            <div className="text-center py-5">
+              <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+              <p className="text-sm font-bold text-foreground mb-1">تعذر تحميل رصيد الباقة</p>
+              <p className="text-xs text-muted-foreground mb-4">لم يتم التأكد من الرصيد؛ أعد المحاولة بدلاً من اعتبار الباقة غير موجودة.</p>
+              <Button className="w-full rounded-xl" variant="outline" onClick={onRetry}>إعادة المحاولة</Button>
+            </div>
+          ) : loading && !subscription ? (
+            <div className="text-center py-6" role="status" aria-live="polite">
+              <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3 animate-pulse" />
+              <p className="text-sm text-muted-foreground">جارٍ تحميل رصيد الباقة…</p>
+            </div>
+          ) : isExpired ? (
             <div className="text-center py-6">
               <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-3" />
               <p className="text-lg font-black text-destructive mb-1">انتهت باقتك!</p>

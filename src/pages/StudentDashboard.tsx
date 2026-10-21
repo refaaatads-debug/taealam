@@ -16,7 +16,7 @@ import { CalendarCheck, Clock, Star, Video, TrendingUp, Sparkles, MessageSquare,
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
@@ -38,9 +38,12 @@ const StudentDashboard = () => {
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [cancelledClasses, setCancelledClasses] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
+  const [subscriptionLoadError, setSubscriptionLoadError] = useState(false);
+  const [dashboardLoadError, setDashboardLoadError] = useState(false);
   const [stripeSubscription, setStripeSubscription] = useState<{ subscribed: boolean; tier: string | null; subscription_end: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const refreshDashboardRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -81,144 +84,160 @@ const StudentDashboard = () => {
   useEffect(() => {
     if (!user) return;
 
+    let disposed = false;
+    let latestRequest = 0;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
     const fetchData = async () => {
+      const requestId = ++latestRequest;
       setLoading(true);
-      // Fetch upcoming bookings
-      // Fetch upcoming scheduled + accepted instant sessions (in_progress)
-      const [{ data: upcomingScheduled }, { data: liveSessions }] = await Promise.all([
-        supabase
-          .from("bookings")
-          .select("*, subjects(name)")
-          .eq("student_id", user.id)
-          .in("status", ["pending", "confirmed"])
-          .gte("scheduled_at", new Date().toISOString())
-          .order("scheduled_at")
-          .limit(10),
-        supabase
-          .from("bookings")
-          .select("*, subjects(name)")
-          .eq("student_id", user.id)
-          .eq("status", "confirmed")
-          .eq("session_status", "in_progress")
-          .order("scheduled_at", { ascending: false })
-          .limit(5),
-      ]);
-      // Merge and deduplicate
-      const allIds = new Set<string>();
-      const upcoming: typeof upcomingScheduled = [];
-      [...(liveSessions || []), ...(upcomingScheduled || [])].forEach(b => {
-        if (!allIds.has(b.id)) { allIds.add(b.id); upcoming.push(b); }
-      });
-
-      // Enrich with teacher names
-      if (upcoming && upcoming.length > 0) {
-        const teacherIds = [...new Set(upcoming.map(b => b.teacher_id).filter(Boolean))];
-        const { data: teacherProfiles } = teacherIds.length > 0
-          ? await supabase
-              .from("public_profiles")
-              .select("user_id, full_name")
-              .in("user_id", teacherIds)
-          : { data: [] };
-        const tMap = new Map((teacherProfiles ?? []).map(p => [p.user_id, p.full_name]));
-        setUpcomingClasses(upcoming.map(b => ({ ...b, teacher_name: tMap.get(b.teacher_id) || "معلم" })));
-      } else {
-        setUpcomingClasses([]);
-      }
-
-      // Fetch completed bookings with sessions for actual time
-      const { data: completedBookings } = await supabase
-        .from("bookings")
-        .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
-        .eq("student_id", user.id)
-        .eq("status", "completed")
-        .order("scheduled_at", { ascending: false });
-
-      const completed = completedBookings || [];
-      setPastClasses(completed.slice(0, 10));
-
-      // Calculate actual seconds — same fallback chain as TeacherPerformanceTab:
-      // deducted_minutes → duration_seconds → wall-clock (ended_at - started_at)
-      let totalActualSeconds = 0;
-      completed.forEach((b: any) => {
-        const session = Array.isArray(b.sessions) ? b.sessions[0] : b.sessions;
-        if (!session) return;
-        let secs = 0;
-        if (session.deducted_minutes > 0) {
-          secs = session.deducted_minutes * 60;
-        } else if (session.duration_seconds > 0) {
-          secs = session.duration_seconds;
-        } else if (session.started_at && session.ended_at) {
-          secs = Math.floor(
-            (new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000
-          );
-        }
-        if (secs > 0) totalActualSeconds += secs;
-      });
-
-      // Fetch cancelled/incomplete bookings
-      const { data: cancelled } = await supabase
-        .from("bookings")
-        .select("*, subjects(name)")
-        .eq("student_id", user.id)
-        .eq("status", "cancelled")
-        .order("scheduled_at", { ascending: false })
-        .limit(5);
-      setCancelledClasses(cancelled || []);
-
-      // Fetch points
-      const { data: pointsData } = await supabase
-        .from("student_points")
-        .select("total_points")
-        .eq("user_id", user.id)
-        .single();
-
-      setStats({
-        completedCount: completed.length,
-        cancelledCount: (cancelled || []).length,
-        actualSeconds: totalActualSeconds,
-        progress: Math.min((completed.length / 20) * 100, 100),
-        points: pointsData?.total_points || 0,
-      });
-
-      // Fetch ALL active subscriptions and aggregate (student may have multiple)
-      const now = new Date().toISOString();
-      const { data: subs } = await supabase
-          .from("user_subscriptions")
-          .select("*, session_duration_minutes, subscription_plans(name_ar, tier)")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .gt("remaining_minutes", 0)
-          .gt("ends_at", now)
-          .order("ends_at", { ascending: true });
-      if (subs && subs.length > 0) {
-        const totalRemaining = subs.reduce((sum, s: any) => sum + (s.remaining_minutes || 0), 0);
-        const totalHours    = subs.reduce((sum, s: any) => sum + (s.total_hours    || 0), 0);
-        const totalSessions = subs.reduce((sum, s: any) => sum + (s.sessions_remaining || 0), 0);
-        setSubscription({
-          ...subs[0],
-          remaining_minutes: totalRemaining,
-          total_hours:       totalHours,
-          sessions_remaining: totalSessions,
-          _aggregated_count: subs.length,
-        });
-      } else {
-        setSubscription(null);
-      }
-
-      // Check Stripe subscription status
       try {
-        const { data: stripeSub } = await supabase.functions.invoke("check-subscription");
-        if (stripeSub && !stripeSub.error) {
-          setStripeSubscription(stripeSub);
-        }
-      } catch {
-        console.log("Could not check stripe subscription");
-      }
+        const now = new Date().toISOString();
+        const [
+          upcomingResult,
+          liveResult,
+          completedResult,
+          cancelledResult,
+          pointsResult,
+          subscriptionResult,
+          stripeResult,
+        ] = await Promise.all([
+          supabase.from("bookings").select("*, subjects(name)")
+            .eq("student_id", user.id).in("status", ["pending", "confirmed"])
+            .gte("scheduled_at", now).order("scheduled_at").limit(10),
+          supabase.from("bookings").select("*, subjects(name)")
+            .eq("student_id", user.id).eq("status", "confirmed")
+            .eq("session_status", "in_progress").order("scheduled_at", { ascending: false }).limit(5),
+          supabase.from("bookings")
+            .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
+            .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false }),
+          supabase.from("bookings").select("*, subjects(name)")
+            .eq("student_id", user.id).eq("status", "cancelled")
+            .order("scheduled_at", { ascending: false }).limit(5),
+          supabase.from("student_points").select("total_points").eq("user_id", user.id).maybeSingle(),
+          supabase.from("user_subscriptions")
+            .select("*, subscription_plans(name_ar, tier)")
+            .eq("user_id", user.id).eq("is_active", true)
+            .gt("remaining_minutes", 0).gt("ends_at", now).order("ends_at", { ascending: true }),
+          supabase.functions.invoke("check-subscription").catch((error) => ({ data: null, error })),
+        ]);
 
-      setLoading(false);
+        if (disposed || requestId !== latestRequest) return;
+        let hasDashboardError = false;
+
+        if (upcomingResult.error || liveResult.error) {
+          hasDashboardError = true;
+          console.error("Student dashboard bookings failed to load", upcomingResult.error || liveResult.error);
+        } else {
+          const allIds = new Set<string>();
+          const upcoming: any[] = [];
+          [...(liveResult.data || []), ...(upcomingResult.data || [])].forEach((booking) => {
+            if (!allIds.has(booking.id)) {
+              allIds.add(booking.id);
+              upcoming.push(booking);
+            }
+          });
+          const teacherIds = [...new Set(upcoming.map((booking) => booking.teacher_id).filter(Boolean))];
+          const teacherResult = teacherIds.length
+            ? await supabase.from("public_profiles").select("user_id, full_name").in("user_id", teacherIds)
+            : { data: [], error: null };
+          if (disposed || requestId !== latestRequest) return;
+          if (teacherResult.error) {
+            hasDashboardError = true;
+            console.error("Student dashboard teacher names failed to load", teacherResult.error);
+          } else {
+            const teacherNames = new Map((teacherResult.data ?? []).map((teacher) => [teacher.user_id, teacher.full_name]));
+            setUpcomingClasses(upcoming.map((booking) => ({
+              ...booking,
+              teacher_name: teacherNames.get(booking.teacher_id) || "معلم",
+            })));
+          }
+        }
+
+        if (completedResult.error) {
+          hasDashboardError = true;
+          console.error("Student dashboard completed bookings failed to load", completedResult.error);
+        } else {
+          const completed = completedResult.data ?? [];
+          setPastClasses(completed.slice(0, 10));
+          let totalActualSeconds = 0;
+          completed.forEach((booking: any) => {
+            const session = Array.isArray(booking.sessions) ? booking.sessions[0] : booking.sessions;
+            if (!session) return;
+            let seconds = 0;
+            if (session.deducted_minutes > 0) seconds = session.deducted_minutes * 60;
+            else if (session.duration_seconds > 0) seconds = session.duration_seconds;
+            else if (session.started_at && session.ended_at) {
+              seconds = Math.floor((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000);
+            }
+            if (seconds > 0) totalActualSeconds += seconds;
+          });
+          setStats((previous) => ({
+            ...previous,
+            completedCount: completed.length,
+            actualSeconds: totalActualSeconds,
+            progress: Math.min((completed.length / 20) * 100, 100),
+          }));
+        }
+
+        if (cancelledResult.error) {
+          hasDashboardError = true;
+          console.error("Student dashboard cancelled bookings failed to load", cancelledResult.error);
+        } else {
+          setCancelledClasses(cancelledResult.data ?? []);
+          setStats((previous) => ({ ...previous, cancelledCount: (cancelledResult.data ?? []).length }));
+        }
+
+        if (pointsResult.error) {
+          hasDashboardError = true;
+          console.error("Student dashboard points failed to load", pointsResult.error);
+        } else {
+          setStats((previous) => ({ ...previous, points: pointsResult.data?.total_points ?? 0 }));
+        }
+
+        if (subscriptionResult.error) {
+          hasDashboardError = true;
+          setSubscriptionLoadError(true);
+          console.error("Student dashboard subscription balance failed to load", subscriptionResult.error);
+        } else {
+          setSubscriptionLoadError(false);
+          const subs = subscriptionResult.data ?? [];
+          if (subs.length > 0) {
+            setSubscription({
+              ...subs[0],
+              remaining_minutes: subs.reduce((sum, row: any) => sum + Number(row.remaining_minutes || 0), 0),
+              total_hours: subs.reduce((sum, row: any) => sum + Number(row.total_hours || 0), 0),
+              sessions_remaining: subs.reduce((sum, row: any) => sum + Number(row.sessions_remaining || 0), 0),
+              _aggregated_count: subs.length,
+            });
+          } else {
+            setSubscription(null);
+          }
+        }
+
+        if (!stripeResult.error && stripeResult.data && !stripeResult.data.error) {
+          setStripeSubscription(stripeResult.data);
+        } else if (stripeResult.error) {
+          console.error("Could not check Stripe subscription", stripeResult.error);
+        }
+        setDashboardLoadError(hasDashboardError);
+      } catch (error) {
+        if (!disposed && requestId === latestRequest) {
+          console.error("Student dashboard refresh failed", error);
+          setDashboardLoadError(true);
+          setSubscriptionLoadError(true);
+        }
+      } finally {
+        if (!disposed && requestId === latestRequest) setLoading(false);
+      }
     };
 
-    fetchData();
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void fetchData(), 150);
+    };
+    refreshDashboardRef.current = fetchData;
+    void fetchData();
 
     // Realtime: refresh when booking status changes
     const channel = supabase
@@ -229,7 +248,7 @@ const StudentDashboard = () => {
         table: "bookings",
         filter: `student_id=eq.${user.id}`,
       }, () => {
-        fetchData();
+        scheduleRefresh();
         playSound();
         toast.info("تم تحديث حجوزاتك! 📚");
       })
@@ -244,8 +263,7 @@ const StudentDashboard = () => {
         table: "user_subscriptions",
         filter: `user_id=eq.${user.id}`,
       }, () => {
-        // Re-fetch aggregated subscription totals on any change
-        fetchData();
+        scheduleRefresh();
       })
       .subscribe();
 
@@ -272,7 +290,7 @@ const StudentDashboard = () => {
         schema: "public",
         table: "wallets",
         filter: `user_id=eq.${user.id}`,
-      }, () => fetchData())
+      }, scheduleRefresh)
       .subscribe();
 
     // Realtime: points update instantly when earned
@@ -283,17 +301,29 @@ const StudentDashboard = () => {
         schema: "public",
         table: "student_points",
         filter: `user_id=eq.${user.id}`,
-      }, () => fetchData())
+      }, scheduleRefresh)
       .subscribe();
 
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
     return () => {
+      disposed = true;
+      latestRequest += 1;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      if (refreshDashboardRef.current === fetchData) refreshDashboardRef.current = null;
       supabase.removeChannel(channel);
       supabase.removeChannel(subChannel);
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(walletChannel);
       supabase.removeChannel(pointsChannel);
     };
-  }, [user]);
+  }, [user, playSound]);
 
   const displayName = profile?.full_name || "طالب";
   const remainingMinutes = subscription?.remaining_minutes ?? 0;
@@ -324,6 +354,17 @@ const StudentDashboard = () => {
             </p>
           </motion.div>
         </div>
+
+        {dashboardLoadError && (
+          <Card className="mb-6 border-amber-200 bg-amber-50/70">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-amber-900">تعذر تحديث بعض بيانات اللوحة. البيانات السابقة لم تُستبدل ببيانات فارغة.</p>
+              <Button size="sm" variant="outline" onClick={() => void refreshDashboardRef.current?.()}>
+                إعادة المحاولة
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {nextClass ? (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -502,7 +543,13 @@ const StudentDashboard = () => {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Subscription Balance */}
-            <SubscriptionBalance subscription={subscription} stripeSubscription={stripeSubscription} />
+            <SubscriptionBalance
+              subscription={subscription}
+              stripeSubscription={stripeSubscription}
+              loading={loading}
+              loadError={subscriptionLoadError}
+              onRetry={() => void refreshDashboardRef.current?.()}
+            />
 
             {/* AI Tutor CTA */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
