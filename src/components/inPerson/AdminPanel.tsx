@@ -373,7 +373,7 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
         </CardContent>
       </Card>}
       {section === "settlements" && <Card className="border-emerald-900/10 shadow-sm">
-        <CardHeader className="border-b border-emerald-900/10 bg-gradient-to-l from-emerald-50 to-slate-50"><CardTitle>دفتر تسويات الحضوري</CardTitle><p className="text-sm text-muted-foreground">60 ر.س أجرًا للمعلم و40 ر.س للمنصة بعد تأكيد الحضور، أو 30 ر.س للمعلم و20 ر.س للمنصة عند الإلغاء المتأخر.</p></CardHeader>
+        <CardHeader className="border-b border-emerald-900/10 bg-gradient-to-l from-emerald-50 to-slate-50"><CardTitle>دفتر تسويات الحضوري</CardTitle><p className="text-sm text-muted-foreground">تُحسب مستحقات كل حجز من السعر المثبت عند إرسال الطلب؛ والإلغاء المتأخر يعكس نصف أجر المعلم ونصف حصة المنصة.</p></CardHeader>
         <CardContent className="space-y-4 pt-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border bg-slate-50 p-3"><p className="text-xs text-muted-foreground">إيراد المنصة</p><strong className="mt-1 block text-lg text-slate-900">{sar(platformRevenue)}</strong></div>

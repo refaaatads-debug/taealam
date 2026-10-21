@@ -9,7 +9,7 @@ import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 import { ExternalLink, MapPin } from "lucide-react";
 
 type AddressSnapshot = { street_address?: string | null; district?: string | null; latitude?: number | string | null; longitude?: number | string | null };
-type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
+type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; offered_teacher_rate_sar: number; offered_platform_share_sar: number; pricing_source: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
 type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
 type EarningRow = { booking_id: string; amount: number; status: string; available_at: string; scheduled_at: string };
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
@@ -33,7 +33,7 @@ export default function InPersonTeacherPanel() {
     if (!pilotEnabled) { setEnabled(false); return; }
     setEnabled(true);
     const [{ data: incoming, error }, { data: requestLocations, error: locationsError }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
-      supabase.rpc("list_teacher_in_person_requests" as any),
+      supabase.rpc("list_teacher_in_person_requests_priced" as any),
       supabase.rpc("list_teacher_in_person_request_locations" as any),
       supabase.from("bookings" as any).select("id,student_id,scheduled_at,visit_address_snapshot,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
@@ -125,7 +125,7 @@ export default function InPersonTeacherPanel() {
           {locationError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">تعذر تحميل عنوان الحصة. أعد تحميل الصفحة قبل قبول طلب حضوري.</p>}
           {requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات جديدة ضمن نطاقك.</p>}
           {requests.map((request) => <div key={request.request_group_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-            <div className="min-w-0 flex-1"><strong>{request.subject_name} · {request.student_name} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(request.scheduled_at).toLocaleString("ar-SA")}</div>{locationDetails(request, request.city_name)}</div>
+            <div className="min-w-0 flex-1"><strong>{request.subject_name} · {request.student_name} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(request.scheduled_at).toLocaleString("ar-SA")}</div><div className="mt-1 text-sm font-semibold text-emerald-800">أجرك لهذه الحصة: {Number(request.offered_teacher_rate_sar)} ر.س · ينتهي قبول الطلب: {new Date(request.acceptance_deadline).toLocaleString("ar-SA")}</div>{locationDetails(request, request.city_name)}</div>
              <div className="flex gap-2">
                <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" disabled={busy || rejecting === request.request_group_id} onClick={() => void reject(request)}>
                  {rejecting === request.request_group_id ? "جارٍ الرفض..." : "رفض الطلب"}

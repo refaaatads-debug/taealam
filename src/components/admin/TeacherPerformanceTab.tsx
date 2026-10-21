@@ -313,13 +313,13 @@ export default function TeacherPerformanceTab() {
       const userIds = teacherProfiles.map(t => t.user_id);
 
       // Fetch profiles and bookings (with nested sessions) in parallel
-      const [profilesRes, bookingsRes] = await Promise.all([
+      const [profilesRes, bookingsRes, inPersonFinanceRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
-        supabase
-          .from("bookings")
-          .select("id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status, sessions(booking_id,duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at,net_amount,gross_amount,teacher_earning,short_session)")
+        (supabase.from as any)("bookings")
+          .select("id, student_id, teacher_id, subject_id, scheduled_at, duration_minutes, status, price, session_status, delivery_mode, attendance_confirmed_at, in_person_teacher_rate_sar, in_person_student_value_sar, in_person_teaching_minutes, sessions(booking_id,duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at,net_amount,gross_amount,teacher_earning,short_session)")
           .in("teacher_id", userIds)
           .limit(5000),
+        supabase.rpc("admin_list_in_person_financials" as any),
       ]);
 
       if (bookingsRes.error) {
@@ -328,6 +328,7 @@ export default function TeacherPerformanceTab() {
       }
 
       const profileMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p]));
+      const inPersonFinanceMap = new Map(((inPersonFinanceRes.data ?? []) as any[]).map(row => [row.booking_id, row]));
       const bookingsByTeacher = new Map<string, any[]>();
       (bookingsRes.data ?? []).forEach(b => {
         const list = bookingsByTeacher.get(b.teacher_id) || [];
@@ -351,7 +352,9 @@ export default function TeacherPerformanceTab() {
       const teacherData: TeacherData[] = teacherProfiles.map(tp => {
         const profile = profileMap.get(tp.user_id);
         const bookings = bookingsByTeacher.get(tp.user_id) || [];
-        const completedBookings = bookings.filter(b => b.status === "completed");
+        const completedBookings = bookings.filter((b: any) =>
+          b.status === "completed" || (b.delivery_mode === "in_person" && Boolean(b.attendance_confirmed_at))
+        );
         const cancelledBookings = bookings.filter(b => b.status === "cancelled");
         const uniqueStudents = new Set(completedBookings.map(b => b.student_id));
         const hourlyRate = Number(tp.hourly_rate) || 0;
@@ -359,19 +362,28 @@ export default function TeacherPerformanceTab() {
         let totalActualMinutes = 0;
         let totalActualSeconds = 0;
         const sessions: SessionDetail[] = bookings.map(b => {
+          const isInPerson = (b as any).delivery_mode === "in_person";
+          const isInPersonCompleted = isInPerson && Boolean((b as any).attendance_confirmed_at);
+          const effectiveCompleted = b.status === "completed" || isInPersonCompleted;
+          const inPersonFinance = inPersonFinanceMap.get(b.id) as any;
           // Session embedded via unique FK — Supabase returns single object (not array)
           const rawSess = (b as any).sessions;
           const session = Array.isArray(rawSess) ? (rawSess[0] ?? null) : (rawSess ?? null);
           // actualDuration: deducted_minutes = authoritative (set by trigger after session ends)
           // session.duration_minutes is set at START from booked duration → not actual
-          const actualDuration = (session?.deducted_minutes && session.deducted_minutes > 0)
+          const actualDuration = isInPersonCompleted
+            ? Number((b as any).in_person_teaching_minutes) || 60
+            : (session?.deducted_minutes && session.deducted_minutes > 0)
             ? session.deducted_minutes
             : (session?.duration_seconds && session.duration_seconds > 0)
               ? Math.ceil(session.duration_seconds / 60)
               : null;
           let actualSeconds: number | null = null;
           
-          if (b.status === "completed" && session) {
+          if (isInPersonCompleted) {
+            actualSeconds = (Number((b as any).in_person_teaching_minutes) || 60) * 60;
+            totalActualSeconds += actualSeconds;
+          } else if (b.status === "completed" && session) {
             // Priority: deducted_minutes (trigger) > duration_seconds (timer) > wall-time
             if (session.deducted_minutes && session.deducted_minutes > 0) {
               actualSeconds = session.deducted_minutes * 60;
@@ -386,9 +398,11 @@ export default function TeacherPerformanceTab() {
             }
             if (actualSeconds && actualSeconds > 0) totalActualSeconds += actualSeconds;
           }
-          if (b.status === "completed") {
+          if (effectiveCompleted) {
             // Only count actual deducted minutes toward teacher totals (not wall-time estimates)
-            const minutesForTotal = (session?.deducted_minutes && session.deducted_minutes > 0)
+            const minutesForTotal = isInPersonCompleted
+              ? Number((b as any).in_person_teaching_minutes) || 60
+              : (session?.deducted_minutes && session.deducted_minutes > 0)
               ? session.deducted_minutes
               : actualDuration || 0;
             if (minutesForTotal > 0) totalActualMinutes += minutesForTotal;
@@ -399,12 +413,20 @@ export default function TeacherPerformanceTab() {
           // 2. net_amount = 0 + deducted_minutes >= 5 → old session, recalculate
           // 3. net_amount = 0 + valid wall-time >= 5 min → use wall-time
           // 4. < 5 min → 0 earnings (short session rule)
-          const grossAmount = session ? (Number(session.gross_amount) || 0) : 0;
+          const grossAmount = isInPerson
+            ? Number((b as any).in_person_student_value_sar) || 100
+            : session ? (Number(session.gross_amount) || 0) : 0;
           const isShort = session ? (session.short_session === true) : false;
           // Always recalculate using 60-min base to override old sessions stored with /45 formula
           // Formula: actual_minutes / 60 * hourly_rate  (< 5 min = 0)
           let calculatedPrice = 0;
-          if (b.status === "completed") {
+          if (isInPerson) {
+            const savedEarning = inPersonFinance?.teacher_earning;
+            const savedCompensation = inPersonFinance?.teacher_compensation;
+            calculatedPrice = Number(savedEarning ?? (isInPersonCompleted
+              ? ((b as any).in_person_teacher_rate_sar ?? 60) : 0))
+              + Number(savedCompensation ?? 0);
+          } else if (b.status === "completed") {
             if (isShort) {
               calculatedPrice = 0; // < 5 min rule
             } else if (session?.deducted_minutes && session.deducted_minutes >= 5) {
@@ -430,9 +452,9 @@ export default function TeacherPerformanceTab() {
             duration_minutes: b.duration_minutes,
             actual_duration: actualDuration,
             actual_seconds: actualSeconds,
-            status: b.status,
+            status: isInPersonCompleted ? "completed" : b.status,
             price: calculatedPrice,
-            net_amount: session ? (Number(session.net_amount) || 0) : 0,
+            net_amount: isInPerson ? calculatedPrice : session ? (Number(session.net_amount) || 0) : 0,
             gross_amount: grossAmount,
             short_session: isShort,
             booked_minutes: b.duration_minutes,
@@ -458,7 +480,7 @@ export default function TeacherPerformanceTab() {
           studentsCount: uniqueStudents.size,
           completedCount: completedBookings.length,
           cancelledCount: cancelledBookings.length,
-          totalPrice: sessions.filter(s => s.status === "completed").reduce((sum, s) => sum + (s.price || 0), 0),
+          totalPrice: sessions.reduce((sum, s) => sum + (s.price || 0), 0),
           aiReport: null,
           aiReportLoading: false,
         };
