@@ -127,6 +127,19 @@ jobs:
             fi
           fi
           echo "run=$run_inperson_roles_migration" >> "$GITHUB_OUTPUT"
+      - name: Detect teacher double-booking migration
+        id: teacher-double-booking-scope
+        shell: bash
+        run: |
+          run_teacher_double_booking_migration=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021000900_prevent_teacher_double_booking.sql | grep -q .; then
+              run_teacher_double_booking_migration=true
+            fi
+          fi
+          echo "run=$run_teacher_double_booking_migration" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -146,7 +159,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -166,12 +179,13 @@ jobs:
           RUN_ACCEPTANCE_MIGRATION: ${{ steps.acceptance-migration-scope.outputs.run }}
           RUN_NOTIFICATIONS_MIGRATION: ${{ steps.notifications-migration-scope.outputs.run }}
           RUN_INPERSON_ROLES_MIGRATION: ${{ steps.inperson-roles-scope.outputs.run }}
+          RUN_TEACHER_DOUBLE_BOOKING_MIGRATION: ${{ steps.teacher-double-booking-scope.outputs.run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION
+          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -286,6 +300,18 @@ jobs:
               fi
             else
               echo "Skipping in-person role rollout migration: this change did not modify its SQL file."
+            fi
+            if [ "${RUN_TEACHER_DOUBLE_BOOKING_MIGRATION:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              double_booking_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'prevent_teacher_double_booking') AND EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'prevent_teacher_double_booking_request') AND pg_get_functiondef('public.list_teacher_in_person_requests()'::regprocedure) LIKE '%NOT EXISTS%'")"
+              if [ "$double_booking_migration_applied" = "t" ]; then
+                echo "Skipping teacher double-booking migration: its production schema markers already exist."
+              else
+                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000900_prevent_teacher_double_booking.sql"
+              fi
+            else
+              echo "Skipping teacher double-booking migration: this change did not modify its SQL file."
             fi
             policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
             mkdir -p "$policy_backup_dir"

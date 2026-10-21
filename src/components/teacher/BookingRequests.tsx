@@ -11,6 +11,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import CountdownTimer from "@/components/CountdownTimer";
 import FirstImpressionDialog from "@/components/teacher/FirstImpressionDialog";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import { arabicBookingError } from "@/lib/arabicBookingError";
 
 interface BookingRequest {
   id: string;
@@ -64,8 +65,9 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "booking_requests" }, () => {
         fetchRequests();
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` }, () => {
         checkBusyStatus();
+        fetchRequests();
       })
       .subscribe();
 
@@ -89,9 +91,16 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
   const fetchRequests = async () => {
     if (!user) return;
-    const [{ data }, { data: rejectedIds, error: rejectedError }] = await Promise.all([
+    const [
+      { data },
+      { data: rejectedIds, error: rejectedError },
+      { data: activeBookings },
+      { data: acceptedOnlineRequests },
+    ] = await Promise.all([
       supabase.from("booking_requests" as any).select("*").eq("status", "open").order("scheduled_at", { ascending: true }),
       supabase.rpc("list_my_booking_request_rejection_ids" as any),
+      supabase.from("bookings").select("scheduled_at,duration_minutes,instruction_duration_minutes").eq("teacher_id", user.id).in("status", ["pending", "confirmed"]),
+      supabase.from("booking_requests" as any).select("scheduled_at,duration_minutes").eq("accepted_by", user.id).eq("status", "accepted"),
     ]);
     if (rejectedError) {
       toast.error("تعذر تحميل الطلبات التي رفضتها. أعد تحميل الصفحة.");
@@ -103,10 +112,22 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
     if (!data || data.length === 0) { setRequests([]); return; }
 
     const now = Date.now();
+    const busySlots = [
+      ...((activeBookings || []) as any[]).map((b) => ({
+        start: new Date(b.scheduled_at).getTime(),
+        duration: Number(b.instruction_duration_minutes || b.duration_minutes || 45),
+      })),
+      ...((acceptedOnlineRequests || []) as any[]).map((r) => ({
+        start: new Date(r.scheduled_at).getTime(),
+        duration: Number(r.duration_minutes || 45),
+      })),
+    ];
     const validData = (data as any[]).filter((r: any) => {
       if (rejected.has(r.id)) return false;
-      if (!r.expires_at) return true;
-      return new Date(r.expires_at).getTime() > now;
+      if (r.expires_at && new Date(r.expires_at).getTime() <= now) return false;
+      const start = new Date(r.scheduled_at).getTime();
+      const end = start + Number(r.duration_minutes || 45) * 60_000;
+      return !busySlots.some((slot) => start < slot.start + slot.duration * 60_000 && end > slot.start);
     });
 
     if (validData.length === 0) { setRequests([]); return; }
@@ -359,12 +380,7 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
 
       fetchRequests();
     } catch (e: any) {
-      const message = String(e?.message || "");
-      toast.error(
-        message.includes("already has an in-person lesson")
-          ? "تعارض موعد: لديك حصة حضورية في هذا الوقت."
-          : message || "حدث خطأ"
-      );
+      toast.error(arabicBookingError(e, "تعذر قبول الطلب بسبب تعارض أو مشكلة في الموعد."));
       fetchRequests();
     } finally {
       setAccepting(null);

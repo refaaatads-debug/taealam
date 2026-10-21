@@ -12,6 +12,13 @@ describe("arabicBookingError", () => {
       .toContain("حصة عن بُعد متعارضة");
   });
 
+  it("translates teacher double-booking conflicts", () => {
+    expect(arabicBookingError("Teacher already has a lesson at that time"))
+      .toContain("لدى المعلم حصة أخرى");
+    expect(arabicBookingError("Teacher has a booking or travel-time conflict"))
+      .toContain("وقت التنقل");
+  });
+
   it("keeps Arabic server errors and hides unknown English server text", () => {
     expect(arabicBookingError("تعذر تحديث الرصيد")).toBe("تعذر تحديث الرصيد");
     expect(arabicBookingError("unexpected database detail")).toBe("تعذر إكمال الطلب. حاول مرة أخرى.");

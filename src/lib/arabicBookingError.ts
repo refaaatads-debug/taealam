@@ -8,6 +8,14 @@ const bookingErrorTranslations: Array<[string, string]> = [
     "لا يمكن إرسال الطلب في هذا الموعد؛ توجد حصة عن بُعد متعارضة لك أو للمعلم المختار. اختر موعدًا آخر.",
   ],
   [
+    "teacher already has a lesson at that time",
+    "لا يمكن قبول الحصة؛ لدى المعلم حصة أخرى في هذا الموعد. اختر موعدًا مختلفًا.",
+  ],
+  [
+    "teacher has a booking or travel-time conflict",
+    "لا يمكن قبول الطلب بسبب تعارض موعد الحصة أو وقت التنقل.",
+  ],
+  [
     "in-person service is unavailable in this city",
     "الحصص الحضورية غير متاحة حاليًا في المدينة المحددة.",
   ],
