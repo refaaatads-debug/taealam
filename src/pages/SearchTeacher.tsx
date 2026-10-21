@@ -109,8 +109,7 @@ const SearchTeacher = () => {
         .select("sessions_remaining, remaining_minutes, session_duration_minutes")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .gt("remaining_minutes", 0)
-        .gt("ends_at", now),
+        .gt("remaining_minutes", 0),
       supabase
         .from("bookings")
         .select("duration_minutes")

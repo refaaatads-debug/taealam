@@ -8,6 +8,7 @@ import { DollarSign, Loader2, Send, Paperclip, FileText, X, Download, ChevronDow
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { getSaudiMonthKey } from "@/lib/saudiDate";
 
 export default function WithdrawalSection() {
   const { user } = useAuth();
@@ -17,10 +18,16 @@ export default function WithdrawalSection() {
   const [minWithdrawal, setMinWithdrawal] = useState(100);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [manualEarnings, setManualEarnings] = useState<any[]>([]);
   const [currentMonthNet, setCurrentMonthNet] = useState(0);
+  const [monthSplit, setMonthSplit] = useState({ online: 0, inPerson: 0, compensation: 0 });
+  const [withdrawalSummary, setWithdrawalSummary] = useState({
+    online_available: 0, in_person_available: 0, in_person_compensation_available: 0,
+    reserved_total: 0, pending_total: 0, paid_total: 0, adjustment_total: 0,
+  });
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,9 +45,11 @@ export default function WithdrawalSection() {
       .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests", filter: `teacher_id=eq.${user.id}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "teacher_payments", filter: `teacher_id=eq.${user.id}` }, refresh)
       .subscribe();
+    const poll = window.setInterval(refresh, 15_000);
     window.addEventListener("focus", refresh);
     return () => {
       if (refreshTimer) clearTimeout(refreshTimer);
+      window.clearInterval(poll);
       window.removeEventListener("focus", refresh);
       void supabase.removeChannel(channel);
     };
@@ -49,16 +58,17 @@ export default function WithdrawalSection() {
   const fetchData = async () => {
     if (!user) return;
 
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const [breakdownRes, settingsRes, earningsRes, wData, monthBreakdown] = await Promise.all([
+    const currentMonth = getSaudiMonthKey();
+    const [breakdownRes, settingsRes, earningsRes, wData, monthBreakdown, withdrawalSummaryRes] = await Promise.all([
       supabase.rpc("get_teacher_earnings_breakdown", { _teacher_id: user.id }),
       supabase.from("financial_settings" as any).select("min_withdrawal_amount").maybeSingle(),
       supabase.from("teacher_earnings" as any).select("amount, month, hours, created_at, status, earning_type, rollover_source_month").eq("teacher_id", user.id).order("created_at", { ascending: false }),
       supabase.from("withdrawal_requests" as any).select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(10),
-      supabase.rpc("get_teacher_net_summary", { _teacher_id: user.id, _month: currentMonth }),
+      supabase.rpc("get_teacher_month_earnings_split" as any, { _teacher_id: user.id, _month: currentMonth }),
+      supabase.rpc("get_teacher_withdrawal_summary" as any, { _teacher_id: user.id }),
     ]);
 
-    const financialError = breakdownRes.error || monthBreakdown.error || earningsRes.error || wData.error;
+    const financialError = breakdownRes.error || monthBreakdown.error || withdrawalSummaryRes.error || earningsRes.error || wData.error;
     if (financialError) {
       console.error("[teacher-withdrawal] failed to load financial summary:", financialError);
       toast.error("تعذر تحديث بيانات الأرباح والسحب. أعد المحاولة بعد قليل.");
@@ -66,8 +76,19 @@ export default function WithdrawalSection() {
     }
 
     const bd = breakdownRes.data?.[0];
-    setTotalEarnings(Number(bd?.paid_total) || 0);
-    const availableBalance = Number(bd?.available_balance) || 0;
+    const withdrawal = (withdrawalSummaryRes.data?.[0] as any) ?? {};
+    const summary = {
+      online_available: Number(withdrawal.online_available) || 0,
+      in_person_available: Number(withdrawal.in_person_available) || 0,
+      in_person_compensation_available: Number(withdrawal.in_person_compensation_available) || 0,
+      reserved_total: Number(withdrawal.reserved_total) || 0,
+      pending_total: Number(withdrawal.pending_total) || 0,
+      paid_total: Number(withdrawal.paid_total) || 0,
+      adjustment_total: Number(withdrawal.adjustment_total) || 0,
+    };
+    setWithdrawalSummary(summary);
+    setTotalEarnings(summary.paid_total || Number(bd?.paid_total) || 0);
+    const availableBalance = summary.online_available + summary.in_person_available + summary.in_person_compensation_available;
     setBalance(availableBalance);
     setWithdrawalAmount(current => {
       const currentAmount = Number(current);
@@ -79,7 +100,13 @@ export default function WithdrawalSection() {
     setManualEarnings((earningsRes.data as any[]) || []);
     setWithdrawals((wData.data as any[]) || []);
     // Teacher view: only the net (final amount due). Internal breakdown remains admin-only.
-    setCurrentMonthNet(Number(monthBreakdown.data?.[0]?.net_total) || 0);
+    const month = monthBreakdown.data?.[0] as any;
+    setCurrentMonthNet(Number(month?.combined_earnings) || 0);
+    setMonthSplit({
+      online: Number(month?.online_earnings) || 0,
+      inPerson: Number(month?.in_person_earnings) || 0,
+      compensation: Number(month?.in_person_compensations) || 0,
+    });
   };
 
   const requestWithdrawal = async () => {
@@ -147,11 +174,28 @@ export default function WithdrawalSection() {
     }
   };
 
+  const cancelWithdrawal = async (id: string) => {
+    setCancellingId(id);
+    try {
+      const { error } = await supabase.rpc("cancel_own_withdrawal_request" as any, {
+        _withdrawal_id: id,
+      } as any);
+      if (error) throw error;
+      toast.success("تم إلغاء طلب السحب وإعادة المبلغ المتاح");
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "تعذر إلغاء الطلب");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     pending: { label: "قيد المراجعة", variant: "outline" },
     approved: { label: "تمت الموافقة", variant: "secondary" },
     paid: { label: "تم الدفع", variant: "default" },
     rejected: { label: "مرفوض", variant: "destructive" },
+    cancelled: { label: "ملغي", variant: "secondary" },
   };
 
   return (
@@ -184,10 +228,32 @@ export default function WithdrawalSection() {
           <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">الرصيد المتاح للسحب</p>
             <p className="text-xl font-black text-secondary">{balance.toLocaleString()} ر.س</p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+              أونلاين {withdrawalSummary.online_available.toLocaleString()} · حضوري {withdrawalSummary.in_person_available.toLocaleString()}
+              {withdrawalSummary.in_person_compensation_available ? ` · تعويضات ${withdrawalSummary.in_person_compensation_available.toLocaleString()}` : ""}
+            </p>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح هذا الشهر</p>
             <p className="text-xl font-black text-primary">{currentMonthNet.toLocaleString()} ر.س</p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+              أونلاين {monthSplit.online.toLocaleString()} · حضوري {monthSplit.inPerson.toLocaleString()}
+              {monthSplit.compensation ? ` · تعويضات ${monthSplit.compensation.toLocaleString()}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-xs text-muted-foreground">قيد المراجعة</p>
+            <p className="font-bold">{withdrawalSummary.pending_total.toLocaleString()} ر.س</p>
+          </div>
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-xs text-muted-foreground">محجوز لطلبات السحب</p>
+            <p className="font-bold">{withdrawalSummary.reserved_total.toLocaleString()} ر.س</p>
+          </div>
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-xs text-muted-foreground">التعديلات والمكافآت والخصومات</p>
+            <p className="font-bold">{withdrawalSummary.adjustment_total.toLocaleString()} ر.س</p>
           </div>
         </div>
 
@@ -350,6 +416,17 @@ export default function WithdrawalSection() {
                   )}
                   {w.admin_notes && (
                     <p className="text-xs text-muted-foreground bg-primary/5 rounded-lg p-2">💬 رد الإدارة: {w.admin_notes}</p>
+                  )}
+                  {w.status === "pending" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={cancellingId === w.id}
+                      onClick={() => void cancelWithdrawal(w.id)}
+                    >
+                      {cancellingId === w.id ? "جارٍ الإلغاء..." : "إلغاء الطلب"}
+                    </Button>
                   )}
                 </div>
               );

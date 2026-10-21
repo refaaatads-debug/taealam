@@ -164,8 +164,6 @@ const AdminStudentProfile = () => {
     if (activeSub) {
       const remaining = activeSub.remaining_minutes ?? 0;
       if (remaining <= 30) out.push({ kind: "sub", label: `الاشتراك على وشك النفاد (${remaining} دقيقة)`, tone: "destructive" });
-      const endsAt = activeSub.ends_at ? new Date(activeSub.ends_at).getTime() : null;
-      if (endsAt && endsAt - Date.now() < 3 * 86400000) out.push({ kind: "expiry", label: "اقتراب انتهاء الاشتراك", tone: "warning" });
     } else {
       out.push({ kind: "no_sub", label: "لا يوجد اشتراك فعّال", tone: "warning" });
     }

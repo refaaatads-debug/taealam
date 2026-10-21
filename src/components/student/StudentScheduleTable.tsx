@@ -299,8 +299,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
       .select("remaining_minutes")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .gte("remaining_minutes", 15)
-      .gt("ends_at", new Date().toISOString());
+      .gte("remaining_minutes", 15);
 
     if (!subs || subs.length === 0) {
       toast.error("لا يمكن بدء جلسة فورية", {

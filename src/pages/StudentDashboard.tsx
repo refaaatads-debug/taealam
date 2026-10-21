@@ -2,6 +2,7 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
+import InPersonRequestTracking from "@/components/student/InPersonRequestTracking";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
@@ -118,7 +119,7 @@ const StudentDashboard = () => {
           supabase.from("user_subscriptions")
             .select("*, subscription_plans(name_ar, tier)")
             .eq("user_id", user.id).eq("is_active", true)
-            .gt("remaining_minutes", 0).gt("ends_at", now).order("ends_at", { ascending: true }),
+            .gt("remaining_minutes", 0).order("created_at", { ascending: true }),
           supabase.functions.invoke("check-subscription").catch((error) => ({ data: null, error })),
         ]);
 
@@ -530,6 +531,7 @@ const StudentDashboard = () => {
 
             {/* Booking requests are kept directly below the unified schedule. */}
             <PendingBookingRequests />
+            <InPersonRequestTracking />
 
             <StudentScheduleTable historyOnly />
 

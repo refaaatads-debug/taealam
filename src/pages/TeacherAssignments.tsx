@@ -281,8 +281,7 @@ const TeacherAssignments = () => {
             .select("user_id")
             .in("user_id", ids)
             .eq("is_active", true)
-            .gt("remaining_minutes", 0)
-            .gte("ends_at", new Date().toISOString());
+            .gt("remaining_minutes", 0);
           const activeIds = new Set((activeSubs || []).map((s: any) => s.user_id));
           ids = ids.filter(id => activeIds.has(id));
         }

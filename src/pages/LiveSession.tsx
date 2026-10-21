@@ -865,14 +865,12 @@ const LiveSession = () => {
       if (otherProfile) setOtherName(otherProfile.full_name || "المشارك");
 
       const studentId = user.id === booking.student_id ? user.id : booking.student_id;
-      const now = new Date().toISOString();
       const { data: allSubs } = await supabase
           .from("user_subscriptions")
           .select("id, sessions_remaining, remaining_minutes")
           .eq("user_id", studentId)
           .eq("is_active", true)
-          .gt("remaining_minutes", 0)
-          .gt("ends_at", now);
+          .gt("remaining_minutes", 0);
       if (allSubs && allSubs.length > 0) {
         // Sum ALL active subscriptions — student may hold multiple packages
         const totalRemain = allSubs.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);

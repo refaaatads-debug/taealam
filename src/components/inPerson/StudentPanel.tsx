@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -11,7 +11,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
-type RequestRow = { request_group_id: string; subject_name: string; scheduled_at: string; status: string; acceptance_deadline: string; booking_id: string | null; attendance_confirmed_at: string | null };
 
 const localDateTime = (date: Date) => {
   const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -38,15 +37,6 @@ const formatAppointmentTime = (dateTime: string) => {
     : date.toLocaleTimeString("ar-SA", { hour: "numeric", minute: "2-digit" });
 };
 
-const formatAcceptanceTimeLeft = (deadline: string, now: number) => {
-  const minutesLeft = Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 60_000));
-  if (minutesLeft === 0) return "أقل من دقيقة";
-  if (minutesLeft < 60) return `${minutesLeft} دقيقة`;
-  const hours = Math.floor(minutesLeft / 60);
-  const minutes = minutesLeft % 60;
-  return minutes ? `${hours} ساعة و${minutes} دقيقة` : `${hours} ساعة`;
-};
-
 const firstAvailableAppointment = () => {
   const earliest = Date.now() + 120 * 60_000;
   for (let offset = 0; offset < 7; offset += 1) {
@@ -67,11 +57,6 @@ export default function InPersonStudentPanel() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
-  const [requestsError, setRequestsError] = useState(false);
-  const [requestsLoaded, setRequestsLoaded] = useState(false);
-  const [now, setNow] = useState(Date.now());
-  const [attendanceCodes, setAttendanceCodes] = useState<Record<string, string>>({});
   const [cityId, setCityId] = useState("");
   const [addressId, setAddressId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -86,19 +71,6 @@ export default function InPersonStudentPanel() {
   const [reloadKey, setReloadKey] = useState(0);
   const [instructionDuration, setInstructionDuration] = useState<45 | 60>(60);
   const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number } | null>(null);
-
-  const refreshRequests = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase.rpc("list_my_in_person_request_groups" as any);
-    if (error) {
-      setRequestsError(true);
-      setRequestsLoaded(true);
-      return;
-    }
-    setRequestsError(false);
-    setRequestsLoaded(true);
-    setRequests((data || []) as RequestRow[]);
-  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -129,19 +101,9 @@ export default function InPersonStudentPanel() {
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
       setAddresses(((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id })));
       setSubjects(((subjectResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name })));
-      await refreshRequests();
     })();
     return () => { active = false; };
-  }, [user, refreshRequests, reloadKey]);
-
-  useEffect(() => {
-    if (!user || !enabled) return;
-    const interval = window.setInterval(() => {
-      setNow(Date.now());
-      void refreshRequests();
-    }, 15_000);
-    return () => window.clearInterval(interval);
-  }, [user, enabled, refreshRequests]);
+  }, [user, reloadKey]);
 
   const searchTeachers = async () => {
     if (!cityId || !addressId || !subjectId) {
@@ -232,38 +194,6 @@ export default function InPersonStudentPanel() {
       durationMinutes: instructionDuration,
     });
     setSelectedTeachers([]);
-    await refreshRequests();
-  };
-
-  const cancelRequest = async (row: RequestRow) => {
-    setLoading(true);
-    const result = row.booking_id
-      ? await supabase.rpc("cancel_in_person_booking" as any, { p_booking_id: row.booking_id, p_reason: "student_cancelled" })
-      : await supabase.rpc("cancel_in_person_request_group" as any, { p_request_group_id: row.request_group_id });
-    setLoading(false);
-    if (result.error) toast.error(arabicBookingError(result.error, "تعذر إلغاء الطلب الحضوري."));
-    else {
-      toast.success("تم الإلغاء وتحديث الرصيد حسب سياسة الحصة");
-      await refreshRequests();
-    }
-  };
-
-  const confirmAttendance = async (bookingId: string) => {
-    const code = (attendanceCodes[bookingId] || "").replace(/\D/g, "").slice(0, 4);
-    if (code.length !== 4) return toast.error("أدخل رمز الحضور المكوّن من أربعة أرقام");
-    setLoading(true);
-    const { data, error } = await supabase.rpc("confirm_in_person_attendance_code" as any, {
-      p_booking_id: bookingId,
-      p_code: code,
-    });
-    setLoading(false);
-    if (error) toast.error(arabicBookingError(error, "تعذر تأكيد الحضور. تحقق من الرمز وحاول مجددًا."));
-    else if (!data) toast.error("رمز الحضور غير صحيح");
-    else {
-      toast.success("تم تأكيد الحضور واحتساب الحصة");
-      setAttendanceCodes((current) => ({ ...current, [bookingId]: "" }));
-      await refreshRequests();
-    }
   };
 
   if (!enabled) return null;
@@ -295,7 +225,7 @@ export default function InPersonStudentPanel() {
             )}
             <DialogFooter className="gap-2 sm:justify-center">
               <Button variant="outline" onClick={() => setBookingSuccess(null)}>حجز حصة أخرى</Button>
-              <Button asChild><Link to="/student">متابعة للوحة الطالب</Link></Button>
+              <Button asChild><Link to="/student#in-person-requests">متابعة الطلب</Link></Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -466,44 +396,6 @@ export default function InPersonStudentPanel() {
             <Button onClick={submitRequest} disabled={loading || selectedTeachers.length === 0}>{loading ? "جارٍ الإرسال..." : "إرسال الطلب وحجز الرصيد"}</Button>
           </div>
         )}
-        <div className="space-y-2 border-t pt-4">
-          <h3 className="font-semibold">طلباتي الحضورية</h3>
-          {requestsError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            تعذر تحميل حالة الطلبات. أعد المحاولة.
-            <Button size="sm" variant="outline" className="ms-2" onClick={() => void refreshRequests()}>إعادة المحاولة</Button>
-          </div>}
-          {requestsLoaded && !requestsError && requests.length === 0 && <p className="text-sm text-muted-foreground">لا توجد طلبات حالية.</p>}
-          {requests.slice(0, 5).map((row) => (
-            <div key={row.request_group_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-              <div>
-                <strong>{row.subject_name || "حصة حضورية"}</strong>
-                <div className="text-muted-foreground">{new Date(row.scheduled_at).toLocaleString("ar-SA")}</div>
-                <div className={row.status === "open" ? "mt-1 font-medium text-amber-700" : "mt-1 text-muted-foreground"}>
-                  {row.status === "open"
-                    ? new Date(row.acceptance_deadline).getTime() <= now
-                      ? "انتهت مهلة القبول، جارٍ تحديث حالة الطلب"
-                      : `بانتظار قبول المعلم · متبقي ${formatAcceptanceTimeLeft(row.acceptance_deadline, now)}`
-                    : row.status === "accepted"
-                      ? "تم قبول الطلب"
-                      : row.status === "expired"
-                        ? "انتهت مهلة القبول أو اعتذر جميع المعلمين"
-                        : row.status === "cancelled"
-                          ? "تم إلغاء الطلب"
-                          : row.status}
-                </div>
-              </div>
-              {row.booking_id && row.status === "accepted" && (row.attendance_confirmed_at
-                ? <span className="text-xs font-medium text-green-700">تم تأكيد الحضور</span>
-                : Date.now() >= new Date(row.scheduled_at).getTime() && Date.now() < new Date(row.scheduled_at).getTime() + 15 * 60_000
-                  ? <div className="flex items-center gap-2">
-                  <input aria-label="رمز الحضور" className="h-9 w-28 rounded-md border bg-background px-2 text-center tracking-widest" inputMode="numeric" maxLength={4} placeholder="••••" value={attendanceCodes[row.booking_id] || ""} onChange={(e) => setAttendanceCodes((current) => ({ ...current, [row.booking_id!]: e.target.value.replace(/\D/g, "").slice(0, 4) }))} />
-                  <Button size="sm" disabled={loading} onClick={() => confirmAttendance(row.booking_id!)}>تأكيد الحضور</Button>
-                  </div>
-                  : <span className="text-xs text-muted-foreground">يظهر إدخال الرمز عند بداية الحصة</span>)}
-              {["open", "accepted"].includes(row.status) && !row.attendance_confirmed_at && <Button size="sm" variant="outline" disabled={loading} onClick={() => cancelRequest(row)}>إلغاء</Button>}
-            </div>
-          ))}
-        </div>
       </CardContent>
     </Card>
   );

@@ -217,8 +217,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
       .select("remaining_minutes")
       .eq("user_id", studentId)
       .eq("is_active", true)
-      .gte("remaining_minutes", 15)
-      .gt("ends_at", new Date().toISOString());
+      .gte("remaining_minutes", 15);
 
     if (!subs || subs.length === 0) {
       toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {

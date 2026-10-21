@@ -43,6 +43,7 @@ interface UserDetail extends UserProfile {
   subscriptions?: {
     plan_name: string;
     sessions_remaining: number;
+    remaining_minutes: number;
     is_active: boolean;
     starts_at: string | null;
     ends_at: string | null;
@@ -86,9 +87,7 @@ const formatAdminDate = (value: string | null | undefined) => {
 const getSubscriptionDisplayState = (subscription: NonNullable<UserDetail["subscriptions"]>[number]): SubscriptionDisplayState => {
   const now = Date.now();
   const startsAt = subscription.starts_at ? new Date(subscription.starts_at).getTime() : null;
-  const endsAt = subscription.ends_at ? new Date(subscription.ends_at).getTime() : null;
 
-  if (endsAt !== null && !Number.isNaN(endsAt) && endsAt <= now) return "expired";
   if (!subscription.is_active) return "inactive";
   if (startsAt !== null && !Number.isNaN(startsAt) && startsAt > now) return "upcoming";
   return "active";
@@ -271,7 +270,7 @@ export default function UserManagementTab() {
       const promises: Promise<any>[] = [
         supabase.from("student_points").select("total_points, streak_days").eq("user_id", profile.user_id).maybeSingle(),
         supabase.from("student_badges").select("badge_id, badges(name_ar, icon)").eq("user_id", profile.user_id),
-        supabase.from("user_subscriptions").select("sessions_remaining, is_active, starts_at, ends_at, created_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+        supabase.from("user_subscriptions").select("sessions_remaining, remaining_minutes, is_active, starts_at, ends_at, created_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
         supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", profile.user_id),
         (supabase as any).from("user_warnings").select("warning_type, description, created_at, warning_count").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
       ];
@@ -296,6 +295,7 @@ export default function UserManagementTab() {
       detail.subscriptions = (subsRes.data ?? []).map((s: any) => ({
         plan_name: s.subscription_plans?.name_ar || "—",
         sessions_remaining: s.sessions_remaining,
+        remaining_minutes: s.remaining_minutes,
         is_active: s.is_active,
         starts_at: s.starts_at,
         ends_at: s.ends_at,
@@ -878,11 +878,11 @@ export default function UserManagementTab() {
                                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                   <div className="flex items-start gap-3">
                                     <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isCurrent ? "bg-emerald-100 text-emerald-700" : "bg-slate-200/70 text-slate-600"}`}>{displayState === "active" ? <CheckCircle2 className="h-5 w-5" /> : displayState === "expired" ? <Timer className="h-5 w-5" /> : <CircleOff className="h-5 w-5" />}</span>
-                                    <div><div className="flex flex-wrap items-center gap-2"><p className="font-black text-slate-900">{sub.plan_name}</p><Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${stateMeta.className}`}>{stateMeta.label}</Badge></div><p className="mt-1 text-xs text-slate-500">{sub.sessions_remaining ?? 0} حصة متبقية في هذه الباقة</p></div>
+                                    <div><div className="flex flex-wrap items-center gap-2"><p className="font-black text-slate-900">{sub.plan_name}</p><Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${stateMeta.className}`}>{stateMeta.label}</Badge></div><p className="mt-1 text-xs text-slate-500">{sub.remaining_minutes ?? 0} دقيقة متبقية · الدقائق صالحة حتى استخدامها</p></div>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2 sm:min-w-[330px]">
                                     <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2.5"><span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400"><CalendarDays className="h-3.5 w-3.5" /> بداية الاشتراك</span><p className="mt-1 text-xs font-bold text-slate-700">{formatAdminDate(sub.starts_at || sub.created_at)}</p></div>
-                                    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2.5"><span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400"><Calendar className="h-3.5 w-3.5" /> نهاية الاشتراك</span><p className="mt-1 text-xs font-bold text-slate-700">{formatAdminDate(sub.ends_at)}</p></div>
+                                    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2.5"><span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400"><Calendar className="h-3.5 w-3.5" /> تاريخ النهاية المحفوظ</span><p className="mt-1 text-xs font-bold text-slate-700">{formatAdminDate(sub.ends_at)}</p></div>
                                   </div>
                                 </div>
                               </article>

@@ -13,6 +13,11 @@ import {
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  resolveRecordedSessionStart,
+  resolveReportedTeachingMinutes,
+  resolveSavedTeacherEarning,
+} from "@/lib/teacherPerformance";
 
 interface TeacherData {
   id: string;
@@ -31,6 +36,8 @@ interface TeacherData {
   completedCount: number;
   cancelledCount: number;
   totalPrice: number;
+  onlineTotal: number;
+  inPersonTotal: number;
   aiReport: string | null;
   aiReportLoading: boolean;
 }
@@ -39,6 +46,7 @@ interface SessionDetail {
   booking_id: string;
   student_name: string;
   subject_name: string;
+  delivery_mode: "online" | "in_person" | null;
   scheduled_at: string;
   started_at: string | null;
   duration_minutes: number;
@@ -50,6 +58,7 @@ interface SessionDetail {
   gross_amount: number;
   short_session: boolean;
   booked_minutes: number;
+  package_minutes: number | null;
 }
 
 interface FilteredStats {
@@ -58,6 +67,8 @@ interface FilteredStats {
   studentsCount: number;
   totalSeconds: number;
   totalPrice: number;
+  onlineEarnings?: number;
+  inPersonEarnings?: number;
   avgRating: number;
   totalReviews: number;
 }
@@ -72,6 +83,7 @@ const formatDuration = (totalSeconds: number): string => {
 function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: SessionDetail[]; onFilteredStatsChange?: (stats: FilteredStats) => void }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("completed");
+  const [modeFilter, setModeFilter] = useState("all");
   const [sessionDateFrom, setSessionDateFrom] = useState("");
   const [sessionDateTo, setSessionDateTo] = useState("");
   const [priceFilter, setPriceFilter] = useState("all");
@@ -82,6 +94,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
     return sessions.filter(s => {
       if (studentFilter && s.student_name !== studentFilter) return false;
       if (statusFilter !== "all" && s.status !== statusFilter) return false;
+      if (modeFilter !== "all" && s.delivery_mode !== modeFilter) return false;
       if (sessionDateFrom && new Date(s.scheduled_at) < new Date(sessionDateFrom)) return false;
       if (sessionDateTo) {
         const end = new Date(sessionDateTo);
@@ -92,9 +105,9 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
       if (priceFilter === "no_price" && s.price != null) return false;
       return true;
     });
-  }, [sessions, studentFilter, statusFilter, sessionDateFrom, sessionDateTo, priceFilter]);
+  }, [sessions, studentFilter, statusFilter, modeFilter, sessionDateFrom, sessionDateTo, priceFilter]);
 
-  const hasActiveFilter = studentFilter || (statusFilter !== "all" && statusFilter !== "completed") || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
+  const hasActiveFilter = studentFilter || (statusFilter !== "all" && statusFilter !== "completed") || modeFilter !== "all" || priceFilter !== "all" || sessionDateFrom || sessionDateTo;
 
   // Report filtered stats to parent
   useEffect(() => {
@@ -106,6 +119,8 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
         studentsCount: new Set(completed.map(s => s.student_name)).size,
         totalSeconds: completed.reduce((sum, s) => sum + (s.actual_seconds || 0), 0),
         totalPrice: completed.reduce((sum, s) => sum + (s.price || 0), 0),
+        onlineEarnings: completed.filter(s => s.delivery_mode === "online").reduce((sum, s) => sum + (s.price || 0), 0),
+        inPersonEarnings: completed.filter(s => s.delivery_mode === "in_person").reduce((sum, s) => sum + (s.price || 0), 0),
         avgRating: -1, // Can't recalculate from session data
         totalReviews: -1,
       });
@@ -167,6 +182,17 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
           </SelectContent>
         </Select>
 
+        <Select value={modeFilter} onValueChange={setModeFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs rounded-xl">
+            <SelectValue placeholder="نوع الحصة" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">كل الأنواع</SelectItem>
+            <SelectItem value="online">أونلاين</SelectItem>
+            <SelectItem value="in_person">حضوري</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select value={priceFilter} onValueChange={setPriceFilter}>
           <SelectTrigger className="w-32 h-8 text-xs rounded-xl">
             <SelectValue placeholder="السعر" />
@@ -189,6 +215,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => {
             setStudentFilter("");
             setStatusFilter("all");
+            setModeFilter("all");
             setPriceFilter("all");
             setSessionDateFrom("");
             setSessionDateTo("");
@@ -205,9 +232,11 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
               <tr className="border-b text-muted-foreground">
                 <th className="text-right pb-2 font-medium">الطالب</th>
                 <th className="text-right pb-2 font-medium">المادة</th>
+                <th className="text-right pb-2 font-medium">النمط</th>
                 <th className="text-right pb-2 font-medium">التاريخ</th>
-                <th className="text-right pb-2 font-medium">ساعة الدخول</th>
-                <th className="text-right pb-2 font-medium">المدة الفعلية</th>
+                <th className="text-right pb-2 font-medium">وقت البدء / تأكيد الحضور</th>
+                <th className="text-right pb-2 font-medium">مدة التدريس / الجلسة</th>
+                <th className="text-right pb-2 font-medium">دقائق الباقة</th>
                 <th className="text-right pb-2 font-medium">السعر</th>
                 <th className="text-right pb-2 font-medium">الحالة</th>
               </tr>
@@ -225,12 +254,16 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                 <tr key={i} className="hover:bg-muted/20">
                   <td className="py-2 text-foreground">{s.student_name}</td>
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
+                  <td className="py-2 text-muted-foreground">{s.delivery_mode === "in_person" ? "حضوري" : s.delivery_mode === "online" ? "أونلاين" : "غير محدد"}</td>
                   <td className="py-2 text-muted-foreground">
                     {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
                   </td>
                   <td className="py-2 text-muted-foreground font-mono">
                     {s.started_at
-                      ? new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+                      ? <span title={s.delivery_mode === "in_person" ? "وقت تأكيد الحضور المسجل؛ لا يُعرض كوقت انتهاء فعلي" : "وقت بدء الجلسة المسجل"}>
+                          {new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                          {s.delivery_mode === "in_person" && <span className="ms-1 text-[10px] font-sans">تأكيد الحضور</span>}
+                        </span>
                       : s.status === "completed"
                         ? <span className="text-xs text-orange-400">لم تُنفَّذ</span>
                         : "—"}
@@ -246,6 +279,9 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                       <span className="text-muted-foreground text-xs">{s.booked_minutes} د (محجوز)</span>
                     )}
                   </td>
+                  <td className="py-2 text-muted-foreground text-xs">
+                    {s.package_minutes == null ? "—" : `${s.package_minutes} د`}
+                  </td>
                   <td className="py-2">
                     {s.status === "completed" ? (
                       s.short_session ? (
@@ -256,7 +292,7 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                         <div className="text-xs leading-tight">
                           <div className="font-semibold text-green-600">{Number(s.price).toFixed(2)} ر.س</div>
                           {s.gross_amount > 0 && (
-                            <div className="text-muted-foreground text-[10px]">إجمالي الحصة: {s.gross_amount} ر.س</div>
+                            <div className="text-muted-foreground text-[10px]">{s.delivery_mode === "in_person" ? "إيراد المنصة" : "إجمالي الحصة"}: {s.gross_amount} ر.س</div>
                           )}
                         </div>
                       ) : "—"
@@ -326,6 +362,10 @@ export default function TeacherPerformanceTab() {
         console.error("Bookings fetch error:", bookingsRes.error);
         throw bookingsRes.error;
       }
+      if (inPersonFinanceRes.error && (bookingsRes.data ?? []).some((booking: any) => booking.delivery_mode === "in_person")) {
+        console.error("In-person financial report fetch error:", inPersonFinanceRes.error);
+        throw inPersonFinanceRes.error;
+      }
 
       const profileMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p]));
       const inPersonFinanceMap = new Map(((inPersonFinanceRes.data ?? []) as any[]).map(row => [row.booking_id, row]));
@@ -337,8 +377,11 @@ export default function TeacherPerformanceTab() {
       });
 
       // Get all student names and subject names
-      const allStudentIds = [...new Set((bookingsRes.data ?? []).map(b => b.student_id))];
-      const allSubjectIds = [...new Set((bookingsRes.data ?? []).filter(b => b.subject_id).map(b => b.subject_id!))];
+      const allStudentIds = [...new Set<string>((bookingsRes.data ?? []).map((b: any) => b.student_id).filter(Boolean))];
+      const allSubjectIds = [...new Set<string>([
+        ...(bookingsRes.data ?? []).map((b: any) => b.subject_id),
+        ...Array.from(inPersonFinanceMap.values()).map((row: any) => row.subject_id),
+      ].filter(Boolean))];
 
       const [studentsRes, subjectsRes] = await Promise.all([
         allStudentIds.length > 0 ? supabase.from("profiles").select("user_id, full_name").in("user_id", allStudentIds) : { data: [] },
@@ -363,18 +406,21 @@ export default function TeacherPerformanceTab() {
           const isInPersonCompleted = isInPerson && b.status === "completed" && Boolean((b as any).attendance_confirmed_at);
           const effectiveCompleted = b.status === "completed" || isInPersonCompleted;
           const inPersonFinance = inPersonFinanceMap.get(b.id) as any;
+          const effectiveSubjectId = b.subject_id ?? inPersonFinance?.subject_id;
           // Session embedded via unique FK — Supabase returns single object (not array)
           const rawSess = (b as any).sessions;
           const session = Array.isArray(rawSess) ? (rawSess[0] ?? null) : (rawSess ?? null);
           // actualDuration: deducted_minutes = authoritative (set by trigger after session ends)
           // session.duration_minutes is set at START from booked duration → not actual
-          const actualDuration = isInPersonCompleted
-            ? Number((b as any).in_person_teaching_minutes ?? (b as any).instruction_duration_minutes ?? b.duration_minutes) || null
-            : (session?.deducted_minutes && session.deducted_minutes > 0)
-            ? session.deducted_minutes
-            : (session?.duration_seconds && session.duration_seconds > 0)
-              ? Math.ceil(session.duration_seconds / 60)
-              : null;
+          const actualDuration = resolveReportedTeachingMinutes({
+            deliveryMode: isInPerson ? "in_person" : b.delivery_mode === "online" ? "online" : null,
+            status: isInPerson ? isInPersonCompleted ? "completed" : "unverified" : b.status,
+            inPersonTeachingMinutes: (b as any).in_person_teaching_minutes,
+            savedInstructionMinutes: (b as any).instruction_duration_minutes,
+            savedBookingMinutes: b.duration_minutes,
+            deductedMinutes: session?.deducted_minutes,
+            durationSeconds: session?.duration_seconds,
+          });
           let actualSeconds: number | null = null;
           
           if (isInPersonCompleted) {
@@ -409,34 +455,27 @@ export default function TeacherPerformanceTab() {
           }
 
           const grossAmount = isInPerson
-            ? Number((b as any).in_person_student_value_sar ?? 0)
+            ? Number(inPersonFinance?.platform_revenue ?? 0)
             : session?.gross_amount != null ? Number(session.gross_amount) : 0;
           const isShort = session ? (session.short_session === true) : false;
-          let calculatedPrice: number | null = null;
-          if (isInPerson) {
-            const savedEarning = inPersonFinance?.teacher_earning;
-            const savedCompensation = inPersonFinance?.teacher_compensation;
-            if (savedEarning != null || savedCompensation != null) {
-              calculatedPrice = Number(savedEarning ?? 0) + Number(savedCompensation ?? 0);
-            } else if ((b as any).in_person_teacher_rate_sar != null) {
-              calculatedPrice = Number((b as any).in_person_teacher_rate_sar);
-            }
-          } else if (b.status === "completed") {
-            if (session?.teacher_earning != null) {
-              calculatedPrice = Number(session.teacher_earning);
-            } else if (session?.net_amount != null) {
-              calculatedPrice = Number(session.net_amount);
-            } else if (isShort) {
-              calculatedPrice = 0;
-            }
-          }
+          const calculatedPrice = resolveSavedTeacherEarning({
+            deliveryMode: isInPerson ? "in_person" : b.delivery_mode === "online" ? "online" : null,
+            status: b.status,
+            inPerson: inPersonFinance,
+            online: session,
+          });
 
           return {
             booking_id: b.id,
             student_name: studentMap.get(b.student_id) || "غير معروف",
-            subject_name: b.subject_id ? (subjectMap.get(b.subject_id) || "عامة") : "عامة",
+              subject_name: effectiveSubjectId ? (subjectMap.get(effectiveSubjectId) || "غير محددة") : "غير محددة",
+              delivery_mode: isInPerson ? "in_person" : b.delivery_mode === "online" ? "online" : null,
             scheduled_at: b.scheduled_at,
-            started_at: session?.started_at || null,
+              started_at: resolveRecordedSessionStart({
+                deliveryMode: isInPerson ? "in_person" : b.delivery_mode === "online" ? "online" : null,
+                sessionStartedAt: session?.started_at,
+                attendanceConfirmedAt: (b as any).attendance_confirmed_at,
+              }),
             duration_minutes: b.duration_minutes,
             actual_duration: actualDuration,
             actual_seconds: actualSeconds,
@@ -448,6 +487,9 @@ export default function TeacherPerformanceTab() {
             gross_amount: grossAmount,
             short_session: isShort,
             booked_minutes: b.duration_minutes,
+            package_minutes: isInPerson
+              ? inPersonFinance?.package_minutes == null ? null : Number(inPersonFinance.package_minutes)
+              : session?.deducted_minutes == null ? null : Number(session.deducted_minutes),
           };
         });
 
@@ -471,6 +513,10 @@ export default function TeacherPerformanceTab() {
           completedCount: completedBookings.length,
           cancelledCount: cancelledBookings.length,
           totalPrice: sessions.reduce((sum, s) => sum + (s.price || 0), 0),
+          onlineTotal: sessions.filter(s => s.status === "completed" && s.delivery_mode === "online")
+            .reduce((sum, s) => sum + (s.price || 0), 0),
+          inPersonTotal: sessions.filter(s => s.status === "completed" && s.delivery_mode === "in_person")
+            .reduce((sum, s) => sum + (s.price || 0), 0),
           aiReport: null,
           aiReportLoading: false,
         };
@@ -592,6 +638,8 @@ export default function TeacherPerformanceTab() {
                   duration: formatDuration(t.totalSeconds),
                   hours: t.totalHours,
                   earnings: Math.round(t.totalPrice * 10) / 10,
+                  onlineEarnings: Math.round(t.onlineTotal * 100) / 100,
+                  inPersonEarnings: Math.round(t.inPersonTotal * 100) / 100,
                   sessions: t.completedCount,
                   cancelled: t.cancelledCount,
                   students: t.studentsCount,
@@ -603,6 +651,8 @@ export default function TeacherPerformanceTab() {
                   { key: "duration", label: "المدة الفعلية (س:د:ث)" },
                   { key: "hours", label: "الساعات" },
                   { key: "earnings", label: "أرباح المعلم إجمالي (ر.س)" },
+                  { key: "onlineEarnings", label: "أرباح الأونلاين (ر.س)" },
+                  { key: "inPersonEarnings", label: "أرباح الحضوري (ر.س)" },
                   { key: "sessions", label: "الحصص المكتملة" },
                   { key: "cancelled", label: "الحصص الملغاة" },
                   { key: "students", label: "عدد الطلاب" },
@@ -702,7 +752,7 @@ export default function TeacherPerformanceTab() {
                             return (
                               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                                 {[
-                                  { label: "المدة الفعلية", value: formatDuration(displayStats.totalSeconds), icon: Clock, color: "text-primary" },
+                                  { label: "مدة التدريس / الجلسة", value: formatDuration(displayStats.totalSeconds), icon: Clock, color: "text-primary" },
                                   { label: "حصص مكتملة", value: displayStats.completedCount, icon: BookOpen, color: "text-green-600" },
                                   { label: "حصص ملغاة", value: displayStats.cancelledCount, icon: BookOpen, color: "text-destructive" },
                                   { label: "عدد الطلاب", value: displayStats.studentsCount, icon: Users, color: "text-secondary" },

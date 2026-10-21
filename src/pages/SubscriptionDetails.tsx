@@ -54,7 +54,8 @@ const SubscriptionDetails = () => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch ALL active subscriptions + reserved pending bookings (consistent with booking pages)
+    // Package minutes remain usable while the subscription is active and has
+    // a positive verified balance; ends_at is retained as historical metadata.
     const now = new Date().toISOString();
     const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data: subs } = await supabase
@@ -63,8 +64,7 @@ const SubscriptionDetails = () => {
       .eq("user_id", user.id)
       .eq("is_active", true)
       .gt("remaining_minutes", 0)
-      .gt("ends_at", now)
-      .order("ends_at", { ascending: true });
+      .order("created_at", { ascending: true });
     if (subs && subs.length > 0) {
       const totalRemaining = subs.reduce((s: number, x: any) => s + (x.remaining_minutes || 0), 0);
       const totalHours     = subs.reduce((s: number, x: any) => s + (x.total_hours     || 0), 0);
@@ -236,10 +236,10 @@ const SubscriptionDetails = () => {
                     </div>
                   </div>
 
-                  {subscription?.ends_at && (
+                  {remainingMinutes > 0 && (
                     <p className="text-xs text-muted-foreground text-center">
                       <Calendar className="inline h-3 w-3 ml-1" />
-                      تنتهي الباقة: {new Date(subscription.ends_at).toLocaleDateString("ar-SA")}
+                      الدقائق صالحة حتى استخدامها
                     </p>
                   )}
 

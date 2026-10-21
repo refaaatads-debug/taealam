@@ -1,18 +1,18 @@
 -- Committed only in the isolated schema test database so separate sessions
 -- can race the session-ending trigger. Run cleanup after assertions.
 BEGIN;
+DELETE FROM public.user_roles
+WHERE user_id IN (
+  'a3000000-0000-4000-8000-000000000001',
+  'a3000000-0000-4000-8000-000000000002',
+  'a3000000-0000-4000-8000-000000000003'
+);
 INSERT INTO auth.users(id, aud, role, email, encrypted_password, created_at, updated_at)
 VALUES
   ('a3000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'concurrent-teacher@example.invalid', '', now(), now()),
   ('a3000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'concurrent-student-one@example.invalid', '', now(), now()),
   ('a3000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'concurrent-student-two@example.invalid', '', now(), now());
 
-INSERT INTO public.profiles(user_id, full_name)
-VALUES
-  ('a3000000-0000-4000-8000-000000000001', 'Synthetic concurrent teacher'),
-  ('a3000000-0000-4000-8000-000000000002', 'Synthetic concurrent student one'),
-  ('a3000000-0000-4000-8000-000000000003', 'Synthetic concurrent student two')
-ON CONFLICT (user_id) DO NOTHING;
 INSERT INTO public.teacher_profiles(user_id, hourly_rate, is_approved, approval_status)
 VALUES ('a3000000-0000-4000-8000-000000000001', 20, true, 'approved');
 INSERT INTO public.subscription_plans(id, tier, name_ar, price, sessions_count, session_duration_minutes)

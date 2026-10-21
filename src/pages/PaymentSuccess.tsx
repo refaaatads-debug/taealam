@@ -184,10 +184,8 @@ const PaymentSuccess = () => {
                         <p className="font-bold text-green-600">{subscription.sessions_remaining} حصة</p>
                       </div>
                       <div className="bg-background rounded-lg p-3 text-center">
-                        <p className="text-muted-foreground mb-1">ينتهي في</p>
-                        <p className="font-bold text-sm">
-                          {new Date(subscription.ends_at).toLocaleDateString("ar-SA")}
-                        </p>
+                        <p className="text-muted-foreground mb-1">صلاحية الدقائق</p>
+                        <p className="font-bold text-sm">صالحة حتى استخدامها</p>
                       </div>
                     </div>
                   </div>

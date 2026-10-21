@@ -108,7 +108,7 @@ const TAB_TITLES: Record<string, string> = {
   teacher_profiles: "ملفات المعلمين",
   in_person: "نظرة عامة على التعليم الحضوري",
   in_person_approvals: "اعتماد المعلمين الحضوريين",
-  in_person_settlements: "تسوية مستحقات الحضوري",
+  in_person_settlements: "سجل تسويات الحضوري",
   in_person_cities: "مدن التعليم الحضوري",
   teachers: "طلبات تسجيل المعلمين",
   teacher_performance: "أداء المعلمين",

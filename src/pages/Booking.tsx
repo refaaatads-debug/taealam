@@ -175,8 +175,7 @@ const Booking = () => {
           .select("sessions_remaining, remaining_minutes, session_duration_minutes")
           .eq("user_id", user.id)
           .eq("is_active", true)
-          .gt("remaining_minutes", 0)
-          .gt("ends_at", now),
+          .gt("remaining_minutes", 0),
         supabase
           .from("bookings")
           .select("scheduled_at, duration_minutes")

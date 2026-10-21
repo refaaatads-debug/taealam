@@ -11,7 +11,18 @@ import { ExternalLink, MapPin } from "lucide-react";
 type AddressSnapshot = { street_address?: string | null; district?: string | null; latitude?: number | string | null; longitude?: number | string | null };
 type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; offered_teacher_rate_sar: number; offered_platform_share_sar: number; pricing_source: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
 type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
-type EarningRow = { booking_id: string; amount: number; status: string; available_at: string; scheduled_at: string };
+type EarningRow = {
+  source_id: string;
+  booking_id: string;
+  source_type: "lesson" | "compensation";
+  amount: number;
+  status: string;
+  available_amount: number;
+  reserved_amount: number;
+  paid_amount: number;
+  available_at: string;
+  scheduled_at: string;
+};
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
 export default function InPersonTeacherPanel() {
@@ -38,7 +49,7 @@ export default function InPersonTeacherPanel() {
       supabase.from("bookings" as any).select("id,student_id,scheduled_at,visit_address_snapshot,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
-      supabase.rpc("list_my_in_person_teacher_earnings" as any),
+      supabase.rpc("list_my_in_person_earnings_status" as any),
       supabase.rpc("get_my_in_person_city_status" as any),
     ]);
     if (error) {
@@ -47,7 +58,12 @@ export default function InPersonTeacherPanel() {
       }
       setRequests([]);
     } else {
-      const locations = new Map((requestLocations || []).map((location: any) => [location.request_group_id, location]));
+      const locations = new Map<string, AddressSnapshot>(
+        (requestLocations || []).map((location: any) => [
+          location.request_group_id,
+          location as AddressSnapshot,
+        ] as [string, AddressSnapshot]),
+      );
       setRequests((incoming || []).map((request: any) => ({ ...request, ...(locations.get(request.request_group_id) || {}) })) as RequestRow[]);
     }
     setLocationError(Boolean(locationsError));
@@ -147,9 +163,19 @@ export default function InPersonTeacherPanel() {
         <section className="space-y-2 border-t pt-4">
           <h3 className="font-semibold">مستحقات الحضوري</h3>
           {earnings.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مستحقات مسجلة.</p>}
-          {earnings.slice(0, 5).map((earning) => <div key={earning.booking_id} className="flex justify-between gap-2 rounded-lg border p-3 text-sm">
-            <span>{new Date(earning.scheduled_at).toLocaleDateString("ar-SA")} · {earning.status === "available" ? "متاح" : earning.status === "pending" ? `متاح بعد ${new Date(earning.available_at).toLocaleString("ar-SA")}` : "معدّل"}</span>
-            <strong>{earning.amount} ر.س</strong>
+          {earnings.slice(0, 5).map((earning) => <div key={earning.source_id} className="flex justify-between gap-3 rounded-lg border p-3 text-sm">
+            <div className="space-y-1">
+              <p>{new Date(earning.scheduled_at).toLocaleDateString("ar-SA")} · {earning.source_type === "compensation" ? "تعويض" : "أجر حصة"}</p>
+              <p className="text-xs text-muted-foreground">
+                {earning.status === "reserved" ? "محجوز لطلب سحب" :
+                  earning.status === "paid" ? "مصروف" :
+                  earning.status === "partially_paid" ? "مصروف جزئيًا" :
+                  earning.status === "pending" ? `معلّق حتى ${new Date(earning.available_at).toLocaleString("ar-SA")}` :
+                  earning.status === "adjusted" ? "معدّل" : "متاح"}
+                {" · "}متاح {Number(earning.available_amount).toLocaleString()} · محجوز {Number(earning.reserved_amount).toLocaleString()} · مصروف {Number(earning.paid_amount).toLocaleString()} ر.س
+              </p>
+            </div>
+            <strong className="shrink-0">{Number(earning.amount).toLocaleString()} ر.س</strong>
           </div>)}
         </section>
       </CardContent>

@@ -16,7 +16,7 @@ BEGIN
   SELECT count(*), max(e.amount) INTO v_rollups, v_amount
   FROM public.teacher_earnings e
   WHERE e.teacher_id = 'a3000000-0000-4000-8000-000000000001'
-    AND e.month = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')
+    AND e.month = to_char(now() AT TIME ZONE 'Asia/Riyadh', 'YYYY-MM')
     AND e.status = 'unconfirmed'
     AND e.notes LIKE 'auto:session:%';
   SELECT array_agg(s.remaining_minutes ORDER BY s.id) INTO v_balances
@@ -38,11 +38,14 @@ WHERE session_id IN (
   SELECT id FROM public.sessions
   WHERE booking_id IN ('a3000000-0000-4000-8000-000000000007','a3000000-0000-4000-8000-000000000008')
 );
+DELETE FROM public.teacher_withdrawal_earning_allocations
+WHERE teacher_earning_id IN (
+  SELECT id FROM public.teacher_earnings
+  WHERE teacher_id = 'a3000000-0000-4000-8000-000000000001'
+);
 DELETE FROM public.teacher_earnings
 WHERE teacher_id = 'a3000000-0000-4000-8000-000000000001'
-  AND notes LIKE '%a3000000-0000-4000-8000-000000000009%'
-  OR teacher_id = 'a3000000-0000-4000-8000-000000000001'
-  AND notes LIKE '%a3000000-0000-4000-8000-000000000010%';
+  AND notes LIKE 'auto:session:%';
 DELETE FROM public.sessions
 WHERE booking_id IN ('a3000000-0000-4000-8000-000000000007','a3000000-0000-4000-8000-000000000008');
 DELETE FROM public.bookings
@@ -53,6 +56,12 @@ DELETE FROM public.teacher_profiles WHERE user_id = 'a3000000-0000-4000-8000-000
 DELETE FROM public.subscription_plans WHERE id = 'a3000000-0000-4000-8000-000000000004';
 DELETE FROM auth.users
 WHERE id IN (
+  'a3000000-0000-4000-8000-000000000001',
+  'a3000000-0000-4000-8000-000000000002',
+  'a3000000-0000-4000-8000-000000000003'
+);
+DELETE FROM public.user_roles
+WHERE user_id IN (
   'a3000000-0000-4000-8000-000000000001',
   'a3000000-0000-4000-8000-000000000002',
   'a3000000-0000-4000-8000-000000000003'
