@@ -76,8 +76,16 @@ const Profile = () => {
     supabase.rpc("is_in_person_test_user" as any)
       .then(({ data }) => setInPersonPilot(Boolean(data)));
 
-    supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar")
-      .then(({ data }) => setCities((data || []) as { id: string; name_ar: string }[]));
+    void (async () => {
+      const { data } = await supabase.from("cities" as any).select("id,name_ar").eq("is_active", true).order("name_ar");
+      const rows: unknown = data;
+      const validCities = Array.isArray(rows)
+        ? rows.filter((row): row is { id: string; name_ar: string } =>
+            typeof row?.id === "string" && typeof row?.name_ar === "string"
+          )
+        : [];
+      setCities(validCities);
+    })();
     if (isStudent) {
       supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false })
         .then(({ data }) => setSavedAddresses(((data || []) as any[]).map((address) => ({

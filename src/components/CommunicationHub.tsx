@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
 import siteLogo from "@/assets/logo.png";
+import { notificationTemplates } from "@/lib/notificationTemplates";
 
 type HubTab = "support" | "messages" | "assistant";
 
@@ -423,7 +424,7 @@ function MessagesPanel() {
       const teacherId = isTeacher ? user.id : selected.otherUserId;
       const [{ data: pairBookings }, subscriptionResult, callResult] = await Promise.all([
         supabase.from("bookings").select("id").eq("student_id", studentId).eq("teacher_id", teacherId),
-        isTeacher ? Promise.resolve({ data: [{ id: "teacher" }] }) : supabase.from("user_subscriptions").select("id").eq("user_id", user.id).eq("is_active", true).gt("remaining_minutes", 0).gt("ends_at", new Date().toISOString()).limit(1),
+        isTeacher ? Promise.resolve({ data: [{ id: "teacher" }] }) : supabase.from("user_subscriptions").select("id").eq("user_id", user.id).eq("is_active", true).gt("remaining_minutes", 0).limit(1),
         isTeacher
           ? supabase.from("call_logs").select("id, status, created_at, ended_at, duration_minutes, cost").eq("teacher_id", user.id).eq("student_id", selected.otherUserId).order("created_at", { ascending: false }).limit(30)
           : Promise.resolve({ data: [] as CallHistoryItem[] }),
@@ -503,7 +504,7 @@ function MessagesPanel() {
         .eq("user_id", studentId)
         .eq("is_active", true)
         .gte("remaining_minutes", 15)
-        .gt("ends_at", new Date().toISOString());
+        ;
 
       if (!subscriptions?.length) {
         toast.error("لا يمكن بدء جلسة فورية", {

@@ -371,7 +371,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       (!localTrackRef.current && !localStreamRef.current)
     ) return;
     let disposed = false;
-    let readyTimer: ReturnType<typeof window.setInterval> | null = null;
+    let readyTimer: number | null = null;
 
     (async () => {
       cleanupPeer();

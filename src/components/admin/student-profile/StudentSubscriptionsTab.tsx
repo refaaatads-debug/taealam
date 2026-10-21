@@ -69,8 +69,6 @@ const StudentSubscriptionsTab = ({ data, studentId, onRefresh }: { data: Student
           : (s.remaining_minutes || 0);
         const used = Math.max(0, totalMin - (s.remaining_minutes || 0));
         const pct = totalMin > 0 ? (used / totalMin) * 100 : 0;
-        const isExpired = s.ends_at && new Date(s.ends_at) < new Date();
-
         return (
           <Card key={s.id} className={s.is_active ? "border-emerald-500/30" : ""}>
             <CardContent className="p-5">
@@ -78,10 +76,8 @@ const StudentSubscriptionsTab = ({ data, studentId, onRefresh }: { data: Student
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-lg font-bold">{s.subscription_plans?.name_ar || "باقة"}</h3>
-                    {s.is_active && !isExpired ? (
+                    {s.is_active ? (
                       <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/15">فعّال</Badge>
-                    ) : isExpired ? (
-                      <Badge variant="outline" className="text-destructive border-destructive/30">منتهي</Badge>
                     ) : (
                       <Badge variant="outline">غير نشط</Badge>
                     )}
@@ -90,8 +86,8 @@ const StudentSubscriptionsTab = ({ data, studentId, onRefresh }: { data: Student
                     {s.subscription_plans?.price && <div>السعر: <span className="font-bold text-foreground">{s.subscription_plans.price} ريال</span></div>}
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {s.starts_at && <>من {new Date(s.starts_at).toLocaleDateString("ar-SA")}</>}
-                      {s.ends_at && <> حتى {new Date(s.ends_at).toLocaleDateString("ar-SA")}</>}
+                      {s.starts_at && <>بدأت {new Date(s.starts_at).toLocaleDateString("ar-SA")}</>}
+                      {s.ends_at && <> · التاريخ الأصلي المحفوظ {new Date(s.ends_at).toLocaleDateString("ar-SA")} (لا يُنهي رصيد الدقائق)</>}
                     </div>
                   </div>
                 </div>

@@ -86,10 +86,10 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
       if (role !== "student") return { error: "هذه الاداة للطلاب فقط." };
       const { data, error } = await supabase
         .from("user_subscriptions")
-        .select("id, remaining_minutes, sessions_remaining, ends_at, is_active, plan:subscription_plans(name_ar, sessions_count)")
+          .select("id, remaining_minutes, sessions_remaining, is_active, plan:subscription_plans(name_ar, sessions_count)")
         .eq("user_id", userId)
         .eq("is_active", true)
-        .order("ends_at", { ascending: false });
+        .order("remaining_minutes", { ascending: false });
       if (error) {
         console.error("get_my_subscription query failed:", error);
         return { error: "تعذر جلب بيانات الاشتراك حالياً" };
@@ -99,7 +99,6 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         plan_name: s.plan?.name_ar,
         remaining_minutes: s.remaining_minutes,
         sessions_remaining: s.sessions_remaining,
-        ends_at: formatDate(s.ends_at),
         is_active: s.is_active,
       }));
       return { active: true, subscriptions: formatted };

@@ -21,17 +21,18 @@ export function useInPersonFeatureGate() {
 
     setEnabled(false);
     setLoading(true);
-    supabase.rpc("is_in_person_test_user")
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc("is_in_person_test_user");
         if (!active) return;
         setEnabled(!error && data === true);
         setLoading(false);
-      })
-      .catch(() => {
+      } catch {
         if (!active) return;
         setEnabled(false);
         setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       active = false;

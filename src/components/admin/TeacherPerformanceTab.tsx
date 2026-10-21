@@ -80,6 +80,14 @@ const formatDuration = (totalSeconds: number): string => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+const formatSaudiDateTime = (value: string | null | undefined) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" });
+};
+
 function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: SessionDetail[]; onFilteredStatsChange?: (stats: FilteredStats) => void }) {
   const [studentFilter, setStudentFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("completed");
@@ -150,10 +158,37 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
 
   return (
     <div>
-      <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
-        <BookOpen className="h-4 w-4 text-primary" />
-        تفاصيل الحصص ({filtered.length}/{sessions.length})
-      </h4>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h4 className="font-bold text-sm flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-primary" />
+          تفاصيل الحصص ({filtered.length}/{sessions.length})
+        </h4>
+        <ExportCSVButton
+          filename="تفاصيل_أداء_المعلمين"
+          data={filtered.map((s) => ({
+            student: s.student_name,
+            subject: s.subject_name,
+            session_type: s.delivery_mode === "in_person" ? "حضوري" : s.delivery_mode === "online" ? "أونلاين" : "غير محدد",
+            scheduled_at: formatSaudiDateTime(s.scheduled_at),
+            actual_start: formatSaudiDateTime(s.started_at),
+            teaching_minutes: s.actual_duration ?? "",
+            package_minutes: s.package_minutes ?? "",
+            saved_earning_sar: s.price ?? "",
+            status: statusLbl(s.status),
+          }))}
+          headers={[
+            { key: "student", label: "الطالب" },
+            { key: "subject", label: "المادة" },
+            { key: "session_type", label: "نوع الحصة" },
+            { key: "scheduled_at", label: "الموعد (الرياض)" },
+            { key: "actual_start", label: "بدء موثق (الرياض)" },
+            { key: "teaching_minutes", label: "مدة التدريس (دقيقة)" },
+            { key: "package_minutes", label: "خصم الباقة (دقيقة)" },
+            { key: "saved_earning_sar", label: "الربح المحفوظ (ر.س)" },
+            { key: "status", label: "الحالة" },
+          ]}
+        />
+      </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
@@ -256,12 +291,12 @@ function SessionDetailsTable({ sessions, onFilteredStatsChange }: { sessions: Se
                   <td className="py-2 text-muted-foreground">{s.subject_name}</td>
                   <td className="py-2 text-muted-foreground">{s.delivery_mode === "in_person" ? "حضوري" : s.delivery_mode === "online" ? "أونلاين" : "غير محدد"}</td>
                   <td className="py-2 text-muted-foreground">
-                    {new Date(s.scheduled_at).toLocaleDateString("ar-SA")}
+                    {new Date(s.scheduled_at).toLocaleDateString("ar-SA", { timeZone: "Asia/Riyadh" })}
                   </td>
                   <td className="py-2 text-muted-foreground font-mono">
                     {s.started_at
                       ? <span title={s.delivery_mode === "in_person" ? "وقت تأكيد الحضور المسجل؛ لا يُعرض كوقت انتهاء فعلي" : "وقت بدء الجلسة المسجل"}>
-                          {new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(s.started_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })}
                           {s.delivery_mode === "in_person" && <span className="ms-1 text-[10px] font-sans">تأكيد الحضور</span>}
                         </span>
                       : s.status === "completed"

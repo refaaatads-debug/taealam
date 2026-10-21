@@ -71,7 +71,7 @@ const StudentOverviewTab = ({ data }: { data: StudentBundle }) => {
                   <div className="text-lg font-bold">{activeSub.subscription_plans?.name_ar || "باقة"}</div>
                   <div className="text-xs text-muted-foreground">
                     {activeSub.starts_at && `من ${new Date(activeSub.starts_at).toLocaleDateString("ar-SA")}`}
-                    {activeSub.ends_at && ` حتى ${new Date(activeSub.ends_at).toLocaleDateString("ar-SA")}`}
+                    {" · رصيد الدقائق لا ينتهي بتاريخ الخطة"}
                   </div>
                 </div>
                 <div>

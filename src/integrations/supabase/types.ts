@@ -1981,7 +1981,6 @@ export type Database = {
           platform_fee?: number | null
           platform_fee_rate_snapshot?: number | null
           rollover_source_month?: string | null
-          rollover_source_month?: string | null
           status?: string
           teacher_base_amount?: number | null
           teacher_id: string

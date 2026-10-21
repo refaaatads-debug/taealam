@@ -21,11 +21,14 @@ type TeacherRow = {
   longitude: number | null;
   created_at: string;
 };
-type FinancialRow = { booking_id: string; scheduled_at: string; teacher_earning: number; teacher_earning_status: string | null; teacher_compensation: number; compensation_status: string | null; platform_revenue: number; revenue_events: number };
+type FinancialRow = { booking_id: string; scheduled_at: string; attendance_confirmed_at: string | null; teacher_earning: number; teacher_earning_status: string | null; teacher_compensation: number; compensation_status: string | null; platform_revenue: number; revenue_events: number };
 type CityRow = { city_id: string; city_name: string; enabled: boolean; changed_by: string | null; changed_at: string | null };
 type AdminSection = "overview" | "approvals" | "settlements" | "cities";
 
 const sar = (value: number) => `${value.toLocaleString("ar-SA", { maximumFractionDigits: 2 })} ر.س`;
+const saudiDateTime = (value?: string | null) => value
+  ? new Date(value).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })
+  : null;
 
 const saudiDateParts = (value?: string | null) => {
   if (!value) return null;
@@ -87,7 +90,26 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
     else setTeachers((teacherRows || []) as TeacherRow[]);
     if (cityError) toast.error("تعذر تحميل مدن التعليم الحضوري");
     else setCities((cityRows || []) as CityRow[]);
-    setFinancials((financialRows || []) as FinancialRow[]);
+    const baseFinancialRows = (financialRows || []) as FinancialRow[];
+    const bookingIds = [...new Set(baseFinancialRows.map((row) => row.booking_id).filter(Boolean))];
+    if (bookingIds.length > 0) {
+      const { data: attendanceRows, error: attendanceError } = await supabase
+        .from("bookings")
+        .select("id,attendance_confirmed_at")
+        .in("id", bookingIds);
+      if (attendanceError) {
+        toast.error("تعذر تحميل وقت تأكيد الحضور لسجل التسويات.");
+        setFinancials(baseFinancialRows.map((row) => ({ ...row, attendance_confirmed_at: null })));
+      } else {
+        const attendanceByBooking = new Map((attendanceRows || []).map((row) => [row.id, row.attendance_confirmed_at]));
+        setFinancials(baseFinancialRows.map((row) => ({
+          ...row,
+          attendance_confirmed_at: attendanceByBooking.get(row.booking_id) || null,
+        })));
+      }
+    } else {
+      setFinancials([]);
+    }
     if (onlineCountResult.error || inPersonCountResult.error) {
       toast.error("تعذر تحميل إحصاءات أنواع الحصص");
     } else {
@@ -417,7 +439,11 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
             </select>
           </div>
           {filteredFinancials.slice(0, 50).map((row) => <div key={row.booking_id} className="grid items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm sm:grid-cols-6">
-            <span className="font-medium">{new Date(row.scheduled_at).toLocaleString("ar-SA")}</span>
+            <span className="font-medium">
+              {row.attendance_confirmed_at
+                ? <>بدء موثق: {saudiDateTime(row.attendance_confirmed_at)} <span className="block text-[10px] text-muted-foreground">تأكيد رمز الحضور · الرياض</span></>
+                : <>الموعد: {saudiDateTime(row.scheduled_at)} <span className="block text-[10px] text-muted-foreground">لا يوجد وقت بدء موثق</span></>}
+            </span>
             <span>أجر المعلم: <strong>{sar(Number(row.teacher_earning) || 0)}</strong></span>
             <span>تعويض: <strong>{sar(Number(row.teacher_compensation) || 0)}</strong></span>
             <span>إيراد المنصة: <strong>{sar(Number(row.platform_revenue) || 0)}</strong></span>

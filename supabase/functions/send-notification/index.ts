@@ -104,24 +104,6 @@ serve(async (req) => {
       }
     }
 
-    if (type === "subscription_expiry" || type === "all") {
-      const in3days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-      const { data: expiring } = await supabase
-        .from("user_subscriptions")
-        .select("user_id, ends_at, subscription_plans(name_ar)")
-        .eq("is_active", true)
-        .lte("ends_at", in3days.toISOString());
-
-      for (const s of expiring || []) {
-        notifications.push({
-          user_id: s.user_id,
-          title: "📋 اشتراكك ينتهي قريباً",
-          body: `باقة ${(s as any).subscription_plans?.name_ar || ""} تنتهي خلال أيام. جدّد الآن!`,
-          type: "subscription_expiry",
-        });
-      }
-    }
-
     if (type === "teacher_cancellation_warning") {
       const {
         bookingId,

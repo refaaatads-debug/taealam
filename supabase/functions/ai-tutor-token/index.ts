@@ -39,18 +39,17 @@ serve(async (req) => {
     }
 
     // Check premium subscription with detailed reason classification
-    const nowIso = new Date().toISOString();
     const { data: allSubs } = await supabase
       .from("user_subscriptions")
-      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
+      .select("id, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
       .eq("user_id", user.id)
-      .order("ends_at", { ascending: false });
+      .order("remaining_minutes", { ascending: false });
 
     const subsList = allSubs || [];
-    const activeSubs = subsList.filter((s: any) => s.is_active && s.ends_at > nowIso);
+    const activeSubs = subsList.filter((s: any) => s.is_active);
     const premiumSubs = subsList.filter((s: any) => s.subscription_plans?.tier === "premium");
     const validPremium = premiumSubs.find(
-      (s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) > 0
+      (s: any) => s.is_active && (s.remaining_minutes ?? 0) > 0
     );
 
     if (!validPremium) {
@@ -62,14 +61,14 @@ serve(async (req) => {
         const currentTier = activeSubs[0].subscription_plans?.name_ar || "غير الاحترافية";
         error_msg = `باقتك الحالية (${currentTier}) لا تشمل المحادثة الصوتية الحية. يرجى الترقية إلى الباقة الاحترافية.`;
       } else if (premiumSubs.length > 0) {
-        const expiredPremium = premiumSubs.find((s: any) => s.ends_at <= nowIso || !s.is_active);
-        const noMinutesPremium = premiumSubs.find((s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) <= 0);
+        const inactivePremium = premiumSubs.find((s: any) => !s.is_active);
+        const noMinutesPremium = premiumSubs.find((s: any) => s.is_active && (s.remaining_minutes ?? 0) <= 0);
         if (noMinutesPremium) {
           reason_code = "no_minutes";
           error_msg = "نفدت دقائقك في الباقة الاحترافية. يرجى تجديد الاشتراك للمتابعة.";
-        } else if (expiredPremium) {
+        } else if (inactivePremium) {
           reason_code = "subscription_expired";
-          error_msg = "انتهت صلاحية باقتك الاحترافية. يرجى التجديد لاستئناف المحادثة الصوتية.";
+          error_msg = "الباقة الاحترافية غير نشطة. يرجى التواصل مع الدعم.";
         }
       }
 

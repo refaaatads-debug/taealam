@@ -11,18 +11,6 @@ import { ExternalLink, MapPin } from "lucide-react";
 type AddressSnapshot = { street_address?: string | null; district?: string | null; latitude?: number | string | null; longitude?: number | string | null };
 type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; offered_teacher_rate_sar: number; offered_platform_share_sar: number; pricing_source: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
 type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
-type EarningRow = {
-  source_id: string;
-  booking_id: string;
-  source_type: "lesson" | "compensation";
-  amount: number;
-  status: string;
-  available_amount: number;
-  reserved_amount: number;
-  paid_amount: number;
-  available_at: string;
-  scheduled_at: string;
-};
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
 export default function InPersonTeacherPanel() {
@@ -30,7 +18,6 @@ export default function InPersonTeacherPanel() {
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [codes, setCodes] = useState<Record<string, string>>({});
-  const [earnings, setEarnings] = useState<EarningRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [cityStatus, setCityStatus] = useState<CityStatus | null>(null);
@@ -43,13 +30,12 @@ export default function InPersonTeacherPanel() {
     const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
     if (!pilotEnabled) { setEnabled(false); return; }
     setEnabled(true);
-    const [{ data: incoming, error }, { data: requestLocations, error: locationsError }, { data: upcoming }, { data: earningRows }, { data: cityRows }] = await Promise.all([
+    const [{ data: incoming, error }, { data: requestLocations, error: locationsError }, { data: upcoming }, { data: cityRows }] = await Promise.all([
       supabase.rpc("list_teacher_in_person_requests_priced" as any),
       supabase.rpc("list_teacher_in_person_request_locations" as any),
       supabase.from("bookings" as any).select("id,student_id,scheduled_at,visit_address_snapshot,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
-      supabase.rpc("list_my_in_person_earnings_status" as any),
       supabase.rpc("get_my_in_person_city_status" as any),
     ]);
     if (error) {
@@ -69,7 +55,6 @@ export default function InPersonTeacherPanel() {
     setLocationError(Boolean(locationsError));
     if (locationsError) toast.error("تعذر تحميل موقع الحصة الحضورية");
     setBookings((upcoming || []) as unknown as BookingRow[]);
-    setEarnings((earningRows || []) as EarningRow[]);
     setCityStatus(((cityRows || [])[0] as CityStatus | undefined) || null);
   }, [user]);
 
@@ -158,24 +143,6 @@ export default function InPersonTeacherPanel() {
               {codes[booking.id] && <div className="mt-2 text-lg font-bold tracking-[0.3em]">{codes[booking.id]}</div>}
             </div>
             <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button><Button size="sm" variant="destructive" disabled={busy} onClick={() => setCancelTarget(booking)}>إلغاء</Button></div>
-          </div>)}
-        </section>
-        <section className="space-y-2 border-t pt-4">
-          <h3 className="font-semibold">مستحقات الحضوري</h3>
-          {earnings.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مستحقات مسجلة.</p>}
-          {earnings.slice(0, 5).map((earning) => <div key={earning.source_id} className="flex justify-between gap-3 rounded-lg border p-3 text-sm">
-            <div className="space-y-1">
-              <p>{new Date(earning.scheduled_at).toLocaleDateString("ar-SA")} · {earning.source_type === "compensation" ? "تعويض" : "أجر حصة"}</p>
-              <p className="text-xs text-muted-foreground">
-                {earning.status === "reserved" ? "محجوز لطلب سحب" :
-                  earning.status === "paid" ? "مصروف" :
-                  earning.status === "partially_paid" ? "مصروف جزئيًا" :
-                  earning.status === "pending" ? `معلّق حتى ${new Date(earning.available_at).toLocaleString("ar-SA")}` :
-                  earning.status === "adjusted" ? "معدّل" : "متاح"}
-                {" · "}متاح {Number(earning.available_amount).toLocaleString()} · محجوز {Number(earning.reserved_amount).toLocaleString()} · مصروف {Number(earning.paid_amount).toLocaleString()} ر.س
-              </p>
-            </div>
-            <strong className="shrink-0">{Number(earning.amount).toLocaleString()} ر.س</strong>
           </div>)}
         </section>
       </CardContent>

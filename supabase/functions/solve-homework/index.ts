@@ -98,30 +98,29 @@ serve(async (req) => {
     }
 
     // Subscription check
-    const nowIso = new Date().toISOString();
     const { data: subs } = await supabase
       .from("user_subscriptions")
-      .select("id, ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
+      .select("id, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
       .eq("user_id", user.id);
 
     const subsList = (subs as any[]) || [];
     const eligibleTiers = ["standard", "premium"];
     const eligibleSubs = subsList.filter((s: any) => eligibleTiers.includes(s.subscription_plans?.tier));
     const validSub = eligibleSubs.find(
-      (s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) > 0
+      (s: any) => s.is_active && (s.remaining_minutes ?? 0) > 0
     );
 
     if (!validSub) {
-      const activeSubs = subsList.filter((s: any) => s.is_active && s.ends_at > nowIso);
+      const activeSubs = subsList.filter((s: any) => s.is_active);
       let reason_code = "no_subscription";
       let error_msg = "هذه الميزة متاحة فقط للباقات المتقدمة والاحترافية. يرجى الاشتراك أو الترقية.";
       if (eligibleSubs.length === 0 && activeSubs.length > 0) {
         reason_code = "wrong_tier";
         error_msg = "مساعد الواجبات البصري متاح فقط للباقات المتقدمة والاحترافية. يرجى ترقية باقتك.";
       } else if (eligibleSubs.length > 0) {
-        const noMinutes = eligibleSubs.find((s: any) => s.is_active && s.ends_at > nowIso && (s.remaining_minutes ?? 0) <= 0);
+        const noMinutes = eligibleSubs.find((s: any) => s.is_active && (s.remaining_minutes ?? 0) <= 0);
         if (noMinutes) { reason_code = "no_minutes"; error_msg = "نفدت دقائق باقتك. يرجى تجديد الاشتراك."; }
-        else { reason_code = "subscription_expired"; error_msg = "انتهت صلاحية باقتك. يرجى تجديد الاشتراك."; }
+        else { reason_code = "no_subscription"; error_msg = "لا توجد باقة نشطة لهذا الاستخدام. تواصل مع الدعم إذا كانت باقتك مستردة أو موقوفة بالخطأ."; }
       }
       return new Response(JSON.stringify({ error: error_msg, reason_code }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },

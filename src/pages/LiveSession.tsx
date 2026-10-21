@@ -421,7 +421,6 @@ const LiveSession = () => {
     userId: user?.id || "",
     localStream,
     meetingStarted,
-    audioModerationEnabled: meetingStarted && bothJoined && remoteConnected,
     onMuteUser: () => {
       localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
     },

@@ -37,11 +37,10 @@ const VoiceTutorInner = () => {
 
       const { data: subs } = await supabase
         .from("user_subscriptions")
-        .select("ends_at, remaining_minutes, is_active, subscription_plans:plan_id(tier)")
+        .select("remaining_minutes, is_active, subscription_plans:plan_id(tier)")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .gt("remaining_minutes", 0)
-        .gt("ends_at", new Date().toISOString());
+        .gt("remaining_minutes", 0);
       const ok = (subs || []).some((s: any) => s.subscription_plans?.tier === "premium");
       setHasPremium(ok);
     })();
