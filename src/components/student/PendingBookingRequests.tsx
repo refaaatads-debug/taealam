@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CountdownTimer from "@/components/CountdownTimer";
 import { toast } from "sonner";
+import { arabicBookingError } from "@/lib/arabicBookingError";
+import { mapOpenInPersonRequests } from "@/lib/pendingInPersonRequests";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,16 +23,18 @@ import {
 
 interface PendingRequest {
   id: string;
+  mode: "online" | "in_person";
   subject_id: string;
   scheduled_at: string;
   status: string;
-  expires_at: string;
+  expires_at: string | null;
   subject_name?: string;
 }
 
 export default function PendingBookingRequests() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
+  const [requestsError, setRequestsError] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   useEffect(() => {
@@ -47,32 +51,50 @@ export default function PendingBookingRequests() {
       }, () => {
         fetchRequests();
       })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "in_person_request_groups",
+        filter: `student_id=eq.${user.id}`,
+      }, () => {
+        fetchRequests();
+      })
       .subscribe();
+    const refreshInterval = window.setInterval(fetchRequests, 15_000);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      window.clearInterval(refreshInterval);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchRequests = async () => {
     if (!user) return;
 
-    const { data } = await supabase
-      .from("booking_requests" as any)
-      .select("*")
-      .eq("student_id", user.id)
-      .eq("status", "open")
-      .order("created_at", { ascending: false });
-
-    if (!data || data.length === 0) { setRequests([]); return; }
+    const [
+      { data: onlineData, error: onlineError },
+      { data: inPersonData, error: inPersonError },
+    ] = await Promise.all([
+      supabase
+        .from("booking_requests" as any)
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: false }),
+      supabase.rpc("list_my_in_person_request_groups" as any),
+    ]);
+    setRequestsError(Boolean(onlineError || inPersonError));
 
     const now = Date.now();
-    const valid = (data as any[]).filter((r: any) => {
+    const online = ((onlineData || []) as any[]).filter((r: any) => {
       if (!r.expires_at) return true;
       return new Date(r.expires_at).getTime() > now;
-    });
-
+    }).map((r: any) => ({ ...r, mode: "online" as const }));
+    const inPerson = mapOpenInPersonRequests((inPersonData || []) as Array<Record<string, unknown>>, now);
+    const valid = [...online, ...inPerson];
     if (valid.length === 0) { setRequests([]); return; }
 
-    const subjectIds = [...new Set(valid.map((r: any) => r.subject_id).filter(Boolean))];
+    const subjectIds = [...new Set(online.map((r: any) => r.subject_id).filter(Boolean))];
     const { data: subjects } = subjectIds.length > 0
       ? await supabase.from("subjects").select("id, name").in("id", subjectIds)
       : { data: [] };
@@ -80,42 +102,48 @@ export default function PendingBookingRequests() {
 
     setRequests(valid.map((r: any) => ({
       ...r,
-      subject_name: subjectMap.get(r.subject_id) || "مادة",
-    })));
+      subject_name: r.mode === "in_person" ? r.subject_name : subjectMap.get(r.subject_id) || "مادة",
+    })).sort((a, b) => new Date(a.expires_at || a.scheduled_at).getTime() - new Date(b.expires_at || b.scheduled_at).getTime()));
   };
 
-  const handleExpire = async (id: string) => {
-    setRequests(prev => prev.filter(r => r.id !== id));
+  const handleExpire = async (request: PendingRequest) => {
+    if (request.mode === "in_person") {
+      await fetchRequests();
+      return;
+    }
+    setRequests(prev => prev.filter(r => r.id !== request.id));
     // Keep the database state aligned with what the student sees. The request
     // disappears from the active list, but remains in Admin history as a
     // request that no teacher accepted before the deadline.
     await supabase
       .from("booking_requests" as any)
       .update({ status: "expired" } as any)
-      .eq("id", id)
+      .eq("id", request.id)
       .eq("student_id", user?.id)
       .eq("status", "open");
   };
 
-  const handleCancel = async (id: string) => {
-    setCancellingId(id);
+  const handleCancel = async (request: PendingRequest) => {
+    setCancellingId(request.id);
     try {
-      const { error } = await supabase
-        .from("booking_requests" as any)
-        .update({ status: "cancelled" } as any)
-        .eq("id", id)
-        .eq("student_id", user?.id);
+      const { error } = request.mode === "in_person"
+        ? await supabase.rpc("cancel_in_person_request_group" as any, { p_request_group_id: request.id })
+        : await supabase
+          .from("booking_requests" as any)
+          .update({ status: "cancelled" } as any)
+          .eq("id", request.id)
+          .eq("student_id", user?.id);
       if (error) throw error;
-      setRequests(prev => prev.filter(r => r.id !== id));
+      setRequests(prev => prev.filter(r => r.id !== request.id));
       toast.success("تم إلغاء الطلب بنجاح");
-    } catch {
-      toast.error("حدث خطأ أثناء إلغاء الطلب");
+    } catch (error) {
+      toast.error(arabicBookingError(error, "تعذر إلغاء الطلب. حاول مرة أخرى."));
     } finally {
       setCancellingId(null);
     }
   };
 
-  if (requests.length === 0) return null;
+  if (requests.length === 0 && !requestsError) return null;
 
   return (
     <Card className="border-0 shadow-card">
@@ -129,6 +157,12 @@ export default function PendingBookingRequests() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {requestsError && (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            تعذر تحديث بعض الطلبات. أعد المحاولة للتحقق من الطلبات الحضورية والمعلّقة.
+            <Button size="sm" variant="outline" onClick={() => void fetchRequests()}>إعادة المحاولة</Button>
+          </div>
+        )}
         {requests.map((r) => (
           <motion.div
             key={r.id}
@@ -145,12 +179,13 @@ export default function PendingBookingRequests() {
                 <p className="text-xs text-muted-foreground">
                   {new Date(r.scheduled_at).toLocaleDateString("ar-SA")} • {new Date(r.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">⏳ في انتظار قبول معلم</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">⏳ {r.mode === "in_person" ? "بانتظار قبول معلم حضوري" : "بانتظار قبول معلم"}</p>
+                  {r.mode === "in_person" && <Badge variant="outline" className="mt-1 border-amber-300 bg-amber-50 text-amber-800">حضوري</Badge>}
               </div>
             </div>
             <div className="flex items-center gap-2">
               {r.expires_at && (
-                <CountdownTimer expiresAt={r.expires_at} onExpire={() => handleExpire(r.id)} />
+                <CountdownTimer expiresAt={r.expires_at} onExpire={() => void handleExpire(r)} />
               )}
               <Button
                 variant="ghost"
@@ -179,7 +214,11 @@ export default function PendingBookingRequests() {
             <AlertDialogCancel>تراجع</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (confirmCancelId) handleCancel(confirmCancelId); setConfirmCancelId(null); }}
+              onClick={() => {
+                const request = requests.find((item) => item.id === confirmCancelId);
+                if (request) void handleCancel(request);
+                setConfirmCancelId(null);
+              }}
             >
               نعم، إلغاء الطلب
             </AlertDialogAction>

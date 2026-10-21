@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { arabicBookingError } from "@/lib/arabicBookingError";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
@@ -209,11 +210,7 @@ export default function InPersonStudentPanel() {
         setCityUnavailableMessage(`الحصص الحضورية غير متاحة في ${city} حاليًا. يمكنك حجز حصة أونلاين.`);
         setSearchError("");
       } else {
-        toast.error(
-          error.message?.includes("already has an online lesson")
-            ? "لديك حصة أونلاين في هذا الموعد. اختر وقتاً آخر."
-            : error.message || "تعذر إرسال طلب الحصة"
-        );
+        toast.error(arabicBookingError(error, "تعذر إرسال طلب الحصة. اختر موعدًا آخر ثم حاول مجددًا."));
       }
       return;
     }
@@ -232,7 +229,7 @@ export default function InPersonStudentPanel() {
       ? await supabase.rpc("cancel_in_person_booking" as any, { p_booking_id: row.booking_id, p_reason: "student_cancelled" })
       : await supabase.rpc("cancel_in_person_request_group" as any, { p_request_group_id: row.request_group_id });
     setLoading(false);
-    if (result.error) toast.error(result.error.message || "تعذر إلغاء الطلب");
+    if (result.error) toast.error(arabicBookingError(result.error, "تعذر إلغاء الطلب الحضوري."));
     else {
       toast.success("تم الإلغاء وتحديث الرصيد حسب سياسة الحصة");
       await refreshRequests();
@@ -248,7 +245,7 @@ export default function InPersonStudentPanel() {
       p_code: code,
     });
     setLoading(false);
-    if (error) toast.error(error.message || "تعذر تأكيد الحضور");
+    if (error) toast.error(arabicBookingError(error, "تعذر تأكيد الحضور. تحقق من الرمز وحاول مجددًا."));
     else if (!data) toast.error("رمز الحضور غير صحيح");
     else {
       toast.success("تم تأكيد الحضور واحتساب الحصة");

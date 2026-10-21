@@ -9,13 +9,14 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import { Search, Star, Filter, BookOpen, Clock, CheckCircle, Users, CalendarCheck, ArrowRight, Loader2, X, Package, CreditCard, PartyPopper, Sparkles, MapPin, Monitor } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import { arabicBookingError } from "@/lib/arabicBookingError";
 import InPersonStudentPanel from "@/components/inPerson/StudentPanel";
 import { useInPersonFeatureGate } from "@/hooks/useInPersonFeatureGate";
 
@@ -54,7 +55,10 @@ const SearchTeacher = () => {
   const { user } = useAuth();
   const { enabled: inPersonPilotEnabled } = useInPersonFeatureGate();
   const navigate = useNavigate();
-  const [sessionMode, setSessionMode] = useState<"online" | "in_person">("online");
+  const [searchParams] = useSearchParams();
+  const [sessionMode, setSessionMode] = useState<"online" | "in_person">(
+    () => searchParams.get("mode") === "in_person" ? "in_person" : "online"
+  );
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("all");
   const [sort, setSort] = useState("rating");
@@ -77,6 +81,14 @@ const SearchTeacher = () => {
   const [filterName, setFilterName] = useState("");
   const [filterStage, setFilterStage] = useState("all");
   const [filterSubject, setFilterSubject] = useState("all");
+
+  useEffect(() => {
+    setSessionMode(
+      searchParams.get("mode") === "in_person" && inPersonPilotEnabled
+        ? "in_person"
+        : "online"
+    );
+  }, [searchParams, inPersonPilotEnabled]);
 
   const teachingStagesOptions = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
   const [planSessionMinutes, setPlanSessionMinutes] = useState(60);
@@ -384,7 +396,7 @@ const SearchTeacher = () => {
       setSelectedStage("");
       setSelectedSlots([]);
     } catch (e: any) {
-      toast.error(e.message || "حدث خطأ");
+      toast.error(arabicBookingError(e, "تعذر إرسال الطلب. اختر موعدًا آخر ثم حاول مجددًا."));
     } finally {
       setBookingLoading(false);
     }

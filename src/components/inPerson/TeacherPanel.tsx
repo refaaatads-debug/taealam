@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { arabicBookingError } from "@/lib/arabicBookingError";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
@@ -41,7 +42,9 @@ export default function InPersonTeacherPanel() {
       supabase.rpc("get_my_in_person_city_status" as any),
     ]);
     if (error) {
-      if (!error.message.toLowerCase().includes("pilot")) toast.error(error.message);
+      if (!error.message.toLowerCase().includes("pilot")) {
+        toast.error(arabicBookingError(error, "تعذر تحميل طلبات الحصص الحضورية."));
+      }
       setRequests([]);
     } else {
       const locations = new Map((requestLocations || []).map((location: any) => [location.request_group_id, location]));
@@ -66,7 +69,7 @@ export default function InPersonTeacherPanel() {
     setBusy(true);
     const { error } = await supabase.rpc("accept_in_person_request" as any, { p_request_group_id: request.request_group_id });
     setBusy(false);
-    if (error) toast.error(error.message || "تعذر قبول الطلب");
+    if (error) toast.error(arabicBookingError(error, "تعذر قبول الطلب الحضوري."));
     else { toast.success("تم قبول الحصة وتأكيد الموعد"); await refresh(); }
   };
 
@@ -76,7 +79,7 @@ export default function InPersonTeacherPanel() {
       p_request_group_id: request.request_group_id,
     });
     setRejecting(null);
-    if (error) toast.error(error.message || "تعذر رفض الطلب");
+    if (error) toast.error(arabicBookingError(error, "تعذر رفض الطلب الحضوري."));
     else if (!data) toast.info("تمت معالجة الطلب أو انتهت مهلة القبول");
     else { toast.success("تم رفض الطلب؛ سيظل متاحاً للمعلمين الآخرين"); await refresh(); }
   };
@@ -85,7 +88,7 @@ export default function InPersonTeacherPanel() {
     setBusy(true);
     const { data, error } = await supabase.rpc("get_in_person_attendance_code" as any, { p_booking_id: bookingId });
     setBusy(false);
-    if (error) toast.error(error.message || "سيظهر الرمز قبل الموعد بساعة");
+    if (error) toast.error(arabicBookingError(error, "سيظهر رمز الحضور قبل الموعد بساعة."));
     else setCodes((current) => ({ ...current, [bookingId]: data as string }));
   };
 

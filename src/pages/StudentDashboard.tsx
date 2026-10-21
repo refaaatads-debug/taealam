@@ -483,7 +483,7 @@ const StudentDashboard = () => {
                   <h2 className="font-bold">تبحث عن حصة حضورية؟</h2>
                   <p className="text-sm text-muted-foreground">ابدأ طلبك واختر عنوان الزيارة من صفحة البحث.</p>
                 </div>
-                <Button asChild><Link to="/search">الانتقال إلى البحث</Link></Button>
+                <Button asChild><Link to="/search?mode=in_person">الانتقال إلى البحث الحضوري</Link></Button>
               </CardContent>
             </Card>
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { arabicBookingError } from "@/lib/arabicBookingError";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,7 +81,7 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
       (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "online"),
       (supabase.from as any)("bookings").select("id", { count: "exact", head: true }).eq("delivery_mode", "in_person"),
     ]);
-    if (error) toast.error(error.message || "تعذر تحميل إعدادات الحضوري");
+    if (error) toast.error(arabicBookingError(error, "تعذر تحميل إعدادات الحضوري."));
     else setTeachers((teacherRows || []) as TeacherRow[]);
     if (cityError) toast.error("تعذر تحميل مدن التعليم الحضوري");
     else setCities((cityRows || []) as CityRow[]);
@@ -173,10 +174,7 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
     });
     setBusy(false);
     if (error) {
-      const message = error.message?.includes("Teacher profile must be approved with a complete service location")
-        ? "تعذر تفعيل استقبال الطلبات. يجب اعتماد ملف المعلم الأساسي، واختيار «حضوري» أو «عن بُعد وحضوري»، وحفظ موقع الخدمة ونطاقه من ملف المعلم."
-        : error.message || "تعذر حفظ اعتماد المعلم";
-      toast.error(message);
+      toast.error(arabicBookingError(error, "تعذر حفظ اعتماد المعلم الحضوري."));
     }
     else { toast.success("تم تحديث اعتماد الحضوري"); await refresh(); }
   };
@@ -194,7 +192,7 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
       p_longitude: newCityLocation.longitude,
     });
     setBusy(false);
-    if (error) toast.error(error.message || "تعذرت إضافة المدينة");
+    if (error) toast.error(arabicBookingError(error, "تعذرت إضافة المدينة."));
     else {
       toast.success("تم تسجيل المدينة، والحضوري متوقف فيها افتراضياً");
       setNewCityLocation(null);
@@ -208,7 +206,7 @@ export default function InPersonAdminPanel({ section = "overview" }: { section?:
       p_city_id: city.city_id, p_enabled: enabled,
     });
     setBusy(false);
-    if (error) toast.error(error.message || "تعذر تحديث إتاحة المدينة");
+    if (error) toast.error(arabicBookingError(error, "تعذر تحديث إتاحة المدينة."));
     else {
       toast.success(enabled ? `تم تفعيل الحضوري في ${city.city_name}` : `تم إيقاف الحضوري في ${city.city_name}`);
       await refresh();
