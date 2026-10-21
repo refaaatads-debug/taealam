@@ -259,6 +259,25 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.auto_complete_session() FROM PUBLIC, anon, authenticated;
 
+-- Online subscription minutes are deducted only after a completed session,
+-- so a never-started no-show has nothing to refund.
+DO $$
+DECLARE
+  v_definition text;
+  v_old_notice text := 'أُعيدت دقائق الحصة إلى رصيدك.';
+  v_new_notice text := 'لم تُخصم دقائق من رصيدك لعدم بدء الحصة.';
+BEGIN
+  SELECT pg_get_functiondef('public.auto_expire_stale_bookings()'::regprocedure)
+  INTO v_definition;
+  IF position(v_old_notice IN v_definition) > 0 THEN
+    v_definition := replace(v_definition, v_old_notice, v_new_notice);
+    EXECUTE v_definition;
+  ELSIF position(v_new_notice IN v_definition) = 0 THEN
+    RAISE EXCEPTION 'Expected online expiry notice text was not found';
+  END IF;
+END;
+$$;
+
 -- Private registry for deployed SQL fingerprints. 011/012 were already
 -- applied to production; record their exact source hashes so the deploy runner
 -- can skip them instead of executing them again.
