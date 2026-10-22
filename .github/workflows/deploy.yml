@@ -200,6 +200,8 @@ jobs:
                 supabase/functions/solve-homework/index.ts | grep -q .; then
               run_edge_functions=true
             fi
+          elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
+            run_edge_functions=true
           fi
           echo "run=$run_edge_functions" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
