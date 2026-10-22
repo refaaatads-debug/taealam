@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +31,12 @@ export interface StudentBundle {
   role: string | null;
   subscriptions: any[];
   bookings: any[];
+  bookingStats: {
+    total: number;
+    completed: number;
+    cancelled: number;
+    upcoming: number;
+  };
   sessions: any[];
   payments: any[];
   bookingRequests: any[];
@@ -54,21 +60,25 @@ const AdminStudentProfile = () => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const loadRequestRef = useRef(0);
 
   useEffect(() => {
     if (!id) return;
-    loadStudent();
-    // eslint-disable-next-line
+    void loadStudent();
+    return () => { loadRequestRef.current += 1; };
   }, [id]);
 
   const loadStudent = async () => {
     if (!id) return;
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
+    setData(null);
     try {
       const [
         profileRes, roleRes, subsRes, bookingsRes, paymentsRes,
         ticketsRes, warningsRes, pointsRes, badgesRes, reviewsRes,
         notificationsRes, eventsRes, bookingRequestsRes,
+        totalBookingsRes, completedBookingsRes, cancelledBookingsRes, upcomingBookingsRes,
       ] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", id).maybeSingle(),
@@ -83,13 +93,21 @@ const AdminStudentProfile = () => {
         supabase.from("notifications").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(30),
         supabase.from("session_events").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(50),
         supabase.from("booking_requests").select("id, student_id, subject_id, scheduled_at, accepted_by, status").eq("student_id", id).order("scheduled_at", { ascending: false }),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", id),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", id).eq("status", "completed"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", id).eq("status", "cancelled"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", id).eq("status", "confirmed").gt("scheduled_at", new Date().toISOString()),
       ]);
+      if (requestId !== loadRequestRef.current) return;
 
       if (!profileRes.data) {
         toast.error("لم يتم العثور على الطالب");
         navigate("/admin?tab=users");
         return;
       }
+      const bookingStatsResults = [totalBookingsRes, completedBookingsRes, cancelledBookingsRes, upcomingBookingsRes];
+      const bookingStatsError = bookingStatsResults.find((result) => result.error)?.error;
+      if (bookingStatsError) throw bookingStatsError;
 
       const bookingIds = (bookingsRes.data || []).map((b: any) => b.id);
       let sessionsData: any[] = [];
@@ -109,6 +127,12 @@ const AdminStudentProfile = () => {
         role: roleRes.data?.role || null,
         subscriptions: subsRes.data || [],
         bookings: bookingsRes.data || [],
+        bookingStats: {
+          total: totalBookingsRes.count ?? 0,
+          completed: completedBookingsRes.count ?? 0,
+          cancelled: cancelledBookingsRes.count ?? 0,
+          upcoming: upcomingBookingsRes.count ?? 0,
+        },
         sessions: sessionsData,
         payments: paymentsRes.data || [],
         tickets: ticketsRes.data || [],
@@ -121,10 +145,11 @@ const AdminStudentProfile = () => {
         lastLogin,
       });
     } catch (e: any) {
+      if (requestId !== loadRequestRef.current) return;
       console.error(e);
       toast.error("فشل تحميل ملف الطالب");
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
   };
 

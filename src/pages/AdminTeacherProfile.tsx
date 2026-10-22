@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,13 @@ interface TeacherBundle {
   subjects: string[];
   certificates: any[];
   bookings: any[];
+  bookingStats: {
+    total: number;
+    completed: number;
+    cancelled: number;
+    online: number;
+    inPerson: number;
+  };
   sessions: any[];
   earnings: any[];
   earningsBreakdown: {
@@ -50,18 +57,24 @@ const AdminTeacherProfile = () => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const loadRequestRef = useRef(0);
 
   useEffect(() => {
     if (!id) return;
-    loadTeacher();
-    // eslint-disable-next-line
+    void loadTeacher();
+    return () => { loadRequestRef.current += 1; };
   }, [id]);
 
   const loadTeacher = async () => {
     if (!id) return;
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
+    setData(null);
     try {
-      const [profileRes, teacherRes, bookingsRes, ticketsRes, reviewsRes, notificationsRes, eventsRes, warningsRes] = await Promise.all([
+      const [
+        profileRes, teacherRes, bookingsRes, ticketsRes, reviewsRes, notificationsRes, eventsRes, warningsRes,
+        totalBookingsRes, completedBookingsRes, cancelledBookingsRes, onlineCompletedRes, inPersonCompletedRes,
+      ] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", id).maybeSingle(),
         supabase.from("teacher_profiles").select("*").eq("user_id", id).maybeSingle(),
         supabase.from("bookings").select("*, subjects(name)").eq("teacher_id", id).order("scheduled_at", { ascending: false }).limit(100),
@@ -70,13 +83,22 @@ const AdminTeacherProfile = () => {
         supabase.from("notifications").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(30),
         supabase.from("session_events").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(50),
         supabase.from("user_warnings").select("*").eq("user_id", id).order("created_at", { ascending: false }),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", id),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", id).eq("status", "completed"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", id).eq("status", "cancelled"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", id).eq("status", "completed").or("delivery_mode.eq.online,delivery_mode.is.null"),
+        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", id).eq("status", "completed").eq("delivery_mode", "in_person"),
       ]);
+      if (requestId !== loadRequestRef.current) return;
 
       if (!profileRes.data) {
         toast.error("لم يتم العثور على المعلم");
         navigate("/admin?tab=teacher_profiles");
         return;
       }
+      const bookingStatsResults = [totalBookingsRes, completedBookingsRes, cancelledBookingsRes, onlineCompletedRes, inPersonCompletedRes];
+      const bookingStatsError = bookingStatsResults.find((result) => result.error)?.error;
+      if (bookingStatsError) throw bookingStatsError;
 
       const tpId = teacherRes.data?.id;
       const [subjectsRes, certsRes, earningsRes, withdrawalsRes, paymentsRes, bookingRequestsRes, callLogsRes, walletTxRes, walletRes, earningsBreakdownRes] = await Promise.all([
@@ -91,6 +113,8 @@ const AdminTeacherProfile = () => {
         (supabase.from as any)("wallets").select("*").eq("user_id", id).maybeSingle(),
         supabase.rpc("get_teacher_earnings_breakdown", { _teacher_id: id }),
       ]);
+      if (requestId !== loadRequestRef.current) return;
+      if (earningsBreakdownRes.error) throw earningsBreakdownRes.error;
 
       const bookingIds = (bookingsRes.data || []).map((b: any) => b.id);
       let sessionsData: any[] = [];
@@ -107,6 +131,13 @@ const AdminTeacherProfile = () => {
         subjects: ((subjectsRes.data || []) as any[]).map((s: any) => s.subjects?.name).filter(Boolean),
         certificates: (certsRes.data as any[]) || [],
         bookings: bookingsRes.data || [],
+        bookingStats: {
+          total: totalBookingsRes.count ?? 0,
+          completed: completedBookingsRes.count ?? 0,
+          cancelled: cancelledBookingsRes.count ?? 0,
+          online: onlineCompletedRes.count ?? 0,
+          inPerson: inPersonCompletedRes.count ?? 0,
+        },
         sessions: sessionsData,
         earnings: earningsRes.data || [],
         earningsBreakdown: Array.isArray(earningsBreakdownRes.data)
@@ -125,9 +156,12 @@ const AdminTeacherProfile = () => {
         lastLogin,
       });
     } catch (e: any) {
+      if (requestId !== loadRequestRef.current) return;
       console.error(e);
       toast.error("فشل تحميل ملف المعلم");
-    } finally { setLoading(false); }
+    } finally {
+      if (requestId === loadRequestRef.current) setLoading(false);
+    }
   };
 
   const generateAISummary = async () => {
@@ -138,9 +172,9 @@ const AdminTeacherProfile = () => {
         body: {
           teacher_id: id,
           stats: {
-            total_bookings: data.bookings.length,
-            completed: data.bookings.filter((b: any) => b.status === "completed").length,
-            cancelled: data.bookings.filter((b: any) => b.status === "cancelled").length,
+            total_bookings: data.bookingStats.total,
+            completed: data.bookingStats.completed,
+            cancelled: data.bookingStats.cancelled,
             avg_rating: data.teacher?.avg_rating || 0,
             total_reviews: data.teacher?.total_reviews || 0,
             balance: data.earningsBreakdown?.available_balance ?? 0,
@@ -172,9 +206,6 @@ const AdminTeacherProfile = () => {
 
   const p = data.profile;
   const t = data.teacher || {};
-  const completedSessions = data.bookings.filter((b: any) => b.status === "completed").length;
-  const cancelledSessions = data.bookings.filter((b: any) => b.status === "cancelled").length;
-
   const accountStatus = (() => {
     const banned = data.warnings.find((w: any) => w.is_banned);
     if (banned) return { label: "موقوف", color: "bg-destructive/15 text-destructive border-destructive/30" };
@@ -302,10 +333,10 @@ const AdminTeacherProfile = () => {
           <div className="mt-4">
             <TabsContent value="overview" className="m-0 space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatBox label="إجمالي الحصص" value={t.total_sessions || 0} icon={BookOpen} />
-                <StatBox label="مكتملة" value={completedSessions} icon={CheckCircle2} tone="success" />
-                <StatBox label="ملغاة" value={cancelledSessions} icon={XCircle} tone="destructive" />
-                <StatBox label="الرصيد" value={`${Number(t.balance || 0).toFixed(2)} ر.س`} icon={Wallet} />
+                <StatBox label="إجمالي الحجوزات" value={data.bookingStats.total} icon={BookOpen} />
+                <StatBox label="مكتملة" value={data.bookingStats.completed} icon={CheckCircle2} tone="success" />
+                <StatBox label="ملغاة" value={data.bookingStats.cancelled} icon={XCircle} tone="destructive" />
+                <StatBox label="المتاح للسحب" value={data.earningsBreakdown ? `${Number(data.earningsBreakdown.available_balance ?? 0).toFixed(2)} ر.س` : "—"} icon={Wallet} />
               </div>
               <Card>
                 <CardHeader><CardTitle className="text-sm">الملف الشخصي</CardTitle></CardHeader>
