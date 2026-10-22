@@ -32,9 +32,7 @@ const StatCard = ({ icon: Icon, label, value, tone = "default", sub }: any) => {
 };
 
 const StudentOverviewTab = ({ data }: { data: StudentBundle }) => {
-  const completed = data.bookings.filter((b: any) => b.status === "completed").length;
-  const cancelled = data.bookings.filter((b: any) => b.status === "cancelled").length;
-  const upcoming = data.bookings.filter((b: any) => new Date(b.scheduled_at) > new Date() && b.status === "confirmed").length;
+  const { total, completed, cancelled, upcoming } = data.bookingStats;
   const activeSub = data.subscriptions.find((s: any) => s.is_active);
   const totalMin = activeSub?.subscription_plans?.session_duration_minutes && activeSub?.sessions_count
     ? activeSub.subscription_plans.session_duration_minutes * activeSub.sessions_count
@@ -49,7 +47,7 @@ const StudentOverviewTab = ({ data }: { data: StudentBundle }) => {
     <div className="space-y-4">
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard icon={BookOpen} label="إجمالي الحجوزات" value={data.bookings.length} />
+        <StatCard icon={BookOpen} label="إجمالي الحجوزات" value={total} />
         <StatCard icon={CheckCircle} label="حصص مكتملة" value={completed} tone="success" />
         <StatCard icon={Clock} label="حصص قادمة" value={upcoming} tone="info" />
         <StatCard icon={XCircle} label="حصص ملغاة" value={cancelled} tone="warning" />

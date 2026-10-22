@@ -44,7 +44,16 @@ interface SupportTicketsTabProps {
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   open: { label: "مفتوحة", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30", icon: AlertCircle },
   in_progress: { label: "قيد المعالجة", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", icon: Hourglass },
-  closed: { label: "مغلقة", color: "bg-muted text-muted-foreground border-border", icon: CheckCircle2 },
+  closed: { label: "منتهية", color: "bg-muted text-muted-foreground border-border", icon: CheckCircle2 },
+  unknown: { label: "حالة غير معروفة — للمراجعة", color: "bg-destructive/10 text-destructive border-destructive/30", icon: AlertCircle },
+};
+
+const normalizeTicketStatus = (status: unknown): "open" | "in_progress" | "closed" | "unknown" => {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (value === "open" || value === "مفتوحة" || value === "مفتوح") return "open";
+  if (value === "in_progress" || value === "in progress" || value === "قيد المعالجة") return "in_progress";
+  if (value === "closed" || value === "مغلقة" || value === "مغلق" || value === "منتهية") return "closed";
+  return "unknown";
 };
 
 const initials = (name?: string) => (name || "?").trim().split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -276,6 +285,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
     setProfileNameMap(prev => new Map([...prev, ...nameMap]));
     setTickets(ticketData.map((t: any) => ({
       ...t,
+      status: normalizeTicketStatus(t.status),
       user_name: nameMap.get(t.user_id) || "مستخدم",
       assigned_name: t.assigned_to ? (nameMap.get(t.assigned_to) || "موظف") : null,
     })) as Ticket[]);
@@ -602,6 +612,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
     open: tickets.filter(t => t.status === "open").length,
     in_progress: tickets.filter(t => t.status === "in_progress").length,
     closed: tickets.filter(t => t.status === "closed").length,
+    unknown: tickets.filter(t => t.status === "unknown").length,
     mine: tickets.filter(t => t.assigned_to === user?.id).length,
     unassigned: tickets.filter(t => !t.assigned_to && t.status !== "closed").length,
   }), [tickets, user?.id]);
@@ -623,7 +634,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
   }, [tickets, filter, search, user?.id]);
 
   const StatusBadge = ({ status }: { status: string }) => {
-    const c = statusConfig[status] || statusConfig.open;
+    const c = statusConfig[status] || statusConfig.unknown;
     const Icon = c.icon;
     return (
       <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", c.color)}>
@@ -1025,12 +1036,14 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4">
           <StatCard label="الإجمالي" value={stats.total} icon={MessageSquare} />
           <StatCard label="مفتوحة" value={stats.open} icon={AlertCircle} accent="emerald" />
           <StatCard label="قيد المعالجة" value={stats.in_progress} icon={Hourglass} accent="amber" />
+          <StatCard label="منتهية" value={stats.closed} icon={CheckCircle2} />
           <StatCard label="غير مُسنَدة" value={stats.unassigned} icon={Users} accent="rose" />
           <StatCard label="تذاكري" value={stats.mine} icon={UserCheck} accent="primary" />
+          <StatCard label="حالة غير معروفة" value={stats.unknown} icon={AlertCircle} accent="rose" />
         </div>
       </div>
 
@@ -1047,9 +1060,13 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
             <TabsTrigger value="mine" className="rounded-lg text-xs gap-1">
               <UserCheck className="h-3 w-3" /> تذاكري
             </TabsTrigger>
-            <TabsTrigger value="closed" className="rounded-lg text-xs">مغلقة</TabsTrigger>
+            <TabsTrigger value="closed" className="rounded-lg text-xs">منتهية</TabsTrigger>
+            <TabsTrigger value="unknown" className="rounded-lg text-xs">غير معروفة</TabsTrigger>
           </TabsList>
         </Tabs>
+        <p className="w-full text-xs text-muted-foreground">
+          المفتوحة هي الحالة المعروفة «مفتوحة»، والمنتهية هي «منتهية»؛ أما الحالات الأخرى فتظهر للمراجعة ولا تدخل في عداد المفتوحة.
+        </p>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

@@ -180,7 +180,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
         delivery_mode: b.delivery_mode,
         student_id: b.student_id,
         student_name: profileMap.get(b.student_id) || "طالب",
-        subject_name: (b.subjects as any)?.name || "مادة",
+        subject_name: (b.subjects as any)?.name || (b as any).subject_name || "غير محددة",
         has_subscription: subSet.has(b.student_id),
         actual_duration_minutes: actualMins,
       };
@@ -356,7 +356,10 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
           groupedByStudent.map(group => {
             const isExpanded = expandedStudent === group.studentId;
             const completedCount = group.bookings.filter(b => b.status === "completed").length;
-            const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+            const upcomingCount = group.bookings.filter(b =>
+              ["confirmed", "pending"].includes(b.status) && new Date(b.scheduled_at).getTime() >= Date.now()
+            ).length;
+            const cancelledCount = group.bookings.filter(b => b.status === "cancelled").length;
             const hasLive = group.bookings.some(b => liveSessionIds.has(b.id));
             const liveBooking = group.bookings.find(b => liveSessionIds.has(b.id));
             const waitingBooking = group.bookings.find(b => b.session_status === "waiting_acceptance");
@@ -381,8 +384,10 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
                         {waitingBooking && !hasLive && <span className="text-amber-500 text-xs mr-2">⏳ في انتظار القبول</span>}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {activeCount > 0 && <span className="text-secondary">{activeCount} حصة قادمة</span>}
-                        {activeCount > 0 && completedCount > 0 && " • "}
+                        {upcomingCount > 0 && <span className="text-secondary">{upcomingCount} قادمة</span>}
+                        {upcomingCount > 0 && cancelledCount > 0 && " • "}
+                        {cancelledCount > 0 && <span className="text-destructive">{cancelledCount} ملغاة</span>}
+                        {(upcomingCount > 0 || cancelledCount > 0) && completedCount > 0 && " • "}
                         {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                       </p>
                     </div>

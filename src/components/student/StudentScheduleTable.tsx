@@ -195,7 +195,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
         delivery_mode: b.delivery_mode,
         teacher_id: b.teacher_id,
         teacher_name: profileMap.get(b.teacher_id) || "معلم",
-        subject_name: (b.subjects as any)?.name || "مادة",
+        subject_name: (b.subjects as any)?.name || (b as any).subject_name || "غير محددة",
         has_subscription: hasSub,
         actual_duration_minutes: actualMins,
       };
@@ -518,7 +518,10 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
             groupedByTeacher.map(group => {
               const isExpanded = expandedTeacher === group.teacherId;
               const completedCount = group.bookings.filter(b => b.status === "completed").length;
-              const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+              const upcomingCount = group.bookings.filter(b =>
+                ["confirmed", "pending"].includes(b.status) && new Date(b.scheduled_at).getTime() >= Date.now()
+              ).length;
+              const cancelledCount = group.bookings.filter(b => b.status === "cancelled").length;
               const hasLive = group.bookings.some(b => liveSessionIds.has(b.id));
               const groupUnread = unreadByTeacher[group.teacherId] || 0;
               const chatBookingId = latestBookingByTeacher[group.teacherId];
@@ -539,8 +542,10 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                           {hasLive && <span className="text-secondary text-xs mr-2 animate-pulse">● متصل الآن</span>}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {activeCount > 0 && <span className="text-secondary">{activeCount} حصة قادمة</span>}
-                          {activeCount > 0 && completedCount > 0 && " • "}
+                          {upcomingCount > 0 && <span className="text-secondary">{upcomingCount} قادمة</span>}
+                          {upcomingCount > 0 && cancelledCount > 0 && " • "}
+                          {cancelledCount > 0 && <span className="text-destructive">{cancelledCount} ملغاة</span>}
+                          {(upcomingCount > 0 || cancelledCount > 0) && completedCount > 0 && " • "}
                           {completedCount > 0 && <span>{completedCount} مكتملة</span>}
                         </p>
                       </div>

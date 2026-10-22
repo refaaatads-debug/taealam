@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ExportCSVButton from "@/components/admin/ExportCSVButton";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import { resolveActualBookingPrice } from "@/lib/adminBookingPrice";
 
 type RecordSource = "booking" | "request";
 
@@ -30,6 +31,8 @@ type BookingRecord = {
   duration_minutes: number;
   delivery_mode?: "online" | "in_person" | null;
   price: number | null;
+  in_person_student_value_sar?: number | string | null;
+  online_gross_amount?: number | string | null;
   notes: string | null;
   created_at: string;
   updated_at: string | null;
@@ -146,6 +149,7 @@ export default function AdminBookingsTab() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [modeFilter, setModeFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dailyDate, setDailyDate] = useState(localDateKey(new Date()));
@@ -187,7 +191,7 @@ export default function AdminBookingsTab() {
     else setLoading(true);
     try {
       const [{ data: bookings, error: bookingsError }, { data: requests, error: requestsError }] = await Promise.all([
-        supabase.from("bookings").select("*").order("created_at", { ascending: false }).range(0, 4999),
+        supabase.from("bookings").select("*, sessions(gross_amount)").order("created_at", { ascending: false }).range(0, 4999),
         supabase.from("booking_requests" as any).select("*").order("created_at", { ascending: false }).range(0, 4999),
       ]);
       if (bookingsError) throw bookingsError;
@@ -239,6 +243,11 @@ export default function AdminBookingsTab() {
         return {
           ...row,
           source: "booking",
+          delivery_mode: row.delivery_mode || "online",
+          in_person_student_value_sar: row.in_person_student_value_sar,
+          online_gross_amount: Array.isArray(row.sessions)
+            ? row.sessions[0]?.gross_amount ?? null
+            : row.sessions?.gross_amount ?? null,
           student_name: student.name,
           student_phone: student.phone,
           teacher_name: teacher.name,
@@ -304,13 +313,14 @@ export default function AdminBookingsTab() {
     return records.filter((record) => {
       const matchesStatus = statusFilter === "all" || record.status === statusFilter;
       const matchesSource = sourceFilter === "all" || record.source === sourceFilter;
+      const matchesMode = modeFilter === "all" || record.delivery_mode === modeFilter;
       const created = new Date(record.created_at);
       const matchesFrom = !dateFrom || created >= new Date(`${dateFrom}T00:00:00`);
       const matchesTo = !dateTo || created <= new Date(`${dateTo}T23:59:59.999`);
       const searchable = [record.student_name, record.teacher_name, record.subject_name, record.id, record.student_phone, record.teacher_phone].join(" ").toLowerCase();
-      return matchesStatus && matchesSource && matchesFrom && matchesTo && (!normalizedQuery || searchable.includes(normalizedQuery));
+      return matchesStatus && matchesSource && matchesMode && matchesFrom && matchesTo && (!normalizedQuery || searchable.includes(normalizedQuery));
     });
-  }, [records, query, statusFilter, sourceFilter, dateFrom, dateTo]);
+  }, [records, query, statusFilter, sourceFilter, modeFilter, dateFrom, dateTo]);
 
   const dailyRecords = useMemo(
     () => records.filter((record) => localDateKey(record.scheduled_at) === dailyDate),
@@ -436,12 +446,13 @@ export default function AdminBookingsTab() {
 
   const exportData = filteredRecords.map((record) => ({
     النوع: record.source === "request" ? "طلب حجز" : "حجز",
+    "طريقة الحصة": record.delivery_mode === "in_person" ? "حضوري" : "أونلاين",
     الطالب: record.student_name,
     المعلم: record.teacher_name,
     المادة: record.subject_name,
     الموعد: dateTime(record.scheduled_at),
     المدة: `${record.duration_minutes || 0} دقيقة`,
-    السعر: money(record.price),
+    "السعر الفعلي": money(resolveActualBookingPrice(record)),
     الحالة: getMeta(record.status).label,
     "تاريخ الطلب": dateTime(record.created_at),
   }));
@@ -552,6 +563,14 @@ export default function AdminBookingsTab() {
                   <SelectItem value="booking">الحجوزات</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={modeFilter} onValueChange={setModeFilter}>
+                <SelectTrigger className="h-9 w-[125px] rounded-xl text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل طرق الحصة</SelectItem>
+                  <SelectItem value="online">أونلاين</SelectItem>
+                  <SelectItem value="in_person">حضوري</SelectItem>
+                </SelectContent>
+              </Select>
               <Input aria-label="من تاريخ الإنشاء" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-[135px] rounded-xl text-xs" />
               <Input aria-label="إلى تاريخ الإنشاء" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-[135px] rounded-xl text-xs" />
             </div>
@@ -568,13 +587,14 @@ export default function AdminBookingsTab() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] text-right">
+              <table className="w-full min-w-[1150px] text-right">
                 <thead className="bg-slate-50/80 text-[11px] font-bold text-muted-foreground">
                   <tr>
                     <th className="px-5 py-3">الطالب / المعلم</th>
                     <th className="px-4 py-3">نوع الطلب</th>
                     <th className="px-4 py-3">طريقة الحصة</th>
                     <th className="px-4 py-3">الحصة</th>
+                    <th className="px-4 py-3">السعر الفعلي</th>
                     <th className="px-4 py-3">الموعد</th>
                     <th className="px-4 py-3">الحالة</th>
                     <th className="px-5 py-3 text-left">التفاصيل</th>
@@ -604,8 +624,9 @@ export default function AdminBookingsTab() {
                       </td>
                       <td className="px-4 py-3.5">
                         <p className="text-sm font-bold text-foreground">{record.subject_name}</p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">{record.duration_minutes || 0} دقيقة · {money(record.price)}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{record.duration_minutes || 0} دقيقة</p>
                       </td>
+                      <td className="px-4 py-3.5 text-sm font-bold">{money(resolveActualBookingPrice(record))}</td>
                       <td className="px-4 py-3.5">
                         <p className="text-sm font-semibold text-foreground">{dateOnly(record.scheduled_at)}</p>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">{dateTime(record.scheduled_at).split("،").pop()}</p>
@@ -664,7 +685,7 @@ export default function AdminBookingsTab() {
                     <div><p className="text-[11px] text-muted-foreground">طريقة الحصة</p><p className="mt-1 font-bold">{selected.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}</p></div>
                     <div><p className="text-[11px] text-muted-foreground">الموعد</p><p className="mt-1 font-bold">{dateTime(selected.scheduled_at)}</p></div>
                     <div><p className="text-[11px] text-muted-foreground">المدة</p><p className="mt-1 font-bold">{selected.duration_minutes || 0} دقيقة</p></div>
-                    <div><p className="text-[11px] text-muted-foreground">القيمة</p><p className="mt-1 font-bold text-secondary">{money(selected.price)}</p></div>
+                    <div><p className="text-[11px] text-muted-foreground">السعر الفعلي</p><p className="mt-1 font-bold text-secondary">{money(resolveActualBookingPrice(selected))}</p></div>
                     {selected.notes && <div className="col-span-2 border-t border-border/50 pt-3 md:col-span-4"><p className="text-[11px] text-muted-foreground">ملاحظات الطالب</p><p className="mt-1 whitespace-pre-wrap font-medium">{selected.notes}</p></div>}
                   </CardContent>
                 </Card>

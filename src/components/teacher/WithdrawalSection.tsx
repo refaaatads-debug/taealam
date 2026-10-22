@@ -230,7 +230,7 @@ export default function WithdrawalSection() {
           <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">الرصيد المتاح للسحب</p>
             <p className="text-xl font-black text-secondary">{balance.toLocaleString()} ر.س</p>
-            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">تُضاف مستحقات الحضوري بعد صرفها من المنصة.</p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">تعتمد الإدارة مستحقات الحضوري أولًا لإضافتها إلى المتاح للسحب؛ ويُسجَّل الدفع الفعلي لاحقًا عند التحويل.</p>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح هذا الشهر</p>
