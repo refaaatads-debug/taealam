@@ -21,6 +21,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getMinuteBalanceNotification } from "@/lib/minuteBalanceNotification";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
@@ -1810,12 +1811,11 @@ const LiveSession = () => {
           ]);
 
           const newRemaining = Math.max(0, currentRemaining - durationMinutes);
-          if (newRemaining <= 30) {
+          const balanceNotification = getMinuteBalanceNotification(newRemaining);
+          if (balanceNotification) {
             await supabase.from("notifications").insert({
               user_id: currentBookingData.student_id,
-              title: newRemaining <= 0 ? "انتهى رصيد باقتك 📋" : "⚠️ رصيد الباقة منخفض!",
-              body: newRemaining <= 0 ? "نفد رصيد باقتك. جدد باقتك للاستمرار." : `متبقي ${newRemaining} دقيقة فقط. جدد باقتك.`,
-              type: newRemaining <= 0 ? "subscription_expired" : "subscription_warning",
+              ...balanceNotification,
             });
           }
         }

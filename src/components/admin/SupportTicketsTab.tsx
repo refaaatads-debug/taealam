@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SupportTransferAgent } from "@/lib/supportDepartments";
 import SupportTransferDialog, { type SupportTransferTarget } from "./SupportTransferDialog";
+import { normalizeSupportTicketStatus } from "@/lib/supportTicketStatus";
 
 interface Ticket {
   id: string; user_id: string; subject: string; status: string; category: string; created_at: string; updated_at?: string;
@@ -46,14 +47,6 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   in_progress: { label: "قيد المعالجة", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", icon: Hourglass },
   closed: { label: "منتهية", color: "bg-muted text-muted-foreground border-border", icon: CheckCircle2 },
   unknown: { label: "حالة غير معروفة — للمراجعة", color: "bg-destructive/10 text-destructive border-destructive/30", icon: AlertCircle },
-};
-
-const normalizeTicketStatus = (status: unknown): "open" | "in_progress" | "closed" | "unknown" => {
-  const value = String(status ?? "").trim().toLowerCase();
-  if (value === "open" || value === "مفتوحة" || value === "مفتوح") return "open";
-  if (value === "in_progress" || value === "in progress" || value === "قيد المعالجة") return "in_progress";
-  if (value === "closed" || value === "مغلقة" || value === "مغلق" || value === "منتهية") return "closed";
-  return "unknown";
 };
 
 const initials = (name?: string) => (name || "?").trim().split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -285,7 +278,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
     setProfileNameMap(prev => new Map([...prev, ...nameMap]));
     setTickets(ticketData.map((t: any) => ({
       ...t,
-      status: normalizeTicketStatus(t.status),
+      status: normalizeSupportTicketStatus(t.status),
       user_name: nameMap.get(t.user_id) || "مستخدم",
       assigned_name: t.assigned_to ? (nameMap.get(t.assigned_to) || "موظف") : null,
     })) as Ticket[]);

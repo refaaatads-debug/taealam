@@ -67,7 +67,7 @@ serve(async (req) => {
           reason_code = "no_minutes";
           error_msg = "نفدت دقائقك في الباقة الاحترافية. يرجى تجديد الاشتراك للمتابعة.";
         } else if (inactivePremium) {
-          reason_code = "subscription_expired";
+          reason_code = "inactive_subscription";
           error_msg = "الباقة الاحترافية غير نشطة. يرجى التواصل مع الدعم.";
         }
       }

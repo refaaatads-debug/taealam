@@ -3,3 +3,4 @@
 - [GitHub Actions permissions](github-actions-permissions.md) — Repository and workflow-file write access may not include permission to trigger deployment workflows.
 - [GitHub deployment scripts](github-actions-deployment-scripts.md) — Keep embedded SSH scripts below GitHub's parser limit and pass staging paths between SSH actions explicitly.
 - [In-person teacher payout policy](in-person-teacher-payout-policy.md) — Keep unpaid in-person earnings in monthly reporting, not withdrawable balance; platform credits payouts manually.
+- [Minute package validity](minute-package-validity.md) — Minute packages never expire by date; treat `ends_at` as audit metadata, not an access or booking rule.

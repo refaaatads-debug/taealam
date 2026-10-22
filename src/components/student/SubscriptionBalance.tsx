@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Wallet, Clock, Zap, AlertTriangle, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { getMinutePackageStatus } from "@/lib/minutePackageStatus";
 
 interface Props {
   subscription: any;
@@ -21,7 +22,8 @@ export default function SubscriptionBalance({ subscription, stripeSubscription, 
   const totalMinutes = subscription?.total_hours ? subscription.total_hours * 60 : 0;
   const usedMinutes = Math.max(totalMinutes - remainingMinutes, 0);
   const percentUsed = totalMinutes > 0 ? Math.min((usedMinutes / totalMinutes) * 100, 100) : 0;
-  const isExpired = hasSubscription && remainingMinutes <= 0;
+  const packageStatus = getMinutePackageStatus({ hasSubscription: Boolean(hasSubscription), remainingMinutes, endsAt: subscription?.ends_at });
+  const isDepleted = packageStatus === "depleted";
 
   const tierName = stripeSubscription?.tier === "premium" ? "احترافية" : stripeSubscription?.tier === "standard" ? "متقدمة" : stripeSubscription?.tier === "basic" ? "أساسية" : (subscription as any)?.subscription_plans?.name_ar || "نشط";
 
@@ -45,7 +47,7 @@ export default function SubscriptionBalance({ subscription, stripeSubscription, 
               <FileText className="h-3 w-3" />
               تقرير تفصيلي
             </Link>
-            {hasSubscription && !isExpired && (
+            {hasSubscription && !isDepleted && (
               <Link to="/subscription-details">
                 <Badge className="mr-auto bg-secondary/10 text-secondary border-0 text-xs cursor-pointer hover:bg-secondary/20">{tierName} ←</Badge>
               </Link>
@@ -65,11 +67,11 @@ export default function SubscriptionBalance({ subscription, stripeSubscription, 
               <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3 animate-pulse" />
               <p className="text-sm text-muted-foreground">جارٍ تحميل رصيد الباقة…</p>
             </div>
-          ) : isExpired ? (
+          ) : isDepleted ? (
             <div className="text-center py-6">
               <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-3" />
-              <p className="text-lg font-black text-destructive mb-1">انتهت باقتك!</p>
-              <p className="text-sm text-muted-foreground mb-4">اشترك من جديد لمواصلة التعلم</p>
+              <p className="text-lg font-black text-destructive mb-1">نفدت دقائق الباقة</p>
+              <p className="text-sm text-muted-foreground mb-4">استهلكت دقائق الباقة المتاحة. أضف رصيد دقائق للمتابعة.</p>
               <div className="bg-muted/50 rounded-xl p-3 mb-4">
                 <p className="text-xs text-muted-foreground">استخدمت: <span className="font-bold text-foreground">{formatMin(usedMinutes)}</span> من أصل <span className="font-bold text-foreground">{formatMin(totalMinutes)}</span></p>
               </div>
