@@ -226,7 +226,7 @@ export default function WithdrawalRequestsTab() {
         });
       }
 
-      toast.success(status === "paid" ? "تم اعتماد السحب وإضافته إلى سجل المدفوعات" : "تم تحديث الطلب");
+      toast.success(status === "paid" ? "تم تسجيل الدفع الفعلي في سجل المدفوعات" : status === "approved" ? "تم اعتماد طلب السحب؛ لم يُسجّل كمدفوع" : "تم تحديث الطلب");
       await fetchData();
     } catch (e: any) {
       toast.error(e.message || "حدث خطأ");
@@ -419,8 +419,8 @@ export default function WithdrawalRequestsTab() {
                               className="min-h-[60px] rounded-xl resize-none text-sm"
                             />
                             <div className="flex gap-2">
-                              <Button size="sm" className="rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "paid", r.teacher_id)} disabled={updatingId === r.id}>
-                                <CheckCircle className="h-3.5 w-3.5" /> {r.status === "pending" ? "اعتماد وصرف" : "تسجيل الدفع"}
+                              <Button size="sm" className="rounded-lg bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, r.status === "pending" ? "approved" : "paid", r.teacher_id)} disabled={updatingId === r.id}>
+                                <CheckCircle className="h-3.5 w-3.5" /> {r.status === "pending" ? "اعتماد الطلب" : "تسجيل الدفع الفعلي"}
                               </Button>
                               <Button size="sm" variant="destructive" className="rounded-lg gap-1 text-xs flex-1" onClick={() => updateStatus(r.id, "rejected", r.teacher_id)} disabled={updatingId === r.id}>
                                 <XCircle className="h-3.5 w-3.5" /> رفض

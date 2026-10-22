@@ -178,7 +178,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             before="${{ github.event.before }}"
             if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
-              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql supabase/migrations/20261021001700_unified_teacher_withdrawals.sql supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql | grep -q .; then
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql supabase/migrations/20261021001700_unified_teacher_withdrawals.sql supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql | grep -q .; then
               run_reporting_withdrawal_migrations=true
             fi
           elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
@@ -223,7 +223,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_unified_teacher_withdrawals.sql,supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_unified_teacher_withdrawals.sql,supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -274,6 +274,7 @@ jobs:
             test -f "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql"
             test -f "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
             test -f "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
+            test -f "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"
             test -f "$staging/supabase/functions/ai-support/index.ts"
             test -f "$staging/supabase/functions/ai-tutor-token/index.ts"
             test -f "$staging/supabase/functions/send-notification/index.ts"
@@ -526,7 +527,21 @@ jobs:
               apply_reporting_migration "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql"
               apply_reporting_migration "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
               apply_reporting_migration "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
-              echo "Migrations 016-018 applied or verified; 011/012 fingerprinted and never re-run."
+              apply_reporting_migration "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"
+              for migration_file in \
+                "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql" \
+                "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql" \
+                "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql" \
+                "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"; do
+                migration_name="$(basename "$migration_file")"
+                expected_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                actual_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                test "$actual_hash" = "$expected_hash" || {
+                  echo "Post-apply fingerprint verification failed for $migration_name." >&2
+                  exit 1
+                }
+              done
+              echo "Migrations 016-019 applied or fingerprint-verified; 011/012 fingerprinted and never re-run."
             else
               echo "Skipping teacher reporting/withdrawal migrations: no related SQL file changed."
             fi
