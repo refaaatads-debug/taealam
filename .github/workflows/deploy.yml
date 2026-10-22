@@ -710,7 +710,7 @@ jobs:
             nginx -t
             # Keep previously hashed bundles available for live session tabs
             # that may still lazy-load a chunk during an Agora call.
-            rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r dist/ /var/www/html/
+            rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r "$staging/dist/" /var/www/html/
             # Expire old hashed assets only after a grace window; the active
             # app/Agora connections are not restarted during this deployment.
             find /var/www/html/assets -type f -mmin +1440 -delete
