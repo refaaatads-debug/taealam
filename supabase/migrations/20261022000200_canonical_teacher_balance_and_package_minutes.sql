@@ -70,7 +70,7 @@ BEGIN
   END IF;
   v_definition := replace(v_definition, v_old, v_new);
   v_old := 'JOIN public.withdrawal_requests wr ON wr.id = a.withdrawal_request_id' || E'\n' ||
-    '      WHERE wr.teacher_id = NEW.teacher_id';
+    '     WHERE wr.teacher_id = NEW.teacher_id';
   v_new := 'JOIN public.withdrawal_requests wr ON wr.id = a.withdrawal_request_id' || E'\n' ||
     '      JOIN public.teacher_earnings source ON source.id = a.teacher_earning_id' || E'\n' ||
     '      WHERE wr.teacher_id = NEW.teacher_id' || E'\n' ||
