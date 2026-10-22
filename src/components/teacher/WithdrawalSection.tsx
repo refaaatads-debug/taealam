@@ -88,7 +88,9 @@ export default function WithdrawalSection() {
     };
     setWithdrawalSummary(summary);
     setTotalEarnings(summary.paid_total || Number(bd?.paid_total) || 0);
-    const availableBalance = summary.online_available + summary.in_person_available + summary.in_person_compensation_available;
+    // In-person earnings are reported monthly; the platform adds them to the
+    // withdrawable online balance only after manually paying the teacher.
+    const availableBalance = summary.online_available;
     setBalance(availableBalance);
     setWithdrawalAmount(current => {
       const currentAmount = Number(current);
@@ -228,10 +230,7 @@ export default function WithdrawalSection() {
           <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">الرصيد المتاح للسحب</p>
             <p className="text-xl font-black text-secondary">{balance.toLocaleString()} ر.س</p>
-            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-              أونلاين {withdrawalSummary.online_available.toLocaleString()} · حضوري {withdrawalSummary.in_person_available.toLocaleString()}
-              {withdrawalSummary.in_person_compensation_available ? ` · تعويضات ${withdrawalSummary.in_person_compensation_available.toLocaleString()}` : ""}
-            </p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">تُضاف مستحقات الحضوري بعد صرفها من المنصة.</p>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح هذا الشهر</p>

@@ -53,6 +53,7 @@ export default function TeacherEarningsTab() {
     estimatedEarnings: number;
     remainingTransferable: number;
   }>>(new Map());
+  const [teacherMonthSplit, setTeacherMonthSplit] = useState<{ online: number; inPerson: number; total: number } | null>(null);
   const [closedMonths, setClosedMonths] = useState<Set<string>>(new Set());
   const [availableBalance, setAvailableBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -139,14 +140,19 @@ export default function TeacherEarningsTab() {
   }, [selectedTeacher]);
 
   const fetchTeacherHours = async (teacherId: string, monthStr: string) => {
-    const { data: capacityData, error: capacityError } = await supabase.rpc(
-      "get_teacher_monthly_transfer_capacity",
-      {
+    setTeacherMonthSplit(null);
+    const [capacityResult, splitResult] = await Promise.all([
+      supabase.rpc("get_teacher_monthly_transfer_capacity", {
         _teacher_id: teacherId,
         _month: monthStr,
         _exclude_earning_id: editingId,
-      },
-    );
+      }),
+      supabase.rpc("get_teacher_month_earnings_split" as any, {
+        _teacher_id: teacherId,
+        _month: monthStr,
+      }),
+    ]);
+    const { data: capacityData, error: capacityError } = capacityResult;
     if (capacityError) {
       setTeacherHoursMap(prev => {
         const next = new Map(prev);
@@ -155,6 +161,15 @@ export default function TeacherEarningsTab() {
       });
       toast.error("تعذر حساب أرباح الحصص المتبقية للتحويل");
       return;
+    }
+    if (splitResult.error) {
+      setTeacherMonthSplit(null);
+      toast.error("تعذر تحميل تفصيل أرباح الأونلاين والحضوري");
+    } else {
+      const split = (splitResult.data?.[0] as any) || {};
+      const online = Number(split.online_earnings) || 0;
+      const inPerson = Number(split.in_person_earnings) || 0;
+      setTeacherMonthSplit({ online, inPerson, total: online + inPerson });
     }
 
     const capacity = capacityData?.[0];
@@ -639,11 +654,11 @@ export default function TeacherEarningsTab() {
                         <p className="text-[10px] text-muted-foreground">{computedHours.minutes} دقيقة ({computedHours.hours} ساعة)</p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-muted-foreground mb-0.5">الأرباح المقدرة</p>
+                        <p className="text-[10px] text-muted-foreground mb-0.5">تقدير أرباح الجلسات</p>
                         <p className="text-xl font-black text-emerald-600">
                           {computedHours.estimatedEarnings.toFixed(2)} ر.س
                         </p>
-                        <p className="text-[10px] text-muted-foreground">صافي الحصص المكتملة في الشهر</p>
+                        <p className="text-[10px] text-muted-foreground">حسب دقائق الجلسات المسجلة</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground mb-0.5">المتبقي للتحويل من أرباح الشهر</p>
@@ -662,6 +677,29 @@ export default function TeacherEarningsTab() {
                               : `${(availableBalance ?? 0).toFixed(2)} ر.س`}
                         </p>
                         <p className="text-[10px] text-muted-foreground">يشمل التحويلات والمكافآت بعد حجز طلبات السحب</p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border/70 bg-background/70 p-3">
+                      <p className="mb-2 text-xs font-bold text-foreground">أرباح الشهر حسب نوع الحصة</p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div className="rounded-lg bg-primary/5 p-2.5">
+                          <p className="text-[10px] text-muted-foreground">أونلاين</p>
+                          <p data-testid="admin-online-monthly-earnings" className="mt-1 font-black text-primary">
+                            {teacherMonthSplit ? `${teacherMonthSplit.online.toFixed(2)} ر.س` : "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/10 p-2.5">
+                          <p className="text-[10px] text-muted-foreground">حضوري</p>
+                          <p data-testid="admin-in-person-monthly-earnings" className="mt-1 font-black text-secondary">
+                            {teacherMonthSplit ? `${teacherMonthSplit.inPerson.toFixed(2)} ر.س` : "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 p-2.5">
+                          <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                          <p data-testid="admin-total-monthly-earnings" className="mt-1 font-black text-emerald-700">
+                            {teacherMonthSplit ? `${teacherMonthSplit.total.toFixed(2)} ر.س` : "—"}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     {earningType === "bonus" && (

@@ -49,6 +49,18 @@ VALUES (
   'synthetic withdrawal allocation test'
 );
 
+-- The platform's explicit manual payout is the only way to add the in-person
+-- amount to the teacher's online withdrawal balance.
+INSERT INTO public.teacher_earnings(teacher_id, amount, month, status, earning_type, notes)
+VALUES (
+  'a9000000-0000-4000-8000-000000000001',
+  80,
+  to_char(now() AT TIME ZONE 'Asia/Riyadh', 'YYYY-MM'),
+  'confirmed',
+  'monthly_transfer',
+  'synthetic manual payout balance'
+);
+
 SET LOCAL request.jwt.claim.sub = 'a9000000-0000-4000-8000-000000000001';
 
 DO $$
@@ -60,7 +72,23 @@ DECLARE
   v_compensation numeric;
   v_active numeric;
   v_retry_failed boolean := false;
+  v_in_person_only_rejected boolean := false;
 BEGIN
+  IF (SELECT available_balance FROM public.get_teacher_earnings_breakdown(
+      'a9000000-0000-4000-8000-000000000001')) <> 100 THEN
+    RAISE EXCEPTION 'Withdrawable balance must include manual/online entries only';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.withdrawal_requests(teacher_id, amount)
+    VALUES ('a9000000-0000-4000-8000-000000000001', 110);
+  EXCEPTION WHEN OTHERS THEN
+    v_in_person_only_rejected := true;
+  END;
+  IF NOT v_in_person_only_rejected THEN
+    RAISE EXCEPTION 'Withdrawal used in-person earnings before platform payout';
+  END IF;
+
   INSERT INTO public.withdrawal_requests(teacher_id, amount)
   VALUES ('a9000000-0000-4000-8000-000000000001', 100)
   RETURNING id INTO v_request;
@@ -75,7 +103,7 @@ BEGIN
   FROM public.teacher_withdrawal_in_person_allocations
   WHERE withdrawal_request_id = v_request AND in_person_compensation_id IS NOT NULL;
 
-  IF v_online <> 20 OR v_lesson <> 60 OR v_compensation <> 20 THEN
+  IF v_online <> 100 OR v_lesson <> 0 OR v_compensation <> 0 THEN
     RAISE EXCEPTION 'Unexpected exact-source allocation: online %, lesson %, compensation %',
       v_online, v_lesson, v_compensation;
   END IF;

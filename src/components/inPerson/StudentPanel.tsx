@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, MapPinOff, RefreshCw, Sparkles } from "lucide-react";
 
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
@@ -98,8 +99,15 @@ export default function InPersonStudentPanel() {
       }
       setInstructionDuration(savedDuration);
       setLoadError(false);
+      setCityUnavailableMessage("");
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
-      setAddresses(((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id })));
+      const savedAddresses = ((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id }));
+      setAddresses(savedAddresses);
+      const preferredAddress = savedAddresses.find((address) => address.id === addressId) || savedAddresses[0];
+      if (preferredAddress) {
+        setAddressId(preferredAddress.id);
+        setCityId(preferredAddress.city_id);
+      }
       setSubjects(((subjectResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name })));
     })();
     return () => { active = false; };
@@ -199,6 +207,7 @@ export default function InPersonStudentPanel() {
   if (!enabled) return null;
   const hasAddressInSelectedCity = addresses.some((address) => address.city_id === cityId);
   const selectedCity = cities.find((city) => city.id === cityId);
+  const cityUnavailable = Boolean((selectedCity && !selectedCity.enabled && addressId) || cityUnavailableMessage);
   return (
     <Card className="overflow-hidden rounded-2xl border-0 shadow-card">
       <CardHeader className="border-b bg-gradient-to-l from-primary/10 via-background to-secondary/10">
@@ -229,6 +238,40 @@ export default function InPersonStudentPanel() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {cityUnavailable && (
+          <section role="status" aria-live="polite" className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-secondary p-6 text-primary-foreground shadow-lg sm:p-8">
+            <div aria-hidden="true" className="absolute -left-12 -top-16 -z-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner">
+                <MapPinOff className="h-8 w-8" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold">
+                  <Sparkles className="h-3.5 w-3.5" /> خدمة قيد التوسع
+                </span>
+                <h3 className="mt-3 text-xl font-black sm:text-2xl">الحصص الحضورية غير متاحة حاليًا في {selectedCity?.name || "مدينتك"}</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-white/85">
+                  نعمل على توفير معلمين قريبين منك. سيظهر نموذج الحجز تلقائيًا عند تفعيل الخدمة في مدينتك.
+                </p>
+                {addresses.find((address) => address.id === addressId) && (
+                  <p className="mt-2 text-xs text-white/75">العنوان المحدد: {addresses.find((address) => address.id === addressId)?.name}</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => setReloadKey((value) => value + 1)} className="rounded-xl border-white/40 bg-white/10 text-primary-foreground hover:bg-white/15 hover:text-primary-foreground">
+                <RefreshCw className="me-2 h-4 w-4" /> تحديث حالة المدينة
+              </Button>
+              <Button asChild variant="secondary" className="rounded-xl font-bold">
+                <Link to="/booking">احجز حصة أونلاين <ArrowLeft className="ms-2 h-4 w-4" /></Link>
+              </Button>
+              <Button asChild variant="ghost" className="rounded-xl text-primary-foreground hover:bg-white/10 hover:text-primary-foreground">
+                <Link to="/profile">تعديل العنوان</Link>
+              </Button>
+            </div>
+          </section>
+        )}
+        <div hidden={cityUnavailable} className="space-y-4">
         {loadError && <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">تعذر تحميل بيانات المدن أو العناوين. أعد المحاولة قبل المتابعة. <Button size="sm" variant="outline" className="ms-2" onClick={() => setReloadKey((value) => value + 1)}>إعادة المحاولة</Button></div>}
         <div className="flex items-center justify-center gap-2 py-1">
           <span className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-sm">1 · بيانات الحصة</span>
@@ -240,7 +283,7 @@ export default function InPersonStudentPanel() {
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.03] via-card to-secondary/[0.04] p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
             <div><h3 className="font-black text-foreground">بيانات الحصة الحضورية</h3><p className="mt-1 text-xs text-muted-foreground">اختر عنوان الزيارة والمادة والموعد المناسب.</p></div>
-            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">60 دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">100 دقيقة من الرصيد</span></div>
+            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{instructionDuration} دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">100 دقيقة من الرصيد</span></div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-semibold">المدينة
@@ -355,7 +398,7 @@ export default function InPersonStudentPanel() {
             <p className="mt-1.5 text-sm font-bold text-foreground">
               {new Date(scheduledAt).toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })} · {formatAppointmentTime(scheduledAt)}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · 60 دقيقة تدريس · يُحجز 100 دقيقة من الرصيد</p>
+            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · {instructionDuration} دقيقة تدريس · يُحجز 100 دقيقة من الرصيد</p>
           </div>
         </div>
         </div>
@@ -371,7 +414,7 @@ export default function InPersonStudentPanel() {
             <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">احفظ عنوانك من الخريطة في الملف الشخصي</Link>
           </div>
         )}
-        {((selectedCity && !selectedCity.enabled && addressId) || cityUnavailableMessage) && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage || `الحصص الحضورية غير متاحة في ${selectedCity?.name} حاليًا. يمكنك حجز حصة أونلاين.`} <Link className="font-semibold underline" to="/booking">الحجز الأونلاين</Link></div>}
+        {cityUnavailableMessage && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage}</div>}
         {searchError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/[0.04] p-3 text-sm text-destructive">{searchError}</div>}
         <Button variant="outline" className="h-11 rounded-xl px-5" onClick={searchTeachers} disabled={loading || !cityId || !addressId || !subjectId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
         {loading && teachers.length === 0 && hasSearched && (
@@ -396,6 +439,7 @@ export default function InPersonStudentPanel() {
             <Button onClick={submitRequest} disabled={loading || selectedTeachers.length === 0}>{loading ? "جارٍ الإرسال..." : "إرسال الطلب وحجز الرصيد"}</Button>
           </div>
         )}
+        </div>
       </CardContent>
     </Card>
   );
