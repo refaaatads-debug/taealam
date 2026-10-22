@@ -178,7 +178,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             before="${{ github.event.before }}"
             if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
-              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql supabase/migrations/20261021001700_unified_teacher_withdrawals.sql supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql | grep -q .; then
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql supabase/migrations/20261021001700_unified_teacher_withdrawals.sql supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql | grep -q .; then
               run_reporting_withdrawal_migrations=true
             fi
           elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
@@ -544,11 +544,13 @@ jobs:
               apply_reporting_migration "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
               apply_reporting_migration "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
               apply_reporting_migration "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"
+              apply_reporting_migration "$staging/supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql"
               for migration_file in \
                 "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql" \
                 "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql" \
                 "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql" \
-                "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"; do
+                "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql" \
+                "$staging/supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql"; do
                 migration_name="$(basename "$migration_file")"
                 expected_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
                 actual_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
@@ -557,7 +559,7 @@ jobs:
                   exit 1
                 }
               done
-              echo "Migrations 016-019 applied or fingerprint-verified; 011/012 fingerprinted and never re-run."
+              echo "Migrations 016-018 and 20261022 reporting fixes applied or fingerprint-verified; 011/012 fingerprinted and never re-run."
             else
               echo "Skipping teacher reporting/withdrawal migrations: no related SQL file changed."
             fi
