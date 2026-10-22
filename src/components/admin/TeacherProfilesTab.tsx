@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FolderOpen, Search, Users, Sparkles, AlertCircle, GraduationCap, Filter, Star } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
+import { getTeacherApprovalState } from "@/lib/teacherApprovalState";
 
 interface TeacherRow {
   user_id: string;
@@ -21,6 +22,7 @@ interface TeacherRow {
   approval_status: string | null;
   in_person_approval_status: string | null;
   approval_conflict: boolean;
+  approval_status_stale: boolean;
   hourly_rate: number;
   avg_rating: number;
   total_sessions: number;
@@ -72,9 +74,8 @@ const TeacherProfilesTab = () => {
           is_approved: !!t.is_approved,
           approval_status: t.approval_status ?? null,
           in_person_approval_status: t.in_person_approval_status ?? null,
-          approval_conflict: t.approval_status === "approved"
-            ? !t.is_approved
-            : t.approval_status === "pending" && !!t.is_approved,
+          approval_conflict: getTeacherApprovalState(t.approval_status ?? null, !!t.is_approved).conflict,
+          approval_status_stale: getTeacherApprovalState(t.approval_status ?? null, !!t.is_approved).stalePendingLabel,
           hourly_rate: Number(t.hourly_rate || 0),
           avg_rating: Number(t.avg_rating || 0),
           total_sessions: Number(t.total_sessions || 0),
@@ -213,7 +214,12 @@ const TeacherProfilesTab = () => {
                       <span className="font-semibold truncate">{r.full_name || "بدون اسم"}</span>
                       {r.approval_conflict && (
                         <Badge variant="destructive" title="اختلاف بين حالة طلب اعتماد المعلم وعلامة الاعتماد العامة؛ لا يتضمن اعتماد الحضوري">
-                          اختلاف اعتماد المعلم — مراجعة يدوية
+                          تعارض قرار الاعتماد — مراجعة يدوية
+                        </Badge>
+                      )}
+                      {r.approval_status_stale && (
+                        <Badge variant="outline" className="text-xs text-muted-foreground" title="تم اعتماد الحساب؛ بقيت قيمة نصية قديمة لحالة الطلب. لم تتغير بيانات الاعتماد.">
+                          حالة الطلب النصية قديمة
                         </Badge>
                       )}
                       {r.is_approved ? (
