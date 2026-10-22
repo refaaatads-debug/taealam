@@ -27,6 +27,7 @@ const Profile = () => {
   const [notifyBefore, setNotifyBefore] = useState(true);
   const [notifyAfter, setNotifyAfter] = useState(true);
   const [notifyExpiry, setNotifyExpiry] = useState(true);
+  const [hasTimeLimitedSubscription, setHasTimeLimitedSubscription] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Teacher-specific
@@ -93,6 +94,15 @@ const Profile = () => {
           city_id: address.city_id,
           name: [address.district, address.street_address].filter(Boolean).join(" — "),
         }))));
+      supabase.from("user_subscriptions").select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .not("ends_at", "is", null)
+        .gt("ends_at", new Date().toISOString())
+        .limit(1)
+        .then(({ data, error }) => setHasTimeLimitedSubscription(!error && Boolean(data?.length)));
+    } else {
+      setHasTimeLimitedSubscription(false);
     }
 
     supabase.from("profiles").select("notify_before_session, notify_after_session, notify_subscription_expiry, teaching_stage")
@@ -757,7 +767,7 @@ const Profile = () => {
               {[
                 { icon: Bell, title: "قبل الحصة", desc: "تذكير قبل الحصة بـ 30 دقيقة", checked: notifyBefore, onChange: setNotifyBefore },
                 { icon: Bell, title: "بعد الحصة", desc: "طلب تقييم بعد انتهاء الحصة", checked: notifyAfter, onChange: setNotifyAfter },
-                ...(!isTeacher ? [{ icon: Bell, title: "صلاحية الاشتراك", desc: "تنبيه قبل تاريخ انتهاء صلاحية الاشتراك إن كان محددًا؛ لا يؤثر على دقائق الباقة", checked: notifyExpiry, onChange: setNotifyExpiry }] : []),
+                ...(!isTeacher && hasTimeLimitedSubscription ? [{ icon: Bell, title: "صلاحية الاشتراك", desc: "تنبيه قبل تاريخ انتهاء الاشتراك المرتبط بتاريخ محدد؛ لا يتعلق برصيد الدقائق", checked: notifyExpiry, onChange: setNotifyExpiry }] : []),
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
