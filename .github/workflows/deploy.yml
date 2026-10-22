@@ -234,7 +234,7 @@ jobs:
             echo "Refusing VPS activation: workflow=$GITHUB_SHA main=${current_main:-unavailable}."
             exit 1
           fi
-      - name: Build and activate on VPS using the verified dependency cache
+      - name: Build on VPS and apply booking finance migrations
         uses: appleboy/ssh-action@v1.0.3
         env:
           VITE_TURNSTILE_SITE_KEY: 0x4AAAAAAE9pV6wv3lWICbVL
@@ -469,6 +469,22 @@ jobs:
             else
               echo "Skipping session finance migrations: no related SQL file changed."
             fi
+      - name: Apply payout migrations and activate the verified build
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          RUN_REPORTING_WITHDRAWAL_MIGRATIONS: ${{ steps.reporting-withdrawal-migration-scope.outputs.run }}
+          RUN_EDGE_FUNCTIONS: ${{ steps.edge-function-scope.outputs.run }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          envs: DEPLOY_SHA,RUN_REPORTING_WITHDRAWAL_MIGRATIONS,RUN_EDGE_FUNCTIONS
+          script: |
+            set -eu
+            staging=/tmp/ajyal-build-$DEPLOY_SHA
+            test -f "$staging/dist/index.html"
             if [ "${RUN_REPORTING_WITHDRAWAL_MIGRATIONS:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
@@ -556,7 +572,7 @@ jobs:
             else
               echo "Skipping edge functions: no related function source changed."
             fi
-            policy_backup_dir="/root/backups/ajyal-nginx-policy-${{ github.sha }}"
+            policy_backup_dir="/root/backups/ajyal-nginx-policy-$DEPLOY_SHA"
             mkdir -p "$policy_backup_dir"
             chmod 700 "$policy_backup_dir"
             AJYAL_POLICY_BACKUP_DIR="$policy_backup_dir" python3 - <<'PY'
@@ -716,7 +732,7 @@ jobs:
             else
               echo "Local Nginx response confirms first-party geolocation is enabled."
             fi
-            printf '%s\n' '${{ github.sha }}' > /root/ajyal-web-deployed-sha
+            printf '%s\n' "$DEPLOY_SHA" > /root/ajyal-web-deployed-sha
             rm -rf "$staging"
             echo 'Web deployment activated'
 
