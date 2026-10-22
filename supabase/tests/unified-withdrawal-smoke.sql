@@ -1,5 +1,6 @@
--- Synthetic-only test for exact-source allocation, rejection/cancellation release,
--- and idempotent cancellation. Run inside the isolated production-schema clone.
+-- Synthetic-only test for exact-source allocation, approval-versus-payment
+-- accounting, idempotent payment, and rejection/cancellation release. Run in
+-- the isolated production-schema clone.
 BEGIN;
 
 DELETE FROM public.user_roles
@@ -62,7 +63,7 @@ VALUES (
   80,
   to_char(now() AT TIME ZONE 'Asia/Riyadh', 'YYYY-MM'),
   'confirmed',
-  'monthly_transfer',
+  'bonus',
   'synthetic manual payout balance'
 );
 
@@ -72,6 +73,7 @@ DO $$
 DECLARE
   v_request uuid;
   v_second_request uuid;
+  v_cancel_request uuid;
   v_online numeric;
   v_lesson numeric;
   v_compensation numeric;
@@ -156,7 +158,7 @@ BEGIN
     100,
     to_char(now() AT TIME ZONE 'Asia/Riyadh', 'YYYY-MM'),
     'confirmed',
-    'monthly_transfer',
+    'bonus',
     'synthetic next payout balance'
   );
   PERFORM set_config('request.jwt.claim.sub', 'a9000000-0000-4000-8000-000000000001', true);
