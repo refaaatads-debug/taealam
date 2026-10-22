@@ -223,7 +223,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_unified_teacher_withdrawals.sql,supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_unified_teacher_withdrawals.sql,supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -275,6 +275,7 @@ jobs:
             test -f "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
             test -f "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
             test -f "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql"
+            test -s "$staging/supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql"
             test -f "$staging/supabase/functions/ai-support/index.ts"
             test -f "$staging/supabase/functions/ai-tutor-token/index.ts"
             test -f "$staging/supabase/functions/send-notification/index.ts"
@@ -523,8 +524,16 @@ jobs:
               done
               apply_reporting_migration() {
                 migration_file="$1"
+                test -s "$migration_file" || {
+                  echo "Required migration file is missing: $migration_file" >&2
+                  exit 1
+                }
                 migration_name="$(basename "$migration_file")"
                 migration_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                test "${#migration_hash}" -eq 64 || {
+                  echo "Invalid migration fingerprint for $migration_name." >&2
+                  exit 1
+                }
                 stored_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
                 if [ -n "$stored_hash" ]; then
                   if [ "$stored_hash" != "$migration_hash" ]; then
@@ -551,9 +560,12 @@ jobs:
                 "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql" \
                 "$staging/supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql" \
                 "$staging/supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql"; do
+                test -s "$migration_file"
                 migration_name="$(basename "$migration_file")"
                 expected_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                test "${#expected_hash}" -eq 64
                 actual_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                test -n "$actual_hash"
                 test "$actual_hash" = "$expected_hash" || {
                   echo "Post-apply fingerprint verification failed for $migration_name." >&2
                   exit 1
