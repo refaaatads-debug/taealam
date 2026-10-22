@@ -65,6 +65,7 @@ export default function InPersonStudentPanel() {
   const [scheduledAt, setScheduledAt] = useState(firstAvailableAppointment);
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [cityUnavailableMessage, setCityUnavailableMessage] = useState("");
@@ -77,6 +78,7 @@ export default function InPersonStudentPanel() {
     if (!user) return;
     let active = true;
     void (async () => {
+      setAddressesLoaded(false);
       const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
       if (!active || !pilotEnabled) return;
       setEnabled(true);
@@ -89,12 +91,14 @@ export default function InPersonStudentPanel() {
       if (cityResult.error || addressResult.error || subjectResult.error || durationResult.error) {
         if (!active) return;
         setLoadError(true);
+        setAddressesLoaded(true);
         return;
       }
       const savedDuration = Number(durationResult.data);
       if (savedDuration !== 45 && savedDuration !== 60) {
         if (!active) return;
         setLoadError(true);
+        setAddressesLoaded(true);
         return;
       }
       setInstructionDuration(savedDuration);
@@ -103,6 +107,7 @@ export default function InPersonStudentPanel() {
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
       const savedAddresses = ((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id }));
       setAddresses(savedAddresses);
+      setAddressesLoaded(true);
       const preferredAddress = savedAddresses.find((address) => address.id === addressId) || savedAddresses[0];
       if (preferredAddress) {
         setAddressId(preferredAddress.id);
@@ -271,8 +276,24 @@ export default function InPersonStudentPanel() {
             </div>
           </section>
         )}
-        <div hidden={cityUnavailable} className="space-y-4">
         {loadError && <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">تعذر تحميل بيانات المدن أو العناوين. أعد المحاولة قبل المتابعة. <Button size="sm" variant="outline" className="ms-2" onClick={() => setReloadKey((value) => value + 1)}>إعادة المحاولة</Button></div>}
+        {enabled && addressesLoaded && !loadError && addresses.length === 0 && (
+          <section role="status" className="relative isolate overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-card to-secondary/[0.08] p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <MapPin className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-black text-foreground">أضف عنوان الحصة أولًا</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">نحتاج عنوانًا محفوظًا لمعرفة المدينة والتحقق من توفر الحصص الحضورية فيها. لن نعرض المواعيد أو نموذج الحجز قبل إضافة العنوان.</p>
+              </div>
+              <Button asChild className="rounded-xl">
+                <Link to="/profile">إضافة عنوان</Link>
+              </Button>
+            </div>
+          </section>
+        )}
+        <div hidden={cityUnavailable || !addressesLoaded || loadError || addresses.length === 0} className="space-y-4">
         <div className="flex items-center justify-center gap-2 py-1">
           <span className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-sm">1 · بيانات الحصة</span>
           <span className="h-px w-8 bg-border" />
@@ -402,12 +423,6 @@ export default function InPersonStudentPanel() {
           </div>
         </div>
         </div>
-        {addresses.length === 0 && (
-          <div className="rounded-md border border-dashed p-3 text-sm" role="status">
-            <p>لا يوجد عنوان محفوظ. أكمل عنوانك أولاً من ملفك الشخصي لتحديد المدينة.</p>
-            <Link className="mt-2 inline-block font-medium text-primary underline underline-offset-4" to="/profile">إضافة عنوان من الملف الشخصي</Link>
-          </div>
-        )}
         {addresses.length > 0 && cityId && !hasAddressInSelectedCity && (
           <div className="rounded-md border border-dashed p-3 text-sm" role="status">
             <p>لا يوجد عنوان محفوظ لهذه المدينة. أضف العنوان من قسم العناوين في ملفك الشخصي أولاً.</p>

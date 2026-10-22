@@ -47,6 +47,15 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
   closed: { label: "مغلقة", color: "bg-muted text-muted-foreground border-border", icon: CheckCircle2 },
 };
 
+const normalizeTicketStatus = (status: unknown): "open" | "in_progress" | "closed" => {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (value === "closed" || value === "مغلقة" || value === "مغلق") return "closed";
+  if (value === "in_progress" || value === "in progress" || value === "قيد المعالجة") return "in_progress";
+  // Keep unknown active statuses consistent with the existing badge fallback,
+  // which already presents them to staff as open.
+  return "open";
+};
+
 const initials = (name?: string) => (name || "?").trim().split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
 
 const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTicketsTabProps = {}) => {
@@ -276,6 +285,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
     setProfileNameMap(prev => new Map([...prev, ...nameMap]));
     setTickets(ticketData.map((t: any) => ({
       ...t,
+      status: normalizeTicketStatus(t.status),
       user_name: nameMap.get(t.user_id) || "مستخدم",
       assigned_name: t.assigned_to ? (nameMap.get(t.assigned_to) || "موظف") : null,
     })) as Ticket[]);

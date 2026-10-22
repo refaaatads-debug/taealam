@@ -757,7 +757,7 @@ const Profile = () => {
               {[
                 { icon: Bell, title: "قبل الحصة", desc: "تذكير قبل الحصة بـ 30 دقيقة", checked: notifyBefore, onChange: setNotifyBefore },
                 { icon: Bell, title: "بعد الحصة", desc: "طلب تقييم بعد انتهاء الحصة", checked: notifyAfter, onChange: setNotifyAfter },
-                ...(!isTeacher ? [{ icon: Bell, title: "انتهاء الاشتراك", desc: "تنبيه عند اقتراب انتهاء الباقة", checked: notifyExpiry, onChange: setNotifyExpiry }] : []),
+                ...(!isTeacher ? [{ icon: Bell, title: "صلاحية الاشتراك", desc: "تنبيه قبل تاريخ انتهاء صلاحية الاشتراك إن كان محددًا؛ لا يؤثر على دقائق الباقة", checked: notifyExpiry, onChange: setNotifyExpiry }] : []),
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
