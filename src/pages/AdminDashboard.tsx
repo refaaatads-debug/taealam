@@ -328,6 +328,20 @@ const AdminDashboard = () => {
         supportMessages: supportMessagesRes.count ?? 0,
         recentEvents: eventRows,
       });
+      const initialRevenue = (paymentsRes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
+      setStats({
+        users: profilesRes.count ?? 0,
+        teachers: teachersRes.count ?? 0,
+        bookings: bookingsRes.count ?? 0,
+        revenue: initialRevenue,
+        violations: violationsRes.count ?? 0,
+        pendingTeachers: 0,
+        completedSessions: completedRes.count ?? 0,
+        cancelledBookings: cancelledRes.count ?? 0,
+      });
+      // Display the primary dashboard as soon as its bounded summary requests
+      // complete; charts and detailed queues continue loading in the background.
+      setLoading(false);
 
       let allBookingsQ = supabase.from("bookings").select("created_at, status, price");
       if (periodFilterIso) allBookingsQ = allBookingsQ.gte("created_at", periodFilterIso);
@@ -360,12 +374,6 @@ const AdminDashboard = () => {
         { name: "معلقة", value: statusCount.pending }, { name: "مؤكدة", value: statusCount.confirmed },
         { name: "مكتملة", value: statusCount.completed }, { name: "ملغاة", value: statusCount.cancelled },
       ].filter(d => d.value > 0));
-
-      const revenue = (paymentsRes.data ?? []).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-      setStats({
-        users: profilesRes.count ?? 0, teachers: teachersRes.count ?? 0, bookings: bookingsRes.count ?? 0,
-        revenue, violations: violationsRes.count ?? 0, pendingTeachers: 0, completedSessions: statusCount.completed, cancelledBookings: statusCount.cancelled,
-      });
 
       // Pending teachers
       const { data: pendingRaw } = await supabase.from("teacher_profiles").select("*").eq("is_approved", false).order("created_at", { ascending: false }).limit(20);

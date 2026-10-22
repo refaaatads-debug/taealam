@@ -98,17 +98,20 @@ const StudentDashboard = () => {
       setLoading(true);
       try {
         const now = new Date().toISOString();
+        const completedHistoryPromise = supabase.from("bookings")
+          .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
+          .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false });
+        const stripeStatusPromise = supabase.functions.invoke("check-subscription")
+          .catch((error) => ({ data: null, error }));
         const [
           upcomingResult,
           liveResult,
-          completedResult,
           completedCountResult,
           cancelledResult,
           onlineCompletedResult,
           inPersonCompletedResult,
           pointsResult,
           subscriptionResult,
-          stripeResult,
         ] = await Promise.all([
           supabase.from("bookings").select("*, subjects(name)")
             .eq("student_id", user.id).in("status", ["pending", "confirmed"])
@@ -116,9 +119,6 @@ const StudentDashboard = () => {
           supabase.from("bookings").select("*, subjects(name)")
             .eq("student_id", user.id).eq("status", "confirmed")
             .eq("session_status", "in_progress").order("scheduled_at", { ascending: false }).limit(5),
-          supabase.from("bookings")
-            .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
-            .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false }),
           supabase.from("bookings").select("id", { count: "exact", head: true })
             .eq("student_id", user.id).eq("status", "completed"),
           supabase.from("bookings").select("*, subjects(name)", { count: "exact" })
@@ -134,13 +134,11 @@ const StudentDashboard = () => {
             .select("*, subscription_plans(name_ar, tier)")
             .eq("user_id", user.id).eq("is_active", true)
             .gt("remaining_minutes", 0).order("created_at", { ascending: true }),
-          supabase.functions.invoke("check-subscription").catch((error) => ({ data: null, error })),
         ]);
 
         if (disposed || requestId !== latestRequest) return;
         let hasDashboardError = false;
         const sessionMetricsFailed = [
-          completedResult.error,
           completedCountResult.error,
           cancelledResult.error,
           onlineCompletedResult.error,
@@ -178,11 +176,21 @@ const StudentDashboard = () => {
           }
         }
 
-        if (completedResult.error) {
-          hasDashboardError = true;
-          console.error("Student dashboard completed bookings failed to load", completedResult.error);
-        } else {
-          const completed = completedResult.data ?? [];
+        setStats((previous) => ({
+          ...previous,
+          completedCount: completedCountResult.count ?? 0,
+          onlineCount: onlineCompletedResult.count ?? 0,
+          inPersonCount: inPersonCompletedResult.count ?? 0,
+          progress: Math.min(((completedCountResult.count ?? 0) / 20) * 100, 100),
+        }));
+        void completedHistoryPromise.then(({ data, error }) => {
+          if (disposed || requestId !== latestRequest) return;
+          if (error) {
+            setDashboardLoadError(true);
+            console.error("Student dashboard completed bookings failed to load", error);
+            return;
+          }
+          const completed = data ?? [];
           setPastClasses(completed.slice(0, 10));
           let totalActualSeconds = 0;
           completed.forEach((booking: any) => {
@@ -196,15 +204,8 @@ const StudentDashboard = () => {
             }
             if (seconds > 0) totalActualSeconds += seconds;
           });
-          setStats((previous) => ({
-            ...previous,
-            completedCount: completedCountResult.count ?? 0,
-            onlineCount: onlineCompletedResult.count ?? 0,
-            inPersonCount: inPersonCompletedResult.count ?? 0,
-            actualSeconds: totalActualSeconds,
-            progress: Math.min((completed.length / 20) * 100, 100),
-          }));
-        }
+          setStats((previous) => ({ ...previous, actualSeconds: totalActualSeconds }));
+        });
 
         if (cancelledResult.error) {
           hasDashboardError = true;
@@ -241,11 +242,11 @@ const StudentDashboard = () => {
           }
         }
 
-        if (!stripeResult.error && stripeResult.data && !stripeResult.data.error) {
-          setStripeSubscription(stripeResult.data);
-        } else if (stripeResult.error) {
-          console.error("Could not check Stripe subscription", stripeResult.error);
-        }
+        void stripeStatusPromise.then(({ data, error }: any) => {
+          if (disposed || requestId !== latestRequest) return;
+          if (!error && data && !data.error) setStripeSubscription(data);
+          else if (error) console.error("Could not check Stripe subscription", error);
+        });
         setDashboardLoadError(hasDashboardError);
       } catch (error) {
         if (!disposed && requestId === latestRequest) {

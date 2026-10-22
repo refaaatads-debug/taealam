@@ -19,6 +19,7 @@ interface TeacherRow {
   created_at: string | null;
   is_approved: boolean;
   approval_status: string | null;
+  in_person_approval_status: string | null;
   approval_conflict: boolean;
   hourly_rate: number;
   avg_rating: number;
@@ -41,7 +42,7 @@ const TeacherProfilesTab = () => {
     try {
       const { data: tps } = await supabase
         .from("teacher_profiles")
-        .select("user_id, hourly_rate, avg_rating, total_sessions, is_approved, approval_status, created_at")
+        .select("user_id, hourly_rate, avg_rating, total_sessions, is_approved, approval_status, in_person_approval_status, created_at")
         .order("created_at", { ascending: false });
 
       const ids = (tps || []).map((t: any) => t.user_id);
@@ -70,6 +71,7 @@ const TeacherProfilesTab = () => {
           created_at: t.created_at,
           is_approved: !!t.is_approved,
           approval_status: t.approval_status ?? null,
+          in_person_approval_status: t.in_person_approval_status ?? null,
           approval_conflict: t.approval_status === "approved"
             ? !t.is_approved
             : t.approval_status === "pending" && !!t.is_approved,
@@ -210,14 +212,29 @@ const TeacherProfilesTab = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold truncate">{r.full_name || "بدون اسم"}</span>
                       {r.approval_conflict && (
-                        <Badge variant="destructive" title="لم يتم تغيير الحالة؛ يلزم قرار إداري">
-                          تعارض اعتماد — مراجعة يدوية
+                        <Badge variant="destructive" title="اختلاف بين حالة طلب اعتماد المعلم وعلامة الاعتماد العامة؛ لا يتضمن اعتماد الحضوري">
+                          اختلاف اعتماد المعلم — مراجعة يدوية
                         </Badge>
                       )}
                       {r.is_approved ? (
                         <Badge variant="secondary" className="text-xs">معتمد</Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-600">بانتظار</Badge>
+                      )}
+                      {r.in_person_approval_status && r.in_person_approval_status !== "not_requested" && (
+                        <Badge
+                          variant={r.in_person_approval_status === "approved" ? "secondary" : "outline"}
+                          className="text-xs"
+                          title="حالة اعتماد التعليم الحضوري مستقلة عن اعتماد حساب المعلم"
+                        >
+                          حضوري: {r.in_person_approval_status === "approved"
+                            ? "معتمد"
+                            : r.in_person_approval_status === "pending"
+                              ? "بانتظار"
+                              : r.in_person_approval_status === "rejected"
+                                ? "مرفوض"
+                                : "مراجعة"}
+                        </Badge>
                       )}
                       {r.avg_rating > 0 && (
                         <Badge variant="outline" className="text-xs gap-1">

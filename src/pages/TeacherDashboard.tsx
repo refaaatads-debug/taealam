@@ -118,48 +118,35 @@ const TeacherDashboard = () => {
     if (!user) return;
     try {
 
-    const { data: tp } = await supabase
-      .from("teacher_profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    setTeacherProfile(tp);
-
-    const { count: reqCount } = await supabase
-      .from("booking_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "open")
-      .gte("expires_at", new Date().toISOString());
-    setOpenRequestsCount(reqCount || 0);
-
     const now = new Date().toISOString();
-    // Fetch upcoming scheduled sessions + accepted instant sessions (in_progress)
-    const [{ data: upcomingScheduled }, { data: liveSessions }, { data: waitingAcceptance }] = await Promise.all([
-      supabase
-        .from("bookings")
-        .select("*, subjects(name)")
-        .eq("teacher_id", user.id)
-        .eq("status", "confirmed")
-        .gte("scheduled_at", now)
-        .order("scheduled_at")
-        .limit(10),
-      supabase
-        .from("bookings")
-        .select("*, subjects(name)")
-        .eq("teacher_id", user.id)
-        .eq("status", "confirmed")
-        .eq("session_status", "in_progress")
-        .order("scheduled_at", { ascending: false })
-        .limit(5),
-      supabase
-        .from("bookings")
-        .select("*, subjects(name)")
-        .eq("teacher_id", user.id)
-        .eq("status", "confirmed")
-        .eq("session_status", "waiting_acceptance")
-        .order("scheduled_at", { ascending: false })
-        .limit(10),
+    const [
+      teacherProfileResult,
+      requestCountResult,
+      upcomingScheduledResult,
+      liveSessionsResult,
+      waitingAcceptanceResult,
+    ] = await Promise.all([
+      supabase.from("teacher_profiles").select("*").eq("user_id", user.id).single(),
+      supabase.from("booking_requests").select("id", { count: "exact", head: true })
+        .eq("status", "open").gte("expires_at", now),
+      supabase.from("bookings").select("*, subjects(name)")
+        .eq("teacher_id", user.id).eq("status", "confirmed").gte("scheduled_at", now)
+        .order("scheduled_at").limit(10),
+      supabase.from("bookings").select("*, subjects(name)")
+        .eq("teacher_id", user.id).eq("status", "confirmed").eq("session_status", "in_progress")
+        .order("scheduled_at", { ascending: false }).limit(5),
+      supabase.from("bookings").select("*, subjects(name)")
+        .eq("teacher_id", user.id).eq("status", "confirmed").eq("session_status", "waiting_acceptance")
+        .order("scheduled_at", { ascending: false }).limit(10),
     ]);
+    const tp = teacherProfileResult.data;
+    setTeacherProfile(tp);
+    setOpenRequestsCount(requestCountResult.count || 0);
+
+    // Fetch upcoming scheduled sessions + accepted instant sessions (in_progress)
+    const upcomingScheduled = upcomingScheduledResult.data;
+    const liveSessions = liveSessionsResult.data;
+    const waitingAcceptance = waitingAcceptanceResult.data;
     // Merge and deduplicate
     const allIds = new Set<string>();
     const upcoming: typeof upcomingScheduled = [];
@@ -179,16 +166,39 @@ const TeacherDashboard = () => {
       setSchedule([]);
     }
 
+    const currentMonth = getSaudiMonthKey();
+    const studentIdsPromise = (async () => {
+      const ids = new Set<string>();
+      const studentPageSize = 500;
+      for (let from = 0; ; from += studentPageSize) {
+        const { data: studentRows, error: studentRowsError } = await supabase
+          .from("bookings")
+          .select("student_id")
+          .eq("teacher_id", user.id)
+          .order("id")
+          .range(from, from + studentPageSize - 1);
+        if (studentRowsError) throw studentRowsError;
+        (studentRows ?? []).forEach((row) => {
+          if (row.student_id) ids.add(row.student_id);
+        });
+        if (!studentRows || studentRows.length < studentPageSize) break;
+      }
+      return ids;
+    })();
     const [
       completedCountResult,
       cancelledCountResult,
       onlineCountResult,
       inPersonCountResult,
+      monthSummaryResult,
+      studentIds,
     ] = await Promise.all([
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed"),
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "cancelled"),
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").or("delivery_mode.eq.online,delivery_mode.is.null"),
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").eq("delivery_mode", "in_person"),
+      supabase.rpc("get_teacher_month_earnings_split" as any, { _teacher_id: user.id, _month: currentMonth }),
+      studentIdsPromise,
     ]);
     const bookingCountError = [
       completedCountResult.error,
@@ -200,29 +210,9 @@ const TeacherDashboard = () => {
       setStatsLoadError(true);
       throw bookingCountError;
     }
-    const studentIds = new Set<string>();
-    const studentPageSize = 500;
-    for (let from = 0; ; from += studentPageSize) {
-      const { data: studentRows, error: studentRowsError } = await supabase
-        .from("bookings")
-        .select("student_id")
-        .eq("teacher_id", user.id)
-        .order("id")
-        .range(from, from + studentPageSize - 1);
-      if (studentRowsError) throw studentRowsError;
-      (studentRows ?? []).forEach((row) => {
-        if (row.student_id) studentIds.add(row.student_id);
-      });
-      if (!studentRows || studentRows.length < studentPageSize) break;
-    }
-
     // Show net earnings from completed sessions, less amounts already transferred
     // to the manually withdrawable earnings ledger.
-    const currentMonth = getSaudiMonthKey();
-    const { data: monthSummary, error: monthSummaryError } = await supabase.rpc(
-      "get_teacher_month_earnings_split" as any,
-      { _teacher_id: user.id, _month: currentMonth },
-    );
+    const { data: monthSummary, error: monthSummaryError } = monthSummaryResult;
     if (monthSummaryError) throw monthSummaryError;
     const month = monthSummary?.[0] as any;
     const totalMonthEarnings = Number(month?.combined_earnings) || 0;
