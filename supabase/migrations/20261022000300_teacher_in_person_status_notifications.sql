@@ -8,12 +8,15 @@ DECLARE
   notification_title text;
   notification_body text;
   notification_type text;
+  notification_event_key text;
 BEGIN
   IF NEW.in_person_approval_status IS DISTINCT FROM OLD.in_person_approval_status THEN
     IF NEW.in_person_approval_status = 'approved' THEN
       notification_title := '✅ تم اعتماد التدريس الحضوري';
       notification_body := 'وافقت الإدارة على طلبك للتدريس الحضوري. راجع ملفك لمعرفة إعدادات استقبال الحجوزات.';
       notification_type := 'teacher_in_person_approval';
+      notification_event_key := 'in-person-approval:' || NEW.user_id || ':' ||
+        OLD.in_person_approval_status || ':approved:' || txid_current();
     ELSIF NEW.in_person_approval_status = 'rejected' THEN
       notification_title := 'لم تتم الموافقة على طلب التدريس الحضوري';
       notification_body := CASE
@@ -22,22 +25,32 @@ BEGIN
         ELSE 'يمكنك مراجعة بيانات خدمة التعليم الحضوري في ملفك.'
       END;
       notification_type := 'teacher_in_person_approval';
+      notification_event_key := 'in-person-approval:' || NEW.user_id || ':' ||
+        OLD.in_person_approval_status || ':rejected:' || txid_current();
     END IF;
   ELSIF NEW.in_person_approval_status = 'approved'
         AND NEW.in_person_enabled IS DISTINCT FROM OLD.in_person_enabled THEN
     IF NEW.in_person_enabled THEN
       notification_title := '📍 تم تفعيل استقبال الحجوزات الحضورية';
       notification_body := 'فعّلت الإدارة استقبال طلبات الحجز الحضوري على حسابك.';
+      notification_event_key := 'in-person-availability:' || NEW.user_id || ':enabled:' || txid_current();
     ELSE
       notification_title := 'تم إيقاف استقبال الحجوزات الحضورية';
       notification_body := 'أوقفت الإدارة استقبال طلبات الحجز الحضوري على حسابك. لا يؤثر ذلك في حجوزاتك السابقة.';
+      notification_event_key := 'in-person-availability:' || NEW.user_id || ':disabled:' || txid_current();
     END IF;
     notification_type := 'teacher_in_person_availability';
   END IF;
 
   IF notification_title IS NOT NULL THEN
-    INSERT INTO public.notifications (user_id, title, body, type, link)
-    VALUES (NEW.user_id, notification_title, notification_body, notification_type, '/profile');
+    PERFORM public.emit_in_person_notification(
+      notification_event_key,
+      NEW.user_id,
+      notification_title,
+      notification_body,
+      notification_type,
+      '/profile'
+    );
   END IF;
 
   RETURN NEW;
