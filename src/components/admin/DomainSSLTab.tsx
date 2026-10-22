@@ -229,7 +229,7 @@ const DomainSSLTab = () => {
                     {r.error_message && <span className="text-xs text-destructive">{r.error_message}</span>}
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(r.checked_at).toLocaleString("ar-EG")}
+                    آخر تحقق: {new Date(r.checked_at).toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" })}
                   </span>
                 </div>
               ))}

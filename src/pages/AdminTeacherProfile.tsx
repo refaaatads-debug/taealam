@@ -143,7 +143,7 @@ const AdminTeacherProfile = () => {
             cancelled: data.bookings.filter((b: any) => b.status === "cancelled").length,
             avg_rating: data.teacher?.avg_rating || 0,
             total_reviews: data.teacher?.total_reviews || 0,
-            balance: data.teacher?.balance || 0,
+            balance: data.earningsBreakdown?.available_balance ?? 0,
             hourly_rate: data.teacher?.hourly_rate || 0,
             is_approved: data.teacher?.is_approved,
             warnings: data.warnings.length,

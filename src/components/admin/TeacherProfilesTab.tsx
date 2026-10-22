@@ -18,10 +18,12 @@ interface TeacherRow {
   phone: string | null;
   created_at: string | null;
   is_approved: boolean;
+  approval_status: string | null;
+  approval_conflict: boolean;
   hourly_rate: number;
   avg_rating: number;
   total_sessions: number;
-  balance: number;
+  balance: number | null;
   open_tickets: number;
 }
 
@@ -39,18 +41,20 @@ const TeacherProfilesTab = () => {
     try {
       const { data: tps } = await supabase
         .from("teacher_profiles")
-        .select("user_id, hourly_rate, avg_rating, total_sessions, is_approved, balance, created_at")
+        .select("user_id, hourly_rate, avg_rating, total_sessions, is_approved, approval_status, created_at")
         .order("created_at", { ascending: false });
 
       const ids = (tps || []).map((t: any) => t.user_id);
       if (ids.length === 0) { setRows([]); return; }
 
-      const [profilesRes, ticketsRes] = await Promise.all([
+      const [profilesRes, ticketsRes, balancesRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url, phone").in("user_id", ids),
         supabase.from("support_tickets").select("user_id, status").in("user_id", ids).neq("status", "closed"),
+        supabase.rpc("admin_list_teacher_withdrawable_balances" as any),
       ]);
 
       const profMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p]));
+      const balanceMap = new Map((balancesRes.data || []).map((row: any) => [row.user_id, Number(row.available_balance) || 0]));
       const ticketsByUser = new Map<string, number>();
       (ticketsRes.data || []).forEach((t: any) => {
         ticketsByUser.set(t.user_id, (ticketsByUser.get(t.user_id) || 0) + 1);
@@ -65,10 +69,14 @@ const TeacherProfilesTab = () => {
           phone: p.phone || null,
           created_at: t.created_at,
           is_approved: !!t.is_approved,
+          approval_status: t.approval_status ?? null,
+          approval_conflict: t.approval_status === "approved"
+            ? !t.is_approved
+            : t.approval_status === "pending" && !!t.is_approved,
           hourly_rate: Number(t.hourly_rate || 0),
           avg_rating: Number(t.avg_rating || 0),
           total_sessions: Number(t.total_sessions || 0),
-          balance: Number(t.balance || 0),
+          balance: balancesRes.error ? null : balanceMap.get(t.user_id) ?? 0,
           open_tickets: ticketsByUser.get(t.user_id) || 0,
         };
       });
@@ -201,6 +209,11 @@ const TeacherProfilesTab = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold truncate">{r.full_name || "بدون اسم"}</span>
+                      {r.approval_conflict && (
+                        <Badge variant="destructive" title="لم يتم تغيير الحالة؛ يلزم قرار إداري">
+                          تعارض اعتماد — مراجعة يدوية
+                        </Badge>
+                      )}
                       {r.is_approved ? (
                         <Badge variant="secondary" className="text-xs">معتمد</Badge>
                       ) : (
@@ -221,7 +234,9 @@ const TeacherProfilesTab = () => {
                     </div>
                   </div>
                   <div className="hidden md:flex flex-col items-end text-xs text-muted-foreground shrink-0">
-                    <span className="font-bold text-foreground">{r.balance.toFixed(2)} ر.س</span>
+                    <span className="font-bold text-foreground">
+                      {r.balance === null ? "—" : `${r.balance.toFixed(2)} ر.س`}
+                    </span>
                     {r.created_at && (
                       <span>{format(new Date(r.created_at), "dd MMM yyyy", { locale: ar })}</span>
                     )}

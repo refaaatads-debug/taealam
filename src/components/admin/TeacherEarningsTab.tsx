@@ -199,14 +199,22 @@ export default function TeacherEarningsTab() {
 
     const { data: tps } = await supabase
       .from("teacher_profiles")
-      .select("user_id, balance, total_sessions")
+      .select("user_id, total_sessions")
       .eq("is_approved", true);
 
     if (tps && tps.length > 0) {
       const uids = tps.map(t => t.user_id);
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", uids);
-      const nameMap = new Map((profiles ?? []).map(p => [p.user_id, p.full_name]));
-      setTeachers(tps.map(t => ({ ...t, full_name: nameMap.get(t.user_id) || "معلم" })));
+      const [profilesRes, balancesRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", uids),
+        supabase.rpc("admin_list_teacher_withdrawable_balances" as any),
+      ]);
+      const nameMap = new Map((profilesRes.data ?? []).map(p => [p.user_id, p.full_name]));
+      const balanceMap = new Map((balancesRes.data ?? []).map((row: any) => [row.user_id, Number(row.available_balance) || 0]));
+      setTeachers(tps.map(t => ({
+        ...t,
+        balance: balancesRes.error ? null : balanceMap.get(t.user_id) ?? 0,
+        full_name: nameMap.get(t.user_id) || "معلم",
+      })));
     }
 
     const { data: earningsData } = await supabase
@@ -818,10 +826,10 @@ export default function TeacherEarningsTab() {
         <CardHeader>
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-secondary" />
-            أعلى المعلمين بالرصيد المسجل
+            أعلى المعلمين بالمتاح للسحب
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            هذا رصيد الملف، وليس المتاح للسحب؛ الطلبات المفتوحة تظهر محجوزة في قسم السحب.
+            من إضافات الإدارة المؤكدة بعد التخصيصات والسحوبات.
           </p>
         </CardHeader>
         <CardContent>
@@ -830,7 +838,7 @@ export default function TeacherEarningsTab() {
           ) : (
             <div className="space-y-2">
               {[...teachers]
-                .sort((a, b) => (b.balance || 0) - (a.balance || 0))
+                .sort((a, b) => (Number(b.balance) || 0) - (Number(a.balance) || 0))
                 .slice(0, 10)
                 .map((t, i) => (
                   <div key={t.user_id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
@@ -841,7 +849,9 @@ export default function TeacherEarningsTab() {
                         <p className="text-xs text-muted-foreground">{t.total_sessions || 0} حصة</p>
                       </div>
                     </div>
-                    <p className="font-black text-sm text-foreground">{Number(t.balance || 0).toLocaleString()} ر.س</p>
+                    <p className="font-black text-sm text-foreground">
+                      {t.balance === null ? "—" : `${Number(t.balance || 0).toLocaleString()} ر.س`}
+                    </p>
                   </div>
                 ))}
             </div>
