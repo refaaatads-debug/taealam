@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays, XCircle, Video, MapPin } from "lucide-react";
 import { getSaudiMonthKey } from "@/lib/saudiDate";
 
 import BookingRequests from "@/components/teacher/BookingRequests";
@@ -30,8 +30,9 @@ const TeacherDashboard = () => {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState({
     earnings: 0, onlineEarnings: 0, inPersonEarnings: 0, inPersonCompensations: 0,
-    students: 0, sessions: 0, rating: 0,
+    students: 0, completed: 0, cancelled: 0, online: 0, inPerson: 0, rating: 0,
   });
+  const [statsLoadError, setStatsLoadError] = useState(false);
   const [schedule, setSchedule] = useState<any[]>([]);
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -178,10 +179,42 @@ const TeacherDashboard = () => {
       setSchedule([]);
     }
 
-    const { count: studentCount } = await supabase
-      .from("bookings")
-      .select("student_id", { count: "exact", head: true })
-      .eq("teacher_id", user.id);
+    const [
+      completedCountResult,
+      cancelledCountResult,
+      onlineCountResult,
+      inPersonCountResult,
+    ] = await Promise.all([
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed"),
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "cancelled"),
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").or("delivery_mode.eq.online,delivery_mode.is.null"),
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").eq("delivery_mode", "in_person"),
+    ]);
+    const bookingCountError = [
+      completedCountResult.error,
+      cancelledCountResult.error,
+      onlineCountResult.error,
+      inPersonCountResult.error,
+    ].find(Boolean);
+    if (bookingCountError) {
+      setStatsLoadError(true);
+      throw bookingCountError;
+    }
+    const studentIds = new Set<string>();
+    const studentPageSize = 500;
+    for (let from = 0; ; from += studentPageSize) {
+      const { data: studentRows, error: studentRowsError } = await supabase
+        .from("bookings")
+        .select("student_id")
+        .eq("teacher_id", user.id)
+        .order("id")
+        .range(from, from + studentPageSize - 1);
+      if (studentRowsError) throw studentRowsError;
+      (studentRows ?? []).forEach((row) => {
+        if (row.student_id) studentIds.add(row.student_id);
+      });
+      if (!studentRows || studentRows.length < studentPageSize) break;
+    }
 
     // Show net earnings from completed sessions, less amounts already transferred
     // to the manually withdrawable earnings ledger.
@@ -199,12 +232,17 @@ const TeacherDashboard = () => {
       onlineEarnings: Number(month?.online_earnings) || 0,
       inPersonEarnings: Number(month?.in_person_earnings) || 0,
       inPersonCompensations: Number(month?.in_person_compensations) || 0,
-      students: studentCount || 0,
-      sessions: tp?.total_sessions || 0,
+      students: studentIds.size,
+      completed: completedCountResult.count ?? 0,
+      cancelled: cancelledCountResult.count ?? 0,
+      online: onlineCountResult.count ?? 0,
+      inPerson: inPersonCountResult.count ?? 0,
       rating: Number(tp?.avg_rating) || 0,
     });
+    setStatsLoadError(false);
     } catch (fetchErr) {
       console.error("[teacher-dashboard] fetchData error:", fetchErr);
+      setStatsLoadError(true);
       // Transient network error (e.g. edge-function crash dropped HTTP/2 connection).
       // Silently retry once after 2s so the dashboard recovers automatically.
       setTimeout(() => {
@@ -285,29 +323,34 @@ const TeacherDashboard = () => {
         </div>
 
         {/* Stats - removed pricing/hourly rate */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-8">
           {[
             {
               icon: DollarSign,
               label: "أرباح الشهر",
-              value: `${stats.earnings.toLocaleString()} ر.س`,
-              detail: `أونلاين ${stats.onlineEarnings.toLocaleString()} · حضوري ${stats.inPersonEarnings.toLocaleString()} ر.س${stats.inPersonCompensations ? ` · تعويضات ${stats.inPersonCompensations.toLocaleString()}` : ""}`,
+              value: statsLoadError ? "—" : `${stats.earnings.toLocaleString()} ر.س`,
+              detail: statsLoadError
+                ? "تعذر تحميل الإحصاءات"
+                : `أونلاين ${stats.onlineEarnings.toLocaleString()} · حضوري ${stats.inPersonEarnings.toLocaleString()} ر.س${stats.inPersonCompensations ? ` · تعويضات ${stats.inPersonCompensations.toLocaleString()}` : ""}`,
               color: "text-secondary",
               bg: "bg-secondary/10",
             },
-            { icon: Users, label: "عدد الطلاب", value: stats.students.toString(), color: "text-primary", bg: "bg-primary/10" },
-            { icon: CalendarCheck, label: "إجمالي الحصص", value: stats.sessions.toString(), color: "text-accent-foreground", bg: "bg-accent" },
-            { icon: Star, label: "التقييم", value: stats.rating.toFixed(1), color: "text-gold", bg: "bg-gold/10" },
+            { icon: Users, label: "عدد الطلاب", value: statsLoadError ? "—" : stats.students.toLocaleString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: CalendarCheck, label: "حصص مكتملة", value: statsLoadError ? "—" : stats.completed.toLocaleString(), color: "text-accent-foreground", bg: "bg-accent" },
+            { icon: XCircle, label: "حصص ملغاة", value: statsLoadError ? "—" : stats.cancelled.toLocaleString(), color: "text-destructive", bg: "bg-destructive/10" },
+            { icon: Video, label: "حصص أونلاين", detail: "مكتملة", value: statsLoadError ? "—" : stats.online.toLocaleString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: MapPin, label: "حصص حضوري", detail: "مكتملة", value: statsLoadError ? "—" : stats.inPerson.toLocaleString(), color: "text-secondary", bg: "bg-secondary/10" },
+            { icon: Star, label: "التقييم", value: statsLoadError ? "—" : stats.rating.toFixed(1), color: "text-gold", bg: "bg-gold/10" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
-                <CardContent className="p-5">
-                  <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center mb-3`}>
-                    <s.icon className={`h-5 w-5 ${s.color}`} />
+              <Card className="h-full min-w-0 border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
+                <CardContent className="p-3 sm:p-3.5">
+                  <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center mb-2`}>
+                    <s.icon className={`h-4 w-4 ${s.color}`} />
                   </div>
-                  <p className="text-2xl font-black text-foreground">{s.value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
-                  {"detail" in s && <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{s.detail}</p>}
+                  <p className="truncate text-lg font-black leading-tight text-foreground sm:text-xl">{s.value}</p>
+                  <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground">{s.label}</p>
+                  {"detail" in s && s.detail && <p className="mt-0.5 truncate text-[9px] leading-3 text-muted-foreground">{s.detail}</p>}
                 </CardContent>
               </Card>
             </motion.div>

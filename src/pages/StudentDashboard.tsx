@@ -13,7 +13,7 @@ import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarCheck, Clock, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, FileText, AlertTriangle, Zap, ArrowLeft, CalendarDays } from "lucide-react";
+import { CalendarCheck, Clock, Star, Video, TrendingUp, Sparkles, MessageSquare, XCircle, FileText, AlertTriangle, Zap, ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,7 +34,11 @@ const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
   const { play: playSound } = useNotificationSound();
-  const [stats, setStats] = useState({ completedCount: 0, cancelledCount: 0, actualSeconds: 0, progress: 0, points: 0 });
+  const [stats, setStats] = useState({
+    completedCount: 0, cancelledCount: 0, onlineCount: 0, inPersonCount: 0,
+    actualSeconds: 0, progress: 0, points: 0,
+  });
+  const [sessionMetricsError, setSessionMetricsError] = useState(false);
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [cancelledClasses, setCancelledClasses] = useState<any[]>([]);
@@ -98,7 +102,10 @@ const StudentDashboard = () => {
           upcomingResult,
           liveResult,
           completedResult,
+          completedCountResult,
           cancelledResult,
+          onlineCompletedResult,
+          inPersonCompletedResult,
           pointsResult,
           subscriptionResult,
           stripeResult,
@@ -112,9 +119,16 @@ const StudentDashboard = () => {
           supabase.from("bookings")
             .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
             .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false }),
-          supabase.from("bookings").select("*, subjects(name)")
+          supabase.from("bookings").select("id", { count: "exact", head: true })
+            .eq("student_id", user.id).eq("status", "completed"),
+          supabase.from("bookings").select("*, subjects(name)", { count: "exact" })
             .eq("student_id", user.id).eq("status", "cancelled")
             .order("scheduled_at", { ascending: false }).limit(5),
+          supabase.from("bookings").select("id", { count: "exact", head: true })
+            .eq("student_id", user.id).eq("status", "completed")
+            .or("delivery_mode.eq.online,delivery_mode.is.null"),
+          supabase.from("bookings").select("id", { count: "exact", head: true })
+            .eq("student_id", user.id).eq("status", "completed").eq("delivery_mode", "in_person"),
           supabase.from("student_points").select("total_points").eq("user_id", user.id).maybeSingle(),
           supabase.from("user_subscriptions")
             .select("*, subscription_plans(name_ar, tier)")
@@ -125,6 +139,15 @@ const StudentDashboard = () => {
 
         if (disposed || requestId !== latestRequest) return;
         let hasDashboardError = false;
+        const sessionMetricsFailed = [
+          completedResult.error,
+          completedCountResult.error,
+          cancelledResult.error,
+          onlineCompletedResult.error,
+          inPersonCompletedResult.error,
+        ].some(Boolean);
+        setSessionMetricsError(sessionMetricsFailed);
+        if (sessionMetricsFailed) hasDashboardError = true;
 
         if (upcomingResult.error || liveResult.error) {
           hasDashboardError = true;
@@ -175,7 +198,9 @@ const StudentDashboard = () => {
           });
           setStats((previous) => ({
             ...previous,
-            completedCount: completed.length,
+            completedCount: completedCountResult.count ?? 0,
+            onlineCount: onlineCompletedResult.count ?? 0,
+            inPersonCount: inPersonCompletedResult.count ?? 0,
             actualSeconds: totalActualSeconds,
             progress: Math.min((completed.length / 20) * 100, 100),
           }));
@@ -186,7 +211,7 @@ const StudentDashboard = () => {
           console.error("Student dashboard cancelled bookings failed to load", cancelledResult.error);
         } else {
           setCancelledClasses(cancelledResult.data ?? []);
-          setStats((previous) => ({ ...previous, cancelledCount: (cancelledResult.data ?? []).length }));
+          setStats((previous) => ({ ...previous, cancelledCount: cancelledResult.count ?? (cancelledResult.data ?? []).length }));
         }
 
         if (pointsResult.error) {
@@ -480,34 +505,37 @@ const StudentDashboard = () => {
 
         {/* Stats */}
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-8">
+            {Array.from({ length: 7 }).map((_, i) => (
               <Card key={i} className="border-0 shadow-card">
-                <CardContent className="p-5 space-y-3">
-                  <Skeleton className="w-10 h-10 rounded-xl" />
-                  <Skeleton className="h-6 w-16" />
-                  <Skeleton className="h-3 w-20" />
+                <CardContent className="p-3 sm:p-3.5 space-y-2">
+                  <Skeleton className="w-8 h-8 rounded-lg" />
+                  <Skeleton className="h-5 w-14" />
+                  <Skeleton className="h-3 w-16" />
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-8">
           {[
-            { icon: CalendarCheck, label: "حصص مكتملة", value: stats.completedCount.toString(), color: "text-primary", bg: "bg-primary/10" },
-            { icon: XCircle, label: "حصص غير مكتملة", value: stats.cancelledCount.toString(), color: "text-destructive", bg: "bg-destructive/10" },
+            { icon: CalendarCheck, label: "حصص مكتملة", value: sessionMetricsError ? "—" : stats.completedCount.toLocaleString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: XCircle, label: "حصص ملغاة", value: sessionMetricsError ? "—" : stats.cancelledCount.toLocaleString(), color: "text-destructive", bg: "bg-destructive/10" },
+            { icon: Video, label: "حصص أونلاين", detail: "مكتملة", value: sessionMetricsError ? "—" : stats.onlineCount.toLocaleString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: MapPin, label: "حصص حضوري", detail: "مكتملة", value: sessionMetricsError ? "—" : stats.inPersonCount.toLocaleString(), color: "text-secondary", bg: "bg-secondary/10" },
             { icon: Clock, label: "وقت التعلم الفعلي", value: formatDuration(stats.actualSeconds), color: "text-secondary", bg: "bg-secondary/10" },
             { icon: TrendingUp, label: "نسبة التقدم", value: `${Math.round(stats.progress)}%`, color: "text-accent-foreground", bg: "bg-accent" },
             { icon: Star, label: "النقاط", value: stats.points.toLocaleString(), color: "text-gold", bg: "bg-gold/10" },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
-                <CardContent className="p-5">
-                  <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center mb-3`}>
-                    <s.icon className={`h-5 w-5 ${s.color}`} />
+              <Card className="h-full min-w-0 border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
+                <CardContent className="p-3 sm:p-3.5">
+                  <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center mb-2`}>
+                    <s.icon className={`h-4 w-4 ${s.color}`} />
                   </div>
-                  <p className="text-xl font-black text-foreground">{s.value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+                  <p className="truncate text-lg font-black leading-tight text-foreground sm:text-xl">{s.value}</p>
+                  <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground">{s.label}</p>
+                  {"detail" in s && s.detail && <p className="mt-0.5 truncate text-[9px] leading-3 text-muted-foreground">{s.detail}</p>}
                 </CardContent>
               </Card>
             </motion.div>
