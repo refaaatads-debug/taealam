@@ -92,6 +92,15 @@ const Profile = () => {
           city_id: address.city_id,
           name: [address.district, address.street_address].filter(Boolean).join(" — "),
         }))));
+      supabase.from("user_subscriptions").select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .not("ends_at", "is", null)
+        .gt("ends_at", new Date().toISOString())
+        .limit(1)
+        .then(({ data, error }) => setHasTimeLimitedSubscription(!error && Boolean(data?.length)));
+    } else {
+      setHasTimeLimitedSubscription(false);
     }
 
     supabase.from("profiles").select("notify_before_session, notify_after_session, teaching_stage")
