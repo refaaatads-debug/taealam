@@ -1,3 +1,4 @@
 - [Production schema test clones](production-schema-test-clones.md) — Filter pg_cron and privileged realtime settings when cloning production schema into the isolated PostgreSQL test database.
 - [Web-only project scope](web-only-project-scope.md) — Keep changes and verification on the web app; do not touch or restart the mobile artifact or workflow.
 - [GitHub Actions permissions](github-actions-permissions.md) — Repository and workflow-file write access may not include permission to trigger deployment workflows.
+- [In-person teacher payout policy](in-person-teacher-payout-policy.md) — Keep unpaid in-person earnings in monthly reporting, not withdrawable balance; platform credits payouts manually.
