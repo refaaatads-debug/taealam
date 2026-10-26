@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type RequestRow = {
   request_group_id: string;
   subject_name: string | null;
+  teaching_stage: string | null;
   scheduled_at: string;
   status: string;
   acceptance_deadline: string;
@@ -124,6 +125,7 @@ export default function InPersonRequestTracking({ embedded = false }: { embedded
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong className="text-sm">{row.subject_name || "حصة حضورية"}</strong>
+                  {row.teaching_stage && <Badge variant="outline">{row.teaching_stage}</Badge>}
                   <Badge variant={row.status === "open" ? "secondary" : "outline"}>{statusLabel(row.status)}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">

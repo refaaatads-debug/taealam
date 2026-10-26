@@ -13,6 +13,12 @@ import { ArrowLeft, MapPin, MapPinOff, RefreshCw, Sparkles } from "lucide-react"
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
+type StageSubjectRow = {
+  subject_id: string;
+  teacher_profiles: { is_approved: boolean | null; teaching_stages: string[] | null } | null;
+};
+
+const teachingStages = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
 
 const localDateTime = (date: Date) => {
   const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -62,6 +68,7 @@ export default function InPersonStudentPanel() {
   const [cityId, setCityId] = useState("");
   const [addressId, setAddressId] = useState("");
   const [subjectId, setSubjectId] = useState("");
+  const [teachingStage, setTeachingStage] = useState("");
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState(firstAvailableAppointment);
   const [loading, setLoading] = useState(false);
@@ -74,7 +81,10 @@ export default function InPersonStudentPanel() {
   const [reloadKey, setReloadKey] = useState(0);
   const [instructionDuration, setInstructionDuration] = useState(60);
   const [packageDebitMinutes, setPackageDebitMinutes] = useState(100);
-  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number; packageDebitMinutes: number } | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teachingStage: string; teacherCount: number; scheduledAt: string; durationMinutes: number; packageDebitMinutes: number } | null>(null);
+  const [stageSubjectIds, setStageSubjectIds] = useState<string[]>([]);
+  const [stageSubjectsLoading, setStageSubjectsLoading] = useState(false);
+  const [stageSubjectsError, setStageSubjectsError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -129,9 +139,41 @@ export default function InPersonStudentPanel() {
     return () => { active = false; };
   }, [user, reloadKey]);
 
+  useEffect(() => {
+    if (!teachingStage) {
+      setStageSubjectIds([]);
+      setStageSubjectsLoading(false);
+      setStageSubjectsError(false);
+      return;
+    }
+    let active = true;
+    setStageSubjectsLoading(true);
+    setStageSubjectsError(false);
+    void supabase
+      .from("teacher_subjects")
+      .select("subject_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
+      .then(({ data, error }) => {
+        if (!active) return;
+        setStageSubjectsLoading(false);
+        if (error) {
+          setStageSubjectIds([]);
+          setStageSubjectsError(true);
+          return;
+        }
+        const ids = new Set(
+          ((data || []) as unknown as StageSubjectRow[])
+            .filter((row) => row.teacher_profiles?.is_approved
+              && row.teacher_profiles?.teaching_stages?.includes(teachingStage))
+            .map((row) => row.subject_id as string),
+        );
+        setStageSubjectIds([...ids]);
+      });
+    return () => { active = false; };
+  }, [teachingStage]);
+
   const searchTeachers = async () => {
-    if (!cityId || !addressId || !subjectId) {
-      toast.error("اختر المدينة والعنوان والمادة أولاً");
+    if (!cityId || !addressId || !teachingStage || !subjectId) {
+      toast.error("اختر المدينة والعنوان والمرحلة الدراسية والمادة أولاً");
       return;
     }
     const appointment = new Date(scheduledAt);
@@ -157,6 +199,7 @@ export default function InPersonStudentPanel() {
     const { data, error } = await supabase.rpc("search_in_person_teachers" as any, {
       p_city_id: cityId, p_subject_id: subjectId, p_address_id: addressId,
       p_scheduled_at: new Date(scheduledAt).toISOString(),
+      p_teaching_stage: teachingStage,
     });
     setLoading(false);
     if (error) {
@@ -180,7 +223,7 @@ export default function InPersonStudentPanel() {
 
   const submitRequest = async () => {
     const scheduled = new Date(scheduledAt);
-    if (!user || !cityId || !addressId || !subjectId || selectedTeachers.length === 0 || Number.isNaN(scheduled.getTime())) {
+    if (!user || !cityId || !addressId || !teachingStage || !subjectId || selectedTeachers.length === 0 || Number.isNaN(scheduled.getTime())) {
       toast.error("أكمل بيانات الحصة واختر معلماً واحداً على الأقل");
       return;
     }
@@ -197,6 +240,7 @@ export default function InPersonStudentPanel() {
       p_address_id: addressId,
       p_teacher_ids: selectedTeachers,
       p_idempotency_key: key,
+      p_teaching_stage: teachingStage,
     });
     setLoading(false);
     if (error) {
@@ -213,6 +257,7 @@ export default function InPersonStudentPanel() {
     }
     setBookingSuccess({
       subject: subjects.find((subject) => subject.id === subjectId)?.name || "المادة المختارة",
+      teachingStage,
       teacherCount: selectedTeachers.length,
       scheduledAt: scheduled.toISOString(),
       durationMinutes: instructionDuration,
@@ -237,7 +282,7 @@ export default function InPersonStudentPanel() {
             <DialogHeader>
               <DialogTitle>تم إرسال طلبك بنجاح</DialogTitle>
               <DialogDescription>
-                تم إرسال طلب حصة حضورية إلى {bookingSuccess?.teacherCount} معلم متخصص في {bookingSuccess?.subject}.
+                تم إرسال طلب حصة حضورية إلى {bookingSuccess?.teacherCount} معلم متخصص في {bookingSuccess?.subject} للمرحلة {bookingSuccess?.teachingStage}.
                 تم حجز الرصيد مؤقتاً حتى القبول أو انتهاء المهلة.
               </DialogDescription>
             </DialogHeader>
@@ -245,7 +290,7 @@ export default function InPersonStudentPanel() {
               <div className="rounded-lg border bg-muted/40 p-4 text-sm">
                 {new Date(bookingSuccess.scheduledAt).toLocaleString("ar-SA", { weekday: "long", hour: "numeric", minute: "2-digit" })}
                 <div className="mt-1 text-muted-foreground">
-                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · {bookingSuccess.durationMinutes} دقيقة تدريس · خصم {bookingSuccess.packageDebitMinutes} دقيقة · {bookingSuccess.subject}
+                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · {bookingSuccess.durationMinutes} دقيقة تدريس · خصم {bookingSuccess.packageDebitMinutes} دقيقة · {bookingSuccess.subject} · {bookingSuccess.teachingStage}
                 </div>
               </div>
             )}
@@ -331,10 +376,17 @@ export default function InPersonStudentPanel() {
               <option value="">اختر عنوان الحصة</option>{addresses.map((a) => <option key={a.id} value={a.id}>{a.name} · {cities.find((city) => city.id === a.city_id)?.name || "مدينة"}</option>)}
             </select>
           </label>
-          <label className="text-sm font-semibold">المادة
-            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
-              <option value="">اختر المادة</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          <label className="text-sm font-semibold">المرحلة الدراسية
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={teachingStage} onChange={(e) => { setTeachingStage(e.target.value); setStageSubjectIds([]); setSubjectId(""); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
+              <option value="">اختر المرحلة الدراسية</option>{teachingStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
             </select>
+          </label>
+          <label className="text-sm font-semibold">المادة
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={subjectId} disabled={!teachingStage} onChange={(e) => { setSubjectId(e.target.value); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
+              <option value="">{stageSubjectsLoading ? "جارٍ تحميل مواد المرحلة..." : "اختر المادة"}</option>{subjects.filter((s) => stageSubjectIds.includes(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {stageSubjectsError && <span role="alert" className="mt-1 block text-xs text-destructive">تعذر تحميل مواد المرحلة. غيّر المرحلة ثم أعد اختيارها.</span>}
+            {!stageSubjectsLoading && !stageSubjectsError && teachingStage && stageSubjectIds.length === 0 && <span className="mt-1 block text-xs text-muted-foreground">لا توجد مواد مسجلة لهذه المرحلة حاليًا.</span>}
           </label>
         </div>
         <div className="mt-5 space-y-4 border-t border-border/50 pt-4" dir="rtl">
@@ -443,7 +495,7 @@ export default function InPersonStudentPanel() {
         )}
         {cityUnavailableMessage && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage}</div>}
         {searchError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/[0.04] p-3 text-sm text-destructive">{searchError}</div>}
-        <Button variant="outline" className="h-11 rounded-xl px-5" onClick={searchTeachers} disabled={loading || !cityId || !addressId || !subjectId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
+        <Button variant="outline" className="h-11 rounded-xl px-5" onClick={searchTeachers} disabled={loading || !cityId || !addressId || !teachingStage || !subjectId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
         {loading && teachers.length === 0 && hasSearched && (
           <div role="status" className="rounded-xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">جارٍ البحث عن معلمين متاحين لهذا الموعد...</div>
         )}
