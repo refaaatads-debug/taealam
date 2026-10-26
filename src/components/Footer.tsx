@@ -117,7 +117,7 @@ const Footer = () => {
               {canViewPricing ? (
                 <li><Link to="/pricing" className="hover:opacity-100 hover:text-gold transition-colors">الباقات والأسعار</Link></li>
               ) : !user ? (
-                <li><Link to="/login?signup=1" className="hover:opacity-100 hover:text-gold transition-colors">اكتشف الباقات بعد التسجيل</Link></li>
+                <li><Link to="/#packages" className="hover:opacity-100 hover:text-gold transition-colors">الباقات التعليمية</Link></li>
               ) : null}
               <li><Link to="/teach-with-us" className="hover:opacity-100 hover:text-gold transition-colors">انضم كمعلم</Link></li>
               <li><Link to="/ai-tutor" className="hover:opacity-100 hover:text-gold transition-colors">المساعد سند الذكي</Link></li>

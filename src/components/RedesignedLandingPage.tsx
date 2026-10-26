@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
@@ -107,7 +108,17 @@ const steps = [
 
 export default function RedesignedLandingPage({ user, teachers }: Props) {
   const shouldReduceMotion = useReducedMotion();
+  const location = useLocation();
   const ctaTarget = user ? "/search" : "/login";
+  useEffect(() => {
+    if (location.pathname !== "/" || location.hash !== "#packages") return;
+    window.requestAnimationFrame(() => {
+      document.getElementById("packages")?.scrollIntoView({
+        behavior: shouldReduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  }, [location.hash, location.pathname, shouldReduceMotion]);
   const reveal = shouldReduceMotion
     ? { initial: false as const, whileInView: undefined, transition: undefined }
     : {
@@ -259,7 +270,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
+        <section id="packages" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-16 md:px-8 md:py-24">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">باقات تعليمية</p>
