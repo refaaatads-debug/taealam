@@ -27,6 +27,7 @@ const getActualMinutes = (session: any): number => {
 interface DeductionRecord {
   id: string;
   booking_id: string;
+  delivery_mode: "online" | "in_person" | null;
   duration_minutes: number;
   deducted_minutes: number;
   actual_minutes: number;
@@ -83,7 +84,7 @@ const SubscriptionDetails = () => {
     // Fetch completed sessions with deduction info
     const { data: bookings } = await supabase
       .from("bookings")
-      .select("id, teacher_id, subject_id, subjects(name), scheduled_at")
+      .select("id, teacher_id, subject_id, delivery_mode, subjects(name), scheduled_at")
       .eq("student_id", user.id)
       .eq("status", "completed")
       .order("scheduled_at", { ascending: false })
@@ -133,6 +134,9 @@ const SubscriptionDetails = () => {
           return {
             id: b.id,
             booking_id: b.id,
+            delivery_mode: b.delivery_mode === "online" || b.delivery_mode === "in_person"
+              ? b.delivery_mode
+              : null,
             duration_minutes: session.duration_minutes || 0,
             deducted_minutes: (session as any).deducted_minutes || 0,
             actual_minutes: actualMins,
@@ -348,7 +352,23 @@ const SubscriptionDetails = () => {
                                 <BookOpen className={`h-4 w-4 ${d.short_session ? "text-muted-foreground" : "text-secondary"}`} />
                               </div>
                               <div>
-                                <p className="text-sm font-bold text-foreground">{d.subject_name}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-bold text-foreground">{d.subject_name}</p>
+                                  <Badge
+                                    variant="outline"
+                                    className={d.delivery_mode === "in_person"
+                                      ? "border-amber-300 bg-amber-50 text-amber-800 text-[10px]"
+                                      : d.delivery_mode === "online"
+                                        ? "border-sky-200 bg-sky-50 text-sky-800 text-[10px]"
+                                        : "border-muted-foreground/30 text-muted-foreground text-[10px]"}
+                                  >
+                                    {d.delivery_mode === "in_person"
+                                      ? "حضوري"
+                                      : d.delivery_mode === "online"
+                                        ? "أونلاين"
+                                        : "النوع غير محدد"}
+                                  </Badge>
+                                </div>
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <User className="h-3 w-3" /> {d.teacher_name}
                                 </p>
