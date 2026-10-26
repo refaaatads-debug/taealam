@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays, XCircle, Video, MapPin } from "lucide-react";
-import { getSaudiMonthKey } from "@/lib/saudiDate";
+import { getSaudiDayKey, getSaudiMonthKey } from "@/lib/saudiDate";
 
 import BookingRequests from "@/components/teacher/BookingRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useIsPhoneDevice } from "@/hooks/use-is-phone";
 
-const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+const localDayKey = (date: Date) => getSaudiDayKey(date);
 
 const TeacherDashboard = () => {
   const { user, profile } = useAuth();
@@ -38,7 +38,7 @@ const TeacherDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
   const isPhone = useIsPhoneDevice();
-  const todayKey = localDayKey(new Date());
+  const todayKey = getSaudiDayKey(new Date());
   const todaySessions = schedule.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
   const nextSession = [...todaySessions].sort((a, b) => {
     if (a.session_status === "in_progress" && b.session_status !== "in_progress") return -1;

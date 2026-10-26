@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { completedTeachingSeconds } from "@/lib/bookingPresentation";
+import { getSaudiDayKey } from "@/lib/saudiDate";
 
 const formatDuration = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
@@ -29,7 +30,7 @@ const formatDuration = (totalSeconds: number) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-const localDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+const localDayKey = (date: Date) => getSaudiDayKey(date);
 
 const StudentDashboard = () => {
   const { user, profile } = useAuth();
@@ -351,7 +352,7 @@ const StudentDashboard = () => {
   const canBook = subscription && remainingMinutes >= SESSION_MINUTES;
   const showLowBalanceBanner = !loading && subscription && remainingMinutes < SESSION_MINUTES && remainingMinutes > 0;
   const showNoBanner = !loading && subscription && remainingMinutes <= 0;
-  const todayKey = localDayKey(new Date());
+  const todayKey = getSaudiDayKey(new Date());
   const todayClasses = upcomingClasses.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
   const nextClass = [...todayClasses].sort((a, b) => {
     if (a.session_status === "in_progress" && b.session_status !== "in_progress") return -1;

@@ -25,6 +25,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { canJoinOnlineBooking, shouldOfferInPersonCode } from "@/lib/bookingPresentation";
+import {
+  getCalendarDayKey,
+  getSaudiCalendarDate,
+  getSaudiDayStartUtc,
+  isSaudiDayWithinCalendarRange,
+} from "@/lib/saudiDate";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 import {
   AlertDialog,
@@ -87,8 +93,8 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [view, setView] = useState<View>("week");
-  const [cursor, setCursor] = useState<Date>(new Date());
-  const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
+  const [cursor, setCursor] = useState<Date>(() => getSaudiCalendarDate());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(() => getSaudiCalendarDate());
   const [joining, setJoining] = useState<string | null>(null);
   const [teacherCancelTarget, setTeacherCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
   const [studentCancelTarget, setStudentCancelTarget] = useState<Row | null>(null);
@@ -114,12 +120,14 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     if (!user) return;
     const filterCol = role === "student" ? "student_id" : "teacher_id";
     const otherCol = role === "student" ? "teacher_id" : "student_id";
-    const rangeStart = view === "month"
+    const calendarRangeStart = view === "month"
       ? new Date(cursor.getFullYear(), cursor.getMonth(), 1)
       : startOfWeek(cursor);
-    const rangeEnd = view === "month"
+    const calendarRangeEnd = view === "month"
       ? new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
-      : new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate() + 7);
+      : new Date(calendarRangeStart.getFullYear(), calendarRangeStart.getMonth(), calendarRangeStart.getDate() + 7);
+    const rangeStart = getSaudiDayStartUtc(calendarRangeStart);
+    const rangeEnd = getSaudiDayStartUtc(calendarRangeEnd);
     const { data } = await supabase
       .from("bookings")
       .select(`id, scheduled_at, duration_minutes, session_status, status, delivery_mode, attendance_confirmed_at, ${otherCol}, subject_id, subjects(name)`)
@@ -248,20 +256,20 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
 
   // Apply filters
   const filteredRows = useMemo(() => {
-    const today = new Date();
-    const startWk = startOfWeek(today);
+    const filterAnchor = cursor;
+    const startWk = startOfWeek(filterAnchor);
     const endWk = new Date(startWk); endWk.setDate(endWk.getDate() + 7);
-    const startMo = startOfMonth(today);
-    const endMo = new Date(endOfMonth(today)); endMo.setHours(23, 59, 59, 999);
+    const startMo = startOfMonth(filterAnchor);
+    const endMoExclusive = new Date(startMo.getFullYear(), startMo.getMonth() + 1, 1);
     return rows.filter((r) => {
-      const d = new Date(r.scheduled_at);
-      if (dateFilter === "this_week" && (d < startWk || d >= endWk)) return false;
-      if (dateFilter === "this_month" && (d < startMo || d > endMo)) return false;
+      const scheduledAt = new Date(r.scheduled_at);
+      if (dateFilter === "this_week" && !isSaudiDayWithinCalendarRange(scheduledAt, startWk, endWk)) return false;
+      if (dateFilter === "this_month" && !isSaudiDayWithinCalendarRange(scheduledAt, startMo, endMoExclusive)) return false;
       if (otherFilter !== "all" && r.other_id !== otherFilter) return false;
       if (subjectFilter !== "all" && r.subject_id !== subjectFilter) return false;
       return true;
     });
-  }, [rows, dateFilter, otherFilter, subjectFilter]);
+  }, [rows, dateFilter, otherFilter, subjectFilter, cursor]);
 
   const otherOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -279,8 +287,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const byDate = useMemo(() => {
     const map = new Map<string, Row[]>();
     filteredRows.forEach((r) => {
-      const d = new Date(r.scheduled_at);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = getSaudiDayKey(new Date(r.scheduled_at));
       const list = map.get(key) || [];
       list.push(r);
       map.set(key, list);
@@ -289,7 +296,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   }, [filteredRows]);
 
   const getCellSessions = (date: Date): Row[] => {
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const key = getCalendarDayKey(date);
     return byDate.get(key) || [];
   };
 
@@ -329,7 +336,6 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     else d.setDate(d.getDate() + dir * 7);
     setCursor(d);
     setSelectedDay(view === "month" ? new Date(d.getFullYear(), d.getMonth(), 1) : new Date(d));
-    setDateFilter("all");
   };
 
   const periodLabel = useMemo(() => {
@@ -340,7 +346,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   }, [view, cursor, weekDays]);
 
   const selectedSessions = selectedDay ? getCellSessions(selectedDay) : [];
-  const today = new Date();
+  const today = getSaudiCalendarDate();
 
   const handleJoin = async (id: string) => {
     setJoining(id);
@@ -461,7 +467,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
           </Button>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-foreground">{periodLabel}</span>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setCursor(new Date()); setSelectedDay(new Date()); }}>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { const today = getSaudiCalendarDate(); setCursor(today); setSelectedDay(today); }}>
               اليوم
             </Button>
           </div>
@@ -544,7 +550,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                         const live = s.session_status === "in_progress";
                         return (
                           <div key={s.id} className={`text-[9px] rounded px-1 py-0.5 truncate ${live ? "bg-secondary/20 text-secondary" : "bg-primary/10 text-primary"}`}>
-                            {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}{" "}
+                             {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })}{" "}
                             {s.other_name}
                           </div>
                         );
@@ -603,7 +609,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                     <div key={s.id} className={`relative z-[1] grid grid-cols-[58px_1fr] items-start gap-3 ${live ? "rounded-xl" : ""}`}>
                       <div className="pt-3 text-center">
                         <p className={`text-xs font-black ${live ? "text-secondary" : "text-foreground"}`}>
-                          {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh" })}
                         </p>
                         <p className="text-[9px] text-muted-foreground mt-0.5">{s.duration_minutes} دقيقة</p>
                         <span className={`mx-auto mt-2 block h-2.5 w-2.5 rounded-full border-2 border-background ${live ? "bg-secondary ring-4 ring-secondary/15" : "bg-primary"}`} />
