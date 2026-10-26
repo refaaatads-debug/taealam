@@ -40,7 +40,7 @@ interface BookingRequestsProps {
   onAccepted?: () => void;
 }
 
-export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
+export default function BookingRequests({ onAccepted, embedded = false }: BookingRequestsProps & { embedded?: boolean }) {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
@@ -393,15 +393,18 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
   };
 
   const groups = buildGroups().filter(g => !expiredKeys.has(g.key));
+  const Root = embedded ? "section" : Card;
+  const Header = embedded ? "div" : CardHeader;
+  const Content = embedded ? "div" : CardContent;
 
   return (
-    <Card className="border-0 shadow-card">
-      <CardHeader className="pb-3">
+    <Root className={embedded ? "space-y-3" : "border-0 shadow-card"}>
+      <Header className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <CalendarCheck className="h-4 w-4 text-primary" />
           </div>
-          طلبات الحصص المتاحة
+          {embedded ? "طلبات الأونلاين" : "طلبات الحصص المتاحة"}
           {isBusy && (
             <Badge className="bg-amber-500/15 text-amber-600 border-0 text-xs animate-pulse">
               🔴 مشغول الآن
@@ -413,8 +416,8 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
             </Badge>
           )}
         </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      </Header>
+      <Content className="space-y-3">
         {groups.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">لا توجد طلبات حصص جديدة</p>
         ) : (
@@ -535,13 +538,13 @@ export default function BookingRequests({ onAccepted }: BookingRequestsProps) {
             );
           })
         )}
-      </CardContent>
+      </Content>
 
       <FirstImpressionDialog
         open={!!impressionFor}
         onOpenChange={(v) => !v && setImpressionFor(null)}
         studentName={impressionFor || undefined}
       />
-    </Card>
+    </Root>
   );
 }

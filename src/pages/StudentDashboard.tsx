@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
-import PendingBookingRequests from "@/components/student/PendingBookingRequests";
+import StudentLessonRequests from "@/components/student/StudentLessonRequests";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
@@ -557,7 +557,7 @@ const StudentDashboard = () => {
             </Card>
 
             {/* Booking requests are kept directly below the unified schedule. */}
-            <PendingBookingRequests />
+            <StudentLessonRequests />
             <StudentScheduleTable historyOnly />
 
             {/* Warnings */}

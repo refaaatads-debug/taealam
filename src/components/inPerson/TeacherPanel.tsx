@@ -13,7 +13,7 @@ type RequestRow = { request_group_id: string; student_name: string; subject_name
 type BookingRow = { id: string; student_id: string; scheduled_at: string; session_status?: string | null; attendance_confirmed_at?: string | null; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
-export default function InPersonTeacherPanel() {
+export default function InPersonTeacherPanel({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
@@ -115,12 +115,15 @@ export default function InPersonTeacherPanel() {
   };
 
   if (!enabled) return null;
+  const Root = embedded ? "section" : Card;
+  const Header = embedded ? "div" : CardHeader;
+  const Content = embedded ? "div" : CardContent;
   return (
-    <Card id="in-person-sessions" className="overflow-hidden rounded-2xl border-0 shadow-card">
-      <CardHeader><CardTitle>الحصص الحضورية</CardTitle><p className="text-sm text-muted-foreground">مهلة قبول الطلب ساعة من إرساله. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
+    <Root id="in-person-sessions" className={embedded ? "space-y-3" : "overflow-hidden rounded-2xl border-0 shadow-card"}>
+      <Header><CardTitle>{embedded ? "طلبات الحضوري" : "الحصص الحضورية"}</CardTitle><p className="text-sm text-muted-foreground">مهلة قبول الطلب ساعة من إرساله. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
         {cityStatus?.city_name && cityStatus.city_enabled === false && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">الخدمة لم تُفعّل في مدينتك بعد.</p>}
-      </CardHeader>
-      <CardContent className="space-y-5">
+      </Header>
+      <Content className="space-y-5">
         <section className="space-y-2">
           <h3 className="font-semibold">طلبات بانتظارك</h3>
           {locationError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">تعذر تحميل عنوان الحصة. أعد تحميل الصفحة قبل قبول طلب حضوري.</p>}
@@ -137,6 +140,7 @@ export default function InPersonTeacherPanel() {
         </section>
         <section className="space-y-2 border-t pt-4">
           <h3 className="font-semibold">مواعيدي القادمة</h3>
+          {bookings.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مواعيد حضورية قادمة.</p>}
           {bookings.map((booking) => <div key={booking.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
             <div className="min-w-0 flex-1"><strong>{booking.subjects?.name || "حصة حضورية"} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(booking.scheduled_at).toLocaleString("ar-SA")}</div>
               {locationDetails(booking.visit_address_snapshot, null)}
@@ -149,7 +153,7 @@ export default function InPersonTeacherPanel() {
             </div>
           </div>)}
         </section>
-      </CardContent>
+      </Content>
       <CancelSessionDialog
         open={Boolean(cancelTarget)}
         onOpenChange={(open) => !open && setCancelTarget(null)}
@@ -158,6 +162,6 @@ export default function InPersonTeacherPanel() {
         deliveryMode="in_person"
         onCancelled={() => { setCancelTarget(null); void refresh(); }}
       />
-    </Card>
+    </Root>
   );
 }

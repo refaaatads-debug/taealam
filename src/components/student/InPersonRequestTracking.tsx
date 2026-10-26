@@ -27,7 +27,7 @@ const statusLabel = (status: string) => {
   return status;
 };
 
-export default function InPersonRequestTracking() {
+export default function InPersonRequestTracking({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [loadError, setLoadError] = useState(false);
@@ -88,17 +88,21 @@ export default function InPersonRequestTracking() {
   // same lesson is not listed twice.
   const trackingRows = rows.filter((row) => row.status !== "accepted");
   const visibleRows = trackingRows.slice(0, 20);
+  if (trackingRows.length === 0 && !loadError && !embedded) return null;
+  const Root = embedded ? "section" : Card;
+  const Header = embedded ? "div" : CardHeader;
+  const Content = embedded ? "div" : CardContent;
   return (
-    <Card id="in-person-requests" className="border-0 shadow-card">
-      <CardHeader className="pb-3">
+    <Root id="in-person-requests" className={embedded ? "space-y-3" : "border-0 shadow-card"}>
+      <Header className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg font-bold">
           <MapPin className="h-5 w-5 text-amber-600" />
-          متابعة الطلبات الحضورية
+          {embedded ? "طلبات الحضوري" : "متابعة الطلبات الحضورية"}
           <Badge variant="outline" className="mr-auto">{trackingRows.length}</Badge>
         </CardTitle>
-        <p className="text-xs text-muted-foreground">تظهر الطلبات المقبولة كحجوزات في الجدول أدناه لتجنب تكرار الحصة.</p>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        {!embedded && <p className="text-xs text-muted-foreground">تظهر الطلبات المقبولة كحجوزات في الجدول أدناه لتجنب تكرار الحصة.</p>}
+      </Header>
+      <Content className="space-y-3">
         {loadError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">
             تعذر تحديث الطلبات الحضورية.
@@ -106,7 +110,7 @@ export default function InPersonRequestTracking() {
           </div>
         )}
         {!loadError && trackingRows.length === 0 && (
-          <p className="text-sm text-muted-foreground">لا توجد طلبات حضورية سابقة أو حالية.</p>
+          <p className="text-sm text-muted-foreground">لا توجد طلبات حضورية حالية أو سابقة.</p>
         )}
         {visibleRows.map((row) => {
           const deadlineMs = new Date(row.acceptance_deadline).getTime();
@@ -148,7 +152,7 @@ export default function InPersonRequestTracking() {
         {trackingRows.length > visibleRows.length && (
           <p className="text-center text-xs text-muted-foreground">تُعرض أحدث {visibleRows.length} طلبًا من أصل {trackingRows.length}.</p>
         )}
-      </CardContent>
-    </Card>
+      </Content>
+    </Root>
   );
 }

@@ -30,7 +30,7 @@ interface PendingRequest {
   subject_name?: string;
 }
 
-export default function PendingBookingRequests() {
+export default function PendingBookingRequests({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [requestsError, setRequestsError] = useState(false);
@@ -120,20 +120,26 @@ export default function PendingBookingRequests() {
     }
   };
 
-  if (requests.length === 0 && !requestsError) return null;
+  if (requests.length === 0 && !requestsError && !embedded) return null;
 
+  const Root = embedded ? "section" : Card;
+  const Header = embedded ? "div" : CardHeader;
+  const Content = embedded ? "div" : CardContent;
   return (
-    <Card className="border-0 shadow-card">
-      <CardHeader className="pb-3">
+    <Root className={embedded ? "space-y-3" : "border-0 shadow-card"}>
+      <Header className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2 font-bold">
           <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
             <Clock className="h-4 w-4 text-orange-500" />
           </div>
-          طلبات حصص الأونلاين قيد الانتظار
+          {embedded ? "طلبات الأونلاين" : "طلبات الحصص"}
           <Badge className="mr-auto bg-orange-500/10 text-orange-600 border-0 text-xs">{requests.length}</Badge>
         </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      </Header>
+      <Content className="space-y-3">
+        {embedded && requests.length === 0 && !requestsError && (
+          <p className="text-sm text-muted-foreground">لا توجد طلبات أونلاين قيد الانتظار.</p>
+        )}
         {requestsError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             تعذر تحديث طلبات الأونلاين. أعد المحاولة.
@@ -176,7 +182,7 @@ export default function PendingBookingRequests() {
             </div>
           </motion.div>
         ))}
-      </CardContent>
+      </Content>
 
       <AlertDialog open={!!confirmCancelId} onOpenChange={(open) => !open && setConfirmCancelId(null)}>
         <AlertDialogContent>
@@ -201,6 +207,6 @@ export default function PendingBookingRequests() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </Root>
   );
 }
