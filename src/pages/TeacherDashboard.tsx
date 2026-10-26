@@ -18,7 +18,7 @@ import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useIsPhoneDevice } from "@/hooks/use-is-phone";
@@ -36,6 +36,7 @@ const TeacherDashboard = () => {
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPhone = useIsPhoneDevice();
   const todayKey = getSaudiDayKey(new Date());
   const todaySessions = schedule.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
@@ -106,6 +107,10 @@ const TeacherDashboard = () => {
       .subscribe();
 
     return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
       supabase.removeChannel(reqChannel);
       supabase.removeChannel(notifChannel);
@@ -113,8 +118,12 @@ const TeacherDashboard = () => {
     };
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = async (isRetry = false) => {
     if (!user) return;
+    if (!isRetry && retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
     try {
 
     const now = new Date().toISOString();
@@ -234,9 +243,12 @@ const TeacherDashboard = () => {
       setStatsLoadError(true);
       // Transient network error (e.g. edge-function crash dropped HTTP/2 connection).
       // Silently retry once after 2s so the dashboard recovers automatically.
-      setTimeout(() => {
-        if (user) fetchData();
-      }, 2000);
+      if (!isRetry && !retryTimerRef.current) {
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = null;
+          if (user) void fetchData(true);
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }
