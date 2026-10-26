@@ -25,7 +25,7 @@ interface FinancialSettings {
   auto_close_months_after_days: number;
   large_withdrawal_threshold: number;
   enable_auto_reconciliation: boolean;
-  in_person_instruction_duration_minutes: 45 | 60;
+  in_person_instruction_duration_minutes: number;
 }
 
 function AuditRow({ a }: { a: any }) {
@@ -958,20 +958,20 @@ export default function FinancialHubTab() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="in-person-duration">مدة الحصة الحضورية للحجوزات الجديدة</Label>
-                      <select
+                      <Label htmlFor="in-person-duration">مدة الحصة الحضورية وخصم الباقة للحجوزات الجديدة (دقيقة)</Label>
+                      <Input
                         id="in-person-duration"
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        value={String(settings.in_person_instruction_duration_minutes ?? 60)}
+                        type="number"
+                        min={15}
+                        max={180}
+                        step={1}
+                        value={settings.in_person_instruction_duration_minutes ?? 60}
                         onChange={(e) => setSettings({
                           ...settings,
-                          in_person_instruction_duration_minutes: Number(e.target.value) as 45 | 60,
+                          in_person_instruction_duration_minutes: Number(e.target.value),
                         })}
-                      >
-                        <option value="45">45 دقيقة</option>
-                        <option value="60">60 دقيقة</option>
-                      </select>
-                      <p className="text-xs text-muted-foreground">يثبت الاختيار على الطلب والحجز عند إنشائه، ولا يغيّر الحجوزات السابقة.</p>
+                      />
+                      <p className="text-xs text-muted-foreground">يُخصم من الباقة عدد الدقائق نفسه، وتُحفظ المدة على الطلب والحجز الجديد دون تغيير الحجوزات السابقة.</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border p-3">
