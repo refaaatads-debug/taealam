@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionVideoPlayer from "@/components/student/SessionVideoPlayer";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
-import { toast } from "sonner";
 
 interface SessionMaterial {
   id: string;
@@ -21,6 +20,7 @@ interface SessionMaterial {
   created_at: string;
   expires_at: string;
   booking_id: string | null;
+  session_ended_at: string | null;
   days_remaining: number;
   ai_report: string | null;
   subject_name: string;
@@ -46,9 +46,10 @@ export default function TeacherSessionMaterials() {
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [recoveringId, setRecoveringId] = useState<string | null>(null);
   const pendingRecordingsRef = useRef(false);
   const initialLoadRef = useRef(true);
+  const recoveryInFlightRef = useRef(new Set<string>());
+  const recoveryLastAttemptRef = useRef(new Map<string, number>());
 
   useEffect(() => {
     if (!user) return;
@@ -156,6 +157,7 @@ export default function TeacherSessionMaterials() {
         ...m,
         recording_url: signedUrl,
         booking_id: session?.booking_id || null,
+        session_ended_at: session?.ended_at || null,
         ai_report: session?.ai_report || null,
         subject_name: subjectName,
         student_name: nameMap.get(m.student_id) || "طالب",
@@ -163,6 +165,11 @@ export default function TeacherSessionMaterials() {
       };
     });
     setMaterials(result);
+    for (const material of result) {
+      if (material.booking_id && material.session_ended_at && !material.recording_url) {
+        void recoverRecordingAutomatically(material.booking_id);
+      }
+    }
     // Auto-expand first student
     const firstStudent = result[0]?.student_name;
     if (firstStudent) setExpandedStudents(new Set([firstStudent]));
@@ -170,16 +177,15 @@ export default function TeacherSessionMaterials() {
     setLoading(false);
   };
 
-  const recoverRecording = async (material: SessionMaterial) => {
-    if (!user || !material.booking_id) {
-      toast.error("تعذر تحديد الحجز المرتبط بالتسجيل");
-      return;
-    }
-
-    setRecoveringId(material.id);
+  const recoverRecordingAutomatically = async (bookingId: string) => {
+    if (!user || recoveryInFlightRef.current.has(bookingId)) return;
+    const lastAttempt = recoveryLastAttemptRef.current.get(bookingId) || 0;
+    if (Date.now() - lastAttempt < 60_000) return;
+    recoveryLastAttemptRef.current.set(bookingId, Date.now());
+    recoveryInFlightRef.current.add(bookingId);
     try {
       const { getRecordingBackup, clearRecordingBackup } = await import("@/lib/recordingBackup");
-      const backup = await getRecordingBackup(material.booking_id);
+      const backup = await getRecordingBackup(bookingId);
       let fileName: string | null = null;
 
       if (backup?.userId === user.id) {
@@ -191,17 +197,15 @@ export default function TeacherSessionMaterials() {
       } else {
         const { data: files, error } = await supabase.storage
           .from("session-recordings")
-          .list(user.id, { search: `${material.booking_id}_`, limit: 100 });
+          .list(user.id, { search: `${bookingId}_`, limit: 100 });
         if (error) throw error;
         const match = (files ?? [])
-          .filter((file) => file.name.startsWith(`${material.booking_id}_`) && file.name.endsWith(".webm"))
+          .filter((file) => file.name.startsWith(`${bookingId}_`) && file.name.endsWith(".webm"))
           .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0];
         if (match) fileName = `${user.id}/${match.name}`;
       }
 
-      if (!fileName) {
-        throw new Error("لم نعثر على نسخة محلية أو ملف مرفوع لهذا الحجز");
-      }
+      if (!fileName) return;
 
       const { data: signedData, error: signedError } = await supabase.storage
         .from("session-recordings")
@@ -210,19 +214,20 @@ export default function TeacherSessionMaterials() {
       if (!signedData?.signedUrl) throw new Error("تعذر إنشاء رابط آمن للتسجيل");
 
       const { error: saveError } = await supabase.functions.invoke("save-session-recording", {
-        body: { booking_id: material.booking_id, recording_url: signedData.signedUrl },
+        body: { booking_id: bookingId, recording_url: signedData.signedUrl },
       });
       if (saveError) throw saveError;
 
-      if (backup?.userId === user.id) await clearRecordingBackup(material.booking_id);
-      toast.success("تم استعادة التسجيل وربطه بالحصة");
+      if (backup?.userId === user.id) await clearRecordingBackup(bookingId);
+      recoveryLastAttemptRef.current.delete(bookingId);
       await fetchMaterials();
     } catch (error) {
-      console.error("[recording-recovery] Failed to recover session recording", error);
-      const message = error instanceof Error ? error.message : "تحقق من اتصال الحساب وحاول مرة أخرى";
-      toast.error(`تعذر استعادة التسجيل: ${message}`);
+      console.warn("[recording-recovery] Automatic recovery attempt failed", {
+        message: error instanceof Error ? error.message : "unknown",
+        status: (error as any)?.status ?? (error as any)?.statusCode ?? null,
+      });
     } finally {
-      setRecoveringId(null);
+      recoveryInFlightRef.current.delete(bookingId);
     }
   };
 
@@ -345,19 +350,7 @@ export default function TeacherSessionMaterials() {
                                   </div>
                                 ) : (
                                   <div className="text-center py-6 bg-muted/30 rounded-xl">
-                                    <p className="text-sm text-muted-foreground">جاري معالجة فيديو الجلسة... قد يستغرق رفعه بضع دقائق</p>
-                                    {m.booking_id && (
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-3"
-                                        disabled={recoveringId === m.id}
-                                        onClick={() => void recoverRecording(m)}
-                                      >
-                                        {recoveringId === m.id ? "جارٍ استعادة التسجيل..." : "إعادة محاولة حفظ التسجيل"}
-                                      </Button>
-                                    )}
+                                    <p className="text-sm text-muted-foreground">يجري التحقق من التسجيل ومحاولة حفظه تلقائيًا.</p>
                                   </div>
                                 )}
                               </div>

@@ -244,7 +244,7 @@ export default function SessionMaterials() {
                           ) : (
                             <div className="text-center py-6 bg-muted/30 rounded-xl">
                               <VideoOff className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                              <p className="text-sm text-muted-foreground">جاري معالجة فيديو الجلسة... قد يستغرق رفعه بضع دقائق</p>
+                              <p className="text-sm text-muted-foreground">يجري التحقق من تسجيل الحصة وحفظه تلقائيًا.</p>
                             </div>
                           )}
                         </div>

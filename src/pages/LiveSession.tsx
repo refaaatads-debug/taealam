@@ -1024,20 +1024,20 @@ const LiveSession = () => {
   //  session crashes / connection dies before normal endSession.
   // ───────────────────────────────────────────────────────────
   const chunkUploadFileNameRef = useRef<string | null>(null);
+  const chunkUploadOwnerKeyRef = useRef<string | null>(null);
   const chunkUploadInFlightRef = useRef(false);
   const chunkUploadIntervalRef = useRef<number | null>(null);
   const lastUploadedSizeRef = useRef(0);
 
-  // Stable filename for the whole session (set once recording starts).
+  // Keep one object key from the first chunk through the final upload.
   useEffect(() => {
-    if (isRecording && bookingId && user && !chunkUploadFileNameRef.current) {
+    if (isRecording && bookingId && user) {
+      const ownerKey = `${user.id}:${bookingId}`;
+      if (chunkUploadOwnerKeyRef.current === ownerKey) return;
+      chunkUploadOwnerKeyRef.current = ownerKey;
       chunkUploadFileNameRef.current = `${user.id}/${bookingId}_${Date.now()}.webm`;
-      console.log("[chunked-upload] filename set:", chunkUploadFileNameRef.current);
-    }
-    if (!isRecording) {
-      // Clear on session end so a fresh name is generated next time
-      chunkUploadFileNameRef.current = null;
       lastUploadedSizeRef.current = 0;
+      console.log("[chunked-upload] filename set:", chunkUploadFileNameRef.current);
     }
   }, [isRecording, bookingId, user]);
 
@@ -1637,52 +1637,95 @@ const LiveSession = () => {
 
   const uploadRecording = async () => {
     const blob = getRecordingBlob();
-    console.log("[uploadRecording] recording prepared:", blob ? `${blob.size} bytes` : "empty");
     if (!blob || blob.size === 0 || !bookingId || !user) {
-      console.warn("[uploadRecording] Skipped - no blob/booking/user");
+      console.warn("[uploadRecording] Skipped - recording data unavailable", {
+        hasBlob: !!blob,
+        size: blob?.size ?? 0,
+        hasBooking: !!bookingId,
+        hasUser: !!user,
+      });
       toast.error("لم يتم العثور على فيديو للرفع");
       await markRecordingFailed("لم يبدأ التسجيل أو كان فارغاً");
       return;
     }
     setRecordingUploading(true);
+    let stage = "backup";
+    const fileName = chunkUploadFileNameRef.current
+      || `${user.id}/${bookingId}_${Date.now()}.webm`;
     try {
-      // Reuse the chunked-upload filename when available so the final
-      // upload overwrites the same object instead of creating a duplicate.
-      const fileName = chunkUploadFileNameRef.current
-        || `${user.id}/${bookingId}_${Date.now()}.webm`;
-      console.log("[uploadRecording] Uploading recording:", blob.size, "bytes");
-      const { error: uploadErr } = await supabase.storage
-        .from("session-recordings")
-        .upload(fileName, blob, { contentType: "video/webm", upsert: true });
-      if (uploadErr) {
-        console.error("[uploadRecording] Storage upload error:", uploadErr);
-        throw uploadErr;
-      }
-
-      const { data: signedData } = await supabase.storage
-        .from("session-recordings")
-        .createSignedUrl(fileName, 60 * 60 * 24 * 7);
-      if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
-      const recordingUrl = signedData.signedUrl;
-      const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
-        body: { booking_id: bookingId, recording_url: recordingUrl },
+      // Save the final complete blob before network work, even when no 60s chunk ran.
+      const { saveRecordingBackup } = await import("@/lib/recordingBackup");
+      await saveRecordingBackup({
+        bookingId,
+        userId: user.id,
+        fileName,
+        blob,
+        size: blob.size,
+        savedAt: Date.now(),
       });
 
-      if (saveRecordingError) {
-        console.error("[uploadRecording] save-session-recording failed");
-        throw saveRecordingError;
+      let saved = false;
+      let lastError: any = null;
+      const retryDelays = [0, 2000, 6000];
+      for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+        if (retryDelays[attempt]) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]));
+        }
+        try {
+          stage = "storage-upload";
+          const { error: uploadErr } = await supabase.storage
+            .from("session-recordings")
+            .upload(fileName, blob, { contentType: "video/webm", upsert: true });
+          if (uploadErr) throw uploadErr;
+
+          stage = "create-signed-url";
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from("session-recordings")
+            .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+          if (signedError) throw signedError;
+          if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
+
+          stage = "link-session";
+          const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
+            body: { booking_id: bookingId, recording_url: signedData.signedUrl },
+          });
+          if (saveRecordingError) throw saveRecordingError;
+          saved = true;
+          break;
+        } catch (error) {
+          lastError = error;
+          const status = Number((error as any)?.statusCode ?? (error as any)?.status ?? (error as any)?.context?.status);
+          const message = error instanceof Error ? error.message : String((error as any)?.message || "");
+          const retryable = !status || status === 401 || status >= 500 || /lock|network|fetch/i.test(message);
+          if (!retryable || attempt === retryDelays.length - 1) break;
+
+          if (status === 401 || /lock/i.test(message)) {
+            try {
+              await supabase.auth.refreshSession();
+            } catch {
+              // Keep the backup and let the next retry or dashboard recovery handle it.
+            }
+          }
+        }
       }
+
+      if (!saved) throw lastError || new Error("Recording upload failed");
       console.log("[uploadRecording] Saved successfully");
 
       // Clear local backup once final upload is confirmed
       try {
         const { clearRecordingBackup } = await import("@/lib/recordingBackup");
-        if (bookingId) await clearRecordingBackup(bookingId);
+        await clearRecordingBackup(bookingId);
       } catch {}
 
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
-      console.error("[uploadRecording] Failed");
+      console.error("[uploadRecording] Failed", {
+        stage,
+        status: (error as any)?.statusCode ?? (error as any)?.status ?? (error as any)?.context?.status ?? null,
+        code: (error as any)?.code ?? null,
+        message: error instanceof Error ? error.message : String((error as any)?.message || "unknown"),
+      });
       const safeMessage = safeErrorMessage(error, "تعذر حفظ التسجيل. حاول مرة أخرى.");
       toast.error(safeMessage);
       await markRecordingFailed(safeMessage);
