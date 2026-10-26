@@ -13,6 +13,7 @@ import { Users, Camera, Bell, Lock, Globe, Shield, LogOut, ChevronLeft, Save, Bo
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toggleTeacherSubjectSelection } from "@/lib/teacherSubjects";
 import { toast } from "sonner";
 import GoogleMapLocationPicker, { type MapLocation } from "@/components/profile/GoogleMapLocationPicker";
 
@@ -218,10 +219,7 @@ const Profile = () => {
   };
 
   const toggleSubject = (subjectId: string) => {
-    // Allow only one subject per teacher
-    setTeacherSubjects(prev =>
-      prev.includes(subjectId) ? [] : [subjectId]
-    );
+    setTeacherSubjects((current) => toggleTeacherSubjectSelection(current, subjectId));
   };
 
   const handleSaveProfile = async () => {
@@ -261,15 +259,34 @@ const Profile = () => {
         if (teacherErr) { console.error("[Profile] teacher_profiles update error:", teacherErr); throw teacherErr; }
         console.log("[Profile] teacher_profiles updated, rows:", teacherData);
 
-        const { error: delErr } = await supabase.from("teacher_subjects").delete().eq("teacher_id", teacherProfileId);
-        if (delErr) console.error("[Profile] delete subjects error:", delErr);
-        if (teacherSubjects.length > 0) {
-          const { error: insErr } = await supabase.from("teacher_subjects").insert(
-            teacherSubjects.map(sid => ({ teacher_id: teacherProfileId, subject_id: sid }))
+        const selectedSubjectIds = [...new Set(teacherSubjects)];
+        if (selectedSubjectIds.length > 0) {
+          const { error: upsertError } = await supabase.from("teacher_subjects").upsert(
+            selectedSubjectIds.map((subjectId) => ({ teacher_id: teacherProfileId, subject_id: subjectId })),
+            { onConflict: "teacher_id,subject_id", ignoreDuplicates: true },
           );
-          if (insErr) console.error("[Profile] insert subjects error:", insErr);
+          if (upsertError) throw upsertError;
         }
-        console.log("[Profile] subjects updated OK");
+
+        const { data: savedSubjectRows, error: savedSubjectsError } = await supabase
+          .from("teacher_subjects")
+          .select("subject_id")
+          .eq("teacher_id", teacherProfileId);
+        if (savedSubjectsError) throw savedSubjectsError;
+
+        const selectedSubjectSet = new Set(selectedSubjectIds);
+        const removedSubjectIds = (savedSubjectRows || [])
+          .map((row) => row.subject_id)
+          .filter((subjectId) => !selectedSubjectSet.has(subjectId));
+        if (removedSubjectIds.length > 0) {
+          const { error: deleteSubjectsError } = await supabase
+            .from("teacher_subjects")
+            .delete()
+            .eq("teacher_id", teacherProfileId)
+            .in("subject_id", removedSubjectIds);
+          if (deleteSubjectsError) throw deleteSubjectsError;
+        }
+        console.log("[Profile] subjects updated OK", selectedSubjectIds.length);
       } else if (isTeacher && !teacherProfileId) {
         console.error("[Profile] teacherProfileId is NULL - teacher_profiles row not found for user:", user.id);
         toast.warning("لم يتم العثور على ملف المعلم — تواصل مع الدعم");
@@ -536,7 +553,7 @@ const Profile = () => {
                     </div>
                     <div>
                       <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-2">
-                        <Star className="h-3.5 w-3.5" /> التخصص (اختر تخصص واحد فقط)
+                        <Star className="h-3.5 w-3.5" /> المواد التي تدرّسها (يمكن اختيار أكثر من مادة)
                       </Label>
                       <div className="flex flex-wrap gap-2">
                         {allSubjects.map(s => {
@@ -544,6 +561,8 @@ const Profile = () => {
                           return (
                             <button
                               key={s.id}
+                              type="button"
+                              aria-pressed={selected}
                               onClick={() => toggleSubject(s.id)}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                                 selected

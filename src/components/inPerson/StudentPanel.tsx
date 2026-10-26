@@ -13,11 +13,6 @@ import { ArrowLeft, MapPin, MapPinOff, RefreshCw, Sparkles } from "lucide-react"
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
-type StageSubjectRow = {
-  subject_id: string;
-  teacher_profiles: { is_approved: boolean | null; teaching_stages: string[] | null } | null;
-};
-
 const teachingStages = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
 
 const localDateTime = (date: Date) => {
@@ -82,9 +77,6 @@ export default function InPersonStudentPanel() {
   const [instructionDuration, setInstructionDuration] = useState(60);
   const [packageDebitMinutes, setPackageDebitMinutes] = useState(100);
   const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teachingStage: string; teacherCount: number; scheduledAt: string; durationMinutes: number; packageDebitMinutes: number } | null>(null);
-  const [stageSubjectIds, setStageSubjectIds] = useState<string[]>([]);
-  const [stageSubjectsLoading, setStageSubjectsLoading] = useState(false);
-  const [stageSubjectsError, setStageSubjectsError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -138,38 +130,6 @@ export default function InPersonStudentPanel() {
     })();
     return () => { active = false; };
   }, [user, reloadKey]);
-
-  useEffect(() => {
-    if (!teachingStage) {
-      setStageSubjectIds([]);
-      setStageSubjectsLoading(false);
-      setStageSubjectsError(false);
-      return;
-    }
-    let active = true;
-    setStageSubjectsLoading(true);
-    setStageSubjectsError(false);
-    void supabase
-      .from("teacher_subjects")
-      .select("subject_id, teacher_profiles!inner(user_id, is_approved, teaching_stages)")
-      .then(({ data, error }) => {
-        if (!active) return;
-        setStageSubjectsLoading(false);
-        if (error) {
-          setStageSubjectIds([]);
-          setStageSubjectsError(true);
-          return;
-        }
-        const ids = new Set(
-          ((data || []) as unknown as StageSubjectRow[])
-            .filter((row) => row.teacher_profiles?.is_approved
-              && row.teacher_profiles?.teaching_stages?.includes(teachingStage))
-            .map((row) => row.subject_id as string),
-        );
-        setStageSubjectIds([...ids]);
-      });
-    return () => { active = false; };
-  }, [teachingStage]);
 
   const searchTeachers = async () => {
     if (!cityId || !addressId || !teachingStage || !subjectId) {
@@ -377,16 +337,15 @@ export default function InPersonStudentPanel() {
             </select>
           </label>
           <label className="text-sm font-semibold">المرحلة الدراسية
-            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={teachingStage} onChange={(e) => { setTeachingStage(e.target.value); setStageSubjectIds([]); setSubjectId(""); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
+            <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={teachingStage} onChange={(e) => { setTeachingStage(e.target.value); setSubjectId(""); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
               <option value="">اختر المرحلة الدراسية</option>{teachingStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
             </select>
           </label>
           <label className="text-sm font-semibold">المادة
             <select className="mt-1.5 h-11 w-full rounded-xl border border-input bg-muted/40 px-3 font-normal outline-none transition focus:ring-2 focus:ring-primary/20" value={subjectId} disabled={!teachingStage} onChange={(e) => { setSubjectId(e.target.value); setTeachers([]); setSelectedTeachers([]); setSearchError(""); setHasSearched(false); }}>
-              <option value="">{stageSubjectsLoading ? "جارٍ تحميل مواد المرحلة..." : "اختر المادة"}</option>{subjects.filter((s) => stageSubjectIds.includes(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value="">اختر المادة</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            {stageSubjectsError && <span role="alert" className="mt-1 block text-xs text-destructive">تعذر تحميل مواد المرحلة. غيّر المرحلة ثم أعد اختيارها.</span>}
-            {!stageSubjectsLoading && !stageSubjectsError && teachingStage && stageSubjectIds.length === 0 && <span className="mt-1 block text-xs text-muted-foreground">لا توجد مواد مسجلة لهذه المرحلة حاليًا.</span>}
+            <span className="mt-1 block text-xs text-muted-foreground">تظهر جميع المواد؛ وتُعرض نتائج المعلمين بحسب المادة والمرحلة والمدينة والموعد.</span>
           </label>
         </div>
         <div className="mt-5 space-y-4 border-t border-border/50 pt-4" dir="rtl">
@@ -507,7 +466,7 @@ export default function InPersonStudentPanel() {
         )}
         {teachers.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-semibold">الأقرب أولاً، ثم التقييم</p>
+            <p className="text-sm font-semibold">وجدنا {teachers.length} معلمًا مطابقًا · الأقرب أولاً، ثم التقييم</p>
             {teachers.map((teacher) => (
               <label key={teacher.teacher_id} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
                 <input type="checkbox" checked={selectedTeachers.includes(teacher.teacher_id)} onChange={(e) => setSelectedTeachers((current) => e.target.checked ? [...current, teacher.teacher_id] : current.filter((id) => id !== teacher.teacher_id))} />
