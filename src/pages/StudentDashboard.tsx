@@ -2,7 +2,6 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import SmartMatchWidget from "@/components/SmartMatchWidget";
 import PendingBookingRequests from "@/components/student/PendingBookingRequests";
-import InPersonRequestTracking from "@/components/student/InPersonRequestTracking";
 import WarningsSection from "@/components/teacher/WarningsSection";
 import SubscriptionBalance from "@/components/student/SubscriptionBalance";
 import SessionMaterials from "@/components/student/SessionMaterials";
@@ -21,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { completedTeachingSeconds } from "@/lib/bookingPresentation";
 
 const formatDuration = (totalSeconds: number) => {
   const h = Math.floor(totalSeconds / 3600);
@@ -126,7 +126,7 @@ const StudentDashboard = () => {
             .order("scheduled_at", { ascending: false }).limit(5),
           supabase.from("bookings").select("id", { count: "exact", head: true })
             .eq("student_id", user.id).eq("status", "completed")
-            .or("delivery_mode.eq.online,delivery_mode.is.null"),
+            .eq("delivery_mode", "online"),
           supabase.from("bookings").select("id", { count: "exact", head: true })
             .eq("student_id", user.id).eq("status", "completed").eq("delivery_mode", "in_person"),
           supabase.from("student_points").select("total_points").eq("user_id", user.id).maybeSingle(),
@@ -195,14 +195,7 @@ const StudentDashboard = () => {
           let totalActualSeconds = 0;
           completed.forEach((booking: any) => {
             const session = Array.isArray(booking.sessions) ? booking.sessions[0] : booking.sessions;
-            if (!session) return;
-            let seconds = 0;
-            if (session.deducted_minutes > 0) seconds = session.deducted_minutes * 60;
-            else if (session.duration_seconds > 0) seconds = session.duration_seconds;
-            else if (session.started_at && session.ended_at) {
-              seconds = Math.floor((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 1000);
-            }
-            if (seconds > 0) totalActualSeconds += seconds;
+            totalActualSeconds += completedTeachingSeconds(booking, session);
           });
           setStats((previous) => ({ ...previous, actualSeconds: totalActualSeconds }));
         });
@@ -408,9 +401,13 @@ const StudentDashboard = () => {
                   </div>
                 </div>
                 {nextClass.status === "confirmed" && (nextClass.delivery_mode === "in_person" ? (
-                  <Button className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90" onClick={() => document.getElementById("student-daily-schedule")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
-                    إدخال رمز الحضور <ArrowLeft className="h-4 w-4" />
-                  </Button>
+                  nextClass.attendance_confirmed_at || nextClass.session_status === "in_progress" ? (
+                    <span className="rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">الحصة الحضورية جارية</span>
+                  ) : (
+                    <Button className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90" onClick={() => document.getElementById("student-daily-schedule")?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                      إدخال رمز الحضور <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  )
                 ) : (
                   <Button asChild className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
                     <Link to={`/session?booking=${nextClass.id}`}>انضم للجلسة <ArrowLeft className="h-4 w-4" /></Link>
@@ -560,8 +557,6 @@ const StudentDashboard = () => {
 
             {/* Booking requests are kept directly below the unified schedule. */}
             <PendingBookingRequests />
-            <InPersonRequestTracking />
-
             <StudentScheduleTable historyOnly />
 
             {/* Warnings */}

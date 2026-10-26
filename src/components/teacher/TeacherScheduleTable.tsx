@@ -106,7 +106,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` }, (payload) => {
         const updated = payload.new as any;
         // When student accepts (session_status changes to in_progress)
-        if (updated?.session_status === "in_progress") {
+        if (updated?.delivery_mode !== "in_person" && updated?.session_status === "in_progress") {
           setLiveSessionIds(prev => {
             if (!prev.has(updated.id)) {
               playNotificationSound();

@@ -10,7 +10,7 @@ import { ExternalLink, MapPin } from "lucide-react";
 
 type AddressSnapshot = { street_address?: string | null; district?: string | null; latitude?: number | string | null; longitude?: number | string | null };
 type RequestRow = { request_group_id: string; student_name: string; subject_name: string; city_name: string; scheduled_at: string; acceptance_deadline: string; offered_teacher_rate_sar: number; offered_platform_share_sar: number; pricing_source: string; street_address?: string | null; district?: string | null; latitude?: string | null; longitude?: string | null };
-type BookingRow = { id: string; student_id: string; scheduled_at: string; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
+type BookingRow = { id: string; student_id: string; scheduled_at: string; session_status?: string | null; attendance_confirmed_at?: string | null; subject_name?: string; visit_address_snapshot?: AddressSnapshot | null; subjects?: { name: string } | null };
 type CityStatus = { city_id: string | null; city_name: string | null; city_enabled: boolean | null };
 
 export default function InPersonTeacherPanel() {
@@ -33,7 +33,7 @@ export default function InPersonTeacherPanel() {
     const [{ data: incoming, error }, { data: requestLocations, error: locationsError }, { data: upcoming }, { data: cityRows }] = await Promise.all([
       supabase.rpc("list_teacher_in_person_requests_priced" as any),
       supabase.rpc("list_teacher_in_person_request_locations" as any),
-      supabase.from("bookings" as any).select("id,student_id,scheduled_at,visit_address_snapshot,subjects(name)")
+      supabase.from("bookings" as any).select("id,student_id,scheduled_at,session_status,attendance_confirmed_at,visit_address_snapshot,subjects(name)")
         .eq("teacher_id", user.id).eq("delivery_mode", "in_person").eq("status", "confirmed")
         .order("scheduled_at", { ascending: true }),
       supabase.rpc("get_my_in_person_city_status" as any),
@@ -140,9 +140,13 @@ export default function InPersonTeacherPanel() {
           {bookings.map((booking) => <div key={booking.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
             <div className="min-w-0 flex-1"><strong>{booking.subjects?.name || "حصة حضورية"} <span className="ms-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">حضوري</span></strong><div className="text-sm text-muted-foreground">{new Date(booking.scheduled_at).toLocaleString("ar-SA")}</div>
               {locationDetails(booking.visit_address_snapshot, null)}
-              {codes[booking.id] && <div className="mt-2 text-lg font-bold tracking-[0.3em]">{codes[booking.id]}</div>}
+              {booking.session_status === "in_progress" && <div className="mt-2 text-sm font-bold text-emerald-700">تم تأكيد الحضور — الحصة جارية</div>}
+              {codes[booking.id] && !booking.attendance_confirmed_at && <div className="mt-2 text-lg font-bold tracking-[0.3em]">{codes[booking.id]}</div>}
             </div>
-            <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button><Button size="sm" variant="destructive" disabled={busy} onClick={() => setCancelTarget(booking)}>إلغاء</Button></div>
+            <div className="flex gap-2">
+              {booking.session_status !== "in_progress" && !booking.attendance_confirmed_at && <Button size="sm" variant="outline" disabled={busy} onClick={() => showCode(booking.id)}>إظهار رمز الحضور</Button>}
+              {booking.session_status !== "in_progress" && <Button size="sm" variant="destructive" disabled={busy} onClick={() => setCancelTarget(booking)}>إلغاء</Button>}
+            </div>
           </div>)}
         </section>
       </CardContent>

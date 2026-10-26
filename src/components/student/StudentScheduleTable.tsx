@@ -114,7 +114,9 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
         const isWaiting = updated?.session_status === "waiting_acceptance";
         const isInProgress = updated?.session_status === "in_progress";
         
-        if ((isWaiting || isInProgress) && (payload.eventType === "INSERT" || (payload.eventType === "UPDATE" && !liveSessionIds.has(updated.id)))) {
+        if (updated?.delivery_mode !== "in_person"
+          && (isWaiting || isInProgress)
+          && (payload.eventType === "INSERT" || (payload.eventType === "UPDATE" && !liveSessionIds.has(updated.id)))) {
           playNotificationSound();
           let teacherName = "المعلم";
           const { data: profile } = await supabase.from("public_profiles").select("full_name").eq("user_id", updated.teacher_id).single();
@@ -539,7 +541,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                       <div>
                         <p className="text-sm font-bold text-foreground">
                           {group.teacherName}
-                          {hasLive && <span className="text-secondary text-xs mr-2 animate-pulse">● متصل الآن</span>}
+                           {hasLive && <span className="text-secondary text-xs mr-2 animate-pulse">● حصة جارية</span>}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {upcomingCount > 0 && <span className="text-secondary">{upcomingCount} قادمة</span>}

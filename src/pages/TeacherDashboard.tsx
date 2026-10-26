@@ -195,7 +195,7 @@ const TeacherDashboard = () => {
     ] = await Promise.all([
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed"),
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "cancelled"),
-      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").or("delivery_mode.eq.online,delivery_mode.is.null"),
+      supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").eq("delivery_mode", "online"),
       supabase.from("bookings").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "completed").eq("delivery_mode", "in_person"),
       supabase.rpc("get_teacher_month_earnings_split" as any, { _teacher_id: user.id, _month: currentMonth }),
       studentIdsPromise,

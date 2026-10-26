@@ -24,6 +24,7 @@ import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
+import { canJoinOnlineBooking, shouldOfferInPersonCode } from "@/lib/bookingPresentation";
 import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
 import {
   AlertDialog,
@@ -48,6 +49,7 @@ interface Row {
   session_status?: string | null;
   status?: string | null;
   delivery_mode?: "online" | "in_person" | null;
+  attendance_confirmed_at?: string | null;
 }
 
 interface Props {
@@ -112,13 +114,18 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     if (!user) return;
     const filterCol = role === "student" ? "student_id" : "teacher_id";
     const otherCol = role === "student" ? "teacher_id" : "student_id";
+    const rangeStart = view === "month"
+      ? new Date(cursor.getFullYear(), cursor.getMonth(), 1)
+      : startOfWeek(cursor);
+    const rangeEnd = view === "month"
+      ? new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+      : new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate() + 7);
     const { data } = await supabase
       .from("bookings")
-      .select(`id, scheduled_at, duration_minutes, session_status, status, delivery_mode, ${otherCol}, subject_id, subjects(name)`)
+      .select(`id, scheduled_at, duration_minutes, session_status, status, delivery_mode, attendance_confirmed_at, ${otherCol}, subject_id, subjects(name)`)
       .eq(filterCol, user.id)
-      .in("status", ["confirmed", "pending"]) // exclude cancelled / completed
-      .gte("scheduled_at", new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString())
-      .lte("scheduled_at", new Date(Date.now() + 90 * 24 * 60 * 60_000).toISOString())
+      .gte("scheduled_at", rangeStart.toISOString())
+      .lt("scheduled_at", rangeEnd.toISOString())
       .order("scheduled_at", { ascending: true });
 
     if (!data || data.length === 0) {
@@ -147,6 +154,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
         session_status: b.session_status,
         status: b.status,
         delivery_mode: b.delivery_mode,
+        attendance_confirmed_at: b.attendance_confirmed_at,
         subject_id: b.subject_id,
         subject_name: (b.subjects as any)?.name || "—",
         other_id: b[otherCol],
@@ -207,7 +215,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [user, role]);
+  }, [user, role, cursor, view]);
 
   // 1-hour-before reminder — server-side dedup via UNIQUE constraint on session_reminders_sent
   useEffect(() => {
@@ -320,6 +328,8 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     if (view === "month") d.setMonth(d.getMonth() + dir);
     else d.setDate(d.getDate() + dir * 7);
     setCursor(d);
+    setSelectedDay(view === "month" ? new Date(d.getFullYear(), d.getMonth(), 1) : new Date(d));
+    setDateFilter("all");
   };
 
   const periodLabel = useMemo(() => {
@@ -582,8 +592,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                   // A confirmed booking can be opened before its scheduled time.
                   // The teacher starts it from the pre-join screen; the student
                   // waits there until the teacher changes the status to live.
-                  const closed = s.session_status === "completed" || s.session_status === "cancelled";
-                  const canEnterSession = s.delivery_mode !== "in_person" && (live || (confirmed && !waitingAcceptance && !closed));
+                   const closed = s.session_status === "completed" || s.session_status === "cancelled"
+                     || s.status === "completed" || s.status === "cancelled";
+                   const canEnterSession = canJoinOnlineBooking(s);
                   const attendanceWindowOpen = now >= new Date(s.scheduled_at).getTime()
                     && now < new Date(s.scheduled_at).getTime() + 15 * 60_000;
                   const isJoining = joining === s.id;
@@ -608,9 +619,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                                 </Badge>
                               </div>
                               {role === "student" && s.delivery_mode === "in_person" && s.status === "confirmed" && (
-                                attendanceConfirmed.has(s.id)
+                                attendanceConfirmed.has(s.id) || s.attendance_confirmed_at || s.session_status === "in_progress"
                                   ? <Badge className="mt-2 bg-green-100 text-green-800 border-0 text-[10px]">تم تأكيد الحضور</Badge>
-                                  : <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" disabled={!attendanceWindowOpen} onClick={(event) => { event.stopPropagation(); setAttendanceCodeTarget(s); }}>
+                                  : shouldOfferInPersonCode(s) && <Button size="sm" variant="outline" className="mt-2 h-8 text-xs" disabled={!attendanceWindowOpen} onClick={(event) => { event.stopPropagation(); setAttendanceCodeTarget(s); }}>
                                       إدخال كود الحضور
                                     </Button>
                               )}
@@ -618,6 +629,10 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                                 <Badge className="bg-secondary/15 text-secondary border-0 text-[10px] animate-pulse">جارية الآن</Badge>
                               ) : s.session_status === "waiting_acceptance" ? (
                                 <Badge className="bg-amber-500/15 text-amber-700 border-0 text-[10px]">جلسة فورية · بانتظار القبول</Badge>
+                              ) : s.status === "completed" ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-700 border-0 text-[10px]">مكتملة</Badge>
+                              ) : s.status === "cancelled" ? (
+                                <Badge className="bg-destructive/10 text-destructive border-0 text-[10px]">ملغاة</Badge>
                               ) : s.status === "pending" ? (
                                 <Badge className="bg-amber-500/15 text-amber-700 border-0 text-[10px]">بانتظار التأكيد</Badge>
                               ) : (
@@ -632,7 +647,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                              )}
                           </div>
                           <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0">
-                            {role === "teacher" && s.delivery_mode === "in_person" && confirmed && (
+                            {role === "teacher" && s.delivery_mode === "in_person" && confirmed && !s.attendance_confirmed_at && s.session_status !== "in_progress" && (
                               teacherAttendanceCodes[s.id]
                                 ? <span className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-black tracking-[0.3em] text-amber-900">رمز الحضور: {teacherAttendanceCodes[s.id]}</span>
                                 : <Button size="sm" variant="outline" className="h-8 text-[10px]" disabled={loadingTeacherCode === s.id} onClick={() => void showTeacherAttendanceCode(s.id)}>
@@ -644,7 +659,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
                               محادثة
                               {unread > 0 && <span className="absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">{unread}</span>}
                             </Button>
-                            {!live && (
+                            {!live && !closed && confirmed && (
                               <Button
                                 size="sm"
                                 variant="ghost"
