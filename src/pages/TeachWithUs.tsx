@@ -65,7 +65,7 @@ const stats = [
 
 const TeachWithUs = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0 font-cairo text-base leading-7" dir="rtl">
       <Navbar />
 
       {/* Hero */}
@@ -78,13 +78,13 @@ const TeachWithUs = () => {
                 <span>للمدرسين والمدربين</span>
               </motion.div>
 
-              <motion.h1 variants={fadeUp} custom={1} className="mb-5 text-3xl font-black leading-[1.15] tracking-tight text-[#102f50] sm:text-5xl md:text-6xl">
+              <motion.h1 variants={fadeUp} custom={1} className="mb-5 text-3xl font-black leading-tight tracking-tight text-[#102f50] sm:text-4xl md:text-5xl">
                 هل ترغب بالتدريس
                 <br />
                 <span className="text-[#188779]">أونلاين بمرونة كاملة؟</span>
               </motion.h1>
 
-              <motion.p variants={fadeUp} custom={2} className="mb-8 max-w-xl text-base leading-relaxed text-[#102f50]/65 md:text-xl">
+              <motion.p variants={fadeUp} custom={2} className="mb-8 max-w-xl text-base leading-7 text-[#102f50]/65 md:text-lg">
                 انضم لطاقم المدرسين في <span className="font-bold">منصة أجيال المعرفة</span> وكن مديراً لوقتك ودخلك.
                 شارك خبراتك مع آلاف الطلاب وحقّق دخلاً مستقراً من بيتك.
               </motion.p>
@@ -126,7 +126,7 @@ const TeachWithUs = () => {
                     ))}
                     <span className="mr-1 text-sm font-bold text-[#ad7a20]">4.9</span>
                   </div>
-                  <p className="text-sm font-medium text-[#102f50]/65">
+                  <p className="text-sm leading-6 font-medium text-[#102f50]/65">
                     أكثر من <span className="font-black">500</span> معلم انضموا إلينا
                   </p>
                 </div>
@@ -140,7 +140,7 @@ const TeachWithUs = () => {
                   <img src={heroBanner} alt="انضم لطاقم المدرسين" className="h-full w-full object-cover opacity-70" loading="eager" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#102f50] via-[#102f50]/20 to-transparent" />
                   <div className="absolute bottom-5 right-5 text-white">
-                    <p className="text-[11px] font-bold text-[#b9e4dc]">تجربة تعليمية مباشرة</p>
+                    <p className="text-xs leading-5 font-bold text-[#b9e4dc]">تجربة تعليمية مباشرة</p>
                     <p className="mt-1 text-2xl font-black">علّم بخبرتك<br />وابنِ مستقبلك</p>
                   </div>
                 </div>
@@ -149,7 +149,7 @@ const TeachWithUs = () => {
                   {stats.map((s, i) => (
                     <div key={i}>
                       <div className="mb-1 text-3xl font-black text-[#188779]">{s.value}</div>
-                      <div className="text-sm text-[#102f50]/60">{s.label}</div>
+                      <div className="text-sm leading-6 text-[#102f50]/60">{s.label}</div>
                     </div>
                   ))}
                 </div>
@@ -157,7 +157,7 @@ const TeachWithUs = () => {
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e8f1ef]">
                     <TrendingUp className="h-5 w-5 text-[#188779]" />
                   </div>
-                  <p className="text-sm text-[#102f50]/65">
+                  <p className="text-sm leading-6 text-[#102f50]/65">
                     <span className="font-black">دخل شهري متوسط</span>
                     <br />
                     <span>للمعلم النشط على المنصة</span>
@@ -177,7 +177,7 @@ const TeachWithUs = () => {
             <Card key={i} className="border-0 shadow-card">
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-black text-secondary mb-1">{s.value}</div>
-                <div className="text-xs text-muted-foreground">{s.label}</div>
+                <div className="text-sm leading-6 text-muted-foreground">{s.label}</div>
               </CardContent>
             </Card>
           ))}
@@ -188,8 +188,8 @@ const TeachWithUs = () => {
       <section className="container py-12 md:py-20">
         <div className="text-center mb-10 md:mb-14">
           <Badge className="bg-secondary/10 text-secondary border-0 mb-3">المميزات</Badge>
-          <h2 className="text-3xl md:text-5xl font-black mb-4">لماذا تنضم إلينا؟</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">لماذا تنضم إلينا؟</h2>
+            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">
             كل ما تحتاجه لتدرّس باحترافية وتنمّي دخلك في مكان واحد.
           </p>
         </div>
@@ -209,7 +209,7 @@ const TeachWithUs = () => {
                     <b.icon className="h-6 w-6" />
                   </div>
                   <h3 className="text-lg font-black mb-2">{b.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{b.desc}</p>
+                  <p className="text-sm md:text-base text-muted-foreground leading-7">{b.desc}</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -222,8 +222,8 @@ const TeachWithUs = () => {
         <div className="container">
           <div className="text-center mb-10 md:mb-14">
             <Badge className="bg-gold/10 text-gold border-0 mb-3">الخطوات</Badge>
-            <h2 className="text-3xl md:text-5xl font-black mb-4">كيف تنضم كمعلم؟</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">4 خطوات بسيطة وستكون جاهزاً لاستقبال طلابك الأوائل.</p>
+            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">كيف تنضم كمعلم؟</h2>
+            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">4 خطوات بسيطة وستكون جاهزاً لاستقبال طلابك الأوائل.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -243,7 +243,7 @@ const TeachWithUs = () => {
                         <s.icon className="h-6 w-6" />
                       </div>
                       <h3 className="text-lg font-black mb-2">{s.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
+                      <p className="text-sm md:text-base text-muted-foreground leading-7">{s.desc}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -258,8 +258,8 @@ const TeachWithUs = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div>
             <Badge className="bg-primary/10 text-primary border-0 mb-3">الشروط</Badge>
-            <h2 className="text-3xl md:text-4xl font-black mb-4">شروط الانضمام كمعلم</h2>
-            <p className="text-muted-foreground mb-6 leading-relaxed">
+            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">شروط الانضمام كمعلم</h2>
+            <p className="text-base md:text-lg text-muted-foreground mb-6 leading-7">
               نسعى لتقديم أفضل تجربة تعليمية لطلابنا، لذلك نختار معلمينا بعناية. تحقّق من الشروط التالية:
             </p>
             <ul className="space-y-3">
@@ -304,8 +304,8 @@ const TeachWithUs = () => {
         <div className="container">
           <div className="text-center mb-10">
             <Badge className="bg-secondary/10 text-secondary border-0 mb-3">السياسات</Badge>
-            <h2 className="text-3xl md:text-5xl font-black mb-4">شروط وأحكام الانضمام</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">شروط وأحكام الانضمام</h2>
+            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">
               نحرص على الشفافية الكاملة. اطّلع على أهم البنود قبل التسجيل.
             </p>
           </div>
@@ -319,7 +319,7 @@ const TeachWithUs = () => {
                   </div>
                   <div>
                     <h3 className="font-black mb-1">{p.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{p.desc}</p>
+                      <p className="text-sm md:text-base text-muted-foreground leading-7">{p.desc}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -340,8 +340,8 @@ const TeachWithUs = () => {
         <Card className="border-0 shadow-card-hover overflow-hidden">
           <div className="gradient-cta p-8 md:p-14 text-center text-secondary-foreground">
             <Sparkles className="h-10 w-10 mx-auto mb-4 opacity-90" />
-            <h2 className="text-3xl md:text-5xl font-black mb-4">جاهز لبدء رحلتك معنا؟</h2>
-            <p className="text-base md:text-lg opacity-90 mb-8 max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">جاهز لبدء رحلتك معنا؟</h2>
+            <p className="text-base md:text-lg leading-7 opacity-90 mb-8 max-w-2xl mx-auto">
               قدّم طلبك الآن مجاناً. خلال دقائق ستكون جاهزاً لاستقبال طلابك الأوائل.
             </p>
             <Button

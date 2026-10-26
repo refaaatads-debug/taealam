@@ -314,7 +314,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           //      stale JS chunks that would cause a white screen.
           // Skip redirect if already on a public page.
           const currentPath = window.location.pathname;
-          const publicPaths = ["/", "/login", "/register", "/search"];
+           const publicPaths = ["/", "/login", "/register", "/search", "/teach-with-us"];
           const isPublic = publicPaths.some((p) => currentPath === p || currentPath.startsWith(p + "/"));
           if (!isPublic) {
             window.location.replace("/login");

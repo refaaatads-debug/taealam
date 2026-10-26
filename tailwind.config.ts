@@ -14,8 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        cairo: ["Cairo", "Tajawal", "sans-serif"],
-        tajawal: ["Tajawal", "Cairo", "sans-serif"],
+        cairo: ["Cairo", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
