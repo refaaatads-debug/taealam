@@ -7,3 +7,4 @@
 - [In-person duration and package debit](in-person-duration-debit.md) — Keep 60-minute teaching sessions distinct from the 100-minute package debit.
 - [Production Supabase connector access](supabase-production-connector-access.md) — The Supabase API connector can reject the site's custom-domain proxy as a private-address redirect; this is not a credential failure.
 - [Teacher location source of truth](teacher-location-source-of-truth.md) — Teacher settings use service-location records while in-person search uses legacy profile fields; keep them synchronized and reapprove changed locations.
+- [Public packages map](public-packages-map.md) — Keep the visitor-facing in-person map illustrative only; do not show real locations or coverage data.

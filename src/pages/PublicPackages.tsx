@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Monitor,
   PencilRuler,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   UsersRound,
@@ -100,66 +101,88 @@ const faqs = [
   },
 ];
 
-function ConceptMap() {
+function ConceptMap({
+  journeyState,
+  journeyRun,
+  onReplay,
+}: {
+  journeyState: "ready" | "moving" | "arrived";
+  journeyRun: number;
+  onReplay: () => void;
+}) {
+  const isMoving = journeyState === "moving";
+  const isArrived = journeyState === "arrived";
+  const route = "M180 244 C232 219 247 186 286 183 S348 163 380 146 S412 153 438 181";
+
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] border border-[#102f50]/10 bg-[#edf2e9] p-4 sm:p-6">
-      <svg
-        viewBox="0 0 600 420"
-        role="img"
-        aria-labelledby="concept-map-title concept-map-description"
-        className="h-auto w-full"
-      >
-        <title id="concept-map-title">رسم تخطيطي مفاهيمي للتعلّم الحضوري</title>
-        <desc id="concept-map-description">
-          رسم توضيحي تجريدي لمسارات متعرجة ومساحات تعلّم، وليس خريطة فعلية أو دليلاً للمواقع.
-        </desc>
-        <defs>
-          <pattern id="map-dots" width="26" height="26" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.3" fill="#8b9e8c" opacity=".27" />
-          </pattern>
-        </defs>
-        <rect width="600" height="420" rx="28" fill="#edf2e9" />
-        <rect width="600" height="420" rx="28" fill="url(#map-dots)" />
-        <path d="M-16 87 C90 112 104 41 207 69 S347 111 408 57 S528 34 625 75" fill="none" stroke="#d5dfd2" strokeWidth="35" strokeLinecap="round" />
-        <path d="M82 -20 C92 78 174 96 150 180 S111 303 171 440" fill="none" stroke="#d5dfd2" strokeWidth="29" strokeLinecap="round" />
-        <path d="M340 -18 C308 73 382 133 343 211 S340 314 392 438" fill="none" stroke="#d5dfd2" strokeWidth="25" strokeLinecap="round" />
-        <path d="M-15 314 C72 270 138 312 208 284 S331 242 393 291 S518 351 618 290" fill="none" stroke="#d5dfd2" strokeWidth="31" strokeLinecap="round" />
-        <path d="M-16 87 C90 112 104 41 207 69 S347 111 408 57 S528 34 625 75" fill="none" stroke="#f9faf3" strokeWidth="3" strokeDasharray="7 10" strokeLinecap="round" />
-        <path d="M82 -20 C92 78 174 96 150 180 S111 303 171 440" fill="none" stroke="#f9faf3" strokeWidth="3" strokeDasharray="7 10" strokeLinecap="round" />
-        <path d="M340 -18 C308 73 382 133 343 211 S340 314 392 438" fill="none" stroke="#f9faf3" strokeWidth="3" strokeDasharray="7 10" strokeLinecap="round" />
-        <path d="M-15 314 C72 270 138 312 208 284 S331 242 393 291 S518 351 618 290" fill="none" stroke="#f9faf3" strokeWidth="3" strokeDasharray="7 10" strokeLinecap="round" />
-        <path d="M190 170 C236 115 289 116 323 159 S377 244 431 218" fill="none" stroke="#188779" strokeWidth="5" strokeLinecap="round" strokeDasharray="2 13" />
-        <path d="M208 183 C240 208 262 233 294 229" fill="none" stroke="#188779" strokeWidth="5" strokeLinecap="round" strokeDasharray="2 13" />
-        <g transform="translate(195 156)">
-          <rect width="94" height="56" rx="17" fill="#fffdf8" stroke="#d7e2d8" />
-          <path d="M25 18h15c4 0 7 3 7 7v14H31c-4 0-6-3-6-7V18Zm22 7c0-4 3-7 7-7h15v14c0 4-2 7-6 7H47V25Z" fill="none" stroke="#188779" strokeWidth="2.5" strokeLinejoin="round" />
-          <text x="47" y="53" textAnchor="middle" fill="#102f50" fontSize="10" fontWeight="700">تعلّم</text>
-        </g>
-        <g transform="translate(382 190)">
-          <rect width="112" height="64" rx="18" fill="#102f50" />
-          <circle cx="31" cy="25" r="8" fill="#b9e4dc" />
-          <path d="M18 47c1-8 6-12 13-12s12 4 13 12" fill="none" stroke="#b9e4dc" strokeWidth="3" strokeLinecap="round" />
-          <text x="75" y="30" textAnchor="middle" fill="#fffdf8" fontSize="10" fontWeight="700">لقاء</text>
-          <text x="75" y="45" textAnchor="middle" fill="#b9e4dc" fontSize="9">طالب ومدرس</text>
-        </g>
-        <g transform="translate(108 271)">
-          <rect width="115" height="54" rx="17" fill="#f5eddf" stroke="#e8ddc8" />
-          <path d="m24 26 8 8 17-19" fill="none" stroke="#a47b36" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <text x="76" y="32" textAnchor="middle" fill="#102f50" fontSize="10" fontWeight="700">خطوة تعلّم</text>
-        </g>
-        <g transform="translate(399 77)">
-          <circle cx="20" cy="20" r="20" fill="#d9e9e2" />
-          <path d="M14 20h12M20 14v12" stroke="#188779" strokeWidth="2.5" strokeLinecap="round" />
-        </g>
-        <g transform="translate(263 319)">
-          <circle cx="13" cy="13" r="13" fill="#e5eaf0" />
-          <path d="M8 13h10M13 8v10" stroke="#315273" strokeWidth="2" strokeLinecap="round" />
-        </g>
-        <text x="566" y="392" textAnchor="end" fill="#526d62" fontSize="11" fontWeight="700">تصوّر تعليمي فقط</text>
-      </svg>
-      <div className="pointer-events-none absolute right-6 top-6 rounded-full border border-[#102f50]/10 bg-[#fffdf8]/90 px-3 py-1.5 text-[10px] font-extrabold text-[#526d62] backdrop-blur-sm">
-        رسم مفاهيمي — ليس خريطة فعلية
+    <div className="rounded-[2rem] border border-[#102f50]/[0.08] bg-white/80 p-3 shadow-[0_24px_70px_-50px_rgba(16,47,80,.42)] sm:p-5">
+      <div className={`relative overflow-hidden rounded-[1.75rem] border border-[#102f50]/10 bg-[#edf2e9] p-3 sm:p-5 ${isMoving ? "map-journey-active" : ""}`}>
+        <svg viewBox="0 0 600 420" role="img" aria-labelledby="concept-map-title concept-map-description" className="h-auto w-full">
+          <title id="concept-map-title">تصوّر مفاهيمي لرحلة المعلم إلى منزل الطالب</title>
+          <desc id="concept-map-description">رسم تعليمي تخطيطي، وليس خريطة فعلية أو دليلاً للمواقع.</desc>
+          <defs>
+            <pattern id="map-dots" width="26" height="26" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1.3" fill="#8b9e8c" opacity=".27" />
+            </pattern>
+          </defs>
+          <rect width="600" height="420" rx="28" fill="#edf2e9" />
+          <rect width="600" height="420" rx="28" fill="url(#map-dots)" />
+          <path d="M-16 87 C90 112 104 41 207 69 S347 111 408 57 S528 34 625 75" fill="none" stroke="#d5dfd2" strokeWidth="35" strokeLinecap="round" />
+          <path d="M82 -20 C92 78 174 96 150 180 S111 303 171 440" fill="none" stroke="#d5dfd2" strokeWidth="29" strokeLinecap="round" />
+          <path d="M340 -18 C308 73 382 133 343 211 S340 314 392 438" fill="none" stroke="#d5dfd2" strokeWidth="25" strokeLinecap="round" />
+          <path d="M-15 314 C72 270 138 312 208 284 S331 242 393 291 S518 351 618 290" fill="none" stroke="#d5dfd2" strokeWidth="31" strokeLinecap="round" />
+          <path d={route} fill="none" stroke="#fffdf8" strokeWidth="13" strokeLinecap="round" />
+          <path d={route} fill="none" stroke="#188779" strokeWidth="4" strokeLinecap="round" strokeDasharray="3 11">
+            {isMoving && <animate attributeName="stroke-dashoffset" from="0" to="-56" dur="3.2s" begin="0s" fill="freeze" />}
+          </path>
+          <g transform="translate(146 210)">
+            <circle cx="34" cy="34" r="34" fill="#d9e9e2" />
+            <circle cx="34" cy="26" r="9" fill="#188779" />
+            <path d="M17 51c2-10 7-15 17-15s15 5 17 15" fill="#188779" />
+            <text x="34" y="78" textAnchor="middle" fill="#102f50" fontSize="11" fontWeight="700">المعلم</text>
+          </g>
+          <g transform="translate(420 164)">
+            <circle cx="34" cy="30" r="38" fill="#f5eddf" />
+            <path d="m13 28 21-17 21 17v25H13V28Z" fill="#fffdf8" stroke="#a47b36" strokeWidth="2.5" strokeLinejoin="round" />
+            <path d="M29 53V36h11v17" fill="none" stroke="#a47b36" strokeWidth="2.5" />
+            <text x="34" y="82" textAnchor="middle" fill="#102f50" fontSize="11" fontWeight="700">منزل الطالب</text>
+          </g>
+          <g aria-hidden="true" transform={isMoving ? undefined : `translate(${isArrived ? "438 181" : "180 244"})`}>
+            {isMoving && <animateMotion key={journeyRun} dur="3.2s" begin="0s" fill="freeze" rotate="auto" path={route} />}
+            <circle cx="0" cy="0" r="19" fill="#188779" opacity=".18" />
+            <path d="M-13 1h4l3-7h12l5 7h3v8h-27V1Z" fill="#147568" stroke="#fffdf8" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d="M-3-4h7l3 5H-5l2-5Z" fill="#b9e4dc" />
+            <circle cx="-7" cy="9" r="2.5" fill="#102f50" />
+            <circle cx="8" cy="9" r="2.5" fill="#102f50" />
+          </g>
+          <text x="566" y="392" textAnchor="end" fill="#526d62" fontSize="11" fontWeight="700">رسم تعليمي توضيحي فقط</text>
+        </svg>
+        <div className="pointer-events-none absolute right-5 top-5 rounded-full border border-[#102f50]/10 bg-[#fffdf8]/90 px-3 py-1.5 text-[10px] font-extrabold text-[#526d62] backdrop-blur-sm sm:right-7 sm:top-7">
+          رسم مفاهيمي — ليس خريطة فعلية
+        </div>
+        <div className="pointer-events-none absolute bottom-5 left-5 flex items-center gap-2 rounded-full border border-[#102f50]/10 bg-[#fffdf8]/90 px-3 py-2 text-[10px] font-bold text-[#102f50]/70 sm:bottom-7 sm:left-7">
+          <span className={`h-2 w-2 rounded-full ${isArrived ? "bg-[#188779]" : isMoving ? "animate-pulse bg-[#a47b36]" : "bg-[#9aa99d]"}`} />
+          {isArrived ? "وصل المعلم" : isMoving ? "المعلم في الطريق" : "رحلة توضيحية"}
+        </div>
       </div>
+      <div className="flex flex-col gap-3 px-2 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-3">
+        <p className="max-w-sm text-[11px] leading-6 text-[#102f50]/55">
+          هذا الرسم للتوضيح البصري فقط، ولا يمثّل مدينة أو مواقع أو نطاق تغطية.
+        </p>
+        <button
+          type="button"
+          onClick={onReplay}
+          disabled={isMoving}
+          aria-label={isMoving ? "المعلم في الطريق إلى منزل الطالب" : "إعادة عرض رحلة المعلم إلى منزل الطالب"}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#188779] px-4 py-3 text-xs font-extrabold text-white shadow-[0_12px_30px_-18px_rgba(24,135,121,.7)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#147568] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25 disabled:cursor-wait disabled:opacity-80"
+        >
+          <RotateCcw className={`h-4 w-4 ${isMoving ? "animate-spin" : ""}`} aria-hidden="true" />
+          {isMoving ? "المعلم في الطريق..." : isArrived ? "إعادة عرض الرحلة" : "شاهد رحلة المعلم"}
+        </button>
+      </div>
+      <p className="sr-only" aria-live="polite">
+        {isArrived ? "وصل المعلم إلى منزل الطالب في الرسم التوضيحي" : isMoving ? "المعلم في الطريق إلى منزل الطالب" : "رحلة المعلم جاهزة للعرض"}
+      </p>
     </div>
   );
 }
@@ -168,6 +191,32 @@ export default function PublicPackages() {
   const reduceMotion = useReducedMotion();
   const location = useLocation();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [journeyState, setJourneyState] = useState<"ready" | "moving" | "arrived">("ready");
+  const [journeyRun, setJourneyRun] = useState(0);
+  const journeyTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      if (journeyTimer.current) window.clearTimeout(journeyTimer.current);
+      setJourneyState("arrived");
+    }
+  }, [reduceMotion]);
+
+  useEffect(() => () => {
+    if (journeyTimer.current) window.clearTimeout(journeyTimer.current);
+  }, []);
+
+  const replayJourney = () => {
+    if (journeyTimer.current) window.clearTimeout(journeyTimer.current);
+    setJourneyRun((run) => run + 1);
+    if (reduceMotion) {
+      setJourneyState("arrived");
+      return;
+    }
+    setJourneyState("moving");
+    journeyTimer.current = window.setTimeout(() => setJourneyState("arrived"), 3200);
+  };
+
   useEffect(() => {
     const targetId = location.hash.slice(1);
     if (!targetId) return;
@@ -333,10 +382,11 @@ export default function PublicPackages() {
         <section id="in-person" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-16 md:px-8 md:py-24">
           <div className="grid items-center gap-10 lg:grid-cols-[.9fr_1.1fr] lg:gap-14">
             <motion.div {...reveal} viewport={{ once: true, margin: "-60px" }} className="order-2 lg:order-1">
-              <ConceptMap />
-              <p className="mt-3 text-center text-[10px] font-bold leading-6 text-[#102f50]/50">
-                هذا الرسم للتوضيح البصري فقط، ولا يمثّل مدينة أو مواقع أو نطاق تغطية.
-              </p>
+              <ConceptMap
+                journeyState={journeyState}
+                journeyRun={journeyRun}
+                onReplay={replayJourney}
+              />
             </motion.div>
             <motion.div {...reveal} viewport={{ once: true, margin: "-60px" }} className="order-1 lg:order-2">
               <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">تعلّم بالطريقة التي تلائم يومك</p>
@@ -346,7 +396,7 @@ export default function PublicPackages() {
               </p>
               <div className="mt-7 space-y-4">
                 {learningModes.map(({ title, label, description, icon: Icon, points }, index) => (
-                  <article key={title} className={`rounded-2xl border p-5 ${index === 1 ? "border-[#102f50]/10 bg-[#faf8f2]" : "border-[#188779]/15 bg-[#eaf3ee]"}`}>
+                  <article key={title} className={`rounded-2xl border p-5 transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_36px_-28px_rgba(16,47,80,.42)] ${index === 1 ? "border-[#102f50]/10 bg-[#faf8f2]" : "border-[#188779]/15 bg-[#eaf3ee]"}`}>
                     <div className="flex items-start gap-4">
                       <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${index === 1 ? "bg-[#f1e8d8] text-[#9b7539]" : "bg-white text-[#188779]"}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
                       <div className="min-w-0 flex-1">
