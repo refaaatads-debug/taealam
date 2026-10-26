@@ -3,9 +3,12 @@ import brandLogo from "@/assets/logo.png";
 import { Link } from "react-router-dom";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { BRAND_NAME, normalizeBrandText } from "@/lib/brand";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Footer = () => {
   const { getSetting } = useSiteSettings("footer");
+  const { user, roles } = useAuth();
+  const canViewPricing = roles.includes("student") && !roles.includes("teacher") && !roles.includes("admin");
 
   const description = getSetting(
     "footer_description",
@@ -111,7 +114,11 @@ const Footer = () => {
             </h4>
             <ul className="flex flex-col gap-3 text-sm opacity-75">
               <li><Link to="/search" className="hover:opacity-100 hover:text-gold transition-colors">ابحث عن مدرس</Link></li>
-              <li><Link to="/pricing" className="hover:opacity-100 hover:text-gold transition-colors">الباقات والأسعار</Link></li>
+              {canViewPricing ? (
+                <li><Link to="/pricing" className="hover:opacity-100 hover:text-gold transition-colors">الباقات والأسعار</Link></li>
+              ) : !user ? (
+                <li><Link to="/login?signup=1" className="hover:opacity-100 hover:text-gold transition-colors">اكتشف الباقات بعد التسجيل</Link></li>
+              ) : null}
               <li><Link to="/teach-with-us" className="hover:opacity-100 hover:text-gold transition-colors">انضم كمعلم</Link></li>
               <li><Link to="/ai-tutor" className="hover:opacity-100 hover:text-gold transition-colors">المساعد سند الذكي</Link></li>
             </ul>

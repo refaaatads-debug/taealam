@@ -46,7 +46,6 @@ const Navbar = () => {
   const links = [
     ...(!isStudent && !isTeacher ? [{ label: "الرئيسية", to: "/" }] : []),
     ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
-    ...(!user ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(user ? [
       ...(isAdmin

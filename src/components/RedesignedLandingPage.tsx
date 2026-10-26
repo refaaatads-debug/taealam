@@ -1,24 +1,21 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowUpLeft,
   BookOpen,
   BookOpenCheck,
-  CalendarDays,
   Check,
   ChevronLeft,
-  Clock3,
-  ClipboardList,
+  ClipboardCheck,
   GraduationCap,
   Headphones,
-  Quote,
+  Lightbulb,
+  MessageCircle,
   Search,
   ShieldCheck,
   Sparkles,
-  Smartphone,
-  Star,
-  UsersRound,
+  Target,
   Video,
 } from "lucide-react";
 import SEOHead from "@/components/SEOHead";
@@ -27,9 +24,9 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import heroBanner from "@/assets/hero-banner.jpg";
 import mobileAppPreview from "@/assets/mobile-app-preview.png";
-import testimonial1 from "@/assets/testimonial-1.jpg";
-import testimonial2 from "@/assets/testimonial-2.jpg";
-import testimonial3 from "@/assets/testimonial-3.jpg";
+import teacher1 from "@/assets/teacher-1.jpg";
+import teacher2 from "@/assets/teacher-2.jpg";
+import teacher3 from "@/assets/teacher-3.jpg";
 
 export type LandingTeacher = {
   name: string;
@@ -48,285 +45,372 @@ interface Props {
   teachers: LandingTeacher[];
 }
 
-const capabilities = [
-  { icon: Search, title: "اختر ما يناسبك", text: "ابحث عن مدرس أو مادة أو مستوى يناسب هدفك." },
-  { icon: CalendarDays, title: "احجز بمرونة", text: "اختر الموعد المناسب وابدأ بخطوة بسيطة." },
-  { icon: Video, title: "تعلّم بتركيز", text: "حصة مباشرة وأدوات تساعدك على التقدم." },
-];
-
-const platformStats = [
-  { icon: Clock3, value: "+100,000", label: "الساعة التعليمية" },
-  { icon: UsersRound, value: "+1,500", label: "المدرسين" },
-  { icon: GraduationCap, value: "+6,700", label: "الطلاب" },
-  { icon: ClipboardList, value: "+150", label: "الاختبارات" },
-  { icon: BookOpenCheck, value: "+4,000", label: "المواد" },
-];
-
-const landingFeatures = [
-  { icon: GraduationCap, title: "تعلم فردي", text: "تواصل مع مدرس يناسب مستواك وأسلوبك." },
-  { icon: BookOpen, title: "محتوى ومتابعة", text: "أدوات وواجبات تساعدك على تثبيت المعرفة." },
-  { icon: Headphones, title: "دعم حين تحتاجه", text: "تجربة منظمة من الحجز حتى نهاية الحصة." },
-];
-
-const testimonials = [
+const learningPaths = [
   {
-    name: "أبو غازي",
-    role: "ولية أمر",
-    quote: "ولدي معلمته محترمة جداً، لاحظنا فرقاً واضحاً في مستواه وثقته بنفسه منذ بدأ الحصص.",
-    image: testimonial1,
+    number: "01",
+    icon: BookOpen,
+    title: "تأسيس متين",
+    text: "نراجع المفاهيم الأساسية ونبني المعرفة خطوة بخطوة، بما يناسب مستوى الطالب.",
+    detail: "من الفهم إلى التطبيق",
+    tone: "mint",
   },
   {
-    name: "أم خالد",
-    role: "ولية أمر",
-    quote: "الجدولة سهلة والمتابعة مستمرة. وجدنا مدرساً مناسباً لابننا وكانت الحصص منظمة ومفيدة.",
-    image: testimonial2,
+    number: "02",
+    icon: Lightbulb,
+    title: "فهم يثبت",
+    text: "شرح واضح، أمثلة قريبة، ومساحة للأسئلة حتى تصبح الفكرة مفهومة لا محفوظة فقط.",
+    detail: "تعلّم على مهل",
+    tone: "sand",
   },
   {
-    name: "أبو حليمة",
-    role: "ولي أمر",
-    quote: "ابنتي أصبحت أكثر حماساً للتعلم، والتواصل مع المعلمة واضح ومريح من أول حصة.",
-    image: testimonial3,
+    number: "03",
+    icon: Target,
+    title: "استعداد لهدفك",
+    text: "دعم دراسي يساعد الطالب على تنظيم المراجعة والاستعداد للواجبات والاختبارات.",
+    detail: "تقدّم بثقة",
+    tone: "blue",
   },
+];
+
+const packages = [
+  {
+    title: "حصص فردية",
+    eyebrow: "تعلم يناسب احتياجك",
+    text: "جلسات مباشرة مع مدرس في المادة التي تختارها، مع مساحة للشرح والتدريب والأسئلة.",
+    icon: Video,
+    points: ["اختر المادة والمدرس", "تعلّم بإيقاعك", "ابدأ من مستواك"],
+    tone: "light",
+  },
+  {
+    title: "تأسيس ومتابعة",
+    eyebrow: "خطوات تعلم مترابطة",
+    text: "مسار يساعد الطالب على تقوية الأساسيات ومواصلة التعلّم بصورة منتظمة.",
+    icon: BookOpenCheck,
+    points: ["مراجعة للمفاهيم", "تدريب على التطبيق", "متابعة التقدم"],
+    tone: "deep",
+  },
+  {
+    title: "مساندة دراسية",
+    eyebrow: "دعم عند الحاجة",
+    text: "مساعدة تعليمية مرنة للواجبات والمراجعة، مع توجيه يوضح للطالب خطوته التالية.",
+    icon: ClipboardCheck,
+    points: ["مراجعة منظمة", "توضيح النقاط الصعبة", "استعداد أفضل للدراسة"],
+    tone: "light",
+  },
+];
+
+const steps = [
+  ["01", "أنشئ حسابك", "ابدأ بتحديد احتياجك والمرحلة الدراسية."],
+  ["02", "استكشف الخيارات", "تعرّف على المدرسين والمواد المتاحة."],
+  ["03", "ابدأ التعلّم", "اختر الوقت المناسب وانطلق في حصتك."],
 ];
 
 export default function RedesignedLandingPage({ user, teachers }: Props) {
+  const shouldReduceMotion = useReducedMotion();
   const ctaTarget = user ? "/search" : "/login";
+  const reveal = shouldReduceMotion
+    ? { initial: false as const, whileInView: undefined, transition: undefined }
+    : {
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        transition: { duration: 0.55, ease: "easeOut" as const },
+      };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#f7f9f8] text-[#102f50]" dir="rtl">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[#f7f8f5] text-[#102f50]" dir="rtl">
       <SEOHead
         title="منصة أجيال المعرفة | تعلم بثقة"
-        description="منصة تعليمية تربطك بمدرسين معتمدين في حصص مباشرة، وتمنحك أدوات واضحة لتتقدم في كل خطوة."
+        description="تعلّم بثقة مع منصة أجيال المعرفة: حصص مباشرة، تأسيس دراسي، ومدرسون يساعدونك على التقدم."
         canonical="/"
       />
-
       <Navbar />
 
       <main>
-        <section className="mx-auto max-w-7xl px-5 pb-14 pt-8 md:px-8 md:pb-24 md:pt-14">
-          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
-            <motion.div initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.55 }} className="order-2 lg:order-1">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#188779]/20 bg-[#188779]/[0.07] px-3 py-1.5 text-[11px] font-black text-[#188779]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#188779]" />
-                تعلم أقرب إلى هدفك
+        <section className="relative isolate overflow-hidden bg-[#f7f8f5]">
+          <div className="pointer-events-none absolute -left-28 top-12 h-80 w-80 rounded-full bg-[#d9e9e2]/60 blur-3xl" />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-16 pt-8 md:px-8 md:pb-24 md:pt-14 lg:grid-cols-[1fr_1.03fr] lg:gap-14">
+            <motion.div
+              initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+              transition={shouldReduceMotion ? undefined : { duration: 0.65, ease: "easeOut" }}
+              className="order-2 lg:order-1"
+            >
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#188779]/20 bg-[#188779]/[0.07] px-3.5 py-2 text-[11px] font-extrabold text-[#147568]">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                تعلّم أقرب إلى هدفك
               </div>
-              <h1 className="max-w-xl text-4xl font-black leading-[1.22] tracking-tight md:text-6xl">
-                مدرسك المناسب
-                <br />
-                <span className="text-[#188779]">يغيّر طريقة تعلّمك</span>
+              <h1 className="max-w-xl text-[2.6rem] font-black leading-[1.2] tracking-[-0.045em] md:text-[4.35rem]">
+                لكل طالب
+                <span className="block text-[#188779]">بداية تستحقها</span>
               </h1>
-              <p className="mt-6 max-w-lg text-sm leading-8 text-[#102f50]/65 md:text-base">
-                منصة تعليمية تربطك بمدرسين معتمدين في حصص مباشرة، وتمنحك أدوات واضحة لتتقدم في كل خطوة.
+              <p className="mt-6 max-w-lg text-sm leading-8 text-[#102f50]/70 md:text-base">
+                مساحة تعليمية تجمع الطالب بمدرسه المناسب، وتمنحه دعماً واضحاً من تأسيس المهارات إلى مواصلة التقدّم.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link to={ctaTarget} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#188779] px-6 py-4 text-sm font-black text-white shadow-xl shadow-[#188779]/20 transition hover:-translate-y-0.5">
-                  ابدأ رحلتك التعليمية <ArrowLeft className="h-4 w-4" />
+                <Link
+                  to={ctaTarget}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#188779] px-6 py-3.5 text-sm font-extrabold text-white shadow-[0_12px_30px_-15px_rgba(24,135,121,.7)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#147568] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25"
+                >
+                  ابدأ رحلتك التعليمية <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 </Link>
-                <Link to="/search" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#102f50]/15 bg-white px-6 py-4 text-sm font-black transition hover:-translate-y-0.5 hover:border-[#188779]/40">
-                  استكشف المدرسين <Search className="h-4 w-4" />
+                <Link
+                  to="/search"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#102f50]/15 bg-white/80 px-6 py-3.5 text-sm font-extrabold transition duration-200 hover:-translate-y-0.5 hover:border-[#188779]/50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/20"
+                >
+                  استكشف المدرسين <Search className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </div>
-              <div className="mt-8 flex flex-wrap gap-4 text-[11px] font-bold text-[#102f50]/60">
-                <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-[#188779]" />مدرسون معتمدون</span>
-                <span className="flex items-center gap-1.5"><Headphones className="h-4 w-4 text-[#188779]" />دعم مستمر</span>
-                <span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-[#188779]" />تعلم أكثر ذكاءً</span>
+              <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-[11px] font-bold text-[#102f50]/65">
+                <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-[#188779]" aria-hidden="true" />تجربة تعليمية موثوقة</span>
+                <span className="inline-flex items-center gap-2"><Headphones className="h-4 w-4 text-[#188779]" aria-hidden="true" />دعم ومساندة</span>
+                <span className="inline-flex items-center gap-2"><Video className="h-4 w-4 text-[#188779]" aria-hidden="true" />حصص مباشرة</span>
               </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.65 }} className="relative order-1 lg:order-2">
-              <div className="relative overflow-hidden rounded-[2rem] bg-[#102f50] shadow-2xl shadow-[#102f50]/20">
-                <img src={heroBanner} alt="تجربة تعلم مباشرة" className="h-[300px] w-full object-cover opacity-65 md:h-[440px]" fetchPriority="high" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#102f50] via-[#102f50]/30 to-transparent" />
-                <div className="absolute bottom-0 right-0 p-6 text-white md:p-8">
-                  <div className="mb-3 flex items-center gap-2 text-[11px] font-bold text-[#b9e4dc]"><span className="h-2 w-2 rounded-full bg-[#b9e4dc]" />تجربة تعليمية مباشرة</div>
-                  <p className="max-w-sm text-2xl font-black leading-snug md:text-3xl">تعلم من المكان<br />الذي يناسبك</p>
+            <motion.div
+              initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.97 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, scale: 1 }}
+              transition={shouldReduceMotion ? undefined : { duration: 0.75, ease: "easeOut" }}
+              className="relative order-1 lg:order-2"
+            >
+              <div className="absolute -inset-3 -rotate-2 rounded-[2.2rem] border border-[#188779]/15 bg-[#e6efea] md:-inset-5" />
+              <div className="relative overflow-hidden rounded-[1.8rem] bg-[#102f50] shadow-[0_28px_70px_-35px_rgba(16,47,80,.55)]">
+                <img
+                  src={heroBanner}
+                  alt="طالب يتعلم عن بعد في حصة مباشرة مع مدرسه"
+                  className="h-[280px] w-full object-cover sm:h-[360px] lg:h-[440px]"
+                  loading="eager"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#102f50]/90 via-[#102f50]/10 to-transparent" />
+                <div className="absolute bottom-0 right-0 max-w-md p-6 text-white md:p-9">
+                  <p className="mb-3 inline-flex items-center gap-2 text-xs font-bold text-[#c3e5dc]">
+                    <span className="h-2 w-2 rounded-full bg-[#9bd5c7]" />
+                    مساحة يتقدم فيها الفضول
+                  </p>
+                  <p className="text-2xl font-black leading-snug md:text-3xl">تعلّم من المكان<br />الذي يناسبك</p>
                 </div>
               </div>
-              <div className="absolute -bottom-5 -left-3 rounded-2xl border border-[#102f50]/10 bg-white p-4 shadow-xl md:-left-7">
-                <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e8f1ef] text-[#188779]"><Video className="h-5 w-5" /></span><div><p className="text-xs font-black">حصص مباشرة</p><p className="mt-0.5 text-[10px] text-[#102f50]/55">بوضوح وتفاعل</p></div></div>
+              <div className="absolute -bottom-5 left-2 rounded-2xl border border-[#102f50]/10 bg-[#fffdf8] p-3.5 shadow-xl sm:left-5 md:-left-4 md:p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e5f0eb] text-[#188779]"><MessageCircle className="h-5 w-5" aria-hidden="true" /></span>
+                  <div><p className="text-xs font-extrabold">تعلّم بتواصل مباشر</p><p className="mt-1 text-[10px] text-[#102f50]/55">اسأل، ناقش، وتقدّم</p></div>
+                </div>
               </div>
             </motion.div>
           </div>
         </section>
 
-        <section className="border-y border-[#102f50]/10 bg-white px-5 py-5 md:px-8">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 md:grid-cols-3">
-            {capabilities.map(({ icon: Icon, title, text }, index) => (
-              <div key={title} className="flex items-center gap-3 border-b border-[#102f50]/10 py-3 last:border-0 md:border-b-0 md:border-l md:px-6 md:first:pr-0 md:last:border-l-0">
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${index === 1 ? "bg-[#f7efe1] text-[#ad7a20]" : "bg-[#e8f1ef] text-[#188779]"}`}><Icon className="h-4.5 w-4.5" /></span>
-                <div><p className="text-xs font-black">{title}</p><p className="mt-1 text-[10px] text-[#102f50]/55">{text}</p></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="relative overflow-hidden bg-[#eef3ff] px-5 py-12 md:px-8 md:py-16">
-          <div className="absolute -left-16 top-6 h-44 w-44 rounded-full bg-white/70 blur-3xl" />
-          <div className="absolute -right-12 bottom-0 h-52 w-52 rounded-full bg-[#dfe8ff] blur-2xl" />
-          <div className="relative mx-auto max-w-7xl">
-            <div className="text-center">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">أرقام نفتخر بها</p>
-              <h2 className="mt-3 text-2xl font-black text-[#102f50] md:text-3xl">نتائج حقيقية تصنع فرقًا</h2>
-              <p className="mx-auto mt-3 max-w-xl text-xs leading-6 text-[#102f50]/55 md:text-sm">
-                مجتمع تعليمي ينمو كل يوم ليمنح الطالب والمعلم تجربة أوضح وأكثر فاعلية.
-              </p>
-            </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {platformStats.map(({ icon: Icon, value, label }) => (
-                <div key={label} className="group flex items-center gap-3 rounded-[1.35rem] border border-white/80 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[#102f50]/[0.06] lg:flex-col lg:items-center lg:justify-center lg:gap-2 lg:py-5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0f0] text-[#f06b6b] transition-transform group-hover:scale-105">
-                    <Icon className="h-5 w-5" />
+        <section className="border-y border-[#102f50]/[0.08] bg-white px-5 py-7 md:px-8">
+          <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-3">
+            {[
+              [Search, "اختر ما يناسبك", "ابحث عن مدرس أو مادة وفق احتياجك."],
+              [BookOpen, "تعلّم بوضوح", "احصل على شرح وتدريب في حصص مباشرة."],
+              [GraduationCap, "واصل التقدّم", "تابع دراستك بخطوات تناسب مستواك."],
+            ].map(([Icon, title, text], index) => {
+              const FeatureIcon = Icon as typeof Search;
+              return (
+                <div key={title as string} className={`flex items-center gap-4 ${index !== 2 ? "border-b border-[#102f50]/[0.08] pb-5 sm:border-b-0 sm:border-l sm:pb-0 sm:pl-5" : ""}`}>
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${index === 1 ? "bg-[#f5eddf] text-[#a47b36]" : "bg-[#e6f0eb] text-[#188779]"}`}>
+                    <FeatureIcon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <div className="lg:text-center">
-                    <p className="text-xl font-black tracking-tight text-[#102f50] md:text-2xl">{value}</p>
-                    <p className="mt-0.5 text-[11px] font-bold text-[#102f50]/50">{label}</p>
-                  </div>
+                  <div><h2 className="text-sm font-extrabold">{title as string}</h2><p className="mt-1.5 text-xs leading-6 text-[#102f50]/60">{text as string}</p></div>
                 </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden bg-[#edf3ef] px-5 py-16 md:px-8 md:py-24">
+          <div className="pointer-events-none absolute -right-20 top-12 h-64 w-64 rounded-full bg-white/75 blur-3xl" />
+          <div className="relative mx-auto max-w-7xl">
+            <motion.div {...reveal} viewport={{ once: true, margin: "-70px" }} className="max-w-2xl">
+              <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">أساس يبقى معك</p>
+              <h2 className="mt-3 text-3xl font-black leading-tight md:text-4xl">التعلّم يبدأ من <span className="text-[#188779]">فهم الأساس</span></h2>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-[#102f50]/65">
+                حين يفهم الطالب الفكرة، يصبح مستعداً لبناء مهارات جديدة بثبات. صُممت تجربة أجيال المعرفة لتجعل التعلّم أقرب إلى احتياجه اليومي.
+              </p>
+            </motion.div>
+            <div className="mt-9 grid gap-4 md:grid-cols-3">
+              {learningPaths.map(({ number, icon: Icon, title, text, detail, tone }, index) => (
+                <motion.article
+                  key={number}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
+                  whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={shouldReduceMotion ? undefined : { duration: 0.45, delay: index * 0.08 }}
+                  className="group relative overflow-hidden rounded-[1.5rem] border border-[#102f50]/[0.08] bg-[#fffefa] p-6 shadow-[0_14px_35px_-30px_rgba(16,47,80,.35)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_42px_-30px_rgba(16,47,80,.35)]"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone === "sand" ? "bg-[#f5eddf] text-[#a47b36]" : tone === "blue" ? "bg-[#e8edf3] text-[#315273]" : "bg-[#e5f0eb] text-[#188779]"}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
+                    <span className="font-mono text-xs font-bold text-[#102f50]/30">{number}</span>
+                  </div>
+                  <h3 className="mt-6 text-lg font-black">{title}</h3>
+                  <p className="mt-2 min-h-[72px] text-sm leading-7 text-[#102f50]/65">{text}</p>
+                  <div className="mt-5 flex items-center gap-2 border-t border-[#102f50]/[0.08] pt-4 text-xs font-extrabold text-[#188779]"><Check className="h-4 w-4" aria-hidden="true" />{detail}</div>
+                </motion.article>
               ))}
             </div>
+            <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl bg-[#102f50] px-5 py-5 text-white sm:flex-row sm:items-center md:px-7">
+              <p className="max-w-xl text-sm leading-7 text-white/80">لكل مرحلة احتياجها؛ استكشف المواد والمدرسين وابحث عن البداية المناسبة.</p>
+              <Link to={ctaTarget} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#b9e4dc] px-5 py-3 text-xs font-extrabold text-[#102f50] transition hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30">
+                اكتشف طريقك <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-24">
+        <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div><p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">تجربة مصممة لك</p><h2 className="mt-3 text-3xl font-black md:text-4xl">كل ما تحتاجه لتتقدم</h2></div>
-            <p className="max-w-sm text-xs leading-6 text-[#102f50]/55">لا نضع كل شيء أمامك دفعة واحدة. نرشدك إلى الخطوة التالية بوضوح.</p>
+            <div>
+              <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">باقات تعليمية</p>
+              <h2 className="mt-3 text-3xl font-black md:text-4xl">باقة تناسب احتياجك</h2>
+            </div>
+            <p className="max-w-md text-sm leading-7 text-[#102f50]/60">تعرّف على مسارات الدعم التعليمي، ثم سجّل الدخول لاستكشاف تفاصيل الباقات المتاحة لك.</p>
           </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {landingFeatures.map(({ icon: Icon, title, text }, index) => (
-              <div key={title} className="group rounded-3xl border border-[#102f50]/10 bg-white p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-[#102f50]/[0.06]">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${index === 1 ? "bg-[#eef0f8] text-[#4f6094]" : "bg-[#e8f1ef] text-[#188779]"}`}><Icon className="h-5 w-5" /></div>
-                <h3 className="mt-6 text-base font-black">{title}</h3>
-                <p className="mt-2 text-xs leading-6 text-[#102f50]/55">{text}</p>
-                <Link to={index === 0 ? "/search" : index === 1 ? "/student/assignments" : "/help"} className="mt-6 inline-flex items-center gap-1 text-[11px] font-black text-[#188779]">اكتشف المزيد <ArrowLeft className="h-3 w-3 transition-transform group-hover:-translate-x-1" /></Link>
-              </div>
+          <div className="mt-9 grid gap-4 lg:grid-cols-3">
+            {packages.map(({ title, eyebrow, text, icon: Icon, points, tone }, index) => (
+              <motion.article
+                key={title}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
+                whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={shouldReduceMotion ? undefined : { duration: 0.45, delay: index * 0.07 }}
+                className={`flex flex-col rounded-[1.5rem] border p-6 md:p-7 ${tone === "deep" ? "border-[#102f50] bg-[#102f50] text-white shadow-[0_22px_55px_-35px_rgba(16,47,80,.8)] lg:-translate-y-3" : "border-[#102f50]/10 bg-white text-[#102f50]"}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone === "deep" ? "bg-white/10 text-[#b9e4dc]" : "bg-[#e6f0eb] text-[#188779]"}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
+                  <span className={`text-[10px] font-bold ${tone === "deep" ? "text-white/45" : "text-[#102f50]/35"}`}>{eyebrow}</span>
+                </div>
+                <h3 className="mt-6 text-xl font-black">{title}</h3>
+                <p className={`mt-3 min-h-[84px] text-sm leading-7 ${tone === "deep" ? "text-white/65" : "text-[#102f50]/60"}`}>{text}</p>
+                <ul className={`mt-5 space-y-3 border-t pt-5 text-xs font-bold ${tone === "deep" ? "border-white/10 text-white/80" : "border-[#102f50]/[0.08] text-[#102f50]/70"}`}>
+                  {points.map((point) => <li key={point} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${tone === "deep" ? "text-[#b9e4dc]" : "text-[#188779]"}`} aria-hidden="true" />{point}</li>)}
+                </ul>
+                <Link to={ctaTarget} className={`mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25 ${tone === "deep" ? "bg-[#b9e4dc] text-[#102f50] hover:bg-white" : "border border-[#188779]/25 text-[#147568] hover:bg-[#e6f0eb]"}`}>
+                  سجّل واكتشف الخيارات <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </motion.article>
             ))}
           </div>
+          <p className="mt-5 text-center text-[11px] leading-6 text-[#102f50]/45">تفاصيل الخيارات والتوفر تظهر بعد تسجيل الدخول، دون عرض أسعار أو التزامات مسبقة هنا.</p>
         </section>
 
-        <section className="relative overflow-hidden bg-[#fff1d8] px-5 py-16 md:px-8 md:py-20">
-          <div className="absolute -left-20 top-8 h-56 w-56 rounded-full bg-white/60 blur-3xl" />
-          <div className="absolute -right-16 bottom-0 h-64 w-64 rounded-full bg-[#f7dca9]/50 blur-3xl" />
-          <div className="relative mx-auto max-w-7xl">
-            <div className="text-center">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#d88418]">آراء أولياء الأمور</p>
-              <h2 className="mt-3 text-2xl font-black text-[#102f50] md:text-3xl">نتائج يلاحظها من يعيش التجربة</h2>
-              <p className="mx-auto mt-3 max-w-xl text-xs leading-6 text-[#102f50]/60 md:text-sm">
-                نعمل على أن تكون كل حصة خطوة واضحة يشعر بها الطالب وولي الأمر.
-              </p>
+        <section className="overflow-hidden bg-[#faf8f2] px-5 py-16 md:px-8 md:py-24">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[.9fr_1.1fr] lg:gap-20">
+            <motion.div
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 18 }}
+              whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-70px" }}
+              className="relative order-2 flex justify-center md:order-1"
+            >
+              <div className="absolute bottom-5 h-24 w-56 rounded-full bg-[#188779]/15 blur-2xl" />
+              <img src={mobileAppPreview} alt="واجهة تطبيق أجيال المعرفة للجوال" className="relative h-auto w-[220px] max-w-full object-contain drop-shadow-2xl sm:w-[270px]" style={{ clipPath: "inset(1.1% 4.1% 1.7% 4.1% round 8%)" }} loading="lazy" />
+            </motion.div>
+            <motion.div
+              initial={shouldReduceMotion ? false : { opacity: 0, x: 18 }}
+              whileInView={shouldReduceMotion ? undefined : { opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-70px" }}
+              className="order-1 md:order-2"
+            >
+              <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">تعلمك في متناولك</p>
+              <h2 className="mt-4 max-w-xl text-3xl font-black leading-tight md:text-4xl">تابع تفاصيل رحلتك التعليمية من مكان واحد</h2>
+              <p className="mt-5 max-w-lg text-sm leading-8 text-[#102f50]/60">تواصل مع مدرسك، تابع حصصك وموادك، واستكشف أدوات المنصة من تجربة مصممة لتبقى واضحة.</p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                {[
+                  ["01", "تابع حصصك", "رتّب تفاصيل تعلمك في مكان واحد."],
+                  ["02", "ابقَ على تواصل", "تواصل مع مدرسك ضمن تجربتك التعليمية."],
+                  ["03", "راجع موادك", "ارجع إلى ملفاتك وواجباتك بسهولة."],
+                  ["04", "واصل التقدم", "تابع خطوتك التالية بوضوح."],
+                ].map(([number, title, text]) => (
+                  <div key={number} className="rounded-2xl border border-[#102f50]/10 bg-white p-4">
+                    <p className="font-mono text-xs font-bold text-[#188779]">{number}</p>
+                    <h3 className="mt-2 text-sm font-extrabold">{title}</h3>
+                    <p className="mt-1 text-[11px] leading-5 text-[#102f50]/55">{text}</p>
+                  </div>
+                ))}
+              </div>
+              <Link to={ctaTarget} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#188779] px-5 py-3 text-xs font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[#147568] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25">
+                ابدأ تجربتك الآن <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="bg-[#102f50] px-5 py-16 text-white md:px-8 md:py-24">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#b9e4dc]">بداية سهلة وواضحة</p>
+              <h2 className="mt-4 text-3xl font-black leading-tight md:text-4xl">رحلتك التعليمية<br /><span className="text-[#b9e4dc]">في ثلاث خطوات</span></h2>
+              <p className="mt-5 max-w-sm text-sm leading-7 text-white/60">من اختيار احتياجك إلى أول حصة، ابدأ حين تكون مستعداً.</p>
             </div>
-            <div className="mt-9 grid gap-4 md:grid-cols-3">
-              {testimonials.map((testimonial) => (
-                <article key={testimonial.name} className="flex min-h-[230px] flex-col rounded-[1.35rem] border border-white/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-[#102f50]/[0.08]">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src={testimonial.image} alt="" className="h-11 w-11 rounded-full object-cover ring-4 ring-[#fff1d8]" loading="lazy" />
-                      <div>
-                        <p className="text-sm font-black text-[#102f50]">{testimonial.name}</p>
-                        <p className="mt-0.5 text-[10px] font-bold text-[#102f50]/50">{testimonial.role}</p>
-                      </div>
-                    </div>
-                    <Quote className="h-7 w-7 text-[#d88418]/35" />
-                  </div>
-                  <div className="mt-5 flex gap-1 text-[#e9a536]">
-                    {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}
-                  </div>
-                  <p className="mt-4 text-xs leading-7 text-[#102f50]/70">“{testimonial.quote}”</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {steps.map(([number, title, text], index) => (
+                <article key={number} className="rounded-2xl border border-white/10 bg-white/[0.055] p-5 transition duration-200 hover:-translate-y-1 hover:bg-white/[0.09]">
+                  <p className="font-mono text-3xl font-black text-[#b9e4dc]">{number}</p>
+                  <h3 className="mt-7 text-sm font-extrabold">{title}</h3>
+                  <p className="mt-2 text-xs leading-6 text-white/55">{text}</p>
+                  {index < 2 && <ArrowUpLeft className="mt-5 hidden h-4 w-4 text-white/35 sm:block" aria-hidden="true" />}
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="mobile-app" className="scroll-mt-24 overflow-hidden bg-[#fbf8f7] px-5 py-20 md:px-8 md:py-24">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[0.8fr_1.2fr] lg:gap-20">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              className="relative order-2 flex justify-center md:order-1"
-            >
-              <div className="absolute bottom-6 h-24 w-56 rounded-full bg-[#188779]/15 blur-2xl" />
-              <img
-                src={mobileAppPreview}
-                alt="واجهة تطبيق أجيال المعرفة للجوال"
-                className="relative h-auto w-[230px] max-w-full object-contain drop-shadow-2xl sm:w-[275px]"
-                style={{ clipPath: "inset(1.1% 4.1% 1.7% 4.1% round 8%)" }}
-                loading="lazy"
-              />
-              <div className="absolute -right-2 top-16 hidden items-center gap-2 rounded-2xl border border-[#102f50]/10 bg-white px-3 py-2 shadow-lg sm:flex md:-right-8">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#e8f1ef] text-[#188779]"><Smartphone className="h-4 w-4" /></span>
-                <span className="text-[10px] font-black text-[#102f50]">تعلمك معك أينما كنت</span>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 18 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              className="order-1 md:order-2"
-            >
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">تطبيق أجيال المعرفة</p>
-              <h2 className="mt-4 max-w-xl text-3xl font-black leading-tight text-[#102f50] md:text-4xl">
-                كل أدواتك التعليمية
-                <span className="block text-[#188779]">في مكان واحد</span>
-              </h2>
-              <p className="mt-5 max-w-lg text-sm leading-8 text-[#102f50]/60">
-                تابع حصصك، تواصل مع مدرسك، واستكشف المواد والاشتراكات من تجربة جوال صممت لتكون واضحة وسريعة.
-              </p>
-              <div className="mt-7 grid gap-3 sm:grid-cols-2">
-                {[
-                  ["01", "تابع تقدمك", "اعرف خطوتك التالية من الصفحة الرئيسية."],
-                  ["02", "احجز بسهولة", "اختر الموعد المناسب من أي مكان."],
-                  ["03", "تواصل مباشرة", "ابقَ قريباً من معلمك ورسائلك."],
-                  ["04", "راجع موادك", "الوصول إلى ملفاتك وواجباتك أسرع."],
-                ].map(([number, title, text]) => (
-                  <div key={number} className="rounded-2xl border border-[#102f50]/10 bg-white p-4">
-                    <p className="text-xs font-black text-[#188779]">{number}</p>
-                    <h3 className="mt-2 text-sm font-black text-[#102f50]">{title}</h3>
-                    <p className="mt-1 text-[11px] leading-5 text-[#102f50]/50">{text}</p>
-                  </div>
-                ))}
-              </div>
-              <Link to={ctaTarget} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#188779] px-5 py-3 text-xs font-black text-white shadow-lg shadow-[#188779]/20 transition hover:-translate-y-0.5 hover:bg-[#147568]">
-                ابدأ تجربتك الآن <ArrowLeft className="h-3.5 w-3.5" />
-              </Link>
-            </motion.div>
+        <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">مدرسون يساعدونك على التقدم</p><h2 className="mt-3 text-3xl font-black md:text-4xl">ابدأ مع مدرس يناسبك</h2></div>
+            <Link to="/search" className="inline-flex items-center gap-1 self-start text-xs font-extrabold text-[#188779] sm:self-auto">تصفح المدرسين <ChevronLeft className="h-4 w-4" aria-hidden="true" /></Link>
           </div>
+          {teachers.length > 0 ? (
+            <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {teachers.slice(0, 3).map((teacher, index) => {
+                const bookingUrl = `/booking?subject=${encodeURIComponent(teacher.subject)}&day=0`;
+                const targetUrl = user ? bookingUrl : `/login?redirect=${encodeURIComponent(bookingUrl)}`;
+                return (
+                  <Link key={`${teacher.name}-${index}`} to={targetUrl} className="group overflow-hidden rounded-[1.5rem] border border-[#102f50]/10 bg-white transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_45px_-30px_rgba(16,47,80,.4)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25">
+                    <div className={`relative p-4 pb-0 ${index === 1 ? "bg-[#e9edf2]" : index === 2 ? "bg-[#f3ecdf]" : "bg-[#e6f0eb]"}`}>
+                      <img
+                        src={teacher.img}
+                        alt={teacher.name}
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = [teacher1, teacher2, teacher3][index];
+                        }}
+                        className="mx-auto h-48 w-full rounded-t-[1.15rem] object-cover object-top transition-transform duration-300 group-hover:scale-[1.02]"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div><p className="text-sm font-extrabold">{teacher.name}</p><p className="mt-1.5 text-xs text-[#102f50]/55">{teacher.subject}</p></div>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e6f0eb] text-[#188779]"><GraduationCap className="h-4.5 w-4.5" aria-hidden="true" /></span>
+                      </div>
+                      <span className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-[#188779]/25 py-3 text-xs font-extrabold text-[#147568] transition group-hover:bg-[#e6f0eb]">استكشف الحصص <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-9 rounded-3xl border border-dashed border-[#102f50]/20 bg-white px-6 py-10 text-center">
+              <GraduationCap className="mx-auto h-8 w-8 text-[#188779]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-extrabold">اكتشف المدرسين المتاحين</p>
+              <p className="mt-2 text-xs text-[#102f50]/55">تصفح المواد والمدرسين في صفحة البحث.</p>
+              <Link to="/search" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#188779] px-5 py-3 text-xs font-extrabold text-white">ابحث عن مدرس <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            </div>
+          )}
         </section>
 
-        <section id="how-it-works" className="scroll-mt-24 bg-[#102f50] px-5 py-20 text-white md:px-8 md:py-24">
-          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-            <div><p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#b9e4dc]">كيف تبدأ؟</p><h2 className="mt-4 text-3xl font-black leading-tight md:text-4xl">رحلتك التعليمية<br /><span className="text-[#b9e4dc]">في ثلاث خطوات</span></h2><p className="mt-5 max-w-sm text-sm leading-7 text-white/60">تجربة بسيطة تساعدك على الوصول إلى التعلم المناسب دون تعقيد.</p></div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {[["01", "أنشئ حسابك", "ابدأ بملف تعليمي يناسب احتياجك."], ["02", "اختر ما يناسبك", "تصفح المدرسين والخدمات المتاحة."], ["03", "ابدأ التعلم", "احجز حصتك وواصل تقدمك بثقة."]].map(([number, title, text], index) => (
-                <div key={number} className="rounded-2xl border border-white/10 bg-white/[0.06] p-5"><p className="text-3xl font-black text-[#b9e4dc]">{number}</p><h3 className="mt-8 text-sm font-black">{title}</h3><p className="mt-2 text-xs leading-6 text-white/55">{text}</p>{index < 2 && <ArrowUpLeft className="mt-5 hidden h-4 w-4 text-white/30 md:block" />}</div>
-              ))}
+        <section className="mx-5 mb-12 overflow-hidden rounded-[1.75rem] bg-[#e5f0eb] md:mx-auto md:max-w-7xl">
+          <div className="grid gap-7 px-6 py-9 sm:px-9 md:grid-cols-[1.2fr_.8fr] md:items-center md:px-12 md:py-12">
+            <div><p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">خطوتك التالية تبدأ هنا</p><h2 className="mt-3 max-w-lg text-3xl font-black leading-tight text-[#102f50] md:text-4xl">افتح باباً جديداً للتعلّم</h2><p className="mt-4 max-w-md text-sm leading-7 text-[#102f50]/60">سجّل الدخول لاستكشاف تجربة أجيال المعرفة، أو انضم إلى مجتمعنا التعليمي كمدرس.</p></div>
+            <div className="flex flex-col gap-3 sm:flex-row md:justify-end">
+              <Link to={ctaTarget} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#188779] px-5 py-3 text-xs font-extrabold text-white transition hover:bg-[#147568]">ابدأ التعلّم <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+              <Link to="/teach-with-us" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#102f50]/15 bg-white px-5 py-3 text-xs font-extrabold text-[#102f50] transition hover:border-[#188779]/40">انضم كمدرس</Link>
             </div>
           </div>
         </section>
-
-        <section className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-24">
-          <div className="flex items-end justify-between"><div><p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">منصة للإنسان أولاً</p><h2 className="mt-3 text-3xl font-black md:text-4xl">مدرسون يساعدونك على التقدم</h2></div><Link to="/search" className="hidden items-center gap-1 text-xs font-black text-[#188779] sm:flex">تصفح المدرسين <ChevronLeft className="h-4 w-4" /></Link></div>
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {teachers.slice(0, 3).map((teacher, index) => {
-              const bookingUrl = `/booking?subject=${encodeURIComponent(teacher.subject)}&day=0`;
-              const targetUrl = user ? bookingUrl : `/login?redirect=${encodeURIComponent(bookingUrl)}`;
-              return (
-                <Link key={`${teacher.name}-${index}`} to={targetUrl} className="group overflow-hidden rounded-3xl border border-[#102f50]/10 bg-white transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-[#102f50]/[0.06]">
-                  <div className={`relative p-4 pb-0 ${index === 1 ? "bg-[#eef0f8]" : index === 2 ? "bg-[#f7efe1]" : "bg-[#e8f1ef]"}`}><img src={teacher.img} alt={teacher.name} className="mx-auto h-44 w-full rounded-t-[1.25rem] object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]" loading="lazy" /></div>
-                  <div className="p-5"><div className="flex items-center justify-between"><div><p className="text-sm font-black">{teacher.name}</p><p className="mt-1 text-[10px] text-[#102f50]/55">{teacher.subject} · {teacher.sessions} حصة</p></div><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e8f1ef] text-[#188779]"><Check className="h-4 w-4" /></span></div><span className="mt-5 flex items-center justify-center rounded-xl border border-[#188779]/25 py-2.5 text-[11px] font-black text-[#188779]">احجز حصتك <ArrowLeft className="mr-1 h-3 w-3" /></span></div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="mx-5 mb-10 overflow-hidden rounded-[2rem] bg-[#e8f1ef] md:mx-auto md:max-w-7xl">
-          <div className="grid gap-8 px-6 py-10 md:grid-cols-[1.2fr_0.8fr] md:items-center md:px-12 md:py-14"><div><p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#188779]">ابدأ بخطوة واحدة</p><h2 className="mt-4 max-w-lg text-3xl font-black leading-tight text-[#102f50] md:text-4xl">التعلم الأفضل لا يحتاج إلى تعقيد</h2><p className="mt-4 max-w-md text-sm leading-7 text-[#102f50]/60">اختر طريقك، وسند يساعدك في الوصول إلى التجربة المناسبة.</p></div><div className="flex flex-col gap-3 sm:flex-row md:justify-end"><Link to={ctaTarget} className="inline-flex items-center justify-center rounded-xl bg-[#188779] px-5 py-3 text-xs font-black text-white">ابدأ التعلم <ArrowLeft className="mr-1 h-3.5 w-3.5" /></Link><Link to="/teach-with-us" className="inline-flex items-center justify-center rounded-xl border border-[#102f50]/15 bg-white px-5 py-3 text-xs font-black text-[#102f50]">انضم كمعلم</Link></div></div>
-        </section>
       </main>
-
       <Footer />
       <SanadGuestChat />
     </div>

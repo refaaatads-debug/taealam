@@ -89,6 +89,12 @@ const DashboardRedirect = () => {
   return <Navigate to="/student" replace />;
 };
 
+const StudentPricingRoute = () => {
+  const { roles } = useAuth();
+  const isStudentOnly = roles.includes("student") && !roles.includes("teacher") && !roles.includes("admin");
+  return isStudentOnly ? <Pricing /> : <Navigate to="/" replace />;
+};
+
 const App = () => (
   <PersistQueryClientProvider
     client={queryClient}
@@ -114,7 +120,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
               <Route path="/search" element={<SearchTeacher />} />
-              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/pricing" element={<ProtectedRoute><StudentPricingRoute /></ProtectedRoute>} />
               <Route path="/teach-with-us" element={<TeachWithUs />} />
               <Route path="/install" element={<Install />} />
               <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
