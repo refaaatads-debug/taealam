@@ -3,11 +3,11 @@ name: GitHub Actions deployment scripts
 description: GitHub Actions limits long embedded SSH scripts, and separate SSH actions do not share a working directory.
 ---
 
-**Rule:** Keep each `appleboy/ssh-action` script below the GitHub parser limit of 21,000 characters. If a remote deployment is split across multiple SSH actions, explicitly pass the commit SHA and use absolute paths for staged artifacts; shell variables and the current working directory do not carry over.
+**Rule:** Keep each `appleboy/ssh-action` script comfortably below 20,000 characters; expression interpolation can push a raw script under 21,000 over GitHub's parser limit. If splitting actions, pass the commit SHA and use absolute staging paths.
 
-**Why:** A 27 KB embedded script was rejected with HTTP 422. Splitting it allowed the workflow to run, but a relative `dist/` path then failed because the next SSH action started in its default directory.
+**Why:** A 27 KB script was rejected with HTTP 422; later, a 20,826-character script also exceeded the 21,000 expression limit after parsing, while reducing it to 20,033 allowed deployment.
 
-**How to apply:** Measure each parsed `with.script`, split only at safe boundaries, pass required environment variables to every action, use absolute staging paths, and run YAML plus `bash -n` checks before dispatch.
+**How to apply:** Measure the parsed `with.script`, aim below 20,000, split only at safe boundaries, pass required variables to every action, use absolute paths, and run YAML plus `bash -n` checks before dispatch.
 
 **Rule:** A migration must appear in the VPS transfer list, a non-empty staging-file check, the apply list, and post-apply fingerprint verification. Reject empty expected or stored hashes; otherwise a missing staged file can produce a false successful deploy.
 
