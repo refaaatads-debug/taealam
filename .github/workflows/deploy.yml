@@ -386,7 +386,7 @@ jobs:
               docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql"
               docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql"
             else
-              echo "Skipping in-person database migrations: this change did not modify their SQL files."
+              echo "skip: city migrations unchanged"
             fi
             if [ "${RUN_TEACHER_LOCATION_SYNC_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
@@ -432,69 +432,69 @@ jobs:
                 "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'in_person_request_groups' AND column_name = 'teaching_stage') AND to_regprocedure('public.search_in_person_teachers(uuid,uuid,uuid,timestamptz,text)') IS NOT NULL AND to_regprocedure('public.create_in_person_request(uuid,timestamptz,uuid,uuid,uuid[],text,text)') IS NOT NULL"
               configured_duration="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT in_person_instruction_duration_minutes || ':' || in_person_package_debit_minutes FROM public.financial_settings ORDER BY updated_at DESC LIMIT 1")"
               test "$configured_duration" = "60:100"
-              echo "Teacher service locations are synchronized; mismatched profiles were disabled pending location reapproval."
+              echo "Location migrations applied and verified."
             else
-              echo "Skipping teacher location sync migration: this change did not modify its SQL file."
+              echo "skip: location migrations unchanged"
             fi
             if [ "${RUN_ACCEPTANCE_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
               acceptance_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'set_in_person_request_acceptance_deadline_trigger') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.in_person_request_groups'::regclass AND conname = 'in_person_request_groups_acceptance_before_lesson_check')")"
               if [ "$acceptance_migration_applied" = "t" ]; then
-                echo "Skipping one-hour acceptance migration: its production schema marker already exists."
+                echo "skip: acceptance marker verified"
               else
                 docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql"
               fi
             else
-              echo "Skipping one-hour acceptance migration: this change did not modify its SQL file."
+              echo "skip: acceptance migration unchanged"
             fi
             if [ "${RUN_NOTIFICATIONS_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
               notifications_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT to_regclass('public.in_person_notification_events') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'notify_in_person_group_insert') AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'process-in-person-session-reminders')")"
               if [ "$notifications_migration_applied" = "t" ]; then
-                echo "Skipping in-person notifications migration: its production schema markers already exist."
+                echo "skip: notification markers verified"
               else
                 docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000700_in_person_notifications.sql"
               fi
             else
-              echo "Skipping in-person notifications migration: this change did not modify its SQL file."
+              echo "skip: notification migration unchanged"
             fi
             if [ "${RUN_INPERSON_ROLES_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
               roles_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT pg_get_functiondef('public.is_in_person_test_user()'::regprocedure) LIKE '%has_role%'")"
               if [ "$roles_migration_applied" = "t" ]; then
-                echo "Skipping in-person role migration: its production function marker already exists."
+                echo "skip: role marker verified"
               else
                 docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql"
               fi
             else
-              echo "Skipping in-person role rollout migration: this change did not modify its SQL file."
+              echo "skip: role migration unchanged"
             fi
             if [ "${RUN_TEACHER_DOUBLE_BOOKING_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
               double_booking_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'prevent_teacher_double_booking') AND EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'prevent_teacher_double_booking_request') AND pg_get_functiondef('public.list_teacher_in_person_requests()'::regprocedure) LIKE '%NOT EXISTS%'")"
               if [ "$double_booking_migration_applied" = "t" ]; then
-                echo "Skipping teacher double-booking migration: its production schema markers already exist."
+                echo "skip: double-booking markers verified"
               else
                 docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000900_prevent_teacher_double_booking.sql"
               fi
             else
-              echo "Skipping teacher double-booking migration: this change did not modify its SQL file."
+              echo "skip: double-booking migration unchanged"
             fi
             if [ "${RUN_INPERSON_PRICING_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
               pricing_migration_applied="$(docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'financial_settings' AND column_name = 'in_person_default_teacher_rate_sar') AND to_regprocedure('public.admin_get_in_person_pricing()') IS NOT NULL AND EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'snapshot_in_person_booking_price_trigger')")"
               if [ "$pricing_migration_applied" = "t" ]; then
-                echo "Skipping in-person pricing migration: its production schema markers already exist."
+                echo "skip: pricing markers verified"
               else
                 docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021001000_in_person_teacher_pricing.sql"
               fi
             else
-              echo "Skipping in-person pricing migration: this change did not modify its SQL file."
+              echo "skip: pricing migration unchanged"
             fi
             if [ "${RUN_FINANCIAL_MIGRATIONS:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
@@ -542,7 +542,7 @@ jobs:
                     echo "Stored fingerprint mismatch for $migration_name; refusing to reapply." >&2
                     exit 1
                   fi
-                  echo "Skipping already-applied migration $migration_name (fingerprint matches)."
+                  echo "skip: matching fingerprint for $migration_name"
                   return
                 fi
                 {
@@ -560,9 +560,9 @@ jobs:
               test "${#duration_migration_hash}" -eq 64
               test -n "$duration_migration_stored_hash"
               test "$duration_migration_hash" = "$duration_migration_stored_hash"
-              echo "Migrations 013-015 and configurable in-person duration applied or fingerprint-verified; 011/012 were fingerprinted and never re-run."
+              echo "Finance migrations verified; legacy 011/012 not rerun."
             else
-              echo "Skipping session finance migrations: no related SQL file changed."
+              echo "skip: finance migrations unchanged"
             fi
       - name: Apply payout migrations and activate the verified build
         uses: appleboy/ssh-action@v1.0.3
