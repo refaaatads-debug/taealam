@@ -6,3 +6,4 @@
 - [Minute package validity](minute-package-validity.md) — Minute packages never expire by date; treat `ends_at` as audit metadata, not an access or booking rule.
 - [In-person duration and package debit](in-person-duration-debit.md) — New in-person bookings snapshot the admin duration (15–180 minutes) and debit that same number of package minutes.
 - [Production Supabase connector access](supabase-production-connector-access.md) — The Supabase API connector can reject the site's custom-domain proxy as a private-address redirect; this is not a credential failure.
+- [Teacher location source of truth](teacher-location-source-of-truth.md) — Teacher settings use service-location records while in-person search uses legacy profile fields; keep them synchronized and reapprove changed locations.
