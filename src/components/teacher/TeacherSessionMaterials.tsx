@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionVideoPlayer from "@/components/student/SessionVideoPlayer";
 import CallStudentButton from "@/components/teacher/CallStudentButton";
+import { toast } from "sonner";
 
 interface SessionMaterial {
   id: string;
@@ -19,6 +20,7 @@ interface SessionMaterial {
   duration_minutes: number;
   created_at: string;
   expires_at: string;
+  booking_id: string | null;
   days_remaining: number;
   ai_report: string | null;
   subject_name: string;
@@ -44,6 +46,7 @@ export default function TeacherSessionMaterials() {
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [recoveringId, setRecoveringId] = useState<string | null>(null);
   const pendingRecordingsRef = useRef(false);
   const initialLoadRef = useRef(true);
 
@@ -109,7 +112,7 @@ export default function TeacherSessionMaterials() {
     const studentIds = [...new Set(mats.map(m => m.student_id))];
 
     const [{ data: sessions }, { data: profiles }] = await Promise.all([
-      supabase.from("sessions").select("id, ai_report, booking_id, recording_url").in("id", sessionIds),
+      supabase.from("sessions").select("id, ai_report, booking_id, recording_url, ended_at").in("id", sessionIds),
       supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds),
     ]);
 
@@ -152,6 +155,7 @@ export default function TeacherSessionMaterials() {
       return {
         ...m,
         recording_url: signedUrl,
+        booking_id: session?.booking_id || null,
         ai_report: session?.ai_report || null,
         subject_name: subjectName,
         student_name: nameMap.get(m.student_id) || "طالب",
@@ -164,6 +168,62 @@ export default function TeacherSessionMaterials() {
     if (firstStudent) setExpandedStudents(new Set([firstStudent]));
     initialLoadRef.current = false;
     setLoading(false);
+  };
+
+  const recoverRecording = async (material: SessionMaterial) => {
+    if (!user || !material.booking_id) {
+      toast.error("تعذر تحديد الحجز المرتبط بالتسجيل");
+      return;
+    }
+
+    setRecoveringId(material.id);
+    try {
+      const { getRecordingBackup, clearRecordingBackup } = await import("@/lib/recordingBackup");
+      const backup = await getRecordingBackup(material.booking_id);
+      let fileName: string | null = null;
+
+      if (backup?.userId === user.id) {
+        const { error } = await supabase.storage
+          .from("session-recordings")
+          .upload(backup.fileName, backup.blob, { contentType: "video/webm", upsert: true });
+        if (error) throw error;
+        fileName = backup.fileName;
+      } else {
+        const { data: files, error } = await supabase.storage
+          .from("session-recordings")
+          .list(user.id, { search: `${material.booking_id}_`, limit: 100 });
+        if (error) throw error;
+        const match = (files ?? [])
+          .filter((file) => file.name.startsWith(`${material.booking_id}_`) && file.name.endsWith(".webm"))
+          .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))[0];
+        if (match) fileName = `${user.id}/${match.name}`;
+      }
+
+      if (!fileName) {
+        throw new Error("لم نعثر على نسخة محلية أو ملف مرفوع لهذا الحجز");
+      }
+
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from("session-recordings")
+        .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+      if (signedError) throw signedError;
+      if (!signedData?.signedUrl) throw new Error("تعذر إنشاء رابط آمن للتسجيل");
+
+      const { error: saveError } = await supabase.functions.invoke("save-session-recording", {
+        body: { booking_id: material.booking_id, recording_url: signedData.signedUrl },
+      });
+      if (saveError) throw saveError;
+
+      if (backup?.userId === user.id) await clearRecordingBackup(material.booking_id);
+      toast.success("تم استعادة التسجيل وربطه بالحصة");
+      await fetchMaterials();
+    } catch (error) {
+      console.error("[recording-recovery] Failed to recover session recording", error);
+      const message = error instanceof Error ? error.message : "تحقق من اتصال الحساب وحاول مرة أخرى";
+      toast.error(`تعذر استعادة التسجيل: ${message}`);
+    } finally {
+      setRecoveringId(null);
+    }
   };
 
   const grouped = materials.reduce<Record<string, SessionMaterial[]>>((acc, m) => {
@@ -286,6 +346,18 @@ export default function TeacherSessionMaterials() {
                                 ) : (
                                   <div className="text-center py-6 bg-muted/30 rounded-xl">
                                     <p className="text-sm text-muted-foreground">جاري معالجة فيديو الجلسة... قد يستغرق رفعه بضع دقائق</p>
+                                    {m.booking_id && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-3"
+                                        disabled={recoveringId === m.id}
+                                        onClick={() => void recoverRecording(m)}
+                                      >
+                                        {recoveringId === m.id ? "جارٍ استعادة التسجيل..." : "إعادة محاولة حفظ التسجيل"}
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </div>
