@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, FileText, ChevronDown, ChevronUp, Play, VideoOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,17 +40,45 @@ export default function SessionMaterials() {
   const [materials, setMaterials] = useState<SessionMaterial[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const pendingRecordingsRef = useRef(false);
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
     if (!user) return;
-    fetchMaterials();
+    void fetchMaterials();
+    const channel = supabase
+      .channel(`student-session-materials-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "session_materials",
+        filter: `student_id=eq.${user.id}`,
+      }, () => { void fetchMaterials(); })
+      .subscribe();
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void fetchMaterials();
+    };
+    const poll = window.setInterval(() => {
+      if (pendingRecordingsRef.current && document.visibilityState === "visible") {
+        void fetchMaterials();
+      }
+    }, 15_000);
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchMaterials = async () => {
     if (!user) return;
-    setLoading(true);
+    if (initialLoadRef.current) setLoading(true);
 
-    const { data: mats } = await supabase
+    const { data: mats, error: materialsError } = await supabase
       .from("session_materials")
       .select("*")
       .eq("student_id", user.id)
@@ -57,7 +86,23 @@ export default function SessionMaterials() {
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false });
 
-    if (!mats || mats.length === 0) { setMaterials([]); setLoading(false); return; }
+    if (materialsError) {
+      console.error("Failed to load student session materials", materialsError);
+      setLoadError(true);
+      pendingRecordingsRef.current = false;
+      initialLoadRef.current = false;
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
+    if (!mats || mats.length === 0) {
+      setMaterials([]);
+      pendingRecordingsRef.current = false;
+      initialLoadRef.current = false;
+      setLoading(false);
+      return;
+    }
+    pendingRecordingsRef.current = mats.some((material) => !material.recording_url);
 
     // Get AI reports from sessions
     const sessionIds = mats.map(m => m.session_id);
@@ -107,6 +152,7 @@ export default function SessionMaterials() {
       };
     });
     setMaterials(enriched);
+    initialLoadRef.current = false;
     setLoading(false);
   };
 
@@ -116,7 +162,18 @@ export default function SessionMaterials() {
     return acc;
   }, {});
 
-  if (loading || materials.length === 0) return null;
+  if (loading) return null;
+  if (loadError) {
+    return (
+      <Card className="border-0 shadow-card">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-muted-foreground">تعذر تحميل تسجيلات الحصص.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void fetchMaterials()}>إعادة المحاولة</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (materials.length === 0) return null;
 
   return (
     <Card className="border-0 shadow-card">

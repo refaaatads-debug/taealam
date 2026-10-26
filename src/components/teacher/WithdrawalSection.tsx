@@ -218,10 +218,7 @@ export default function WithdrawalSection() {
         </div>
         {open ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
       </button>
-      {open && (
-      <CardContent className="space-y-4 pt-0">
-
-        {/* Teacher-only summary (no internal accounting details) */}
+      <CardContent className="pt-0 pb-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border bg-card p-4">
             <p className="text-xs text-muted-foreground mb-1">إجمالي الأرباح المدفوعة</p>
@@ -230,7 +227,6 @@ export default function WithdrawalSection() {
           <div className="rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">الرصيد المتاح للسحب</p>
             <p className="text-xl font-black text-secondary">{balance.toLocaleString()} ر.س</p>
-            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">تعتمد الإدارة مستحقات الحضوري أولًا لإضافتها إلى المتاح للسحب؛ ويُسجَّل الدفع الفعلي لاحقًا عند التحويل.</p>
           </div>
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-xs text-muted-foreground mb-1">إجمالي أرباح هذا الشهر</p>
@@ -241,6 +237,11 @@ export default function WithdrawalSection() {
             </p>
           </div>
         </div>
+      </CardContent>
+      {open && (
+      <CardContent className="space-y-4 pt-0">
+
+        {/* Detailed balances and withdrawal records appear after expansion. */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border bg-card p-3">
             <p className="text-xs text-muted-foreground">قيد المراجعة</p>
