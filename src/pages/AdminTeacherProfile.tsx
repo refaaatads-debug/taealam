@@ -285,7 +285,7 @@ const AdminTeacherProfile = () => {
                       </Button>
                     </div>
                     <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
-                      {aiSummary || `المعلم لديه ${data.bookings.length} حجز إجمالي، ${completedSessions} مكتمل و${cancelledSessions} ملغي. التقييم: ${Number(t.avg_rating || 0).toFixed(1)}/5 من ${t.total_reviews || 0} مراجعة. الرصيد الحالي: ${Number(t.balance || 0).toFixed(2)} ر.س. ${data.warnings.length > 0 ? `${data.warnings.length} مخالفات.` : ""} اضغط زر "إنشاء ملخص AI" للحصول على تحليل مفصّل.`}
+                      {aiSummary || `المعلم لديه ${data.bookingStats.total} حجز إجمالي، ${data.bookingStats.completed} مكتمل و${data.bookingStats.cancelled} ملغي. التقييم: ${Number(t.avg_rating || 0).toFixed(1)}/5 من ${t.total_reviews || 0} مراجعة. الرصيد الحالي: ${Number(t.balance || 0).toFixed(2)} ر.س. ${data.warnings.length > 0 ? `${data.warnings.length} مخالفات.` : ""} اضغط زر "إنشاء ملخص AI" للحصول على تحليل مفصّل.`}
                     </p>
                   </div>
                 </div>

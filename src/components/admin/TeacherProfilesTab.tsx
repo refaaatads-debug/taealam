@@ -79,7 +79,7 @@ const TeacherProfilesTab = () => {
           hourly_rate: Number(t.hourly_rate || 0),
           avg_rating: Number(t.avg_rating || 0),
           total_sessions: Number(t.total_sessions || 0),
-          balance: balancesRes.error ? null : balanceMap.get(t.user_id) ?? 0,
+          balance: balancesRes.error ? null : Number(balanceMap.get(t.user_id) ?? 0),
           open_tickets: ticketsByUser.get(t.user_id) || 0,
         };
       });

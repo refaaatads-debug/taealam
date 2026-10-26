@@ -72,7 +72,7 @@ export default function SessionPricingTab() {
     if (durationError || !durationSettings) {
       toast.error("تعذر تحميل مدة الحصة الحضورية");
     } else {
-      const settings = durationSettings as { id: string; in_person_instruction_duration_minutes: number | null };
+      const settings = durationSettings as unknown as { id: string; in_person_instruction_duration_minutes: number | null };
       const duration = Number(settings.in_person_instruction_duration_minutes ?? 60);
       setDurationSettingsId(settings.id);
       setInPersonDuration(duration);
