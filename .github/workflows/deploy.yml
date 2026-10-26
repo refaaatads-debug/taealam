@@ -282,6 +282,7 @@ jobs:
           envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION,RUN_FINANCIAL_MIGRATIONS,RUN_REPORTING_WITHDRAWAL_MIGRATIONS,RUN_EDGE_FUNCTIONS,RUN_TEACHER_LOCATION_SYNC_MIGRATION
           script: |
             set -eu
+            trap 'echo "VPS build/migration phase failed near script line $LINENO." >&2' ERR
             staging=/tmp/ajyal-build-${{ github.sha }}
             chmod 700 "$staging"
             test -f "$staging/index.html"
