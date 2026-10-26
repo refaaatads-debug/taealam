@@ -92,15 +92,21 @@ BEGIN
   v_updated := replace(v_updated,
     'balance_cost_minutes, visit_address_snapshot, in_person_policy_version',
     'balance_cost_minutes, in_person_teaching_minutes, in_person_package_minutes, visit_address_snapshot, in_person_policy_version');
-  v_updated := replace(v_updated,
-    'v_group.student_id, v_teacher_id, v_group.subject_id, v_group.scheduled_at, 60,
-     ''confirmed'', 0, true, v_reservation.subscription_id, ''in_person'', 60, 100,',
-    'v_group.student_id, v_teacher_id, v_group.subject_id, v_group.scheduled_at, v_duration,
-     ''confirmed'', 0, true, v_reservation.subscription_id, ''in_person'', v_duration, v_reservation.reserved_minutes, v_duration, v_reservation.reserved_minutes,');
+  v_updated := regexp_replace(v_updated,
+    'v_group\.scheduled_at,[[:space:]]*60,[[:space:]]*',
+    'v_group.scheduled_at, v_duration, ', 'g');
+  v_updated := regexp_replace(v_updated,
+    '''in_person'',[[:space:]]*60,[[:space:]]*100,',
+    '''in_person'', v_duration, v_reservation.reserved_minutes, v_duration, v_reservation.reserved_minutes,', 'g');
   v_updated := replace(v_updated, 'v_group.scheduled_at + interval ''60 minutes'');',
     'v_group.scheduled_at + make_interval(mins => v_duration));');
-  IF v_updated = v_definition OR position('''in_person'', 60, 100' IN v_updated) > 0 THEN
-    RAISE EXCEPTION 'Could not update in-person acceptance snapshots';
+  IF v_updated = v_definition
+     OR v_updated ~ '''in_person'',[[:space:]]*60,[[:space:]]*100'
+     OR position('in_person_teaching_minutes, in_person_package_minutes' IN v_updated) = 0
+     OR position('v_reservation.reserved_minutes, v_duration, v_reservation.reserved_minutes' IN v_updated) = 0 THEN
+    RAISE EXCEPTION 'Could not update in-person acceptance snapshots (columns %, saved debit %)',
+      position('in_person_teaching_minutes, in_person_package_minutes' IN v_updated) > 0,
+      position('v_reservation.reserved_minutes, v_duration, v_reservation.reserved_minutes' IN v_updated) > 0;
   END IF;
   EXECUTE v_updated;
 
