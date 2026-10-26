@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { isValidInPersonDuration } from "@/lib/inPersonDuration";
+import { isValidInPersonDuration, isValidInPersonPackageDebit } from "@/lib/inPersonDuration";
 
 type InPersonTeacherPrice = {
   teacher_id: string;
@@ -33,6 +33,8 @@ export default function SessionPricingTab() {
   const [durationSettingsId, setDurationSettingsId] = useState<string | null>(null);
   const [inPersonDuration, setInPersonDuration] = useState(60);
   const [inPersonDurationInput, setInPersonDurationInput] = useState("60");
+  const [inPersonPackageDebit, setInPersonPackageDebit] = useState(100);
+  const [inPersonPackageDebitInput, setInPersonPackageDebitInput] = useState("100");
   const [inPersonDefault, setInPersonDefault] = useState(60);
   const [inPersonDefaultInput, setInPersonDefaultInput] = useState("60");
   const [inPersonTeachers, setInPersonTeachers] = useState<InPersonTeacherPrice[]>([]);
@@ -67,16 +69,23 @@ export default function SessionPricingTab() {
     }
     const { data: durationSettings, error: durationError } = await supabase
       .from("financial_settings" as any)
-      .select("id,in_person_instruction_duration_minutes")
+      .select("id,in_person_instruction_duration_minutes,in_person_package_debit_minutes")
       .maybeSingle();
     if (durationError || !durationSettings) {
       toast.error("تعذر تحميل مدة الحصة الحضورية");
     } else {
-      const settings = durationSettings as unknown as { id: string; in_person_instruction_duration_minutes: number | null };
+      const settings = durationSettings as unknown as {
+        id: string;
+        in_person_instruction_duration_minutes: number | null;
+        in_person_package_debit_minutes: number | null;
+      };
       const duration = Number(settings.in_person_instruction_duration_minutes ?? 60);
+      const debit = Number(settings.in_person_package_debit_minutes ?? 100);
       setDurationSettingsId(settings.id);
       setInPersonDuration(duration);
       setInPersonDurationInput(String(duration));
+      setInPersonPackageDebit(debit);
+      setInPersonPackageDebitInput(String(debit));
     }
     setLoading(false);
   };
@@ -99,8 +108,13 @@ export default function SessionPricingTab() {
 
   const saveInPersonDuration = async () => {
     const duration = Number(inPersonDurationInput);
+    const packageDebit = Number(inPersonPackageDebitInput);
     if (!isValidInPersonDuration(duration)) {
       toast.error("أدخل مدة صحيحة كعدد صحيح من 15 إلى 180 دقيقة");
+      return;
+    }
+    if (!isValidInPersonPackageDebit(packageDebit, duration)) {
+      toast.error("يجب أن يكون خصم الباقة عددًا صحيحًا لا يقل عن مدة التدريس ولا يتجاوز 180 دقيقة");
       return;
     }
     if (!durationSettingsId) {
@@ -110,13 +124,18 @@ export default function SessionPricingTab() {
     setSaving(true);
     const { error } = await supabase
       .from("financial_settings" as any)
-      .update({ in_person_instruction_duration_minutes: duration, updated_at: new Date().toISOString() })
+      .update({
+        in_person_instruction_duration_minutes: duration,
+        in_person_package_debit_minutes: packageDebit,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", durationSettingsId);
     if (error) {
       toast.error("تعذر حفظ مدة الحصة الحضورية");
     } else {
       setInPersonDuration(duration);
-      toast.success(`تم حفظ مدة التدريس الحضوري (${duration} دقيقة) للحجوزات الجديدة`);
+      setInPersonPackageDebit(packageDebit);
+      toast.success(`تم حفظ ${duration} دقيقة تدريس وخصم ${packageDebit} دقيقة للحجوزات الجديدة`);
     }
     setSaving(false);
   };
@@ -225,12 +244,12 @@ export default function SessionPricingTab() {
         <Card className="border-0 shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><DollarSign className="h-5 w-5 text-emerald-600" />تسعير الحصة الحضورية</CardTitle>
-            <p className="text-sm text-muted-foreground">مدة التدريس {inPersonDuration} دقيقة · خصم الباقة يُضبط بشكل مستقل في الإعدادات المالية · تكلفة الطالب 100 ر.س. أجر المعلم يحدد أدناه وحصة المنصة هي المتبقي من 100 ر.س.</p>
+            <p className="text-sm text-muted-foreground">مدة التدريس {inPersonDuration} دقيقة · خصم الباقة {inPersonPackageDebit} دقيقة · تكلفة الطالب 100 ر.س. أجر المعلم يحدد أدناه وحصة المنصة هي المتبقي من 100 ر.س.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-muted/20 p-4">
               <div className="space-y-1">
-                <label htmlFor="in-person-pricing-duration" className="text-sm font-medium">مدة التدريس الفعلية للحجوزات الجديدة (دقيقة)</label>
+                <label htmlFor="in-person-pricing-duration" className="text-sm font-medium">مدة التدريس الفعلية (دقيقة)</label>
                 <Input
                   id="in-person-pricing-duration"
                   type="number"
@@ -242,8 +261,21 @@ export default function SessionPricingTab() {
                   className="w-36"
                 />
               </div>
-              <p className="pb-2 text-xs text-muted-foreground">من 15 إلى 180 دقيقة. لا تتغير مدة الحجوزات السابقة أو أرصدتها.</p>
-              <Button onClick={saveInPersonDuration} disabled={saving || !durationSettingsId} className="gap-2"><Save className="h-4 w-4" />حفظ مدة الحصة</Button>
+              <div className="space-y-1">
+                <label htmlFor="in-person-pricing-package-debit" className="text-sm font-medium">خصم الباقة (دقيقة)</label>
+                <Input
+                  id="in-person-pricing-package-debit"
+                  type="number"
+                  min={15}
+                  max={180}
+                  step={1}
+                  value={inPersonPackageDebitInput}
+                  onChange={e => setInPersonPackageDebitInput(e.target.value)}
+                  className="w-36"
+                />
+              </div>
+              <p className="pb-2 text-xs text-muted-foreground">مثال: 60 دقيقة تدريس مقابل خصم 100 دقيقة. لا تتغير الحجوزات أو الأرصدة السابقة.</p>
+              <Button onClick={saveInPersonDuration} disabled={saving || !durationSettingsId} className="gap-2"><Save className="h-4 w-4" />حفظ الإعدادين</Button>
             </div>
             <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-muted/20 p-4">
               <div className="space-y-1"><label className="text-sm font-medium">أجر المعلم الافتراضي</label><Input type="number" min="0" max="100" step="0.01" value={inPersonDefaultInput} onChange={e => setInPersonDefaultInput(e.target.value)} className="w-36" /></div>
