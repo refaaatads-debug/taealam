@@ -282,7 +282,8 @@ jobs:
           envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION,RUN_FINANCIAL_MIGRATIONS,RUN_REPORTING_WITHDRAWAL_MIGRATIONS,RUN_EDGE_FUNCTIONS,RUN_TEACHER_LOCATION_SYNC_MIGRATION
           script: |
             set -eu
-            trap 'echo "VPS build/migration phase failed near script line $LINENO." >&2' ERR
+            phase="staging preflight"
+            trap 'echo "VPS build/migration phase failed during $phase (script line $LINENO)." >&2' ERR
             staging=/tmp/ajyal-build-${{ github.sha }}
             chmod 700 "$staging"
             test -f "$staging/index.html"
@@ -310,7 +311,9 @@ jobs:
             test -f "$staging/supabase/functions/ai-tutor-token/index.ts"
             test -f "$staging/supabase/functions/send-notification/index.ts"
             test -f "$staging/supabase/functions/solve-homework/index.ts"
-            config_exports="$(python3 - <<'PY'
+            phase="frontend configuration validation"
+            config_error_file="$(mktemp)"
+            if ! config_exports="$(python3 - <<'PY' 2>"$config_error_file"
             import shlex
             import sys
             from urllib.parse import urlsplit
@@ -352,7 +355,12 @@ jobs:
             for name in required:
                 print(f"export {name}={shlex.quote(values[name])}")
             PY
-            )"
+            )"; then
+              cat "$config_error_file" >&2
+              rm -f "$config_error_file"
+              exit 1
+            fi
+            rm -f "$config_error_file"
             eval "$config_exports"
             unset config_exports
             test -n "${VITE_TURNSTILE_SITE_KEY:-}" || { echo "Missing VITE_TURNSTILE_SITE_KEY." >&2; exit 1; }
@@ -362,6 +370,7 @@ jobs:
             test "$actual_lock" = "$expected_lock"
             ln -s /root/ajyal-build-deps/node_modules "$staging/node_modules"
             cd "$staging"
+            phase="frontend build"
             npm run build
             test -f dist/index.html
             test -d dist/assets
