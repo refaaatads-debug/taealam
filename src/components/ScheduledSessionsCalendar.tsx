@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,8 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
   const { play } = useNotificationSound();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const fetchSequence = useRef(0);
   const [now, setNow] = useState(Date.now());
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(() => getSaudiCalendarDate());
@@ -118,17 +120,19 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
 
   const fetchRows = async () => {
     if (!user) return;
+    const fetchId = ++fetchSequence.current;
     const filterCol = role === "student" ? "student_id" : "teacher_id";
     const otherCol = role === "student" ? "teacher_id" : "student_id";
-    const calendarRangeStart = view === "month"
+    const rangeView = dateFilter === "this_week" ? "week" : dateFilter === "this_month" ? "month" : view;
+    const calendarRangeStart = rangeView === "month"
       ? new Date(cursor.getFullYear(), cursor.getMonth(), 1)
       : startOfWeek(cursor);
-    const calendarRangeEnd = view === "month"
+    const calendarRangeEnd = rangeView === "month"
       ? new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
       : new Date(calendarRangeStart.getFullYear(), calendarRangeStart.getMonth(), calendarRangeStart.getDate() + 7);
     const rangeStart = getSaudiDayStartUtc(calendarRangeStart);
     const rangeEnd = getSaudiDayStartUtc(calendarRangeEnd);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("bookings")
       .select(`id, scheduled_at, duration_minutes, session_status, status, delivery_mode, attendance_confirmed_at, ${otherCol}, subject_id, subjects(name)`)
       .eq(filterCol, user.id)
@@ -136,6 +140,14 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       .lt("scheduled_at", rangeEnd.toISOString())
       .order("scheduled_at", { ascending: true });
 
+    if (fetchId !== fetchSequence.current) return;
+    if (error) {
+      setRows([]);
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
     if (!data || data.length === 0) {
       setRows([]);
       setLoading(false);
@@ -146,6 +158,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       .from("public_profiles")
       .select("user_id, full_name")
       .in("user_id", otherIds);
+    if (fetchId !== fetchSequence.current) return;
     const nameMap = new Map((profiles ?? []).map((p) => [p.user_id, p.full_name]));
     if (role === "student" && (data as any[]).some((booking) => booking.delivery_mode === "in_person")) {
       const { data: requests } = await supabase.rpc("list_my_in_person_request_groups" as any);
@@ -223,7 +236,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [user, role, cursor, view]);
+  }, [user, role, cursor, view, dateFilter]);
 
   // 1-hour-before reminder — server-side dedup via UNIQUE constraint on session_reminders_sent
   useEffect(() => {
@@ -429,9 +442,9 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
           <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
             <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل التواريخ</SelectItem>
-              <SelectItem value="this_week">هذا الأسبوع</SelectItem>
-              <SelectItem value="this_month">هذا الشهر</SelectItem>
+              <SelectItem value="all">الفترة المعروضة</SelectItem>
+              <SelectItem value="this_week">الأسبوع المعروض</SelectItem>
+              <SelectItem value="this_month">الشهر المعروض</SelectItem>
             </SelectContent>
           </Select>
           {otherOptions.length > 1 && (
@@ -583,7 +596,12 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
               <span className="text-[10px] text-muted-foreground">الوقت بتوقيت الرياض</span>
             </div>
 
-            {selectedSessions.length === 0 ? (
+            {loadError ? (
+              <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 py-5 text-center">
+                <p className="text-sm font-semibold text-destructive">تعذر تحميل حصص هذه الفترة.</p>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => void fetchRows()}>إعادة المحاولة</Button>
+              </div>
+            ) : selectedSessions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 py-7 text-center">
                 <CalendarClock className="h-7 w-7 text-muted-foreground/40 mx-auto mb-2" />
                 <p className="text-xs font-semibold text-muted-foreground">لا توجد حصص أو مواعيد في هذا اليوم</p>

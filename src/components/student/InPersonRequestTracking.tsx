@@ -84,9 +84,12 @@ export default function InPersonRequestTracking({ embedded = false }: { embedded
 
   if (!user) return null;
 
-  // Accepted bookings are presented in the schedule/history table below so the
-  // same lesson is not listed twice.
-  const trackingRows = rows.filter((row) => row.status !== "accepted");
+  // Keep this panel limited to requests that still need a teacher response.
+  // Accepted bookings belong in the schedule/history; cancelled, rejected,
+  // and expired requests remain stored but are not active requests.
+  const trackingRows = rows.filter((row) =>
+    row.status === "open" && new Date(row.acceptance_deadline).getTime() > now
+  );
   const visibleRows = trackingRows.slice(0, 20);
   if (trackingRows.length === 0 && !loadError && !embedded) return null;
   const Root = embedded ? "section" : Card;
@@ -97,7 +100,7 @@ export default function InPersonRequestTracking({ embedded = false }: { embedded
       <Header className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg font-bold">
           <MapPin className="h-5 w-5 text-amber-600" />
-          {embedded ? "طلبات الحضوري" : "متابعة الطلبات الحضورية"}
+          {embedded ? "طلبات الحضوري بانتظار المعلمين" : "متابعة الطلبات الحضورية"}
           <Badge variant="outline" className="mr-auto">{trackingRows.length}</Badge>
         </CardTitle>
         {!embedded && <p className="text-xs text-muted-foreground">تظهر الطلبات المقبولة كحجوزات في الجدول أدناه لتجنب تكرار الحصة.</p>}
