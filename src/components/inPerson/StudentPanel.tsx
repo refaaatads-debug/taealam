@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, MapPinOff, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, MapPin, MapPinOff, RefreshCw, Sparkles } from "lucide-react";
 
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null };
