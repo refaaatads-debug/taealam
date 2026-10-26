@@ -102,15 +102,17 @@ export default function SessionMaterials() {
       setLoading(false);
       return;
     }
-    pendingRecordingsRef.current = mats.some((material) => !material.recording_url);
-
     // Get AI reports from sessions
     const sessionIds = mats.map(m => m.session_id);
     const { data: sessions } = await supabase
       .from("sessions")
-      .select("id, ai_report, booking_id")
+      .select("id, ai_report, booking_id, recording_url")
       .in("id", sessionIds);
     const sessionMap = new Map((sessions ?? []).map(s => [s.id, s]));
+    pendingRecordingsRef.current = mats.some((material) => {
+      const session = sessionMap.get(material.session_id);
+      return !(material.recording_url || session?.recording_url);
+    });
 
     // Get subject names from bookings
     const bookingIds = (sessions ?? []).map(s => s.booking_id).filter(Boolean);
@@ -126,13 +128,13 @@ export default function SessionMaterials() {
       const subjectName = session ? (bookingMap.get(session.booking_id) || "حصة") : "حصة";
 
       // Convert public URL to signed URL (bucket is now private)
-      let signedUrl: string | null = m.recording_url;
-      if (m.recording_url) {
+      let signedUrl: string | null = m.recording_url || session?.recording_url || null;
+      if (signedUrl) {
         try {
           const marker = "/session-recordings/";
-          const idx = m.recording_url.indexOf(marker);
+          const idx = signedUrl.indexOf(marker);
           if (idx !== -1) {
-            const path = decodeURIComponent(m.recording_url.substring(idx + marker.length).split("?")[0]);
+            const path = decodeURIComponent(signedUrl.substring(idx + marker.length).split("?")[0]);
             const { data: signed } = await supabase.storage
               .from("session-recordings")
               .createSignedUrl(path, 60 * 60); // 1 hour
