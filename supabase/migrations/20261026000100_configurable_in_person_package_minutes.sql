@@ -90,10 +90,13 @@ BEGIN
     'v_group.scheduled_at + interval ''60 minutes'', ''[)'')',
     'v_group.scheduled_at + make_interval(mins => v_duration), ''[)'')');
   v_updated := replace(v_updated,
+    'balance_cost_minutes, visit_address_snapshot, in_person_policy_version',
+    'balance_cost_minutes, in_person_teaching_minutes, in_person_package_minutes, visit_address_snapshot, in_person_policy_version');
+  v_updated := replace(v_updated,
     'v_group.student_id, v_teacher_id, v_group.subject_id, v_group.scheduled_at, 60,
      ''confirmed'', 0, true, v_reservation.subscription_id, ''in_person'', 60, 100,',
     'v_group.student_id, v_teacher_id, v_group.subject_id, v_group.scheduled_at, v_duration,
-     ''confirmed'', 0, true, v_reservation.subscription_id, ''in_person'', v_duration, v_reservation.reserved_minutes,');
+     ''confirmed'', 0, true, v_reservation.subscription_id, ''in_person'', v_duration, v_reservation.reserved_minutes, v_duration, v_reservation.reserved_minutes,');
   v_updated := replace(v_updated, 'v_group.scheduled_at + interval ''60 minutes'');',
     'v_group.scheduled_at + make_interval(mins => v_duration));');
   IF v_updated = v_definition OR position('''in_person'', 60, 100' IN v_updated) > 0 THEN
@@ -165,6 +168,41 @@ BEGIN
     'NEW.consumed_minutes = NEW.reserved_minutes');
   IF v_updated = v_definition THEN
     RAISE EXCEPTION 'Could not update completion revenue gate';
+  END IF;
+  EXECUTE v_updated;
+
+  v_definition := pg_get_functiondef(
+    'public.search_in_person_teachers(uuid,uuid,uuid,timestamptz)'::regprocedure
+  );
+  v_updated := replace(v_definition,
+    '  v_address public.user_addresses%ROWTYPE;',
+    '  v_address public.user_addresses%ROWTYPE;
+  v_duration integer;');
+  v_updated := replace(v_updated, '  RETURN QUERY',
+    '  v_duration := public.get_in_person_instruction_duration();
+  RETURN QUERY');
+  v_updated := replace(v_updated, 'p_scheduled_at + interval ''60 minutes''',
+    'p_scheduled_at + make_interval(mins => v_duration)');
+  IF v_updated = v_definition THEN
+    RAISE EXCEPTION 'Could not update student teacher-search duration';
+  END IF;
+  EXECUTE v_updated;
+
+  v_definition := pg_get_functiondef('public.list_teacher_in_person_requests()'::regprocedure);
+  v_updated := replace(v_definition,
+    'g.scheduled_at + interval ''60 minutes''',
+    'g.scheduled_at + make_interval(mins => g.instruction_duration_minutes)');
+  IF v_updated = v_definition THEN
+    RAISE EXCEPTION 'Could not update teacher request-list duration';
+  END IF;
+  EXECUTE v_updated;
+
+  v_definition := pg_get_functiondef('public.list_teacher_in_person_requests_priced()'::regprocedure);
+  v_updated := replace(v_definition,
+    'g.scheduled_at + interval ''60 minutes''',
+    'g.scheduled_at + make_interval(mins => g.instruction_duration_minutes)');
+  IF v_updated = v_definition THEN
+    RAISE EXCEPTION 'Could not update priced teacher request-list duration';
   END IF;
   EXECUTE v_updated;
 END;

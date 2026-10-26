@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { isValidInPersonDuration } from "@/lib/inPersonDuration";
 import { arabicBookingError } from "@/lib/arabicBookingError";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,7 +72,7 @@ export default function InPersonStudentPanel() {
   const [cityUnavailableMessage, setCityUnavailableMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [instructionDuration, setInstructionDuration] = useState<45 | 60>(60);
+  const [instructionDuration, setInstructionDuration] = useState(60);
   const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number } | null>(null);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function InPersonStudentPanel() {
         return;
       }
       const savedDuration = Number(durationResult.data);
-      if (savedDuration !== 45 && savedDuration !== 60) {
+      if (!isValidInPersonDuration(savedDuration)) {
         if (!active) return;
         setLoadError(true);
         setAddressesLoaded(true);
@@ -217,7 +218,7 @@ export default function InPersonStudentPanel() {
     <Card className="overflow-hidden rounded-2xl border-0 shadow-card">
       <CardHeader className="border-b bg-gradient-to-l from-primary/10 via-background to-secondary/10">
         <CardTitle>الحصص الحضورية</CardTitle>
-        <p className="text-sm text-muted-foreground">مدة التدريس {instructionDuration} دقيقة، ويُحجز 100 دقيقة من الباقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
+        <p className="text-sm text-muted-foreground">مدة الحصة وخصم الباقة {instructionDuration} دقيقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <Dialog open={Boolean(bookingSuccess)} onOpenChange={(open) => !open && setBookingSuccess(null)}>
@@ -304,7 +305,7 @@ export default function InPersonStudentPanel() {
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.03] via-card to-secondary/[0.04] p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
             <div><h3 className="font-black text-foreground">بيانات الحصة الحضورية</h3><p className="mt-1 text-xs text-muted-foreground">اختر عنوان الزيارة والمادة والموعد المناسب.</p></div>
-            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{instructionDuration} دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">100 دقيقة من الرصيد</span></div>
+            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{instructionDuration} دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">{instructionDuration} دقيقة من الرصيد</span></div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-semibold">المدينة
@@ -372,7 +373,7 @@ export default function InPersonStudentPanel() {
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h4 className="text-sm font-bold text-foreground">اختر الساعة</h4>
-              <span className="text-[11px] text-muted-foreground">مدة الحصة 60 دقيقة</span>
+              <span className="text-[11px] text-muted-foreground">مدة الحصة {instructionDuration} دقيقة</span>
             </div>
             {[
               { label: "صباحًا", times: appointmentTimes.filter((time) => Number(time.slice(0, 2)) < 12) },
@@ -419,7 +420,7 @@ export default function InPersonStudentPanel() {
             <p className="mt-1.5 text-sm font-bold text-foreground">
               {new Date(scheduledAt).toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })} · {formatAppointmentTime(scheduledAt)}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · {instructionDuration} دقيقة تدريس · يُحجز 100 دقيقة من الرصيد</p>
+            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · {instructionDuration} دقيقة تدريس · يُخصم {instructionDuration} دقيقة من الرصيد</p>
           </div>
         </div>
         </div>

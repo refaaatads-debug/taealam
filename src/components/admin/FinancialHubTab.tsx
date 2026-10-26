@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import FinancialExportButton from "./FinancialExportButton";
 import InvoiceDetailDialog, { type InvoiceLike } from "./InvoiceDetailDialog";
 import { inDateRange } from "@/lib/financialExports";
+import { isValidInPersonDuration } from "@/lib/inPersonDuration";
 
 
 interface FinancialSettings {
@@ -244,6 +245,10 @@ export default function FinancialHubTab() {
 
   const saveSettings = async () => {
     if (!settings) return;
+    if (!isValidInPersonDuration(settings.in_person_instruction_duration_minutes)) {
+      toast.error("أدخل مدة صحيحة من 15 إلى 180 دقيقة");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await supabase
