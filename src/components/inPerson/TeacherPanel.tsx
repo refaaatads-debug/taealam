@@ -120,7 +120,7 @@ export default function InPersonTeacherPanel({ embedded = false }: { embedded?: 
   const Content = embedded ? "div" : CardContent;
   return (
     <Root id="in-person-sessions" className={embedded ? "space-y-3" : "overflow-hidden rounded-2xl border-0 shadow-card"}>
-      <Header><CardTitle>{embedded ? "طلبات الحضوري" : "الحصص الحضورية"}</CardTitle><p className="text-sm text-muted-foreground">مهلة قبول الطلب ساعة من إرساله. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
+      <Header><CardTitle className="text-lg font-bold leading-6">{embedded ? "طلبات الحضوري" : "الحصص الحضورية"}</CardTitle><p className="text-sm leading-6 text-muted-foreground">مهلة قبول الطلب ساعة من إرساله. رمز الحضور يظهر قبل الموعد بساعة ويُقبل من بداية الموعد حتى أقل من 15 دقيقة بعدها.</p>
         {cityStatus?.city_name && cityStatus.city_enabled === false && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">الخدمة لم تُفعّل في مدينتك بعد.</p>}
       </Header>
       <Content className="space-y-5">

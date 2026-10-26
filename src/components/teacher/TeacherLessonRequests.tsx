@@ -11,7 +11,7 @@ export default function TeacherLessonRequests({ onAccepted }: TeacherLessonReque
     <Card id="booking-requests" className="border-0 shadow-card">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg font-bold">طلبات الحصص</CardTitle>
-        <p className="text-xs text-muted-foreground">طلبات الأونلاين والحضوري في مكان واحد.</p>
+        <p className="text-sm leading-6 text-muted-foreground">طلبات الأونلاين والحضوري في مكان واحد.</p>
       </CardHeader>
       <CardContent className="space-y-5">
         <BookingRequests embedded onAccepted={onAccepted} />

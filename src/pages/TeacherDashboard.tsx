@@ -350,8 +350,8 @@ const TeacherDashboard = () => {
                     <s.icon className={`h-4 w-4 ${s.color}`} />
                   </div>
                   <p className="truncate text-lg font-black leading-tight text-foreground sm:text-xl">{s.value}</p>
-                  <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground">{s.label}</p>
-                  {"detail" in s && s.detail && <p className="mt-0.5 truncate text-[9px] leading-3 text-muted-foreground">{s.detail}</p>}
+                  <p className="mt-1 truncate text-xs leading-4 text-muted-foreground">{s.label}</p>
+                  {"detail" in s && s.detail && <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">{s.detail}</p>}
                 </CardContent>
               </Card>
             </motion.div>
@@ -367,7 +367,7 @@ const TeacherDashboard = () => {
                     {nextSession.session_status === "in_progress" ? <Play className="h-6 w-6" /> : <CalendarDays className="h-6 w-6" />}
                   </div>
                   <div>
-                    <p className="text-[11px] font-bold text-white/70">{nextSession.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
+                    <p className="text-xs font-bold text-white/70">{nextSession.session_status === "in_progress" ? "الحصة جارية الآن" : "الإجراء التالي · أقرب حصة"}</p>
                     <h2 className="mt-0.5 text-lg font-black">{nextSession.subjects?.name || "حصة تعليمية"}</h2>
                     <Badge className="mt-1 border-0 bg-white/15 text-white">{nextSession.delivery_mode === "in_person" ? "حضوري" : "أونلاين"}</Badge>
                     <p className="mt-1 text-xs text-white/75">مع {nextSession.student_profile?.full_name || "الطالب"} · {new Date(nextSession.scheduled_at).toLocaleString("ar-SA", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
