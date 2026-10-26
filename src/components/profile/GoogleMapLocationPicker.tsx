@@ -23,7 +23,7 @@ interface Props {
 
 let mapsLoader: Promise<void> | undefined;
 
-function loadGoogleMaps(apiKey: string) {
+export function loadGoogleMaps(apiKey: string) {
   if ((window as any).google?.maps) return Promise.resolve();
   if (!mapsLoader) {
     mapsLoader = new Promise<void>((resolve, reject) => {

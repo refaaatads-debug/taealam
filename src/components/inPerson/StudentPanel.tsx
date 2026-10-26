@@ -6,12 +6,13 @@ import { isValidInPersonDuration } from "@/lib/inPersonDuration";
 import { arabicBookingError } from "@/lib/arabicBookingError";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import InPersonSearchMap from "@/components/inPerson/InPersonSearchMap";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, MapPin, MapPinOff, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Check, LoaderCircle, MapPin, MapPinOff, RefreshCw, Search, Sparkles, Star, Users } from "lucide-react";
 
 type Option = { id: string; name: string; enabled?: boolean };
-type Address = Option & { city_id: string; district?: string | null };
+type Address = Option & { city_id: string; district?: string | null; latitude: number; longitude: number };
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
 const teachingStages = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
 
@@ -67,6 +68,7 @@ export default function InPersonStudentPanel() {
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState(firstAvailableAppointment);
   const [loading, setLoading] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -88,7 +90,7 @@ export default function InPersonStudentPanel() {
       setEnabled(true);
       const [cityResult, addressResult, subjectResult, durationResult, debitResult] = await Promise.all([
         supabase.from("cities" as any).select("id,name_ar,in_person_enabled").eq("is_active", true).order("name_ar"),
-        supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("user_addresses" as any).select("id,street_address,district,city_id,latitude,longitude").eq("owner_id", user.id).order("created_at", { ascending: false }),
         supabase.from("subjects").select("id,name").order("name"),
         supabase.rpc("get_in_person_instruction_duration" as any),
         supabase.rpc("get_in_person_package_debit_minutes" as any),
@@ -118,7 +120,7 @@ export default function InPersonStudentPanel() {
       setLoadError(false);
       setCityUnavailableMessage("");
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
-      const savedAddresses = ((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id }));
+      const savedAddresses = ((addressResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.district ? `${x.district} — ${x.street_address}` : x.street_address, city_id: x.city_id, latitude: Number(x.latitude), longitude: Number(x.longitude) }));
       setAddresses(savedAddresses);
       setAddressesLoaded(true);
       const preferredAddress = savedAddresses.find((address) => address.id === addressId) || savedAddresses[0];
@@ -155,13 +157,26 @@ export default function InPersonStudentPanel() {
     setHasSearched(true);
     setTeachers([]);
     setSelectedTeachers([]);
+    setSearchDialogOpen(true);
     setLoading(true);
-    const { data, error } = await supabase.rpc("search_in_person_teachers" as any, {
-      p_city_id: cityId, p_subject_id: subjectId, p_address_id: addressId,
-      p_scheduled_at: new Date(scheduledAt).toISOString(),
-      p_teaching_stage: teachingStage,
-    });
-    setLoading(false);
+    const searchStartedAt = Date.now();
+    let data: unknown[] | null = null;
+    let error: { message?: string } | null = null;
+    try {
+      const result = await supabase.rpc("search_in_person_teachers" as any, {
+        p_city_id: cityId, p_subject_id: subjectId, p_address_id: addressId,
+        p_scheduled_at: new Date(scheduledAt).toISOString(),
+        p_teaching_stage: teachingStage,
+      });
+      const elapsed = Date.now() - searchStartedAt;
+      if (elapsed < 850) await new Promise((resolve) => window.setTimeout(resolve, 850 - elapsed));
+      data = result.data as unknown[] | null;
+      error = result.error;
+    } catch {
+      error = { message: "network" };
+    } finally {
+      setLoading(false);
+    }
     if (error) {
       if (error.message?.includes("In-person service is unavailable in this city")) {
         setTeachers([]);
@@ -171,6 +186,7 @@ export default function InPersonStudentPanel() {
         return;
       }
       setSearchError("تعذر تحميل بيانات البحث. تحقق من الاتصال ثم أعد المحاولة.");
+      setHasSearched(false);
       toast.error("تعذر تحميل البيانات. يمكنك إعادة المحاولة.");
       return;
     }
@@ -223,6 +239,7 @@ export default function InPersonStudentPanel() {
       durationMinutes: instructionDuration,
       packageDebitMinutes,
     });
+    setSearchDialogOpen(false);
     setSelectedTeachers([]);
   };
 
@@ -454,29 +471,124 @@ export default function InPersonStudentPanel() {
         )}
         {cityUnavailableMessage && <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{cityUnavailableMessage}</div>}
         {searchError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/[0.04] p-3 text-sm text-destructive">{searchError}</div>}
-        <Button variant="outline" className="h-11 rounded-xl px-5" onClick={searchTeachers} disabled={loading || !cityId || !addressId || !teachingStage || !subjectId}>{loading ? "جارٍ البحث..." : "ابحث عن معلمين ضمن النطاق"}</Button>
-        {loading && teachers.length === 0 && hasSearched && (
-          <div role="status" className="rounded-xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">جارٍ البحث عن معلمين متاحين لهذا الموعد...</div>
-        )}
-        {!loading && hasSearched && teachers.length === 0 && !searchError && !cityUnavailableMessage && (
-          <div role="status" className="rounded-xl border border-dashed border-border p-4 text-sm">
-            <p className="font-semibold text-foreground">لا توجد نتائج لهذا الموعد</p>
-            <p className="mt-1 text-muted-foreground">جرّب ساعة أو يومًا آخر للعثور على معلم متاح.</p>
-          </div>
-        )}
-        {teachers.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">وجدنا {teachers.length} معلمًا مطابقًا · الأقرب أولاً، ثم التقييم</p>
-            {teachers.map((teacher) => (
-              <label key={teacher.teacher_id} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                <input type="checkbox" checked={selectedTeachers.includes(teacher.teacher_id)} onChange={(e) => setSelectedTeachers((current) => e.target.checked ? [...current, teacher.teacher_id] : current.filter((id) => id !== teacher.teacher_id))} />
-                <span className="flex-1">{teacher.full_name}</span>
-                <span className="text-xs text-muted-foreground">{teacher.distance_km} كم · ★ {teacher.avg_rating}</span>
-              </label>
-            ))}
-            <Button onClick={submitRequest} disabled={loading || selectedTeachers.length === 0}>{loading ? "جارٍ الإرسال..." : "إرسال الطلب وحجز الرصيد"}</Button>
-          </div>
-        )}
+        <Button
+          className="group h-12 w-full rounded-xl bg-gradient-to-l from-primary to-primary/85 text-base font-bold shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg sm:w-auto sm:px-7"
+          onClick={searchTeachers}
+          disabled={loading || !cityId || !addressId || !teachingStage || !subjectId}
+        >
+          {loading ? <LoaderCircle className="me-2 h-4 w-4 animate-spin" /> : <Search className="me-2 h-4 w-4 transition-transform group-hover:scale-110" />}
+          {loading ? "جارٍ البحث عن المعلمين..." : "ابحث عن معلم"}
+        </Button>
+        <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
+          <DialogContent dir="rtl" className="max-h-[92vh] max-w-5xl overflow-hidden rounded-3xl border-border/70 p-0">
+            <DialogHeader className="border-b bg-gradient-to-l from-primary/[0.08] via-background to-secondary/[0.09] px-6 py-5 text-right">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-primary-foreground"><MapPin className="h-5 w-5" /></span>
+                {loading ? "نبحث عن معلمك المناسب" : "المعلمون المتاحون"}
+              </DialogTitle>
+              <DialogDescription>
+                {subjects.find((subject) => subject.id === subjectId)?.name} · {teachingStage} · {cities.find((city) => city.id === cityId)?.name}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid max-h-[calc(92vh-170px)] gap-0 overflow-y-auto md:grid-cols-[0.8fr_1.2fr] md:overflow-hidden">
+              <section className="relative min-h-[220px] overflow-hidden border-b bg-[#eaf3ef] p-5 md:min-h-0 md:border-b-0 md:border-l" aria-label="نطاق البحث على الخريطة">
+                <InPersonSearchMap
+                  className="absolute inset-0"
+                  latitude={addresses.find((address) => address.id === addressId)?.latitude}
+                  longitude={addresses.find((address) => address.id === addressId)?.longitude}
+                  searching={loading}
+                />
+                {loading && <div className="pointer-events-none absolute inset-x-0 top-1/3 z-10 h-20 bg-gradient-to-b from-transparent via-secondary/20 to-transparent motion-safe:animate-pulse" aria-hidden="true" />}
+                <div className="relative flex h-full min-h-[190px] flex-col justify-between">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="rounded-xl border border-white/80 bg-white/85 px-3 py-2 shadow-sm backdrop-blur">
+                      <p className="text-xs font-bold text-foreground">{loading ? "جارٍ مسح النطاق" : "نطاق عنوانك"}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{addresses.find((address) => address.id === addressId)?.name}</p>
+                    </div>
+                    <span className="rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-bold text-secondary shadow-sm">{cities.find((city) => city.id === cityId)?.name}</span>
+                  </div>
+                  <div className="relative flex items-center gap-2 rounded-xl border border-white/80 bg-white/85 p-3 text-xs text-muted-foreground shadow-sm backdrop-blur">
+                    <Sparkles className="h-4 w-4 shrink-0 text-secondary" />
+                    {loading ? "نطابق المادة والمرحلة والموعد مع المعلمين المتاحين..." : `${teachers.length} معلم مطابق لمعايير البحث`}
+                  </div>
+                </div>
+              </section>
+
+              <section className="flex min-h-[300px] flex-col p-5 md:min-h-0">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-foreground">{loading ? "لحظات ونجد الخيارات المناسبة" : "اختر المعلم المناسب"}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{loading ? "نراجع التخصص والمرحلة والمسافة والتوفر" : "يمكنك اختيار معلم واحد أو أكثر"}</p>
+                  </div>
+                  {!loading && teachers.length > 0 && <span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">{teachers.length} نتائج</span>}
+                </div>
+
+                {loading ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-4 py-10 text-center" role="status" aria-live="polite">
+                    <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-primary/5 text-primary">
+                      <span className="absolute inset-0 rounded-2xl border border-primary/20 animate-ping" />
+                      <LoaderCircle className="h-7 w-7 animate-spin" />
+                    </span>
+                    <div><p className="font-semibold">جارٍ البحث ضمن النطاق</p><p className="mt-1 text-sm text-muted-foreground">يتم ترتيب المعلمين حسب القرب والتقييم.</p></div>
+                    <div className="flex gap-1.5" aria-hidden="true"><span className="h-1.5 w-8 animate-pulse rounded-full bg-primary" /><span className="h-1.5 w-8 animate-pulse rounded-full bg-secondary [animation-delay:180ms]" /><span className="h-1.5 w-8 animate-pulse rounded-full bg-primary/30 [animation-delay:360ms]" /></div>
+                  </div>
+                ) : searchError ? (
+                  <div role="alert" className="my-auto rounded-2xl border border-destructive/20 bg-destructive/[0.04] p-5 text-sm text-destructive">{searchError}</div>
+                ) : teachers.length === 0 ? (
+                  <div className="my-auto rounded-2xl border border-dashed p-6 text-center" role="status">
+                    <Users className="mx-auto h-8 w-8 text-muted-foreground/60" />
+                    <p className="mt-3 font-bold">لا يوجد معلم متاح لهذا الموعد</p>
+                    <p className="mt-1 text-sm text-muted-foreground">جرّب تغيير اليوم أو الساعة؛ قد تتغير النتائج حسب التوفر.</p>
+                  </div>
+                ) : (
+                  <div className="flex-1 space-y-2 overflow-y-auto pe-1">
+                    {teachers.map((teacher) => {
+                      const selected = selectedTeachers.includes(teacher.teacher_id);
+                      return (
+                        <button
+                          key={teacher.teacher_id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          onClick={() => setSelectedTeachers((current) => selected ? current.filter((id) => id !== teacher.teacher_id) : [...current, teacher.teacher_id])}
+                          className={`w-full rounded-2xl border p-4 text-right transition-all hover:-translate-y-0.5 hover:shadow-md ${selected ? "border-secondary bg-secondary/[0.06] shadow-sm ring-1 ring-secondary/20" : "border-border/70 bg-card hover:border-primary/30"}`}
+                        >
+                          <span className="flex items-start gap-3">
+                            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-lg font-extrabold text-white shadow-sm">{teacher.full_name?.trim().charAt(0) || "م"}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-center gap-1.5 font-bold text-foreground">{teacher.full_name}<BadgeCheck className="h-4 w-4 text-secondary" /></span>
+                              <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span className="inline-flex items-center gap-1 text-amber-600"><Star className="h-3.5 w-3.5 fill-current" />{Number(teacher.avg_rating || 0).toFixed(1)}</span>
+                                <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />يبعد {teacher.distance_km} كم</span>
+                              </span>
+                              <span className="mt-2 flex flex-wrap gap-1.5">
+                                <span className="rounded-full bg-primary/[0.07] px-2.5 py-1 text-[11px] font-semibold text-primary">{subjects.find((subject) => subject.id === subjectId)?.name}</span>
+                                <span className="rounded-full bg-secondary/[0.09] px-2.5 py-1 text-[11px] font-semibold text-secondary">{teachingStage}</span>
+                                <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">ضمن نطاق الخدمة {teacher.service_radius_km} كم</span>
+                              </span>
+                            </span>
+                            <span className={`mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors ${selected ? "border-secondary bg-secondary text-white" : "border-border text-transparent"}`}><Check className="h-3.5 w-3.5" /></span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!loading && teachers.length > 0 && (
+                  <DialogFooter className="mt-4 flex-row items-center justify-between gap-3 border-t pt-4 sm:justify-between">
+                    <span className="text-xs text-muted-foreground">{selectedTeachers.length ? `تم اختيار ${selectedTeachers.length} معلم` : "اختر معلمًا واحدًا على الأقل للمتابعة"}</span>
+                    <Button className="rounded-xl px-5" onClick={submitRequest} disabled={loading || selectedTeachers.length === 0}>
+                      إرسال الطلب {selectedTeachers.length > 0 ? `لـ ${selectedTeachers.length} معلم` : ""}
+                      <ArrowLeft className="ms-2 h-4 w-4" />
+                    </Button>
+                  </DialogFooter>
+                )}
+              </section>
+            </div>
+          </DialogContent>
+        </Dialog>
         </div>
       </CardContent>
     </Card>
