@@ -46,7 +46,7 @@ const Navbar = () => {
   const links = [
     ...(!isStudent && !isTeacher ? [{ label: "الرئيسية", to: "/" }] : []),
     ...(!isAdmin && !isTeacher ? [{ label: "ابحث عن مدرس", to: "/search" }] : []),
-    ...(!user ? [{ label: "الباقات التعليمية", to: "/#packages" }] : []),
+    ...(!user ? [{ label: "الباقات التعليمية", to: "/packages" }] : []),
     ...(isStudent ? [{ label: "الباقات", to: "/pricing" }] : []),
     ...(user ? [
       ...(isAdmin
@@ -59,10 +59,7 @@ const Navbar = () => {
     ] : []),
   ];
 
-  const isActive = (path: string) =>
-    path === "/#packages"
-      ? location.pathname === "/" && location.hash === "#packages"
-      : location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
 
   const handleSignOut = async () => {
     await signOut();

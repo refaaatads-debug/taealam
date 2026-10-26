@@ -1,14 +1,11 @@
-import { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowUpLeft,
   BookOpen,
-  BookOpenCheck,
   Check,
   ChevronLeft,
-  ClipboardCheck,
   GraduationCap,
   Headphones,
   Lightbulb,
@@ -73,33 +70,6 @@ const learningPaths = [
   },
 ];
 
-const packages = [
-  {
-    title: "حصص فردية",
-    eyebrow: "تعلم يناسب احتياجك",
-    text: "جلسات مباشرة مع مدرس في المادة التي تختارها، مع مساحة للشرح والتدريب والأسئلة.",
-    icon: Video,
-    points: ["اختر المادة والمدرس", "تعلّم بإيقاعك", "ابدأ من مستواك"],
-    tone: "light",
-  },
-  {
-    title: "تأسيس ومتابعة",
-    eyebrow: "خطوات تعلم مترابطة",
-    text: "مسار يساعد الطالب على تقوية الأساسيات ومواصلة التعلّم بصورة منتظمة.",
-    icon: BookOpenCheck,
-    points: ["مراجعة للمفاهيم", "تدريب على التطبيق", "متابعة التقدم"],
-    tone: "deep",
-  },
-  {
-    title: "مساندة دراسية",
-    eyebrow: "دعم عند الحاجة",
-    text: "مساعدة تعليمية مرنة للواجبات والمراجعة، مع توجيه يوضح للطالب خطوته التالية.",
-    icon: ClipboardCheck,
-    points: ["مراجعة منظمة", "توضيح النقاط الصعبة", "استعداد أفضل للدراسة"],
-    tone: "light",
-  },
-];
-
 const steps = [
   ["01", "أنشئ حسابك", "ابدأ بتحديد احتياجك والمرحلة الدراسية."],
   ["02", "استكشف الخيارات", "تعرّف على المدرسين والمواد المتاحة."],
@@ -108,17 +78,7 @@ const steps = [
 
 export default function RedesignedLandingPage({ user, teachers }: Props) {
   const shouldReduceMotion = useReducedMotion();
-  const location = useLocation();
   const ctaTarget = user ? "/search" : "/login";
-  useEffect(() => {
-    if (location.pathname !== "/" || location.hash !== "#packages") return;
-    window.requestAnimationFrame(() => {
-      document.getElementById("packages")?.scrollIntoView({
-        behavior: shouldReduceMotion ? "auto" : "smooth",
-        block: "start",
-      });
-    });
-  }, [location.hash, location.pathname, shouldReduceMotion]);
   const reveal = shouldReduceMotion
     ? { initial: false as const, whileInView: undefined, transition: undefined }
     : {
@@ -268,42 +228,6 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
               </Link>
             </div>
           </div>
-        </section>
-
-        <section id="packages" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-16 md:px-8 md:py-24">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-              <p className="text-[11px] font-extrabold tracking-[0.14em] text-[#188779]">باقات تعليمية</p>
-              <h2 className="mt-3 text-3xl font-black md:text-4xl">باقة تناسب احتياجك</h2>
-            </div>
-            <p className="max-w-md text-sm leading-7 text-[#102f50]/60">تعرّف على مسارات الدعم التعليمي، ثم سجّل الدخول لاستكشاف تفاصيل الباقات المتاحة لك.</p>
-          </div>
-          <div className="mt-9 grid gap-4 lg:grid-cols-3">
-            {packages.map(({ title, eyebrow, text, icon: Icon, points, tone }, index) => (
-              <motion.article
-                key={title}
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
-                whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={shouldReduceMotion ? undefined : { duration: 0.45, delay: index * 0.07 }}
-                className={`flex flex-col rounded-[1.5rem] border p-6 md:p-7 ${tone === "deep" ? "border-[#102f50] bg-[#102f50] text-white shadow-[0_22px_55px_-35px_rgba(16,47,80,.8)] lg:-translate-y-3" : "border-[#102f50]/10 bg-white text-[#102f50]"}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone === "deep" ? "bg-white/10 text-[#b9e4dc]" : "bg-[#e6f0eb] text-[#188779]"}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
-                  <span className={`text-[10px] font-bold ${tone === "deep" ? "text-white/45" : "text-[#102f50]/35"}`}>{eyebrow}</span>
-                </div>
-                <h3 className="mt-6 text-xl font-black">{title}</h3>
-                <p className={`mt-3 min-h-[84px] text-sm leading-7 ${tone === "deep" ? "text-white/65" : "text-[#102f50]/60"}`}>{text}</p>
-                <ul className={`mt-5 space-y-3 border-t pt-5 text-xs font-bold ${tone === "deep" ? "border-white/10 text-white/80" : "border-[#102f50]/[0.08] text-[#102f50]/70"}`}>
-                  {points.map((point) => <li key={point} className="flex items-center gap-2.5"><Check className={`h-4 w-4 ${tone === "deep" ? "text-[#b9e4dc]" : "text-[#188779]"}`} aria-hidden="true" />{point}</li>)}
-                </ul>
-                <Link to={ctaTarget} className={`mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#188779]/25 ${tone === "deep" ? "bg-[#b9e4dc] text-[#102f50] hover:bg-white" : "border border-[#188779]/25 text-[#147568] hover:bg-[#e6f0eb]"}`}>
-                  سجّل واكتشف الخيارات <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              </motion.article>
-            ))}
-          </div>
-          <p className="mt-5 text-center text-[11px] leading-6 text-[#102f50]/45">تفاصيل الخيارات والتوفر تظهر بعد تسجيل الدخول، دون عرض أسعار أو التزامات مسبقة هنا.</p>
         </section>
 
         <section className="overflow-hidden bg-[#faf8f2] px-5 py-16 md:px-8 md:py-24">

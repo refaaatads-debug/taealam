@@ -28,6 +28,7 @@ const Rating = lazy(() => import("./pages/Rating"));
 const Install = lazy(() => import("./pages/Install"));
 const AITutor = lazy(() => import("./pages/AITutor"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const PublicPackages = lazy(() => import("./pages/PublicPackages"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminStudentProfile = lazy(() => import("./pages/AdminStudentProfile"));
 const AdminTeacherProfile = lazy(() => import("./pages/AdminTeacherProfile"));
@@ -120,6 +121,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
               <Route path="/search" element={<SearchTeacher />} />
+              <Route path="/packages" element={<PublicPackages />} />
               <Route path="/pricing" element={<ProtectedRoute><StudentPricingRoute /></ProtectedRoute>} />
               <Route path="/teach-with-us" element={<TeachWithUs />} />
               <Route path="/install" element={<Install />} />
