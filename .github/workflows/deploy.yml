@@ -380,20 +380,65 @@ jobs:
             if [ "${RUN_TEACHER_LOCATION_SYNC_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
               test -n "$db_container"
-              location_sync_applied="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'sync_teacher_service_location_to_profile_trigger') AND to_regprocedure('public.sync_teacher_service_location_to_profile()') IS NOT NULL")"
-              if [ "$location_sync_applied" = "t" ]; then
-                echo "Skipping teacher location sync migration: its production schema marker already exists."
-              else
-                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261026000200_sync_teacher_service_locations.sql"
-              fi
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+            CREATE TABLE IF NOT EXISTS public.deployed_migration_fingerprints (
+              migration_name text PRIMARY KEY,
+              sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+              recorded_at timestamptz NOT NULL DEFAULT now(),
+              source text NOT NULL
+            );
+            ALTER TABLE public.deployed_migration_fingerprints ENABLE ROW LEVEL SECURITY;
+            REVOKE ALL ON TABLE public.deployed_migration_fingerprints FROM PUBLIC, anon, authenticated, service_role;
+            SQL
+              apply_location_migration() {
+                migration_file="$1"
+                marker_sql="$2"
+                test -s "$migration_file" || {
+                  echo "Required migration file is missing: $migration_file" >&2
+                  exit 1
+                }
+                migration_name="$(basename "$migration_file")"
+                expected_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                test "${#expected_hash}" -eq 64 || {
+                  echo "Invalid migration fingerprint for $migration_name." >&2
+                  exit 1
+                }
+                stored_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                if [ -n "$stored_hash" ]; then
+                  test "$stored_hash" = "$expected_hash" || {
+                    echo "Stored fingerprint mismatch for $migration_name; refusing to continue." >&2
+                    exit 1
+                  }
+                  echo "Skipping already-applied migration $migration_name (fingerprint matches)."
+                else
+                  schema_marker="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "$marker_sql")"
+                  if [ "$schema_marker" = "t" ]; then
+                    echo "Schema marker exists without a recorded fingerprint for $migration_name; refusing to assume its source matches." >&2
+                    exit 1
+                  fi
+                  docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$migration_file"
+                  schema_marker="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "$marker_sql")"
+                  test "$schema_marker" = "t" || {
+                    echo "Post-migration schema verification failed for $migration_name." >&2
+                    exit 1
+                  }
+                  docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "INSERT INTO public.deployed_migration_fingerprints(migration_name,sha256,source) VALUES ('$migration_name','$expected_hash','GitHub Actions')"
+                fi
+                actual_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                test -n "$actual_hash"
+                test "$actual_hash" = "$expected_hash" || {
+                  echo "Post-apply fingerprint verification failed for $migration_name." >&2
+                  exit 1
+                }
+              }
+              apply_location_migration \
+                "$staging/supabase/migrations/20261026000200_sync_teacher_service_locations.sql" \
+                "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'sync_teacher_service_location_to_profile_trigger') AND to_regprocedure('public.sync_teacher_service_location_to_profile()') IS NOT NULL"
               location_mismatches="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT count(*) FROM public.teacher_profiles tp JOIN public.teacher_service_locations l ON l.teacher_id = tp.user_id WHERE tp.city_id IS DISTINCT FROM l.city_id OR tp.in_person_latitude IS DISTINCT FROM l.latitude OR tp.in_person_longitude IS DISTINCT FROM l.longitude OR tp.in_person_service_radius_km IS DISTINCT FROM l.service_radius_km")"
               test "$location_mismatches" = "0"
-              duration_split_applied="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'financial_settings' AND column_name = 'in_person_package_debit_minutes') AND to_regprocedure('public.get_in_person_package_debit_minutes()') IS NOT NULL AND pg_get_functiondef('public.create_in_person_request(uuid,timestamptz,uuid,uuid,uuid[],text)'::regprocedure) LIKE '%v_package_debit_minutes%'")"
-              if [ "$duration_split_applied" = "t" ]; then
-                echo "Skipping teaching/debit migration: its production schema marker already exists."
-              else
-                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql"
-              fi
+              apply_location_migration \
+                "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql" \
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'financial_settings' AND column_name = 'in_person_package_debit_minutes') AND to_regprocedure('public.get_in_person_package_debit_minutes()') IS NOT NULL AND pg_get_functiondef('public.create_in_person_request(uuid,timestamptz,uuid,uuid,uuid[],text)'::regprocedure) LIKE '%v_package_debit_minutes%'"
               configured_duration="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT in_person_instruction_duration_minutes || ':' || in_person_package_debit_minutes FROM public.financial_settings ORDER BY updated_at DESC LIMIT 1")"
               test "$configured_duration" = "60:100"
               echo "Teacher service locations are synchronized; mismatched profiles were disabled pending location reapproval."
