@@ -28,6 +28,7 @@ import { canJoinOnlineBooking, shouldOfferInPersonCode } from "@/lib/bookingPres
 import {
   getCalendarDayKey,
   getSaudiCalendarDate,
+  getSaudiDayKey,
   getSaudiDayStartUtc,
   isSaudiDayWithinCalendarRange,
 } from "@/lib/saudiDate";
