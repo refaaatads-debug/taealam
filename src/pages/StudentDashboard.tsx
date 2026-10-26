@@ -50,6 +50,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const refreshDashboardRef = useRef<(() => Promise<void>) | null>(null);
+  const hasLoadedDashboardRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -96,7 +97,7 @@ const StudentDashboard = () => {
 
     const fetchData = async () => {
       const requestId = ++latestRequest;
-      setLoading(true);
+      if (!hasLoadedDashboardRef.current) setLoading(true);
       try {
         const now = new Date().toISOString();
         const completedHistoryPromise = supabase.from("bookings")
@@ -249,7 +250,10 @@ const StudentDashboard = () => {
           setSubscriptionLoadError(true);
         }
       } finally {
-        if (!disposed && requestId === latestRequest) setLoading(false);
+        if (!disposed && requestId === latestRequest) {
+          hasLoadedDashboardRef.current = true;
+          setLoading(false);
+        }
       }
     };
 
