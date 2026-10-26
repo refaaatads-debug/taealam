@@ -73,7 +73,8 @@ export default function InPersonStudentPanel() {
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [instructionDuration, setInstructionDuration] = useState(60);
-  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number } | null>(null);
+  const [packageDebitMinutes, setPackageDebitMinutes] = useState(100);
+  const [bookingSuccess, setBookingSuccess] = useState<{ subject: string; teacherCount: number; scheduledAt: string; durationMinutes: number; packageDebitMinutes: number } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -83,13 +84,14 @@ export default function InPersonStudentPanel() {
       const { data: pilotEnabled } = await supabase.rpc("is_in_person_test_user" as any);
       if (!active || !pilotEnabled) return;
       setEnabled(true);
-      const [cityResult, addressResult, subjectResult, durationResult] = await Promise.all([
+      const [cityResult, addressResult, subjectResult, durationResult, debitResult] = await Promise.all([
         supabase.from("cities" as any).select("id,name_ar,in_person_enabled").eq("is_active", true).order("name_ar"),
         supabase.from("user_addresses" as any).select("id,street_address,district,city_id").eq("owner_id", user.id).order("created_at", { ascending: false }),
         supabase.from("subjects").select("id,name").order("name"),
         supabase.rpc("get_in_person_instruction_duration" as any),
+        supabase.rpc("get_in_person_package_debit_minutes" as any),
       ]);
-      if (cityResult.error || addressResult.error || subjectResult.error || durationResult.error) {
+      if (cityResult.error || addressResult.error || subjectResult.error || durationResult.error || debitResult.error) {
         if (!active) return;
         setLoadError(true);
         setAddressesLoaded(true);
@@ -102,7 +104,15 @@ export default function InPersonStudentPanel() {
         setAddressesLoaded(true);
         return;
       }
+      const savedDebit = Number(debitResult.data);
+      if (!Number.isInteger(savedDebit) || savedDebit < savedDuration || savedDebit > 180) {
+        if (!active) return;
+        setLoadError(true);
+        setAddressesLoaded(true);
+        return;
+      }
       setInstructionDuration(savedDuration);
+      setPackageDebitMinutes(savedDebit);
       setLoadError(false);
       setCityUnavailableMessage("");
       setCities(((cityResult.data || []) as any[]).map((x) => ({ id: x.id, name: x.name_ar, enabled: Boolean(x.in_person_enabled) })));
@@ -206,6 +216,7 @@ export default function InPersonStudentPanel() {
       teacherCount: selectedTeachers.length,
       scheduledAt: scheduled.toISOString(),
       durationMinutes: instructionDuration,
+      packageDebitMinutes,
     });
     setSelectedTeachers([]);
   };
@@ -218,7 +229,7 @@ export default function InPersonStudentPanel() {
     <Card className="overflow-hidden rounded-2xl border-0 shadow-card">
       <CardHeader className="border-b bg-gradient-to-l from-primary/10 via-background to-secondary/10">
         <CardTitle>الحصص الحضورية</CardTitle>
-        <p className="text-sm text-muted-foreground">مدة الحصة وخصم الباقة {instructionDuration} دقيقة. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
+        <p className="text-sm text-muted-foreground">مدة التدريس {instructionDuration} دقيقة، ويُخصم {packageDebitMinutes} دقيقة من الرصيد. يُرسل الطلب قبل الموعد بساعتين على الأقل.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <Dialog open={Boolean(bookingSuccess)} onOpenChange={(open) => !open && setBookingSuccess(null)}>
@@ -234,7 +245,7 @@ export default function InPersonStudentPanel() {
               <div className="rounded-lg border bg-muted/40 p-4 text-sm">
                 {new Date(bookingSuccess.scheduledAt).toLocaleString("ar-SA", { weekday: "long", hour: "numeric", minute: "2-digit" })}
                 <div className="mt-1 text-muted-foreground">
-                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · {bookingSuccess.durationMinutes} دقيقة · {bookingSuccess.subject}
+                  {new Date(bookingSuccess.scheduledAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })} · {bookingSuccess.durationMinutes} دقيقة تدريس · خصم {bookingSuccess.packageDebitMinutes} دقيقة · {bookingSuccess.subject}
                 </div>
               </div>
             )}
@@ -305,7 +316,7 @@ export default function InPersonStudentPanel() {
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/[0.03] via-card to-secondary/[0.04] p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
             <div><h3 className="font-black text-foreground">بيانات الحصة الحضورية</h3><p className="mt-1 text-xs text-muted-foreground">اختر عنوان الزيارة والمادة والموعد المناسب.</p></div>
-            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{instructionDuration} دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">{instructionDuration} دقيقة من الرصيد</span></div>
+            <div className="flex gap-2"><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{instructionDuration} دقيقة تدريس</span><span className="rounded-full bg-secondary/10 px-3 py-1 text-xs font-bold text-secondary">خصم {packageDebitMinutes} دقيقة من الرصيد</span></div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-semibold">المدينة
@@ -420,7 +431,7 @@ export default function InPersonStudentPanel() {
             <p className="mt-1.5 text-sm font-bold text-foreground">
               {new Date(scheduledAt).toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })} · {formatAppointmentTime(scheduledAt)}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · {instructionDuration} دقيقة تدريس · يُخصم {instructionDuration} دقيقة من الرصيد</p>
+            <p className="mt-1 text-xs text-muted-foreground">حصة حضورية واحدة · {instructionDuration} دقيقة تدريس · يُخصم {packageDebitMinutes} دقيقة من الرصيد</p>
           </div>
         </div>
         </div>

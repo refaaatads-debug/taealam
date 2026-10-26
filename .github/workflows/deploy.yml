@@ -88,6 +88,21 @@ jobs:
             run_migrations=true
           fi
           echo "run=$run_migrations" >> "$GITHUB_OUTPUT"
+      - name: Detect teacher service-location sync migration
+        id: teacher-location-migration-scope
+        shell: bash
+        run: |
+          run_teacher_location_migration=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261026000200_sync_teacher_service_locations.sql supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql .github/workflows/deploy.yml | grep -q .; then
+              run_teacher_location_migration=true
+            fi
+          elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
+            run_teacher_location_migration=true
+          fi
+          echo "run=$run_teacher_location_migration" >> "$GITHUB_OUTPUT"
       - name: Detect one-hour acceptance migration
         id: acceptance-migration-scope
         shell: bash
@@ -223,7 +238,17 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_unified_teacher_withdrawals.sql,supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql,supabase/migrations/20261026000100_configurable_in_person_package_minutes.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql,supabase/migrations/20261026000100_configurable_in_person_package_minutes.sql,supabase/migrations/20261026000200_sync_teacher_service_locations.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
+          target: /tmp/ajyal-build-${{ github.sha }}
+          overwrite: true
+      - name: Transfer teaching/debit migration to staging
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          source: supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -248,12 +273,13 @@ jobs:
           RUN_FINANCIAL_MIGRATIONS: ${{ steps.financial-migration-scope.outputs.run }}
           RUN_REPORTING_WITHDRAWAL_MIGRATIONS: ${{ steps.reporting-withdrawal-migration-scope.outputs.run }}
           RUN_EDGE_FUNCTIONS: ${{ steps.edge-function-scope.outputs.run }}
+          RUN_TEACHER_LOCATION_SYNC_MIGRATION: ${{ steps.teacher-location-migration-scope.outputs.run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION,RUN_FINANCIAL_MIGRATIONS,RUN_REPORTING_WITHDRAWAL_MIGRATIONS,RUN_EDGE_FUNCTIONS
+          envs: VITE_TURNSTILE_SITE_KEY,VITE_GOOGLE_MAPS_API_KEY,RUN_CITY_MIGRATIONS,RUN_ACCEPTANCE_MIGRATION,RUN_NOTIFICATIONS_MIGRATION,RUN_INPERSON_ROLES_MIGRATION,RUN_TEACHER_DOUBLE_BOOKING_MIGRATION,RUN_INPERSON_PRICING_MIGRATION,RUN_FINANCIAL_MIGRATIONS,RUN_REPORTING_WITHDRAWAL_MIGRATIONS,RUN_EDGE_FUNCTIONS,RUN_TEACHER_LOCATION_SYNC_MIGRATION
           script: |
             set -eu
             staging=/tmp/ajyal-build-${{ github.sha }}
@@ -272,6 +298,8 @@ jobs:
             test -f "$staging/supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql"
             test -f "$staging/supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql"
             test -f "$staging/supabase/migrations/20261026000100_configurable_in_person_package_minutes.sql"
+            test -f "$staging/supabase/migrations/20261026000200_sync_teacher_service_locations.sql"
+            test -f "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql"
             test -f "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql"
             test -f "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
             test -f "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
@@ -348,6 +376,74 @@ jobs:
               docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql"
             else
               echo "Skipping in-person database migrations: this change did not modify their SQL files."
+            fi
+            if [ "${RUN_TEACHER_LOCATION_SYNC_MIGRATION:-false}" = "true" ]; then
+              db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+              test -n "$db_container"
+              docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+            CREATE TABLE IF NOT EXISTS public.deployed_migration_fingerprints (
+              migration_name text PRIMARY KEY,
+              sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+              recorded_at timestamptz NOT NULL DEFAULT now(),
+              source text NOT NULL
+            );
+            ALTER TABLE public.deployed_migration_fingerprints ENABLE ROW LEVEL SECURITY;
+            REVOKE ALL ON TABLE public.deployed_migration_fingerprints FROM PUBLIC, anon, authenticated, service_role;
+            SQL
+              apply_location_migration() {
+                migration_file="$1"
+                marker_sql="$2"
+                test -s "$migration_file" || {
+                  echo "Required migration file is missing: $migration_file" >&2
+                  exit 1
+                }
+                migration_name="$(basename "$migration_file")"
+                expected_hash="$(sha256sum "$migration_file" | awk '{print $1}')"
+                test "${#expected_hash}" -eq 64 || {
+                  echo "Invalid migration fingerprint for $migration_name." >&2
+                  exit 1
+                }
+                stored_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                if [ -n "$stored_hash" ]; then
+                  test "$stored_hash" = "$expected_hash" || {
+                    echo "Stored fingerprint mismatch for $migration_name; refusing to continue." >&2
+                    exit 1
+                  }
+                  echo "Skipping already-applied migration $migration_name (fingerprint matches)."
+                else
+                  schema_marker="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "$marker_sql")"
+                  if [ "$schema_marker" = "t" ]; then
+                    echo "Schema marker exists without a recorded fingerprint for $migration_name; refusing to assume its source matches." >&2
+                    exit 1
+                  fi
+                  docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$migration_file"
+                  schema_marker="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "$marker_sql")"
+                  test "$schema_marker" = "t" || {
+                    echo "Post-migration schema verification failed for $migration_name." >&2
+                    exit 1
+                  }
+                  docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "INSERT INTO public.deployed_migration_fingerprints(migration_name,sha256,source) VALUES ('$migration_name','$expected_hash','GitHub Actions')"
+                fi
+                actual_hash="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT sha256 FROM public.deployed_migration_fingerprints WHERE migration_name = '$migration_name'")"
+                test -n "$actual_hash"
+                test "$actual_hash" = "$expected_hash" || {
+                  echo "Post-apply fingerprint verification failed for $migration_name." >&2
+                  exit 1
+                }
+              }
+              apply_location_migration \
+                "$staging/supabase/migrations/20261026000200_sync_teacher_service_locations.sql" \
+                "SELECT EXISTS (SELECT 1 FROM information_schema.triggers WHERE trigger_schema = 'public' AND trigger_name = 'sync_teacher_service_location_to_profile_trigger') AND to_regprocedure('public.sync_teacher_service_location_to_profile()') IS NOT NULL"
+              location_mismatches="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT count(*) FROM public.teacher_profiles tp JOIN public.teacher_service_locations l ON l.teacher_id = tp.user_id WHERE tp.city_id IS DISTINCT FROM l.city_id OR tp.in_person_latitude IS DISTINCT FROM l.latitude OR tp.in_person_longitude IS DISTINCT FROM l.longitude OR tp.in_person_service_radius_km IS DISTINCT FROM l.service_radius_km")"
+              test "$location_mismatches" = "0"
+              apply_location_migration \
+                "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql" \
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'financial_settings' AND column_name = 'in_person_package_debit_minutes') AND to_regprocedure('public.get_in_person_package_debit_minutes()') IS NOT NULL AND pg_get_functiondef('public.create_in_person_request(uuid,timestamptz,uuid,uuid,uuid[],text)'::regprocedure) LIKE '%v_package_debit_minutes%'"
+              configured_duration="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT in_person_instruction_duration_minutes || ':' || in_person_package_debit_minutes FROM public.financial_settings ORDER BY updated_at DESC LIMIT 1")"
+              test "$configured_duration" = "60:100"
+              echo "Teacher service locations are synchronized; mismatched profiles were disabled pending location reapproval."
+            else
+              echo "Skipping teacher location sync migration: this change did not modify its SQL file."
             fi
             if [ "${RUN_ACCEPTANCE_MIGRATION:-false}" = "true" ]; then
               db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"

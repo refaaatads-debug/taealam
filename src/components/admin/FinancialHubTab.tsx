@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import FinancialExportButton from "./FinancialExportButton";
 import InvoiceDetailDialog, { type InvoiceLike } from "./InvoiceDetailDialog";
 import { inDateRange } from "@/lib/financialExports";
-import { isValidInPersonDuration } from "@/lib/inPersonDuration";
+import { isValidInPersonDuration, isValidInPersonPackageDebit } from "@/lib/inPersonDuration";
 
 
 interface FinancialSettings {
@@ -27,6 +27,7 @@ interface FinancialSettings {
   large_withdrawal_threshold: number;
   enable_auto_reconciliation: boolean;
   in_person_instruction_duration_minutes: number;
+  in_person_package_debit_minutes: number;
 }
 
 function AuditRow({ a }: { a: any }) {
@@ -249,6 +250,10 @@ export default function FinancialHubTab() {
       toast.error("أدخل مدة صحيحة من 15 إلى 180 دقيقة");
       return;
     }
+    if (!isValidInPersonPackageDebit(settings.in_person_package_debit_minutes, settings.in_person_instruction_duration_minutes)) {
+      toast.error("يجب أن يكون الخصم عددًا صحيحًا لا يقل عن مدة التدريس ولا يتجاوز 180 دقيقة");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await supabase
@@ -261,6 +266,7 @@ export default function FinancialHubTab() {
           large_withdrawal_threshold: settings.large_withdrawal_threshold,
           enable_auto_reconciliation: settings.enable_auto_reconciliation,
           in_person_instruction_duration_minutes: settings.in_person_instruction_duration_minutes,
+          in_person_package_debit_minutes: settings.in_person_package_debit_minutes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", settings.id);
@@ -963,7 +969,7 @@ export default function FinancialHubTab() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="in-person-duration">مدة الحصة الحضورية وخصم الباقة للحجوزات الجديدة (دقيقة)</Label>
+                      <Label htmlFor="in-person-duration">مدة التدريس الحضوري للحجوزات الجديدة (دقيقة)</Label>
                       <Input
                         id="in-person-duration"
                         type="number"
@@ -976,7 +982,23 @@ export default function FinancialHubTab() {
                           in_person_instruction_duration_minutes: Number(e.target.value),
                         })}
                       />
-                      <p className="text-xs text-muted-foreground">يُخصم من الباقة عدد الدقائق نفسه، وتُحفظ المدة على الطلب والحجز الجديد دون تغيير الحجوزات السابقة.</p>
+                      <p className="text-xs text-muted-foreground">هذه مدة الحصة الفعلية؛ لا تغيّر وحدها مقدار الخصم من الباقة.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="in-person-package-debit">خصم الباقة للحجز الحضوري الجديد (دقيقة)</Label>
+                      <Input
+                        id="in-person-package-debit"
+                        type="number"
+                        min={15}
+                        max={180}
+                        step={1}
+                        value={settings.in_person_package_debit_minutes ?? 100}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          in_person_package_debit_minutes: Number(e.target.value),
+                        })}
+                      />
+                      <p className="text-xs text-muted-foreground">مثال: 60 دقيقة تدريس فعلية تُخصم مقابلها 100 دقيقة من رصيد الطالب.</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border p-3">

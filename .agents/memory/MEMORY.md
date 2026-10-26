@@ -4,5 +4,6 @@
 - [GitHub deployment scripts](github-actions-deployment-scripts.md) — Keep embedded SSH scripts below GitHub's parser limit and pass staging paths between SSH actions explicitly.
 - [In-person teacher payout policy](in-person-teacher-payout-policy.md) — Keep unpaid in-person earnings in monthly reporting, not withdrawable balance; platform credits payouts manually.
 - [Minute package validity](minute-package-validity.md) — Minute packages never expire by date; treat `ends_at` as audit metadata, not an access or booking rule.
-- [In-person duration and package debit](in-person-duration-debit.md) — New in-person bookings snapshot the admin duration (15–180 minutes) and debit that same number of package minutes.
+- [In-person duration and package debit](in-person-duration-debit.md) — Keep 60-minute teaching sessions distinct from the 100-minute package debit.
 - [Production Supabase connector access](supabase-production-connector-access.md) — The Supabase API connector can reject the site's custom-domain proxy as a private-address redirect; this is not a credential failure.
+- [Teacher location source of truth](teacher-location-source-of-truth.md) — Teacher settings use service-location records while in-person search uses legacy profile fields; keep them synchronized and reapprove changed locations.

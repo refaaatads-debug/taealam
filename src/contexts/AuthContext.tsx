@@ -293,9 +293,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ) {
             return;
           }
+          const isSameInitializedUser = lastInitializedUserId === session.user.id;
           lastInitializedUserId = session.user.id;
           void initializeAuthenticatedSession(session.user.id, {
-            silent: event === "TOKEN_REFRESHED",
+            // Keep the authenticated app visible when refreshing data for the
+            // same account; only the first session initialization needs a loader.
+            silent: isSameInitializedUser,
           });
         } else {
           lastInitializedUserId = null;
