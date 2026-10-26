@@ -116,7 +116,7 @@ export default function SessionPricingTab() {
       toast.error("تعذر حفظ مدة الحصة الحضورية");
     } else {
       setInPersonDuration(duration);
-      toast.success(`تم حفظ مدة الحصة الحضورية وخصم ${duration} دقيقة للحجوزات الجديدة`);
+      toast.success(`تم حفظ مدة التدريس الحضوري (${duration} دقيقة) للحجوزات الجديدة`);
     }
     setSaving(false);
   };
@@ -225,12 +225,12 @@ export default function SessionPricingTab() {
         <Card className="border-0 shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><DollarSign className="h-5 w-5 text-emerald-600" />تسعير الحصة الحضورية</CardTitle>
-            <p className="text-sm text-muted-foreground">مدة التدريس {inPersonDuration} دقيقة · خصم الباقة {inPersonDuration} دقيقة · تكلفة الطالب 100 ر.س. أجر المعلم يحدد أدناه وحصة المنصة هي المتبقي من 100 ر.س.</p>
+            <p className="text-sm text-muted-foreground">مدة التدريس {inPersonDuration} دقيقة · خصم الباقة يُضبط بشكل مستقل في الإعدادات المالية · تكلفة الطالب 100 ر.س. أجر المعلم يحدد أدناه وحصة المنصة هي المتبقي من 100 ر.س.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-muted/20 p-4">
               <div className="space-y-1">
-                <label htmlFor="in-person-pricing-duration" className="text-sm font-medium">مدة التدريس وخصم الباقة للحجوزات الجديدة (دقيقة)</label>
+                <label htmlFor="in-person-pricing-duration" className="text-sm font-medium">مدة التدريس الفعلية للحجوزات الجديدة (دقيقة)</label>
                 <Input
                   id="in-person-pricing-duration"
                   type="number"

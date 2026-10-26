@@ -96,7 +96,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             before="${{ github.event.before }}"
             if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
-              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261026000200_sync_teacher_service_locations.sql .github/workflows/deploy.yml | grep -q .; then
+              && git diff --name-only "$before" "$GITHUB_SHA" -- supabase/migrations/20261026000200_sync_teacher_service_locations.sql supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql .github/workflows/deploy.yml | grep -q .; then
               run_teacher_location_migration=true
             fi
           elif [ "${{ inputs.apply_database_migrations }}" = "true" ]; then
@@ -241,6 +241,16 @@ jobs:
           source: src/**,public/**,supabase/functions/ai-support/index.ts,supabase/functions/ai-tutor-token/index.ts,supabase/functions/send-notification/index.ts,supabase/functions/solve-homework/index.ts,supabase/migrations/20261021000100_city_in_person_availability.sql,supabase/migrations/20261021000200_close_pending_disabled_city_requests.sql,supabase/migrations/20261021000300_in_person_code_cancellation_and_cross_mode_guard.sql,supabase/migrations/20261021000400_keep_unanswered_teacher_requests_open.sql,supabase/migrations/20261021000600_in_person_one_hour_acceptance_window.sql,supabase/migrations/20261021000700_in_person_notifications.sql,supabase/migrations/20261021000800_enable_in_person_for_all_roles.sql,supabase/migrations/20261021000900_prevent_teacher_double_booking.sql,supabase/migrations/20261021001000_in_person_teacher_pricing.sql,supabase/migrations/20261021001100_in_person_session_lifecycle.sql,supabase/migrations/20261021001200_mode_aware_booking_expiry.sql,supabase/migrations/20261021001300_in_person_session_financial_gates.sql,supabase/migrations/20261021001400_idempotent_online_session_earning_rollup.sql,supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql,supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql,supabase/migrations/20261021001700_snapshot_in_person_teaching_duration.sql,supabase/migrations/20261022000100_manual_in_person_teacher_payouts.sql,supabase/migrations/20261022000200_canonical_teacher_balance_and_package_minutes.sql,supabase/migrations/20261026000100_configurable_in_person_package_minutes.sql,supabase/migrations/20261026000200_sync_teacher_service_locations.sql,index.html,package.json,package-lock.json,vite.config.ts,tsconfig.json,tsconfig.app.json,tsconfig.node.json,tailwind.config.ts,postcss.config.js,components.json
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
+      - name: Transfer teaching/debit migration to staging
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          source: supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql
+          target: /tmp/ajyal-build-${{ github.sha }}
+          overwrite: true
       - name: Recheck main immediately before VPS activation
         shell: bash
         run: |
@@ -289,6 +299,7 @@ jobs:
             test -f "$staging/supabase/migrations/20261021001500_financial_snapshot_and_duration_safety.sql"
             test -f "$staging/supabase/migrations/20261026000100_configurable_in_person_package_minutes.sql"
             test -f "$staging/supabase/migrations/20261026000200_sync_teacher_service_locations.sql"
+            test -f "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql"
             test -f "$staging/supabase/migrations/20261021001600_teacher_reporting_and_month_scope.sql"
             test -f "$staging/supabase/migrations/20261021001700_unified_teacher_withdrawals.sql"
             test -f "$staging/supabase/migrations/20261021001800_snapshot_in_person_teaching_duration.sql"
@@ -377,6 +388,14 @@ jobs:
               fi
               location_mismatches="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT count(*) FROM public.teacher_profiles tp JOIN public.teacher_service_locations l ON l.teacher_id = tp.user_id WHERE tp.city_id IS DISTINCT FROM l.city_id OR tp.in_person_latitude IS DISTINCT FROM l.latitude OR tp.in_person_longitude IS DISTINCT FROM l.longitude OR tp.in_person_service_radius_km IS DISTINCT FROM l.service_radius_km")"
               test "$location_mismatches" = "0"
+              duration_split_applied="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'financial_settings' AND column_name = 'in_person_package_debit_minutes') AND to_regprocedure('public.get_in_person_package_debit_minutes()') IS NOT NULL AND pg_get_functiondef('public.create_in_person_request(uuid,timestamptz,uuid,uuid,uuid[],text)'::regprocedure) LIKE '%v_package_debit_minutes%'")"
+              if [ "$duration_split_applied" = "t" ]; then
+                echo "Skipping teaching/debit migration: its production schema marker already exists."
+              else
+                docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$staging/supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql"
+              fi
+              configured_duration="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "SELECT in_person_instruction_duration_minutes || ':' || in_person_package_debit_minutes FROM public.financial_settings ORDER BY updated_at DESC LIMIT 1")"
+              test "$configured_duration" = "60:100"
               echo "Teacher service locations are synchronized; mismatched profiles were disabled pending location reapproval."
             else
               echo "Skipping teacher location sync migration: this change did not modify its SQL file."
