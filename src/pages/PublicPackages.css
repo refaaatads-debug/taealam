@@ -3,7 +3,7 @@
   --packages-teal: #167d70;
   --packages-teal-dark: #11685f;
   --packages-mint: #e5f1eb;
-  --packages-paper: #fbfaf5;
+  --packages-paper: #fbfcfd;
   --packages-cream: #f3efe3;
   --packages-ochre: #a87834;
   --packages-muted: #667c7d;
@@ -30,7 +30,7 @@
 .public-packages-page .packages-section-space { padding-block: 96px; }
 .public-packages-page .packages-hero {
   position: relative; isolation: isolate; overflow: hidden; padding: 76px 0 94px;
-  background: radial-gradient(ellipse at 12% 20%, rgba(219,235,224,.82), transparent 34%), var(--packages-paper);
+  background: radial-gradient(ellipse at 12% 20%, rgba(237,243,239,.38), transparent 34%), var(--packages-paper);
 }
 .public-packages-page .packages-hero::after {
   content: ""; position: absolute; z-index: -1; width: 390px; height: 390px;
@@ -87,7 +87,7 @@
 .public-packages-page .packages-heading { max-width:610px; }
 .public-packages-page .packages-heading h2 { margin:13px 0 0; font-size:clamp(30px,4vw,45px); line-height:1.27; font-weight:900; }
 .public-packages-page .packages-heading > p { max-width:540px; margin:14px 0 0; color:#647a7e; font-size:13px; line-height:2; }
-.public-packages-page .packages-support-section { position:relative; overflow:hidden; background:#edf4ef; }
+.public-packages-page .packages-support-section { position:relative; overflow:hidden; background:#fbfcfd; }
 .public-packages-page .packages-support-section::before { content:""; position:absolute; width:360px;height:360px;border:1px solid rgba(22,125,112,.11);border-radius:50%;top:30px;left:-230px;box-shadow:0 0 0 30px rgba(22,125,112,.025),0 0 0 60px rgba(22,125,112,.02); }
 .public-packages-page .packages-support-layout { display:grid; grid-template-columns:.72fr 1.28fr; gap:60px; align-items:start; }
 .public-packages-page .packages-support-side { position:sticky; top:100px; }
@@ -138,7 +138,7 @@
 .public-packages-page .packages-visual-book { position:absolute;bottom:22%;right:41%;width:58px;height:30px;border-radius:4px;background:#f8f4e7;transform:rotate(-7deg);box-shadow:inset -2px 0 #c1bdaf; }
 .public-packages-page .packages-visual-caption { position:absolute; bottom:17px; right:20px; color:#eff4eb; font-size:10px; font-weight:800; }
 
-.public-packages-page .packages-journey-section { background:#eaf2ed; overflow:hidden; }
+.public-packages-page .packages-journey-section { background:#fbfcfd; overflow:hidden; }
 .public-packages-page .packages-journey-heading { display:flex; align-items:end; justify-content:space-between; gap:30px; margin-bottom:34px; }
 .public-packages-page .packages-journey-heading .packages-heading { max-width:600px; }
 .public-packages-page .packages-journey-tag { display:inline-flex; align-items:center; gap:8px; padding:10px 13px; border:1px solid rgba(22,125,112,.18); border-radius:999px; background:#f7faf5; color:var(--packages-teal); font-size:10px; font-weight:900; white-space:nowrap; }
@@ -260,5 +260,41 @@
     animation-duration:.01ms!important;
     animation-iteration-count:1!important;
     transition-duration:.01ms!important;
+  }
+}
+
+/* Page canvases stay near-white; mint and ochre remain as small card accents. */
+.public-packages-page {
+  --packages-paper: #fbfcfd;
+  background: #fbfcfd;
+}
+.public-packages-page .packages-hero {
+  background: radial-gradient(ellipse at 12% 20%, rgba(243,248,246,.62), transparent 34%), #fbfcfd;
+}
+.public-packages-page .packages-strip { background: #fff; }
+.public-packages-page .packages-support-section,
+.public-packages-page .packages-journey-section { background: #f7f9fa; }
+.public-packages-page .packages-support-section::before {
+  border-color: rgba(22,125,112,.08);
+  box-shadow: 0 0 0 30px rgba(22,125,112,.018), 0 0 0 60px rgba(22,125,112,.012);
+}
+.public-packages-page .packages-modes-section,
+.public-packages-page .packages-faq-section { background: #fbfcfd; }
+.public-packages-page .packages-mode-switch { background: #f3f6f7; }
+.public-packages-page .packages-journey-tag { background: #fff; }
+.public-packages-page .packages-cta-band {
+  padding-block: 0;
+  background: #fbfcfd;
+}
+.public-packages-page .packages-cta-inner {
+  margin-block: 48px;
+  padding: 38px 40px;
+  border-radius: 23px 23px 23px 6px;
+  background: #183e50;
+}
+@media (max-width: 700px) {
+  .public-packages-page .packages-cta-inner {
+    margin-block: 34px;
+    padding: 25px 21px;
   }
 }

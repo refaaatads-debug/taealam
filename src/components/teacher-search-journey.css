@@ -1,7 +1,5 @@
 .ajyal-discovery .ji-section {
-  background:
-    radial-gradient(ellipse at 8% 10%, rgba(218, 233, 214, .65), transparent 32rem),
-    #f5f6ef;
+  background: #fbfcfd;
   color: #183d42;
   overflow: hidden;
   padding: clamp(48px, 7vw, 90px) 24px 58px;

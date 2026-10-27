@@ -47,12 +47,12 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
   const reveal = reduceMotion ? { initial: false as const } : { initial: { opacity: 0, y: 18 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-60px" }, transition: { duration: 0.5 } };
 
   return (
-    <div className="ajyal-homepage min-h-[100dvh] overflow-x-hidden bg-[#fbfcfa] text-[#17344d]" dir="rtl">
+    <div className="ajyal-homepage min-h-[100dvh] overflow-x-hidden bg-[#fbfcfd] text-[#17344d]" dir="rtl">
       <SEOHead title="منصة أجيال المعرفة | تعلم بثقة" description="تعلّم بثقة مع منصة أجيال المعرفة: حصص مباشرة، تأسيس دراسي، ومدرسون يساعدونك على التقدم." canonical="/" />
       <Navbar />
       <main>
-        <section className="relative isolate overflow-hidden bg-[#fbfcfa]">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-36 -top-36 h-[34rem] w-[34rem] rounded-full bg-[#e9f3ee] blur-3xl" />
+        <section className="relative isolate overflow-hidden bg-[#fbfcfd]">
+          <div aria-hidden="true" className="pointer-events-none absolute -right-36 -top-36 h-[34rem] w-[34rem] rounded-full bg-[#f5f8f8] blur-3xl" />
           <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-20 pt-8 md:px-8 md:pb-28 md:pt-14 lg:grid-cols-[.92fr_1.08fr] lg:gap-16">
             <motion.div initial={reduceMotion ? false : { opacity: 0, x: 20 }} animate={reduceMotion ? undefined : { opacity: 1, x: 0 }} transition={{ duration: .6 }} className="order-2 lg:order-1">
               <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#17796f]/20 bg-[#e8f3ee] px-4 py-2 text-xs font-extrabold text-[#176d64]"><Sparkles className="h-4 w-4" aria-hidden="true" /> تعلّم أقرب إلى هدفك</p>
@@ -69,7 +69,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
               </div>
             </motion.div>
             <motion.div initial={reduceMotion ? false : { opacity: 0, scale: .97 }} animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }} transition={{ duration: .7 }} className="relative order-1 lg:order-2">
-              <div aria-hidden="true" className="absolute -inset-4 rotate-2 rounded-[2rem] border border-[#dfbd7c]/45 bg-[#f3ead8] md:-inset-6" />
+              <div aria-hidden="true" className="absolute -inset-4 rotate-2 rounded-[2rem] border border-[#dfbd7c]/35 bg-[#f8f9f8] md:-inset-6" />
               <div className="relative overflow-hidden rounded-[1.6rem] bg-[#17344d] shadow-[0_30px_70px_-38px_rgba(23,52,77,.7)]">
                 <img src={heroBanner} alt="طالب سعودي يتعلم عن بعد في حصة مباشرة مع مدرسه" className="h-[250px] w-full object-cover object-center sm:h-[390px] lg:h-[510px]" loading="eager" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#102d43]/85 via-transparent to-[#102d43]/5" />
@@ -96,7 +96,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           </div>
         </section>
 
-        <section className="relative overflow-hidden bg-[#f0f5f1] px-5 py-16 md:px-8 md:py-24">
+        <section className="relative overflow-hidden bg-[#fbfcfd] px-5 py-16 md:px-8 md:py-24">
           <div className="relative mx-auto max-w-7xl">
             <motion.div {...reveal} className="max-w-2xl">
               <p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">أساس يبقى معك</p>
@@ -113,7 +113,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           </div>
         </section>
 
-        <section className="overflow-hidden bg-[#fbfcfa] px-5 py-16 md:px-8 md:py-24">
+        <section className="overflow-hidden bg-[#fbfcfd] px-5 py-16 md:px-8 md:py-24">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[.85fr_1.15fr] lg:gap-20">
             <motion.div {...reveal} className="relative order-2 flex justify-center md:order-1"><div className="absolute bottom-5 h-24 w-56 rounded-full bg-[#16776c]/15 blur-2xl" /><img src={mobileAppPreview} alt="واجهة تطبيق أجيال المعرفة للجوال" className="relative h-auto w-[220px] max-w-full object-contain drop-shadow-2xl sm:w-[270px]" style={{ clipPath: "inset(1.1% 4.1% 1.7% 4.1% round 8%)" }} loading="lazy" /></motion.div>
             <motion.div {...reveal} className="order-1 md:order-2"><p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">تعلمك في متناولك</p><h2 className="mt-4 max-w-xl text-3xl font-black leading-tight md:text-4xl">تابع تفاصيل رحلتك التعليمية من مكان واحد</h2><p className="mt-5 max-w-lg text-sm leading-8 text-[#17344d]/65">تواصل مع مدرسك، تابع حصصك وموادك، واستكشف أدوات المنصة من تجربة مصممة لتبقى واضحة.</p>
@@ -123,9 +123,9 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           </div>
         </section>
 
-        <section className="bg-[#17344d] px-5 py-16 text-white md:px-8 md:py-24">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-center"><div><p className="text-xs font-extrabold tracking-[.12em] text-[#c5e5d8]">بداية سهلة وواضحة</p><h2 className="mt-4 text-3xl font-black leading-tight md:text-4xl">رحلتك التعليمية<br /><span className="text-[#c5e5d8]">في ثلاث خطوات</span></h2><p className="mt-5 max-w-sm text-sm leading-7 text-white/65">من اختيار احتياجك إلى أول حصة، ابدأ حين تكون مستعداً.</p></div>
-            <div className="grid gap-3 sm:grid-cols-3">{steps.map(([num, title, text], i) => <article key={num} className="rounded-2xl border border-white/10 bg-white/[.055] p-5 transition hover:-translate-y-1 hover:bg-white/[.09]"><p className="font-mono text-3xl font-black text-[#c5e5d8]">{num}</p><h3 className="mt-7 text-sm font-extrabold">{title}</h3><p className="mt-2 text-xs leading-6 text-white/65">{text}</p>{i < 2 && <ArrowUpLeft className="mt-5 hidden h-4 w-4 text-white/40 sm:block" aria-hidden="true" />}</article>)}</div>
+        <section className="bg-[#f6f9fa] px-5 py-16 text-[#17344d] md:px-8 md:py-24">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-center"><div><p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">بداية سهلة وواضحة</p><h2 className="mt-4 text-3xl font-black leading-tight md:text-4xl">رحلتك التعليمية<br /><span className="text-[#16776c]">في ثلاث خطوات</span></h2><p className="mt-5 max-w-sm text-sm leading-7 text-[#17344d]/65">من اختيار احتياجك إلى أول حصة، ابدأ حين تكون مستعداً.</p></div>
+            <div className="grid gap-3 sm:grid-cols-3">{steps.map(([num, title, text], i) => <article key={num} className="rounded-2xl border border-[#17344d]/10 bg-white p-5 transition hover:-translate-y-1 hover:shadow-lg"><p className="font-mono text-3xl font-black text-[#16776c]">{num}</p><h3 className="mt-7 text-sm font-extrabold">{title}</h3><p className="mt-2 text-xs leading-6 text-[#17344d]/65">{text}</p>{i < 2 && <ArrowUpLeft className="mt-5 hidden h-4 w-4 text-[#17344d]/35 sm:block" aria-hidden="true" />}</article>)}</div>
           </div>
         </section>
 
@@ -144,7 +144,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           })}</div> : <div className="mt-9 rounded-3xl border border-dashed border-[#17344d]/20 bg-white px-6 py-10 text-center"><GraduationCap className="mx-auto h-8 w-8 text-[#16776c]" aria-hidden="true" /><p className="mt-3 text-sm font-extrabold">اكتشف المدرسين المتاحين</p><p className="mt-2 text-xs text-[#17344d]/60">تصفح المواد والمدرسين في صفحة البحث.</p><Link to="/search" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#16776c] px-5 py-3 text-xs font-extrabold text-white">ابحث عن مدرس <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>}
         </section>
 
-        <section className="mx-5 mb-12 overflow-hidden rounded-[1.75rem] bg-[#e8f2ed] md:mx-auto md:max-w-7xl">
+        <section className="mx-5 mb-12 overflow-hidden rounded-[1.75rem] border border-[#17344d]/10 bg-white md:mx-auto md:max-w-7xl">
           <div className="grid gap-7 px-6 py-9 sm:px-9 md:grid-cols-[1.2fr_.8fr] md:items-center md:px-12 md:py-12"><div><p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">خطوتك التالية تبدأ هنا</p><h2 className="mt-3 max-w-lg text-3xl font-black leading-tight text-[#17344d] md:text-4xl">افتح باباً جديداً للتعلّم</h2><p className="mt-4 max-w-md text-sm leading-7 text-[#17344d]/65">سجّل الدخول لاستكشاف تجربة أجيال المعرفة، أو انضم إلى مجتمعنا التعليمي كمدرس.</p></div><div className="flex flex-col gap-3 sm:flex-row md:justify-end"><Link to={ctaTarget} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#16776c] px-5 py-3 text-xs font-extrabold text-white transition hover:bg-[#105f58]">ابدأ التعلّم <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></Link><Link to="/teach-with-us" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#17344d]/15 bg-white px-5 py-3 text-xs font-extrabold text-[#17344d] transition hover:border-[#16776c]/40">انضم كمدرس</Link></div></div>
         </section>
       </main>

@@ -1,28 +1,20 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import type { ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   GraduationCap, Clock, DollarSign, Users, Sparkles, ShieldCheck,
   CheckCircle2, Calendar, Video, TrendingUp, Award, ArrowLeft,
-  UserPlus, FileCheck, Wallet, Star
+  UserPlus, FileCheck, Wallet, Star,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import heroBanner from "@/assets/hero-banner.jpg";
 import teacher1 from "@/assets/teacher-1.jpg";
 import teacher2 from "@/assets/teacher-2.jpg";
 import teacher3 from "@/assets/teacher-3.jpg";
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { delay: i * 0.08, duration: 0.5, ease: "easeOut" as const },
-  }),
-};
+import "./teach-with-us.css";
 
 const benefits = [
   { icon: Clock, title: "حدد جدولك بنفسك", desc: "اختر الأيام والساعات التي تناسبك. كن مديراً لوقتك ودخلك." },
@@ -48,6 +40,14 @@ const requirements = [
   "الموافقة على شروط وسياسات المنصة",
 ];
 
+const offerings = [
+  "ملف شخصي احترافي يعزّز من فرص اختيارك",
+  "أدوات تدريس متطورة (سبورة، فيديو، AI)",
+  "تقارير ذكية بعد كل حصة",
+  "نظام دفع آمن وسحب سريع للأرباح",
+  "دعم فني متواصل ومجتمع معلمين متعاون",
+];
+
 const policy = [
   { title: "العمولة", desc: "تخصم المنصة نسبة عمولة شفافة من قيمة كل حصة، يتم عرضها بوضوح قبل التسعير." },
   { title: "السحب", desc: "يمكنك سحب أرباحك بعد اكتمال الحصص ومراجعتها، عبر تحويل بنكي آمن." },
@@ -63,305 +63,216 @@ const stats = [
   { value: "+50K", label: "حصة مكتملة" },
 ];
 
-const TeachWithUs = () => {
+const portraits = [teacher1, teacher2, teacher3];
+
+function Reveal({ children, className = "", delay = 0, reduceMotion }: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  reduceMotion: boolean;
+}) {
   return (
-    <div className="min-h-screen flex flex-col bg-background text-[#102f50] pb-16 md:pb-0 font-cairo text-base leading-7" dir="rtl">
+    <motion.div
+      className={className}
+      initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={reduceMotion ? undefined : { duration: 0.48, delay, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export default function TeachWithUs() {
+  const reduceMotion = useReducedMotion() ?? false;
+
+  return (
+    <div className="teacher-page min-h-[100dvh] pb-16 font-cairo md:pb-0" dir="rtl">
       <Navbar />
-
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-background">
-        <div className="container relative z-10 py-10 md:py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>
-              <motion.div variants={fadeUp} custom={0} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#188779]/20 bg-[#188779]/[0.07] px-4 py-2 text-sm font-bold text-[#188779]">
-                <GraduationCap className="h-4 w-4" />
-                <span>للمدرسين والمدربين</span>
+      <main>
+        <section className="tw-hero">
+          <div className="tw-shell tw-hero-layout">
+            <div className="tw-hero-copy">
+              <motion.div
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={reduceMotion ? undefined : { duration: .45 }}
+                className="tw-eyebrow"
+              >
+                <GraduationCap size={17} aria-hidden="true" /> للمُدرسين والمدربين
               </motion.div>
-
-              <motion.h1 variants={fadeUp} custom={1} className="mb-5 text-3xl font-black leading-tight tracking-tight text-[#102f50] sm:text-4xl md:text-5xl">
+              <motion.h1
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={reduceMotion ? undefined : { duration: .55, delay: .06 }}
+              >
                 هل ترغب بالتدريس
-                <br />
-                <span className="text-[#188779]">أونلاين بمرونة كاملة؟</span>
+                <span>أونلاين بمرونة كاملة؟</span>
               </motion.h1>
-
-              <motion.p variants={fadeUp} custom={2} className="mb-8 max-w-xl text-base leading-7 text-[#102f50]/65 md:text-lg">
-                انضم لطاقم المدرسين في <span className="font-bold">منصة أجيال المعرفة</span> وكن مديراً لوقتك ودخلك.
+              <motion.p
+                className="tw-intro"
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={reduceMotion ? undefined : { duration: .55, delay: .12 }}
+              >
+                انضم لطاقم المدرسين في <strong>منصة أجيال المعرفة</strong> وكن مديراً لوقتك ودخلك.
                 شارك خبراتك مع آلاف الطلاب وحقّق دخلاً مستقراً من بيتك.
               </motion.p>
-
-              <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <Button
-                  size="lg"
-                  className="gradient-cta shadow-button text-secondary-foreground text-base md:text-lg px-8 rounded-2xl h-14 md:h-16 w-full sm:w-auto font-black"
-                  asChild
-                >
+              <motion.div
+                className="tw-actions"
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={reduceMotion ? undefined : { duration: .55, delay: .18 }}
+              >
+                <Button asChild className="tw-primary">
                   <Link to="/login?role=teacher&signup=1">
-                    <UserPlus className="ml-2 h-5 w-5" />
-                    قدّم طلبك مجاناً
+                    <UserPlus size={18} aria-hidden="true" /> قدّم طلبك مجاناً
                   </Link>
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-14 w-full rounded-2xl border-2 border-[#102f50]/15 bg-white text-[#102f50] hover:bg-[#e8f1ef] md:h-16 sm:w-auto"
-                  asChild
-                >
-                  <a href="#policy">
-                    شروط الانضمام
-                  </a>
-                </Button>
+                <a className="tw-secondary" href="#policy">شروط الانضمام <ArrowLeft size={16} aria-hidden="true" /></a>
               </motion.div>
-
-              {/* Trust */}
-              <motion.div variants={fadeUp} custom={4} className="mt-8 flex items-center gap-5 border-t border-[#102f50]/10 pt-8">
-                <div className="flex -space-x-3 space-x-reverse">
-                  {[teacher1, teacher2, teacher3].map((img, i) => (
-                    <img key={i} src={img} alt="معلم" className="h-10 w-10 rounded-full border-2 border-white object-cover" loading="lazy" />
-                  ))}
+              <div className="tw-social-proof">
+                <div className="tw-avatars" aria-label="مجتمع المعلمين">
+                  {portraits.map((image, index) => <img key={image} src={image} alt={`معلم ${index + 1}`} loading="lazy" />)}
                 </div>
-                <div>
-                  <div className="flex items-center gap-1 mb-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-gold text-gold" />
-                    ))}
-                    <span className="mr-1 text-sm font-bold text-[#ad7a20]">4.9</span>
+                <div className="tw-proof-copy">
+                  <div className="tw-rating" aria-label="التقييم 4.9 من 5">
+                    {Array.from({ length: 5 }, (_, index) => <Star key={index} size={15} fill="currentColor" aria-hidden="true" />)}
+                    <b>4.9</b>
                   </div>
-                  <p className="text-sm leading-6 font-medium text-[#102f50]/65">
-                    أكثر من <span className="font-black">500</span> معلم انضموا إلينا
-                  </p>
-                </div>
-              </motion.div>
-            </motion.div>
-
-            {/* Stats card */}
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.6 }} className="hidden lg:block">
-              <div className="overflow-hidden rounded-[2rem] border border-[#102f50]/10 bg-white shadow-2xl shadow-[#102f50]/10">
-                <div className="relative h-64 overflow-hidden bg-[#102f50]">
-                  <img src={heroBanner} alt="انضم لطاقم المدرسين" className="h-full w-full object-cover opacity-70" loading="eager" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#102f50] via-[#102f50]/20 to-transparent" />
-                  <div className="absolute bottom-5 right-5 text-white">
-                    <p className="text-xs leading-5 font-bold text-[#b9e4dc]">تجربة تعليمية مباشرة</p>
-                    <p className="mt-1 text-2xl font-black">علّم بخبرتك<br />وابنِ مستقبلك</p>
-                  </div>
-                </div>
-                <div className="p-7">
-                <div className="grid grid-cols-2 gap-6">
-                  {stats.map((s, i) => (
-                    <div key={i}>
-                      <div className="mb-1 text-3xl font-black text-[#188779]">{s.value}</div>
-                      <div className="text-sm leading-6 text-[#102f50]/60">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center gap-3 border-t border-[#102f50]/10 pt-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e8f1ef]">
-                    <TrendingUp className="h-5 w-5 text-[#188779]" />
-                  </div>
-                  <p className="text-sm leading-6 text-[#102f50]/65">
-                    <span className="font-black">دخل شهري متوسط</span>
-                    <br />
-                    <span>للمعلم النشط على المنصة</span>
-                  </p>
-                </div>
+                  <p>أكثر من <strong>500</strong> معلم انضموا إلينا</p>
                 </div>
               </div>
-            </motion.div>
+            </div>
+            <Reveal reduceMotion={reduceMotion} className="tw-hero-visual">
+              <div className="tw-image-frame">
+                <img src={heroBanner} alt="انضم لطاقم المدرسين" loading="eager" />
+                <div className="tw-image-shade" />
+                <div className="tw-image-caption">
+                  <span>تجربة تعليمية مباشرة</span>
+                  <h2>علّم بخبرتك<br />وابنِ مستقبلك</h2>
+                </div>
+                <div className="tw-image-mark"><TrendingUp size={17} aria-hidden="true" /> مساحة لخبرتك</div>
+              </div>
+              <div className="tw-hero-stats">
+                {stats.map((stat) => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
+              </div>
+              <div className="tw-income-note">
+                <span><TrendingUp size={20} aria-hidden="true" /></span>
+                <p><b>دخل شهري متوسط</b><small>للمعلم النشط على المنصة</small></p>
+              </div>
+            </Reveal>
           </div>
-        </div>
-      </section>
+          <div className="tw-hero-index" aria-hidden="true">AJYAL / TEACHER COMMUNITY</div>
+        </section>
 
-      {/* Mobile stats */}
-      <section className="container py-8 lg:hidden">
-        <div className="grid grid-cols-2 gap-3">
-          {stats.map((s, i) => (
-            <Card key={i} className="border-0 shadow-card">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-black text-secondary mb-1">{s.value}</div>
-                <div className="text-sm leading-6 text-muted-foreground">{s.label}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+        <section className="tw-mobile-stats tw-shell" aria-label="أرقام المنصة">
+          {stats.map((stat) => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
+        </section>
 
-      {/* Benefits */}
-      <section className="container py-12 md:py-20">
-        <div className="text-center mb-10 md:mb-14">
-          <Badge className="bg-secondary/10 text-secondary border-0 mb-3">المميزات</Badge>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">لماذا تنضم إلينا؟</h2>
-            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">
-            كل ما تحتاجه لتدرّس باحترافية وتنمّي دخلك في مكان واحد.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
-          {benefits.map((b, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.05, duration: 0.5 }}
-            >
-              <Card className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300 h-full">
-                <CardContent className="p-6">
-                  <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mb-4">
-                    <b.icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="text-lg font-black mb-2">{b.title}</h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-7">{b.desc}</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Steps */}
-      <section className="bg-muted/30 py-12 md:py-20">
-        <div className="container">
-          <div className="text-center mb-10 md:mb-14">
-            <Badge className="bg-gold/10 text-gold border-0 mb-3">الخطوات</Badge>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">كيف تنضم كمعلم؟</h2>
-            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">4 خطوات بسيطة وستكون جاهزاً لاستقبال طلابك الأوائل.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {steps.map((s, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              >
-                <Card className="border-0 shadow-card h-full relative overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="absolute -top-3 -left-3 text-7xl font-black text-secondary/10 select-none">{s.n}</div>
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-2xl gradient-cta text-secondary-foreground flex items-center justify-center mb-4">
-                        <s.icon className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-lg font-black mb-2">{s.title}</h3>
-                      <p className="text-sm md:text-base text-muted-foreground leading-7">{s.desc}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Requirements */}
-      <section className="container py-12 md:py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          <div>
-            <Badge className="bg-primary/10 text-primary border-0 mb-3">الشروط</Badge>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">شروط الانضمام كمعلم</h2>
-            <p className="text-base md:text-lg text-muted-foreground mb-6 leading-7">
-              نسعى لتقديم أفضل تجربة تعليمية لطلابنا، لذلك نختار معلمينا بعناية. تحقّق من الشروط التالية:
-            </p>
-            <ul className="space-y-3">
-              {requirements.map((r, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-secondary flex-shrink-0 mt-0.5" />
-                  <span className="text-foreground">{r}</span>
-                </li>
+        <section className="tw-section tw-benefits">
+          <div className="tw-shell">
+            <Reveal reduceMotion={reduceMotion} className="tw-section-heading">
+              <span className="tw-kicker">المميزات</span>
+              <h2>لماذا تنضم إلينا؟</h2>
+              <p>كل ما تحتاجه لتدرّس باحترافية وتنمّي دخلك في مكان واحد.</p>
+            </Reveal>
+            <div className="tw-benefit-grid">
+              {benefits.map(({ icon: Icon, title, desc }, index) => (
+                <Reveal key={title} reduceMotion={reduceMotion} delay={index * .055}>
+                  <article className="tw-benefit-card">
+                    <span className={`tw-icon-box tone-${index % 3}`}><Icon size={22} aria-hidden="true" /></span>
+                    <span className="tw-card-index">0{index + 1}</span>
+                    <h3>{title}</h3>
+                    <p>{desc}</p>
+                  </article>
+                </Reveal>
               ))}
-            </ul>
+            </div>
           </div>
+        </section>
 
-          <Card className="border-0 shadow-card-hover bg-gradient-to-br from-secondary/5 to-primary/5">
-            <CardContent className="p-6 md:p-8">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl bg-gold/15 text-gold flex items-center justify-center">
-                  <Award className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-black">ماذا نقدم لك؟</h3>
-              </div>
-              <ul className="space-y-3 text-sm">
-                {[
-                  "ملف شخصي احترافي يعزّز من فرص اختيارك",
-                  "أدوات تدريس متطورة (سبورة، فيديو، AI)",
-                  "تقارير ذكية بعد كل حصة",
-                  "نظام دفع آمن وسحب سريع للأرباح",
-                  "دعم فني متواصل ومجتمع معلمين متعاون",
-                ].map((t, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-secondary flex-shrink-0 mt-0.5" />
-                    <span>{t}</span>
-                  </li>
-                ))}
+        <section className="tw-section tw-process">
+          <div className="tw-shell">
+            <Reveal reduceMotion={reduceMotion} className="tw-process-heading">
+              <div><span className="tw-kicker">الخطوات</span><h2>كيف تنضم كمعلم؟</h2></div>
+              <p>4 خطوات بسيطة وستكون جاهزاً لاستقبال طلابك الأوائل.</p>
+            </Reveal>
+            <div className="tw-steps">
+              {steps.map(({ n, icon: Icon, title, desc }, index) => (
+                <Reveal key={n} reduceMotion={reduceMotion} delay={index * .07}>
+                  <article className="tw-step">
+                    <div className="tw-step-top"><span>{n}</span><i><Icon size={20} aria-hidden="true" /></i></div>
+                    <h3>{title}</h3><p>{desc}</p>
+                    {index < steps.length - 1 && <ArrowLeft className="tw-step-arrow" size={17} aria-hidden="true" />}
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="tw-section tw-eligibility">
+          <div className="tw-shell tw-eligibility-grid">
+            <Reveal reduceMotion={reduceMotion}>
+              <span className="tw-kicker">الشروط</span>
+              <h2>شروط الانضمام كمعلم</h2>
+              <p className="tw-body-copy">نسعى لتقديم أفضل تجربة تعليمية لطلابنا، لذلك نختار معلمينا بعناية. تحقّق من الشروط التالية:</p>
+              <ul className="tw-check-list">
+                {requirements.map((item) => <li key={item}><CheckCircle2 size={19} aria-hidden="true" />{item}</li>)}
               </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Policy */}
-      <section id="policy" className="bg-muted/30 py-12 md:py-20">
-        <div className="container">
-          <div className="text-center mb-10">
-            <Badge className="bg-secondary/10 text-secondary border-0 mb-3">السياسات</Badge>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">شروط وأحكام الانضمام</h2>
-            <p className="text-base md:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">
-              نحرص على الشفافية الكاملة. اطّلع على أهم البنود قبل التسجيل.
-            </p>
+            </Reveal>
+            <Reveal reduceMotion={reduceMotion} delay={.1}>
+              <article className="tw-offer-card">
+                <div className="tw-offer-top"><span><Award size={22} aria-hidden="true" /></span><div><small>أدوات ودعم</small><h3>ماذا نقدم لك؟</h3></div></div>
+                <ul>{offerings.map((item) => <li key={item}><CheckCircle2 size={17} aria-hidden="true" />{item}</li>)}</ul>
+                <div className="tw-offer-foot">بيئة واحدة لتشارك خبرتك وتتابع حصصك.</div>
+              </article>
+            </Reveal>
           </div>
+        </section>
 
-          <div className="max-w-3xl mx-auto grid gap-4">
-            {policy.map((p, i) => (
-              <Card key={i} className="border-0 shadow-card">
-                <CardContent className="p-5 md:p-6 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
-                    <Wallet className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-black mb-1">{p.title}</h3>
-                      <p className="text-sm md:text-base text-muted-foreground leading-7">{p.desc}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        <section id="policy" className="tw-section tw-policy">
+          <div className="tw-shell">
+            <Reveal reduceMotion={reduceMotion} className="tw-section-heading">
+              <span className="tw-kicker">السياسات</span>
+              <h2>شروط وأحكام الانضمام</h2>
+              <p>نحرص على الشفافية الكاملة. اطّلع على أهم البنود قبل التسجيل.</p>
+            </Reveal>
+            <div className="tw-policy-list">
+              {policy.map(({ title, desc }, index) => (
+                <Reveal key={title} reduceMotion={reduceMotion} delay={index * .045}>
+                  <article className="tw-policy-row">
+                    <span className="tw-policy-number">0{index + 1}</span>
+                    <span className="tw-policy-icon"><Wallet size={18} aria-hidden="true" /></span>
+                    <h3>{title}</h3><p>{desc}</p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+            <div className="tw-terms-link"><Link to="/terms">قراءة الشروط الكاملة <ArrowLeft size={15} aria-hidden="true" /></Link></div>
           </div>
+        </section>
 
-          <div className="text-center mt-8">
-            <Link to="/terms" className="text-secondary font-bold hover:underline inline-flex items-center gap-1">
-              قراءة الشروط الكاملة
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
+        <section className="tw-final-section">
+          <div className="tw-shell">
+            <div className="tw-final-card">
+              <div className="tw-final-emblem"><Sparkles size={24} aria-hidden="true" /></div>
+              <div className="tw-final-copy">
+                <span className="tw-kicker">خطوتك التالية</span>
+                <h2>جاهز لبدء رحلتك معنا؟</h2>
+                <p>قدّم طلبك الآن مجاناً. خلال دقائق ستكون جاهزاً لاستقبال طلابك الأوائل.</p>
+              </div>
+              <Button asChild className="tw-final-button">
+                <Link to="/login?role=teacher&signup=1"><UserPlus size={18} aria-hidden="true" /> قدّم طلبك مجاناً</Link>
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="container py-12 md:py-20">
-        <Card className="border-0 shadow-card-hover overflow-hidden">
-          <div className="gradient-cta p-8 md:p-14 text-center text-secondary-foreground">
-            <Sparkles className="h-10 w-10 mx-auto mb-4 opacity-90" />
-            <h2 className="text-3xl md:text-4xl font-black leading-tight mb-4">جاهز لبدء رحلتك معنا؟</h2>
-            <p className="text-base md:text-lg leading-7 opacity-90 mb-8 max-w-2xl mx-auto">
-              قدّم طلبك الآن مجاناً. خلال دقائق ستكون جاهزاً لاستقبال طلابك الأوائل.
-            </p>
-            <Button
-              size="lg"
-              className="bg-card text-foreground hover:bg-card/90 rounded-2xl h-14 md:h-16 px-10 font-black text-base md:text-lg shadow-button"
-              asChild
-            >
-              <Link to="/login?role=teacher&signup=1">
-                <UserPlus className="ml-2 h-5 w-5" />
-                قدّم طلبك مجاناً
-              </Link>
-            </Button>
-          </div>
-        </Card>
-      </section>
-
+        </section>
+      </main>
       <Footer />
       <BottomNav />
     </div>
   );
-};
-
-export default TeachWithUs;
+}
