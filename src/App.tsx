@@ -17,7 +17,7 @@ import { InternalCallProvider } from "@/contexts/InternalCallContext";
 // Lazy-loaded pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
-const SearchTeacher = lazy(() => import("./pages/SearchTeacher"));
+const SearchTeacherRoute = lazy(() => import("./pages/SearchTeacherRoute"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const TeacherDashboard = lazy(() => import("./pages/TeacherDashboard"));
 const ParentDashboard = lazy(() => import("./pages/ParentDashboard"));
@@ -120,7 +120,7 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
-              <Route path="/search" element={<SearchTeacher />} />
+              <Route path="/search" element={<SearchTeacherRoute />} />
               <Route path="/packages" element={<PublicPackages />} />
               <Route path="/pricing" element={<ProtectedRoute><StudentPricingRoute /></ProtectedRoute>} />
               <Route path="/teach-with-us" element={<TeachWithUs />} />

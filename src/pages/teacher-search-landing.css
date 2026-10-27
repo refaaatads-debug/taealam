@@ -1,0 +1,1084 @@
+.ajyal-discovery {
+  --ink: #173c45;
+  --ink-soft: #557179;
+  --teal: #147f72;
+  --teal-deep: #0d615b;
+  --paper: #f8f6ef;
+  direction: rtl;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Cairo", sans-serif;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ajyal-discovery,
+.ajyal-discovery * {
+  box-sizing: border-box;
+}
+
+.ajyal-discovery a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ajyal-discovery .ad-wrap {
+  width: min(1192px, calc(100% - 48px));
+  margin-inline: auto;
+}
+
+.ajyal-discovery .ad-button {
+  min-height: 46px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 0 21px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--teal);
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px #147f7229;
+  transition: transform .25s ease, background .25s ease, box-shadow .25s ease;
+}
+
+.ajyal-discovery .ad-button:hover {
+  transform: translateY(-2px);
+  background: var(--teal-deep);
+  box-shadow: 0 12px 24px #147f7238;
+}
+
+.ajyal-discovery .ad-button-light {
+  background: #fffdf7;
+  color: var(--ink) !important;
+  box-shadow: none;
+  border: 1px solid rgba(23, 60, 69, .13);
+}
+
+.ajyal-discovery .ad-button-light:hover {
+  background: #fff;
+  box-shadow: 0 8px 20px #173c4514;
+}
+
+.ajyal-discovery .ad-hero {
+  position: relative;
+  padding: 66px 0 84px;
+}
+
+.ajyal-discovery .ad-hero:before {
+  content: "";
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  top: -310px;
+  left: -245px;
+  background: radial-gradient(circle, #e5eee5 0, #edf0e7 42%, transparent 70%);
+  z-index: -1;
+}
+
+.ajyal-discovery .ad-hero-grid {
+  display: grid;
+  grid-template-columns: 1.04fr .96fr;
+  align-items: center;
+  gap: 70px;
+}
+
+.ajyal-discovery .ad-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-eyebrow i {
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  background: #d5a447;
+}
+
+.ajyal-discovery .ad-hero h1 {
+  max-width: 650px;
+  margin: 18px 0 17px;
+  color: var(--ink);
+  font-size: clamp(41px, 5.2vw, 69px);
+  line-height: 1.24;
+  font-weight: 900;
+  letter-spacing: -.055em;
+}
+
+.ajyal-discovery .ad-hero h1 em {
+  position: relative;
+  color: var(--teal);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.ajyal-discovery .ad-hero h1 em:after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: 2px;
+  left: 1px;
+  bottom: 3px;
+  height: 9px;
+  border-radius: 10px;
+  background: #e6c98288;
+  transform: rotate(-1deg);
+}
+
+.ajyal-discovery .ad-hero-copy {
+  max-width: 540px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 2.05;
+  font-weight: 600;
+}
+
+.ajyal-discovery .ad-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 27px;
+  flex-wrap: wrap;
+}
+
+.ajyal-discovery .ad-hero-proof {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 27px;
+  color: #71868a;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-proof-divider {
+  width: 3px;
+  height: 3px;
+  border-radius: 100%;
+  background: #c2bcae;
+}
+
+.ajyal-discovery .ad-proof-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--teal);
+}
+
+.ajyal-discovery .ad-art {
+  position: relative;
+  min-height: 472px;
+  display: grid;
+  place-items: center;
+}
+
+.ajyal-discovery .ad-orbit {
+  position: absolute;
+  width: 420px;
+  aspect-ratio: 1;
+  border: 1px solid #b8d5cd99;
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+
+.ajyal-discovery .ad-orbit:before,
+.ajyal-discovery .ad-orbit:after {
+  content: "";
+  position: absolute;
+  border: 1px solid #b8d5cd88;
+  border-radius: 50%;
+  inset: 28px;
+}
+
+.ajyal-discovery .ad-orbit:after {
+  inset: 62px;
+  border-style: dashed;
+  border-color: #c4d6c577;
+}
+
+.ajyal-discovery .ad-visual-card {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 388px);
+  padding: 21px;
+  background: #fffdf8;
+  border: 1px solid #e8e2d5;
+  border-radius: 24px;
+  box-shadow: 0 28px 70px #34564d1c, 0 3px 10px #34564d0a;
+  transform: rotate(-2deg);
+  animation: ad-float 7s ease-in-out infinite;
+}
+
+.ajyal-discovery .ad-card-top,
+.ajyal-discovery .ad-homework-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ajyal-discovery .ad-card-label,
+.ajyal-discovery .ad-homework-label {
+  color: #829396;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 100px;
+  background: #e7f4ef;
+  color: var(--teal);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-card-title {
+  margin: 17px 0 6px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -.03em;
+}
+
+.ajyal-discovery .ad-card-description {
+  color: #879598;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #ece9df;
+  border-radius: 14px;
+  transition: background .25s ease, transform .25s ease;
+}
+
+.ajyal-discovery .ad-option:hover {
+  background: #f6faf6;
+  transform: translateX(-3px);
+}
+
+.ajyal-discovery .ad-option-icon {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e8f1e9;
+  color: var(--teal);
+}
+
+.ajyal-discovery .ad-option:nth-of-type(2) .ad-option-icon {
+  background: #f6eddc;
+  color: #aa7940;
+}
+
+.ajyal-discovery .ad-option-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+
+.ajyal-discovery .ad-option-text strong {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-option-text small {
+  color: #859598;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-option-arrow {
+  color: #9eada9;
+}
+
+.ajyal-discovery .ad-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: 1px solid #eeeadf;
+  color: #718388;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-orbit-chip {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  box-shadow: 0 12px 25px #284b4320;
+}
+
+.ajyal-discovery .ad-orbit-chip-one {
+  top: 32px;
+  left: 6px;
+  width: 66px;
+  height: 66px;
+  background: #cce3d8;
+  color: var(--teal);
+  transform: rotate(10deg);
+}
+
+.ajyal-discovery .ad-orbit-chip-two {
+  right: 2px;
+  bottom: 46px;
+  width: 60px;
+  height: 60px;
+  background: #f1dfba;
+  color: #986b36;
+  transform: rotate(-9deg);
+}
+
+.ajyal-discovery .ad-note {
+  position: absolute;
+  z-index: 4;
+  bottom: 31px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 155px;
+  padding: 10px 13px;
+  border: 1px solid #ece6d9;
+  border-radius: 15px;
+  background: #fffdf7;
+  box-shadow: 0 12px 35px #294b4117;
+  color: #61777b;
+  font-size: 9px;
+  font-weight: 800;
+  transform: rotate(2deg);
+}
+
+.ajyal-discovery .ad-note b {
+  color: var(--teal);
+}
+
+.ajyal-discovery .ad-note-icon {
+  color: #b5843b;
+}
+
+.ajyal-discovery .ad-hero-scroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 48px;
+  color: #829396;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-hero-scroll svg {
+  animation: ad-nudge 2s ease-in-out infinite;
+}
+
+.ajyal-discovery .ad-ribbon {
+  padding: 18px 0;
+  border-block: 1px solid #dce4d9;
+  background: #e9eee5;
+}
+
+.ajyal-discovery .ad-ribbon-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.ajyal-discovery .ad-ribbon-lead {
+  color: #667c78;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-ribbon-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #526d69;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-ribbon-item svg {
+  color: var(--teal);
+}
+
+.ajyal-discovery .ad-section {
+  padding: 104px 0;
+}
+
+.ajyal-discovery .ad-section-head {
+  max-width: 650px;
+  margin: 0 auto 50px;
+  text-align: center;
+}
+
+.ajyal-discovery .ad-kicker {
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.ajyal-discovery .ad-section-head h2 {
+  margin: 12px 0;
+  font-size: clamp(31px, 4vw, 47px);
+  line-height: 1.35;
+  letter-spacing: -.05em;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-section-head p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 2;
+  font-weight: 600;
+}
+
+.ajyal-discovery .ad-journey {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+}
+
+.ajyal-discovery .ad-journey:before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  right: 10%;
+  left: 10%;
+  height: 1px;
+  border-top: 1px dashed #b8c9bd;
+}
+
+.ajyal-discovery .ad-step {
+  position: relative;
+  z-index: 1;
+  padding: 0 19px 23px;
+}
+
+.ajyal-discovery .ad-step-number {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 25px;
+  border: 1px solid #d8e3da;
+  border-radius: 21px 21px 21px 8px;
+  background: var(--paper);
+  color: var(--teal);
+  box-shadow: 0 0 0 8px var(--paper);
+}
+
+.ajyal-discovery .ad-step:nth-child(2) .ad-step-number {
+  background: #eee9dc;
+  color: #9a7138;
+  border-color: #e0d7c4;
+}
+
+.ajyal-discovery .ad-step:nth-child(3) .ad-step-number {
+  background: #e7e9dc;
+  color: #718245;
+  border-color: #d9ddc9;
+}
+
+.ajyal-discovery .ad-step:nth-child(4) .ad-step-number {
+  background: #f2e4dc;
+  color: #b16c4f;
+  border-color: #ebd5c9;
+}
+
+.ajyal-discovery .ad-step > small {
+  color: #a3ada5;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.ajyal-discovery .ad-step h3 {
+  margin: 7px 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-step p {
+  margin: 0;
+  color: #718388;
+  font-size: 11px;
+  line-height: 1.95;
+  font-weight: 600;
+}
+
+.ajyal-discovery .ad-choice {
+  position: relative;
+  overflow: hidden;
+  background: #173c45;
+  color: #f9f5e9;
+}
+
+.ajyal-discovery .ad-choice:before {
+  content: "";
+  position: absolute;
+  top: -210px;
+  left: -130px;
+  width: 540px;
+  height: 540px;
+  border: 1px solid #ffffff15;
+  border-radius: 50%;
+  box-shadow: 0 0 0 44px #ffffff08, 0 0 0 95px #ffffff05;
+}
+
+.ajyal-discovery .ad-choice .ad-kicker {
+  color: #bfd9c6;
+}
+
+.ajyal-discovery .ad-choice .ad-section-head h2 {
+  color: #fff9eb;
+}
+
+.ajyal-discovery .ad-choice .ad-section-head p {
+  color: #c1d0c9;
+}
+
+.ajyal-discovery .ad-mode-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.ajyal-discovery .ad-mode {
+  min-height: 245px;
+  padding: 27px;
+  border: 1px solid #ffffff24;
+  border-radius: 22px;
+  background: #ffffff0b;
+  transition: background .25s ease, transform .25s ease;
+}
+
+.ajyal-discovery .ad-mode:hover {
+  background: #ffffff12;
+  transform: translateY(-4px);
+}
+
+.ajyal-discovery .ad-mode-icon {
+  width: 49px;
+  height: 49px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 23px;
+  border-radius: 16px 16px 16px 5px;
+  background: #c8e1d4;
+  color: #143e45;
+}
+
+.ajyal-discovery .ad-mode:nth-child(2) .ad-mode-icon {
+  background: #e9d7ad;
+  color: #69512e;
+}
+
+.ajyal-discovery .ad-mode h3 {
+  margin: 0 0 7px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-mode p {
+  max-width: 450px;
+  margin: 0;
+  color: #c2d1ca;
+  font-size: 12px;
+  line-height: 2;
+}
+
+.ajyal-discovery .ad-mode-tag {
+  display: inline-flex;
+  margin-top: 22px;
+  padding: 7px 10px;
+  border-radius: 100px;
+  background: #ffffff13;
+  color: #d8e4dc;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-support {
+  background: #f2eee3;
+}
+
+.ajyal-discovery .ad-support-grid,
+.ajyal-discovery .ad-tool-grid {
+  display: grid;
+  grid-template-columns: .95fr 1.05fr;
+  align-items: center;
+  gap: 74px;
+}
+
+.ajyal-discovery .ad-support-copy .ad-kicker {
+  display: block;
+  margin-bottom: 13px;
+}
+
+.ajyal-discovery .ad-support-copy h2 {
+  margin: 0 0 14px;
+  font-size: clamp(31px, 4vw, 48px);
+  letter-spacing: -.05em;
+  line-height: 1.38;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-support-copy p {
+  max-width: 480px;
+  margin: 0;
+  color: #637a7d;
+  font-size: 13px;
+  line-height: 2.1;
+  font-weight: 600;
+}
+
+.ajyal-discovery .ad-support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 22px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-support-link svg {
+  transition: transform .2s ease;
+}
+
+.ajyal-discovery .ad-support-link:hover svg {
+  transform: translateX(-4px);
+}
+
+.ajyal-discovery .ad-assistant {
+  position: relative;
+  min-height: 360px;
+  padding: 26px;
+  border: 1px solid #e6dfcf;
+  border-radius: 25px;
+  background: #fffdf7;
+  box-shadow: 0 18px 50px #25463c12;
+}
+
+.ajyal-discovery .ad-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid #eeeadf;
+}
+
+.ajyal-discovery .ad-sanad-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--teal);
+  color: #f9f4e7;
+}
+
+.ajyal-discovery .ad-chat-head strong,
+.ajyal-discovery .ad-chat-head small {
+  display: block;
+}
+
+.ajyal-discovery .ad-chat-head strong {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-chat-head small {
+  margin-top: 2px;
+  color: #8a9997;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-chat-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: #6b8b72;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-chat-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8dbb82;
+}
+
+.ajyal-discovery .ad-example-label {
+  display: inline-flex;
+  margin-top: 14px;
+  padding: 5px 9px;
+  border-radius: 100px;
+  background: #f1eee4;
+  color: #778681;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-bubble {
+  max-width: 82%;
+  margin-top: 16px;
+  padding: 12px 15px;
+  border-radius: 15px 15px 5px 15px;
+  background: #f1f2ea;
+  color: #5b7274;
+  font-size: 10px;
+  line-height: 1.9;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-bubble.ad-bubble-me {
+  margin-right: auto;
+  border-radius: 15px 15px 15px 5px;
+  background: #e3f1e9;
+  color: #3c7163;
+}
+
+.ajyal-discovery .ad-bubble strong {
+  color: var(--ink);
+}
+
+.ajyal-discovery .ad-chat-input {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 11px 13px;
+  border: 1px solid #e9e5db;
+  border-radius: 13px;
+  color: #a1adab;
+  font-size: 9px;
+}
+
+.ajyal-discovery .ad-chat-send {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--teal);
+  color: white;
+}
+
+.ajyal-discovery .ad-tool-section {
+  padding: 99px 0 110px;
+  background: #e8eee5;
+}
+
+.ajyal-discovery .ad-tool-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 68px;
+}
+
+.ajyal-discovery .ad-homework-card {
+  padding: 22px;
+  border: 1px solid #e5e0d3;
+  border-radius: 24px;
+  background: #fffdf7;
+  box-shadow: 0 20px 55px #294b4112;
+  transform: rotate(1.5deg);
+}
+
+.ajyal-discovery .ad-homework-label {
+  color: #7d9290;
+  font-size: 9px;
+}
+
+.ajyal-discovery .ad-upload {
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: #f1eee5;
+  color: #758986;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-question {
+  margin-top: 18px;
+  padding: 19px;
+  border: 1px solid #eee8da;
+  border-radius: 15px;
+  background: repeating-linear-gradient(0deg, #fffdf7 0 26px, #f1eee5 27px 28px);
+}
+
+.ajyal-discovery .ad-question small {
+  color: #9caa9f;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-equation {
+  margin-top: 11px;
+  color: #294d4c;
+  font-family: Georgia, serif;
+  font-size: 21px;
+  font-weight: 700;
+  direction: ltr;
+  text-align: left;
+  letter-spacing: .04em;
+}
+
+.ajyal-discovery .ad-solution {
+  margin-top: 13px;
+  padding: 15px;
+  border: 1px solid #dceadb;
+  border-radius: 14px;
+  background: #edf5ec;
+}
+
+.ajyal-discovery .ad-solution-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #567c56;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-solution p {
+  margin: 8px 0 0;
+  color: #647e71;
+  font-size: 9px;
+  line-height: 1.9;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-solution-steps {
+  display: flex;
+  gap: 7px;
+  margin-top: 11px;
+  flex-wrap: wrap;
+}
+
+.ajyal-discovery .ad-solution-steps span {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #71867a;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.ajyal-discovery .ad-final {
+  padding: 86px 0;
+  background: #b9d5c7;
+}
+
+.ajyal-discovery .ad-final-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+}
+
+.ajyal-discovery .ad-final h2 {
+  max-width: 640px;
+  margin: 0;
+  color: #173c45;
+  font-size: clamp(32px, 4vw, 50px);
+  line-height: 1.35;
+  letter-spacing: -.05em;
+  font-weight: 900;
+}
+
+.ajyal-discovery .ad-final p {
+  margin: 12px 0 0;
+  color: #476862;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ajyal-discovery .ad-final-action {
+  flex-shrink: 0;
+  padding-inline: 24px;
+}
+
+.ajyal-discovery .ad-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1);
+}
+
+.ajyal-discovery .ad-reveal.ad-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ajyal-discovery .ad-delay-1 {
+  transition-delay: .08s;
+}
+
+.ajyal-discovery .ad-delay-2 {
+  transition-delay: .16s;
+}
+
+.ajyal-discovery .ad-delay-3 {
+  transition-delay: .24s;
+}
+
+@keyframes ad-float {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(-1deg) translateY(-9px); }
+}
+
+@keyframes ad-nudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+@media (max-width: 900px) {
+  .ajyal-discovery .ad-hero-grid { gap: 28px; }
+  .ajyal-discovery .ad-support-grid,
+  .ajyal-discovery .ad-tool-grid { gap: 38px; }
+  .ajyal-discovery .ad-journey {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 25px;
+  }
+  .ajyal-discovery .ad-journey:before { display: none; }
+}
+
+@media (max-width: 680px) {
+  .ajyal-discovery .ad-wrap { width: min(calc(100% - 36px), 520px); }
+  .ajyal-discovery .ad-hero { padding: 47px 0; }
+  .ajyal-discovery .ad-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 23px;
+  }
+  .ajyal-discovery .ad-hero h1 {
+    margin-top: 14px;
+    font-size: clamp(39px, 11vw, 55px);
+  }
+  .ajyal-discovery .ad-hero-copy { font-size: 13px; }
+  .ajyal-discovery .ad-hero-actions { align-items: stretch; }
+  .ajyal-discovery .ad-hero-actions .ad-button {
+    flex: 1;
+    padding-inline: 12px;
+  }
+  .ajyal-discovery .ad-hero-proof {
+    flex-wrap: wrap;
+    line-height: 1.9;
+  }
+  .ajyal-discovery .ad-art {
+    min-height: 365px;
+    margin-top: 1px;
+  }
+  .ajyal-discovery .ad-orbit { width: 310px; }
+  .ajyal-discovery .ad-visual-card {
+    width: min(100%, 340px);
+    padding: 17px;
+  }
+  .ajyal-discovery .ad-orbit-chip-one {
+    top: 9px;
+    left: 1px;
+    width: 53px;
+    height: 53px;
+  }
+  .ajyal-discovery .ad-orbit-chip-two {
+    right: -1px;
+    bottom: 22px;
+    width: 51px;
+    height: 51px;
+  }
+  .ajyal-discovery .ad-note {
+    bottom: 1px;
+    left: 0;
+  }
+  .ajyal-discovery .ad-hero-scroll { display: none; }
+  .ajyal-discovery .ad-ribbon { padding: 16px 0; }
+  .ajyal-discovery .ad-ribbon-inner {
+    justify-content: flex-start;
+    gap: 12px 20px;
+  }
+  .ajyal-discovery .ad-ribbon-lead { flex-basis: 100%; }
+  .ajyal-discovery .ad-ribbon-item { font-size: 9px; }
+  .ajyal-discovery .ad-section { padding: 72px 0; }
+  .ajyal-discovery .ad-section-head { margin-bottom: 35px; }
+  .ajyal-discovery .ad-section-head h2 { font-size: 34px; }
+  .ajyal-discovery .ad-section-head p { font-size: 12px; }
+  .ajyal-discovery .ad-journey {
+    grid-template-columns: 1fr 1fr;
+    gap: 23px 7px;
+  }
+  .ajyal-discovery .ad-step { padding-inline: 6px; }
+  .ajyal-discovery .ad-step-number {
+    width: 55px;
+    height: 55px;
+    margin-bottom: 17px;
+  }
+  .ajyal-discovery .ad-step h3 { font-size: 13px; }
+  .ajyal-discovery .ad-step p { font-size: 10px; }
+  .ajyal-discovery .ad-mode-grid { grid-template-columns: 1fr; }
+  .ajyal-discovery .ad-mode {
+    min-height: 0;
+    padding: 21px;
+  }
+  .ajyal-discovery .ad-mode h3 { font-size: 18px; }
+  .ajyal-discovery .ad-support-grid,
+  .ajyal-discovery .ad-tool-grid {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .ajyal-discovery .ad-support-copy h2 { font-size: 35px; }
+  .ajyal-discovery .ad-assistant {
+    min-height: 335px;
+    padding: 19px;
+  }
+  .ajyal-discovery .ad-bubble { max-width: 93%; }
+  .ajyal-discovery .ad-homework-card { padding: 17px; }
+  .ajyal-discovery .ad-tool-grid .ad-support-copy { order: -1; }
+  .ajyal-discovery .ad-final { padding: 62px 0; }
+  .ajyal-discovery .ad-final-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .ajyal-discovery .ad-final-action { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ajyal-discovery *,
+  .ajyal-discovery *:before,
+  .ajyal-discovery *:after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .ajyal-discovery .ad-reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
