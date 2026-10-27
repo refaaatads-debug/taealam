@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDown, ArrowLeft, ArrowUpLeft, Check, CheckCircle2, Compass,
-  GraduationCap, Laptop2, Lightbulb, MessageCircle, NotebookPen,
+  Laptop2, Lightbulb, NotebookPen,
   ShieldCheck, Sparkles, UsersRound,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import SEOHead from "@/components/SEOHead";
+import TeacherSearchJourney from "@/components/TeacherSearchJourney";
 import "./teacher-search-landing.css";
 
 const signupHref = "/login?signup=1&redirect=%2Fsearch";
@@ -103,41 +104,7 @@ export default function TeacherSearchLanding() {
           </div>
         </div>
 
-        <section className="ad-section" id="journey">
-          <div className="ad-wrap">
-            <div className="ad-section-head ad-reveal">
-              <span className="ad-kicker">من التسجيل إلى التقدّم</span>
-              <h2>رحلتك تبدأ بخطوة،<br />وتستمرّ بدعم يناسبك.</h2>
-              <p>لا تحتاج أن تعرف كل شيء من البداية. ابدأ بحسابك، ثم اكتشف الخيارات واتخذ قرارك على مهل.</p>
-            </div>
-            <div className="ad-journey">
-              <article className="ad-step ad-reveal">
-                <div className="ad-step-number"><UsersRound size={24} /></div>
-                <small>الخطوة ٠١</small>
-                <h3>أنشئ حسابك</h3>
-                <p>سجّل كطالب أو ولي أمر، لتصل إلى أدوات التعلّم وتتابع رحلتك.</p>
-              </article>
-              <article className="ad-step ad-reveal ad-delay-1" id="teachers">
-                <div className="ad-step-number"><Compass size={24} /></div>
-                <small>الخطوة ٠٢</small>
-                <h3>استكشف المعلّمين</h3>
-                <p>قارن الخيارات المتاحة باستخدام معايير التطبيق، واختر من يناسب احتياجك.</p>
-              </article>
-              <article className="ad-step ad-reveal ad-delay-2">
-                <div className="ad-step-number"><Laptop2 size={24} /></div>
-                <small>الخطوة ٠٣</small>
-                <h3>اختر طريقة التعلّم</h3>
-                <p>تعرّف على الدروس عن بُعد أو الحضورية، بحسب ما يظهر لك في التطبيق.</p>
-              </article>
-              <article className="ad-step ad-reveal ad-delay-3">
-                <div className="ad-step-number"><MessageCircle size={24} /></div>
-                <small>الخطوة ٠٤</small>
-                <h3>واصل التعلّم</h3>
-                <p>اسأل سند، واستعن بأداة الواجبات لفهم السؤال وخطوات الحل.</p>
-              </article>
-            </div>
-          </div>
-        </section>
+        <TeacherSearchJourney />
 
         <section className="ad-section ad-choice">
           <div className="ad-wrap">
