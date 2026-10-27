@@ -16,7 +16,7 @@ const sections = [
 ];
 
 const Terms = () => (
-  <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
+  <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
     <Navbar />
     <PublicPageHeader icon={FileText} eyebrow="وضوح قبل البدء" title="الشروط والأحكام" description="آخر تحديث: أبريل 2026" />
     <main className="container max-w-4xl py-14">

@@ -82,7 +82,7 @@ const FAQ = () => {
   })).filter(cat => cat.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
+    <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
       <Navbar />
       <PublicPageHeader
         icon={HelpCircle}

@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import PublicPageHeader from "@/components/PublicPageHeader";
 
 const RefundPolicy = () => (
-  <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
+  <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
     <Navbar />
     <PublicPageHeader icon={RotateCcw} eyebrow="وضوح ومرونة" title="سياسة الاسترداد" description="متى نراجع طلبات استرداد رسوم الحصص؟" />
     <main className="container max-w-4xl py-14">

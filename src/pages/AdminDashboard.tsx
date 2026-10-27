@@ -594,7 +594,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f7fb]">
+    <div dir="rtl" className="min-h-screen bg-background">
       <SidebarProvider defaultOpen={true}>
         <div className="min-h-screen flex w-full">
           <AdminSidebar

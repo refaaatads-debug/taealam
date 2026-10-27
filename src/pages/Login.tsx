@@ -226,7 +226,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] text-[#102f50]" dir="rtl">
+    <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
       <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden bg-[#102f50] lg:flex lg:w-[46%]">

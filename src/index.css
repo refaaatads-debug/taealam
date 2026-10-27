@@ -6,14 +6,14 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 12%;
+    --background: 90 20% 99%;
+    --foreground: 207 52% 20%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 30% 12%;
+    --card: 90 24% 99%;
+    --card-foreground: 207 52% 20%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 12%;
+    --popover: 90 24% 99%;
+    --popover-foreground: 207 52% 20%;
 
     --primary: 220 72% 32%;
     --primary-foreground: 0 0% 100%;
@@ -21,8 +21,8 @@
     --secondary: 160 55% 40%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 16% 93%;
-    --muted-foreground: 220 10% 48%;
+    --muted: 145 18% 94%;
+    --muted-foreground: 207 14% 43%;
 
     --accent: 160 45% 92%;
     --accent-foreground: 160 55% 28%;
@@ -30,8 +30,8 @@
     --destructive: 0 80% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 90%;
-    --input: 220 14% 90%;
+    --border: 207 18% 89%;
+    --input: 207 18% 89%;
     --ring: 220 72% 32%;
 
     --radius: 0.875rem;
@@ -154,6 +154,19 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@media (max-width: 640px) {
+  .ajyal-homepage > div.fixed.bottom-5.left-4 > button {
+    width: 3.25rem;
+    height: 3.25rem;
+    justify-content: center;
+    gap: 0;
+    padding: 0.25rem;
+  }
+  .ajyal-homepage > div.fixed.bottom-5.left-4 > button > span:nth-child(3) {
+    display: none;
   }
 }
 

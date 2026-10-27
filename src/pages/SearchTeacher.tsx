@@ -404,10 +404,10 @@ const SearchTeacher = () => {
   return (
     <>
       <SEOHead title="ابحث عن مدرس خصوصي | دروس رياضيات وفيزياء وانجليزي" description="ابحث بين مئات المدرسين المعتمدين في السعودية. فلتر حسب المادة والمستوى والسعر. احجز حصتك الأولى مجاناً." canonical="/search" />
-    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-background text-[#102f50] pb-16 md:pb-0">
       <Navbar />
 
-      <div className="border-b border-[#102f50]/10 bg-[#f7f9f8] py-10 md:py-14 relative overflow-hidden">
+      <div className="border-b border-[#102f50]/10 bg-background py-10 md:py-14 relative overflow-hidden">
         <div className="absolute inset-0 opacity-50">
           <div className="absolute -left-16 top-8 h-44 w-44 rounded-full bg-[#e8f1ef]" />
           <div className="absolute -right-16 bottom-0 h-52 w-52 rounded-full bg-[#f7efe1]" />

@@ -65,11 +65,11 @@ const stats = [
 
 const TeachWithUs = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-16 md:pb-0 font-cairo text-base leading-7" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-background text-[#102f50] pb-16 md:pb-0 font-cairo text-base leading-7" dir="rtl">
       <Navbar />
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-[#f7f9f8]">
+      <section className="relative overflow-hidden bg-background">
         <div className="container relative z-10 py-10 md:py-16">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}>

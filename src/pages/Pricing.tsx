@@ -167,11 +167,11 @@ const Pricing = () => {
   return (
     <>
       <SEOHead title="أسعار الحصص الخصوصية | منصة أجيال المعرفة" description="خطط أسعار مرنة للطلاب وأولياء الأمور. ابدأ بأول حصة مجانية واختر الباقة المناسبة لك." canonical="/pricing" />
-    <div className="min-h-screen flex flex-col bg-[#f7f9f8] text-[#102f50] pb-20 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-background text-[#102f50] pb-20 md:pb-0">
       <Navbar />
 
       {/* Hero */}
-      <div className="relative overflow-hidden border-b border-[#102f50]/10 bg-[#f7f9f8] py-14 md:py-20">
+      <div className="relative overflow-hidden border-b border-[#102f50]/10 bg-background py-14 md:py-20">
         <div className="absolute inset-0 opacity-60">
           <div className="absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#e8f1ef]" />
           <div className="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-[#f7efe1]" />

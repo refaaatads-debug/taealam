@@ -75,7 +75,7 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f7f9f8]">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <BrandLoader />
       </div>
     );
