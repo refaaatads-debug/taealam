@@ -4,7 +4,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { useAuth } from "@/contexts/AuthContext";
-import AgoraRTC, { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from "agora-rtc-sdk-ng";
+import type { IAgoraRTCClient, ILocalAudioTrack, IRemoteAudioTrack } from "agora-rtc-sdk-ng";
+import { loadAgoraSdk } from "@/lib/agoraSdk";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -204,6 +205,7 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
     if (provider === "webrtc" && localStreamRef.current?.active) return;
     try {
       if (provider === "agora") {
+        const AgoraRTC = await loadAgoraSdk();
         const streamTrack = localStreamRef.current?.getAudioTracks()[0];
         localTrackRef.current = streamTrack
           ? AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: streamTrack })
@@ -457,6 +459,8 @@ export function InternalCallProvider({ children }: { children: ReactNode }) {
       }
       if (disposed) return;
 
+      const AgoraRTC = await loadAgoraSdk();
+      if (disposed) return;
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       agoraClientRef.current = client;
       setPeerState("connecting");
