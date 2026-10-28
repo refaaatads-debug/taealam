@@ -31,46 +31,35 @@ serve(async (req) => {
       .from("user_roles").select("role").eq("user_id", userData.user.id).eq("role", "admin").maybeSingle();
     if (!roleRow) throw new Error("Forbidden — admin only");
 
-    const { action, userId, amount, note } = await req.json();
-    if (!userId || !amount || amount <= 0) throw new Error("بيانات غير صالحة");
-    if (!["credit", "debit"].includes(action)) throw new Error("نوع العملية غير صحيح");
-
-    let newBalance: number | null = null;
-
-    if (action === "credit") {
-      const { data, error } = await supabase.rpc("credit_wallet_balance", {
-        _user_id: userId,
-        _amount: amount,
-        _stripe_session_id: `admin_${userData.user.id}_${Date.now()}`,
-        _description: `شحن يدوي من الإدارة${note ? ` - ${note}` : ""}`,
-      });
-      if (error) throw error;
-      newBalance = data as number;
-    } else {
-      const { data, error } = await supabase.rpc("deduct_wallet_balance", {
-        _user_id: userId,
-        _amount: amount,
-        _reference_id: null,
-        _description: `استرداد/خصم يدوي من الإدارة${note ? ` - ${note}` : ""}`,
-      });
-      if (error) throw error;
-      newBalance = data as number;
+    const { action, userId, amount, note = "", operationId } = await req.json();
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof userId !== "string" || !uuid.test(userId)
+      || typeof operationId !== "string" || !uuid.test(operationId)
+      || typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0
+      || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001
+      || !["credit", "debit"].includes(action)
+      || typeof note !== "string" || note.length > 1000) {
+      return new Response(JSON.stringify({
+        success: false, error: "بيانات العملية غير صالحة. حدّث الصفحة ثم أعد المحاولة.",
+      }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
-    // Audit log
-    await supabase.from("system_logs").insert({
-      level: "info",
-      source: "admin_wallet_action",
-      message: `Admin ${action} ${amount} SAR for user ${userId}`,
-      user_id: userData.user.id,
-      metadata: { action, target_user: userId, amount, note, new_balance: newBalance },
+    const { data, error } = await supabase.rpc("apply_admin_wallet_operation", {
+      _operation_id: operationId,
+      _actor_id: userData.user.id,
+      _user_id: userId,
+      _action: action,
+      _amount: amount,
+      _note: note,
     });
+    if (error) throw error;
 
-    return new Response(JSON.stringify({ success: true, newBalance }), {
+    return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("admin-wallet-action error:", err);
+    console.error("admin-wallet-action failed", {
+      code: typeof err === "object" && err !== null && "code" in err ? err.code : "unknown",
+    });
     return new Response(JSON.stringify({ success: false, error: "تعذر تنفيذ العملية المالية" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

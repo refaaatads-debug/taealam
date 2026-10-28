@@ -254,7 +254,6 @@ const Profile = () => {
           account_holder_name: accountHolder || null,
           teaching_stages: teachingStages,
         };
-        console.log("[Profile] updating teacher_profiles id:", teacherProfileId, updatePayload);
         const { error: teacherErr, data: teacherData } = await (supabase.from("teacher_profiles").update(updatePayload as any).eq("id", teacherProfileId) as any).select("id");
         if (teacherErr) { console.error("[Profile] teacher_profiles update error:", teacherErr); throw teacherErr; }
         console.log("[Profile] teacher_profiles updated, rows:", teacherData);

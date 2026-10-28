@@ -24,6 +24,22 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Set up the supported Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Verify a clean install, types, and behavior before touching production
+        env:
+          VITE_SUPABASE_URL: https://validation.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: validation-public-placeholder
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm run typecheck
+          npm test
+          # This is a compilation check only. The deployable build below uses
+          # the validated production configuration, never these placeholders.
+          npm run build
       - name: Refuse to deploy a stale commit
         shell: bash
         run: |
@@ -277,6 +293,26 @@ jobs:
           source: supabase/migrations/20261028000100_in_person_package_credit_history_rpc.sql
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
+      - name: Fingerprint the corrective security release
+        run: |
+          set -eu
+          sha256sum scripts/apply-verified-migration.sh scripts/security-migrations.list \
+            supabase/functions/admin-wallet-action/index.ts > security-release.sha256
+          while IFS= read -r name || [ -n "$name" ]; do
+            [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]] || exit 1
+            test -s "supabase/migrations/$name"
+            sha256sum "supabase/migrations/$name" >> security-release.sha256
+          done < scripts/security-migrations.list
+      - name: Transfer the fingerprinted security release
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          source: scripts/apply-verified-migration.sh,scripts/security-migrations.list,security-release.sha256,supabase/migrations/20261028*.sql,supabase/functions/admin-wallet-action/index.ts
+          target: /tmp/ajyal-build-${{ github.sha }}
+          overwrite: true
       - name: Recheck main immediately before VPS activation
         shell: bash
         run: |
@@ -392,11 +428,9 @@ jobs:
             unset config_exports
             test -n "${VITE_TURNSTILE_SITE_KEY:-}" || { echo "Missing VITE_TURNSTILE_SITE_KEY." >&2; exit 1; }
             test -n "${VITE_GOOGLE_MAPS_API_KEY:-}" || { echo "Missing VITE_GOOGLE_MAPS_API_KEY." >&2; exit 1; }
-            expected_lock="$(cat /root/ajyal-build-deps/package-lock.sha256)"
-            actual_lock="$(sha256sum "$staging/package-lock.json" | cut -c1-64)"
-            test "$actual_lock" = "$expected_lock"
-            ln -s /root/ajyal-build-deps/node_modules "$staging/node_modules"
             cd "$staging"
+            phase="clean dependency installation"
+            npm ci --ignore-scripts --no-fund
             phase="frontend build"
             npm run build
             test -f dist/index.html
@@ -888,6 +922,23 @@ jobs:
             nginx -t
             # Keep previously hashed bundles available for live session tabs
             # that may still lazy-load a chunk during an Agora call.
+            # Verify corrective migrations before activating the new web build.
+            (
+              cd "$staging"
+              test -s security-release.sha256
+              sha256sum -c security-release.sha256
+              while IFS= read -r name || [ -n "$name" ]; do
+                [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]] || exit 1
+                bash scripts/apply-verified-migration.sh "supabase/migrations/$name"
+              done < scripts/security-migrations.list
+            )
+            functions_root=/root/taealam/supabase_setup/docker/volumes/functions
+            if ! cmp -s "$staging/supabase/functions/admin-wallet-action/index.ts" \
+                "$functions_root/admin-wallet-action/index.ts"; then
+              cp "$staging/supabase/functions/admin-wallet-action/index.ts" \
+                "$functions_root/admin-wallet-action/index.ts"
+              docker restart supabase-edge-functions
+            fi
             rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r "$staging/dist/" /var/www/html/
             # Expire old hashed assets only after a grace window; the active
             # app/Agora connections are not restarted during this deployment.

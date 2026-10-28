@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
+import { walletOperationKey } from "@/lib/walletOperationKey";
+import { useAuth } from "@/contexts/AuthContext";
 import { Wallet, Phone, Plus, Minus, Search, Loader2, RefreshCw } from "lucide-react";
 
 interface WalletRow {
@@ -41,6 +43,8 @@ interface CallLog {
 }
 
 export default function WalletsManagementTab() {
+  const { user } = useAuth();
+  const operationInFlight = useRef(false);
   const [wallets, setWallets] = useState<WalletRow[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,19 +144,23 @@ export default function WalletsManagementTab() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedWallet) return;
+    if (!selectedWallet || !user || operationInFlight.current) return;
     const amt = Number(amount);
-    if (!amt || amt <= 0) {
+    if (!Number.isFinite(amt) || amt <= 0 || Math.abs(amt * 100 - Math.round(amt * 100)) > 0.000001) {
       toast.error("أدخل مبلغًا صحيحًا");
       return;
     }
     setSubmitting(true);
+    operationInFlight.current = true;
     try {
+      const input = { action, userId: selectedWallet.user_id, amount: amt, note };
+      const operation = await walletOperationKey(user.id, input);
       const { data, error } = await supabase.functions.invoke("admin-wallet-action", {
-        body: { action, userId: selectedWallet.user_id, amount: amt, note },
+        body: { ...input, operationId: operation.operationId },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "فشل");
+      operation.acknowledge();
       toast.success(action === "credit" ? "تم الشحن بنجاح" : "تم الخصم بنجاح", {
         description: `الرصيد الجديد: ${Number(data.newBalance).toFixed(2)} ريال`,
       });
@@ -162,6 +170,7 @@ export default function WalletsManagementTab() {
       const msg = err instanceof Error ? err.message : "خطأ";
       toast.error("فشلت العملية", { description: msg });
     } finally {
+      operationInFlight.current = false;
       setSubmitting(false);
     }
   };
