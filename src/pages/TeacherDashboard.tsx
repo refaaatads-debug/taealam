@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays, XCircle, Video, MapPin } from "lucide-react";
+import { CalendarCheck, DollarSign, Users, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, ArrowLeft, CalendarDays, XCircle, Video, MapPin, BookOpen } from "lucide-react";
 import { getSaudiDayKey, getSaudiMonthKey } from "@/lib/saudiDate";
 
 import TeacherLessonRequests from "@/components/teacher/TeacherLessonRequests";
@@ -394,9 +394,9 @@ const TeacherDashboard = () => {
           </Card>
         )}
 
-        <div className="mb-6">
-          <Link to="/teacher/assignments">
-            <Card className="border-0 shadow-card hover:shadow-lg transition cursor-pointer bg-gradient-to-l from-primary/10 to-secondary/10">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Link to="/teacher/assignments" className="h-full">
+            <Card className="h-full border-0 shadow-card hover:shadow-lg transition cursor-pointer bg-gradient-to-l from-primary/10 to-secondary/10">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
@@ -408,6 +408,22 @@ const TeacherDashboard = () => {
                   </div>
                 </div>
                 <Badge>جديد</Badge>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/teacher/learning-materials" className="h-full">
+            <Card className="h-full border border-emerald-100 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg bg-gradient-to-l from-white to-emerald-50/70">
+              <CardContent className="flex h-full items-center justify-between gap-3 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold">جهّز المادة العلمية</h3>
+                    <p className="text-xs text-muted-foreground">افتح روابط الكتب والمصادر الدراسية</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="shrink-0 border-emerald-200 bg-white text-emerald-800">المصادر</Badge>
               </CardContent>
             </Card>
           </Link>

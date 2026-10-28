@@ -115,6 +115,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "المنصة والمحتوى",
       items: [
         { id: "materials_monitor", title: "مركز مراقبة المواد التعليمية", icon: BookOpen, permission: "manage_materials" },
+        { id: "learning_materials", title: "جهّز المادة العلمية", icon: BookOpen, permission: "manage_materials" },
         { id: "site", title: "إدارة محتوى المنصة", icon: Settings, permission: "manage_content" },
         { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
         { id: "admin_notifications", title: "إشعارات المنصة", icon: Bell, permission: "manage_notifications" },

@@ -3,3 +3,4 @@
 20261028000400_guard_teacher_admin_fields.sql
 20261028000500_private_profile_reads.sql
 20261028000700_deny_teacher_student_phone.sql
+20261028000800_learning_material_links.sql

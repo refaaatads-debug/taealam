@@ -20,6 +20,7 @@ const Login = lazy(() => import("./pages/Login"));
 const SearchTeacherRoute = lazy(() => import("./pages/SearchTeacherRoute"));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard"));
 const TeacherDashboard = lazy(() => import("./pages/TeacherDashboard"));
+const TeacherLearningMaterials = lazy(() => import("./pages/TeacherLearningMaterials"));
 const ParentDashboard = lazy(() => import("./pages/ParentDashboard"));
 const Booking = lazy(() => import("./pages/Booking"));
 const LiveSession = lazy(() => import("./pages/LiveSession"));
@@ -129,6 +130,7 @@ const App = () => (
               <Route path="/subscription-details" element={<ProtectedRoute><SubscriptionDetails /></ProtectedRoute>} />
               <Route path="/invoices" element={<ProtectedRoute><StudentInvoices /></ProtectedRoute>} />
               <Route path="/teacher" element={<ProtectedRoute><TeacherDashboard /></ProtectedRoute>} />
+              <Route path="/teacher/learning-materials" element={<ProtectedRoute><TeacherLearningMaterials /></ProtectedRoute>} />
               <Route path="/teacher/wallet" element={<ProtectedRoute><TeacherWallet /></ProtectedRoute>} />
               <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
               <Route path="/booking" element={<ProtectedRoute><Booking /></ProtectedRoute>} />

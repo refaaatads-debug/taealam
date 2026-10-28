@@ -1025,6 +1025,36 @@ export type Database = {
           },
         ]
       }
+      learning_material_links: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          url?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null

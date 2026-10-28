@@ -39,6 +39,7 @@ import AIModelsManagementTab from "@/components/admin/AIModelsManagementTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import FinancialHubTab from "@/components/admin/FinancialHubTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
+import LearningMaterialsSection from "@/components/learning-materials/LearningMaterialsSection";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
 import AdminTeamManagementTab from "@/components/admin/AdminTeamManagementTab";
@@ -117,6 +118,7 @@ const TAB_TITLES: Record<string, string> = {
   session_reports: "تقارير الحصص",
   session_pricing: "أسعار الحصص",
   materials_monitor: "مركز مراقبة المواد التعليمية",
+  learning_materials: "جهّز المادة العلمية",
   plans: "إدارة الباقات",
   coupons: "إدارة الكوبونات",
   withdrawals: "طلبات سحب الأرباح",
@@ -523,6 +525,7 @@ const AdminDashboard = () => {
     session_reports: "manage_session_reports",
     session_pricing: "manage_session_pricing",
     materials_monitor: "manage_materials",
+    learning_materials: "manage_materials",
     plans: "manage_plans",
     coupons: "manage_coupons",
     withdrawals: "manage_withdrawals",
@@ -582,6 +585,7 @@ const AdminDashboard = () => {
       case "ai_models": return <AIModelsManagementTab />;
       case "call_transcripts": return <CallTranscriptsTab />;
       case "materials_monitor": return <MaterialsMonitorTab />;
+      case "learning_materials": return <LearningMaterialsSection canManage={access.can("manage_materials")} />;
       case "session_pricing": return <SessionPricingTab />;
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
