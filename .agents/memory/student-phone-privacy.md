@@ -4,14 +4,17 @@ description: Teachers must never receive student phone numbers, including confir
 ---
 
 Teachers must never receive a student's phone number. A booking, of any status,
-does not authorize access. Teacher communication stays in chat and internal calls;
-do not offer telephone or WhatsApp actions exposing the student number.
+does not authorize disclosure. Keep the integrated Twilio telephone system,
+including its buttons, wallets, pricing, deductions and call history. Twilio hides
+both participants' numbers; only the trusted server resolves the actual phones.
 
-**Why:** The user explicitly revoked the previous booking-based phone disclosure
-policy. Hiding the number in UI is insufficient: API, RPC, raw tables and historical
-call records must also prevent extraction.
+**Why:** The user explicitly clarified that preventing number disclosure must not
+remove the existing masked Twilio calling system. Hiding the number in UI is
+insufficient: API, RPC, raw tables and visible call records must prevent extraction.
 
 **How to apply:** Permit owners to read their own numbers and authorized
-administration where needed. Do not preserve legacy teacher phone access for
-backward compatibility. Test denial for teachers with confirmed/completed bookings,
-including indirect records and server-side service-client responses.
+administration where needed. Keep phones out of client call requests/responses and
+visible logs; resolve authorized booking participants on the server. Do not preserve
+legacy phone disclosure for compatibility. Test hidden calling with a mocked provider;
+never place paid test calls without coordinating with the user. Keep the other
+security fixes intact.

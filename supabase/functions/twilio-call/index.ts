@@ -3,8 +3,18 @@ import { callWalletAmount } from "../_shared/call-wallet-amount.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
+async function signStream(secret: string, teacher: string, student: string, booking: string, expires: number) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key,
+    new TextEncoder().encode(`${teacher}|${student}|${booking}|${expires}`));
+  return btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
 interface CallRequest {
-  bookingId: string;
+  bookingId?: string;
+  studentId?: string;
   estimatedMinutes?: number;
 }
 
@@ -45,10 +55,6 @@ const parseTwilioGatewayError = (message: string): TwilioGatewayError | null => 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  return new Response(JSON.stringify({
-    error: "الاتصال الهاتفي غير متاح. استخدم المحادثات والمكالمات الداخلية.",
-    code: "PHONE_CALLS_DISABLED",
-  }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   const rate = checkEdgeRateLimit(req, "twilio-call", 5);
   if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
     status: 429,
@@ -87,29 +93,40 @@ Deno.serve(async (req) => {
     }
     const callerId = userData.user.id;
 
-    const { bookingId, estimatedMinutes: reqMinutes }: CallRequest = await req.json();
-    if (!bookingId) throw new Error("bookingId is required");
+    const { bookingId: requestedBookingId, studentId, estimatedMinutes: reqMinutes }: CallRequest = await req.json();
+    if (!requestedBookingId && !studentId) return new Response(
+      JSON.stringify({ success: false, error: "يلزم تحديد الحجز أو الطالب" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Get price from site_settings
     const PRICE_PER_MINUTE = await getCallPricePerMinute(admin);
 
-    const { data: booking, error: bookingErr } = await admin
+    let bookingQuery = admin
       .from("bookings")
-      .select("teacher_id, student_id, duration_minutes")
-      .eq("id", bookingId)
-      .single();
+      .select("id, teacher_id, student_id, duration_minutes, status")
+      .eq("teacher_id", callerId);
+    bookingQuery = requestedBookingId
+      ? bookingQuery.eq("id", requestedBookingId)
+      : bookingQuery.eq("student_id", studentId!).in("status", ["confirmed", "completed"])
+        .order("scheduled_at", { ascending: false }).limit(1);
+    const { data: booking, error: bookingErr } = await bookingQuery.maybeSingle();
     if (bookingErr || !booking) throw new Error("Booking not found");
 
-    if (callerId !== booking.teacher_id) {
+    if (callerId !== booking.teacher_id || !["confirmed", "completed"].includes(booking.status)
+      || (studentId && studentId !== booking.student_id)) {
       return new Response(JSON.stringify({ error: "Only the teacher can initiate this call" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Estimated minutes: request param → booking duration → fallback 30
-    const estimatedMinutes = reqMinutes || booking.duration_minutes || 30;
+    const bookingId = booking.id;
+    const estimatedMinutes = reqMinutes ?? booking.duration_minutes ?? 30;
+    if (!Number.isSafeInteger(estimatedMinutes) || estimatedMinutes < 1) return new Response(
+      JSON.stringify({ success: false, error: "مدة الاتصال غير صالحة" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const requiredBalance = callWalletAmount(estimatedMinutes, PRICE_PER_MINUTE);
 
     // ── FIX 1: Check wallet balance before making any calls ──
@@ -136,22 +153,37 @@ Deno.serve(async (req) => {
       .in("user_id", [booking.teacher_id, booking.student_id]);
     if (profilesErr) throw profilesErr;
 
-    const teacherPhone = profiles?.find((p) => p.user_id === booking.teacher_id)?.phone;
-    const studentPhone = profiles?.find((p) => p.user_id === booking.student_id)?.phone;
+    const normalizePhone = (value: unknown) => {
+      if (typeof value !== "string") return "";
+      let number = value.replace(/[\s()-]/g, "");
+      if (number.startsWith("05")) number = "+966" + number.slice(1);
+      else if (!number.startsWith("+")) number = "+" + number;
+      return /^\+[1-9]\d{7,14}$/.test(number) ? number : "";
+    };
+    const teacherPhone = normalizePhone(profiles?.find((p) => p.user_id === booking.teacher_id)?.phone);
+    const studentPhone = normalizePhone(profiles?.find((p) => p.user_id === booking.student_id)?.phone);
 
     if (!teacherPhone) throw new Error("رقم هاتف المعلم غير متوفر في الملف الشخصي");
     if (!studentPhone) throw new Error("رقم هاتف الطالب غير متوفر في الملف الشخصي");
 
-    const conferenceName = `room-${bookingId}`;
+    const conferenceName = `room-${crypto.randomUUID()}`;
     const statusCallbackUrl = `${SUPABASE_URL}/functions/v1/call-status-webhook`;
     const twilioAuth = "Basic " + btoa(TWILIO_ACCOUNT_SID + ":" + TWILIO_AUTH_TOKEN);
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="ar">جاري ربطك بالطرف الآخر</Say><Dial><Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false">${conferenceName}</Conference></Dial></Response>`;
+    // Preserve the legal notice and authenticated live-monitoring stream.
+    const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+    const streamSignature = await signStream(TWILIO_AUTH_TOKEN, booking.teacher_id, booking.student_id, bookingId, expiresAt);
+    const streamUrl = `${SUPABASE_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/functions/v1/twilio-media-stream?apikey=${SUPABASE_ANON_KEY}`;
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response>
+      <Say voice="Polly.Zeina" language="arb">تنبيه قانوني من منصة أجيال المعرفة. يتم تسجيل وتحليل هذه المكالمة لحظياً لأغراض المراقبة والامتثال. يُمنع تبادل البيانات الشخصية كأرقام الهواتف والبريد وحسابات التواصل.</Say>
+      <Start><Stream url="${streamUrl}"><Parameter name="teacherId" value="${booking.teacher_id}"/><Parameter name="studentId" value="${booking.student_id}"/><Parameter name="bookingId" value="${bookingId}"/><Parameter name="streamExpiresAt" value="${expiresAt}"/><Parameter name="streamSignature" value="${streamSignature}"/></Stream></Start>
+      <Say language="ar">جاري ربطك بالطرف الآخر</Say><Dial><Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false">${conferenceName}</Conference></Dial></Response>`;
 
     const callParty = async (toNumber: string): Promise<string> => {
       const body = new URLSearchParams({
         From: TWILIO_PHONE_NUMBER,
         To: toNumber,
+        TimeLimit: String(estimatedMinutes * 60),
         Twiml: twiml,
         StatusCallback: statusCallbackUrl,
         StatusCallbackMethod: "POST",
@@ -169,7 +201,7 @@ Deno.serve(async (req) => {
     };
 
     // ── FIX 1: Deduct wallet before connecting calls ──
-    const { data: callLog } = await admin
+    const { data: callLog, error: logError } = await admin
       .from("call_logs")
       .insert({
         teacher_id: booking.teacher_id,
@@ -181,13 +213,15 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
+    if (logError || !callLog) throw new Error("Call record creation failed");
 
-    const { error: deductionError } = await admin.rpc("deduct_wallet_balance", {
+    const { data: newBalance, error: deductionError } = requiredBalance > 0
+      ? await admin.rpc("deduct_wallet_balance", {
       _user_id: callerId,
       _amount: requiredBalance,
       _reference_id: callLog?.id || null,
       _description: `مكالمة هاتفية مؤتمر (${estimatedMinutes} دقيقة)`,
-    });
+    }) : { data: Number(wallet.balance), error: null };
     if (deductionError) {
       await admin.from("call_logs").update({ status: "failed", cost: 0 })
         .eq("id", callLog?.id);
@@ -201,8 +235,17 @@ Deno.serve(async (req) => {
       studentSid = await callParty(studentPhone);
       teacherSid = await callParty(teacherPhone);
     } catch {
+      // Stop any successfully created leg; never leave a party in an orphan conference.
+      for (const sid of [studentSid, teacherSid].filter(Boolean)) {
+        try {
+          await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${sid}.json`, {
+            method: "POST", headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ Status: "completed" }),
+          });
+        } catch { console.error("Conference leg cleanup failed"); }
+      }
       // Refund if calls failed after deduction
-      await admin.rpc("credit_wallet_balance", {
+      if (requiredBalance > 0) await admin.rpc("credit_wallet_balance", {
         _user_id: callerId,
         _amount: requiredBalance,
         _stripe_session_id: `refund_conf_${callLog?.id || Date.now()}`,
@@ -235,7 +278,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, conference: conferenceName, callLogId: callLog?.id }),
+      JSON.stringify({ success: true, conference: conferenceName, callLogId: callLog.id, cost: requiredBalance, newBalance }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

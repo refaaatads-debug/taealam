@@ -4,19 +4,19 @@ import { describe, expect, it } from "vitest";
 
 describe("student phone confidentiality", () => {
   for (const name of ["make-phone-call", "twilio-call"]) {
-    it(`rejects ${name} before provider access or wallet mutation`, async () => {
+    it(`keeps ${name} available without the temporary shutdown`, () => {
       const text = readFileSync(resolve(`supabase/functions/${name}/index.ts`), "utf8");
-      const body = text.slice(text.indexOf("  const corsHeaders ="), text.indexOf("  const rate ="));
-      const handler = new Function("getCorsHeaders", `return async (req) => {${body}}`)(() => ({}));
-      const response = await handler(new Request("https://test.invalid", { method: "POST" }));
-      expect(response.status).toBe(403);
-      expect((await response.json()).code).toBe("PHONE_CALLS_DISABLED");
+      expect(text).not.toContain("PHONE_CALLS_DISABLED");
     });
   }
-  it("does not fetch contact numbers or offer telephone calling in the teacher action", () => {
+  it("keeps telephone and internal actions without fetching contact numbers", () => {
     const text = readFileSync(resolve("src/components/teacher/CallStudentButton.tsx"), "utf8");
-    expect(text).not.toMatch(/get_booking_contact|studentPhone|PhoneCallDialog|اتصال هاتفي/);
+    expect(text).not.toMatch(/get_booking_contact|studentPhone/);
+    expect(text).toContain("PhoneCallDialog");
     expect(text).toContain("startInternalCall");
+    const dialog = readFileSync(resolve("src/components/teacher/PhoneCallDialog.tsx"), "utf8");
+    expect(dialog).toContain("body: { studentId, bookingId, estimatedMinutes: minutes }");
+    expect(dialog).not.toMatch(/get_booking_contact|studentPhone|student_phone|from\("profiles"\)|from\("call_logs"\)/);
   });
   it("teacher history uses a projection without even partial student numbers", () => {
     const text = readFileSync(resolve("src/pages/TeacherWallet.tsx"), "utf8");

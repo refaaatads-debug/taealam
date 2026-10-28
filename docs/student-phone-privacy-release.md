@@ -3,8 +3,10 @@
 ## Policy
 
 Teachers must not receive student phone numbers, including confirmed or completed
-bookings. Owners and authorized administration retain access. Communication
-between teachers and students uses chat and internal calls.
+bookings. Owners and authorized administration retain access. Preserve masked
+Twilio calls, their wallets, pricing, deductions and history alongside internal
+calls and chat. The trusted server resolves both phones; neither party receives
+the other's number.
 
 ## Server cutover
 
@@ -15,10 +17,12 @@ contact RPC becomes owner/admin-only, and teacher call history excludes phone
 numbers, provider identifiers and provider errors. Raw call records remain
 available to the student owner and administration, not the teacher.
 
-The `make-phone-call` and `twilio-call` entrypoints reject requests with HTTP 403
-and `PHONE_CALLS_DISABLED` before provider access or wallet mutation. This is an
-intentional withdrawal of telephone functionality, including for older clients;
-legacy compatibility must not preserve phone disclosure.
+The temporary removal/disablement of Twilio is superseded by the user's correction.
+Restore both entrypoints and controls, but accept participant/booking identifiers,
+not a client-supplied destination number. Keep private-table and phone-RPC denial.
+Expose only redacted call status/cost/duration to clients; never provider errors
+that can contain numbers. Coordinate paid tests first; use mocked provider calls
+for automated validation.
 
 ## Verification
 
