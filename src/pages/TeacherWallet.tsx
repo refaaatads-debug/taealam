@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 interface CallLog {
   id: string;
-  student_phone: string | null;
+  student_id: string;
   duration_minutes: number;
   estimated_minutes: number;
   cost: number;
@@ -36,7 +36,7 @@ export default function TeacherWallet() {
     setLoading(true);
     const [{ data: w }, { data: l }] = await Promise.all([
       supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle(),
-      supabase.from("call_logs").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("teacher_call_history").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(50),
     ]);
     setBalance(Number(w?.balance || 0));
     setLogs((l as CallLog[]) || []);
@@ -172,7 +172,7 @@ export default function TeacherWallet() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>التاريخ</TableHead>
-                    <TableHead>الرقم</TableHead>
+                    <TableHead>معرّف الطالب</TableHead>
                     <TableHead>المدة المقدّرة</TableHead>
                     <TableHead>التكلفة</TableHead>
                     <TableHead>الحالة</TableHead>
@@ -184,7 +184,7 @@ export default function TeacherWallet() {
                       <TableCell className="text-xs">
                         {new Date(log.created_at).toLocaleString("ar-SA")}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{log.student_phone ? `••••${log.student_phone.slice(-4)}` : "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{log.student_id.slice(0, 8)}</TableCell>
                       <TableCell>{log.estimated_minutes} د</TableCell>
                       <TableCell>{Number(log.cost).toFixed(2)} ريال</TableCell>
                       <TableCell>

@@ -2712,6 +2712,12 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_call_history: {
+        Row: Pick<Database["public"]["Tables"]["call_logs"]["Row"],
+          "id" | "teacher_id" | "student_id" | "booking_id" | "duration_minutes" |
+          "estimated_minutes" | "cost" | "status" | "created_at" | "ended_at">
+        Relationships: []
+      }
       public_profiles: {
         Row: {
           avatar_url: string | null

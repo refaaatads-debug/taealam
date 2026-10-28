@@ -373,7 +373,7 @@ function MessagesPanel() {
           ? supabase.from("chat_messages").select("booking_id, created_at").in("booking_id", data.map((booking: any) => booking.id)).order("created_at", { ascending: false }).limit(5000)
           : Promise.resolve({ data: [] as any[] }),
         isTeacher
-          ? supabase.from("call_logs").select("student_id, status, created_at").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(500)
+          ? supabase.from("teacher_call_history").select("student_id, status, created_at").eq("teacher_id", user.id).order("created_at", { ascending: false }).limit(500)
           : Promise.resolve({ data: [] as any[] }),
       ]);
       const names = new Map((profiles || []).map((profile: any) => [profile.user_id, profile.full_name]));
@@ -426,7 +426,7 @@ function MessagesPanel() {
         supabase.from("bookings").select("id").eq("student_id", studentId).eq("teacher_id", teacherId),
         isTeacher ? Promise.resolve({ data: [{ id: "teacher" }] }) : supabase.from("user_subscriptions").select("id").eq("user_id", user.id).eq("is_active", true).gt("remaining_minutes", 0).limit(1),
         isTeacher
-          ? supabase.from("call_logs").select("id, status, created_at, ended_at, duration_minutes, cost").eq("teacher_id", user.id).eq("student_id", selected.otherUserId).order("created_at", { ascending: false }).limit(30)
+          ? supabase.from("teacher_call_history").select("id, status, created_at, ended_at, duration_minutes, cost").eq("teacher_id", user.id).eq("student_id", selected.otherUserId).order("created_at", { ascending: false }).limit(30)
           : Promise.resolve({ data: [] as CallHistoryItem[] }),
       ]);
       if (!active) return;

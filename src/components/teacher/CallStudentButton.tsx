@@ -6,7 +6,6 @@ import { Loader2, Phone, PhoneCall, Radio, ShieldCheck, Timer } from "lucide-rea
 import { supabase } from "@/integrations/supabase/client";
 import { useInternalCall } from "@/contexts/InternalCallContext";
 import { toast } from "sonner";
-import PhoneCallDialog from "./PhoneCallDialog";
 
 interface CallStudentButtonProps {
   bookingId?: string | null;
@@ -27,13 +26,10 @@ export default function CallStudentButton({
   size = "sm",
   className,
   iconOnly = false,
-  allowPhoneCall = true,
 }: CallStudentButtonProps) {
   const { startInternalCall, hasActiveCall } = useInternalCall();
   const [chooserOpen, setChooserOpen] = useState(false);
-  const [phoneOpen, setPhoneOpen] = useState(false);
   const [studentId, setStudentId] = useState<string>();
-  const [studentPhone, setStudentPhone] = useState<string>();
   const [resolvedName, setResolvedName] = useState(studentName || "الطالب");
   const [loading, setLoading] = useState(false);
   const [startingInternal, setStartingInternal] = useState(false);
@@ -54,19 +50,10 @@ export default function CallStudentButton({
       if (resolvedStudentId) {
         setStudentId(resolvedStudentId);
         const { data: publicProfile } = await supabase.from("public_profiles").select("full_name").eq("user_id", resolvedStudentId).maybeSingle();
-        if (allowPhoneCall) {
-          const { data: privateProfile, error: contactError } = await supabase
-            .rpc("get_booking_contact", { p_user_id: resolvedStudentId, p_booking_id: bookingId || undefined })
-            .maybeSingle();
-          if (contactError) toast.error("تعذر إتاحة بيانات الاتصال لهذا الحجز");
-          setStudentPhone(privateProfile?.phone || "");
-        } else {
-          setStudentPhone("");
-        }
         setResolvedName(studentName || publicProfile?.full_name || "الطالب");
       }
     })().finally(() => setLoading(false));
-  }, [chooserOpen, bookingId, targetStudentId, studentName, allowPhoneCall]);
+  }, [chooserOpen, bookingId, targetStudentId, studentName]);
 
   const handleInternalCall = async () => {
     if (!studentId) return toast.error("تعذر تحديد الطالب");
@@ -131,33 +118,11 @@ export default function CallStudentButton({
                 {startingInternal && <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700"><Loader2 className="h-3.5 w-3.5 animate-spin" />جارٍ فحص حالة الطالب…</div>}
               </button>
 
-              {bookingId && allowPhoneCall && (
-                <button
-                  type="button"
-                  onClick={() => { setChooserOpen(false); setPhoneOpen(true); }}
-                  className="group rounded-2xl border-2 border-blue-200 bg-blue-50/60 p-5 text-right transition hover:border-blue-400 hover:bg-blue-50"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="rounded-xl bg-blue-600 p-2.5 text-white"><Phone className="h-5 w-5" /></span>
-                    <Badge className="border-0 bg-blue-100 text-blue-700 hover:bg-blue-100">عبر الهاتف</Badge>
-                  </div>
-                  <h3 className="mt-4 font-black text-slate-800">اتصال هاتفي</h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-600">الاتصال الحالي عبر شبكة الهاتف باستخدام رصيد محفظة المكالمات.</p>
-                  <p className="mt-4 text-[11px] font-bold text-blue-700">المحاسبة حسب المدة الفعلية</p>
-                </button>
-              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      <PhoneCallDialog
-        open={phoneOpen}
-        onOpenChange={setPhoneOpen}
-        bookingId={bookingId}
-        studentId={studentId}
-        studentPhone={studentPhone}
-      />
     </>
   );
 }

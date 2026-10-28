@@ -45,6 +45,10 @@ const parseTwilioGatewayError = (message: string): TwilioGatewayError | null => 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  return new Response(JSON.stringify({
+    error: "الاتصال الهاتفي غير متاح. استخدم المحادثات والمكالمات الداخلية.",
+    code: "PHONE_CALLS_DISABLED",
+  }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   const rate = checkEdgeRateLimit(req, "twilio-call", 5);
   if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
     status: 429,

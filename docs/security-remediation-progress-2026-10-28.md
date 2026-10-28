@@ -69,9 +69,10 @@ backup retention.
 
 ## Remaining scope — do not mark resolved
 
-1. Production phone/bank read isolation: broad policies/grants are still present.
-   The compatible adapters and additive API are now implemented; activate the
-   separately gated cutover only after compatible mobile clients are released.
+1. Production phone/bank read isolation: the new strict migration in
+   `docs/student-phone-privacy-release.md` supersedes the previous compatibility
+   gate. Teacher access to student phones must not remain enabled for old clients.
+   Verify its live migration fingerprint and policies before claiming closure.
 2. Private certificates/support/chat files: production support-files and chat-files
    remain public. Complete fresh signed-URL access in all affected consumers and
    preserve existing files before changing bucket visibility.
@@ -98,6 +99,11 @@ backup retention.
     claim has been established.
 
 ## Approved profile/contact compatibility stage
+
+**Superseded phone policy:** The booking-based teacher access described below was
+revoked by the user. Migration `20261028000700_deny_teacher_student_phone.sql`
+overrides it. See `docs/student-phone-privacy-release.md`; a booking never authorizes
+teacher access to the student phone.
 
 - Mobile identity enrichment and incoming caller names use explicit public
   projections; booking availability and subject lookup use the public teacher
