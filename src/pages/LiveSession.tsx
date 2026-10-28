@@ -998,9 +998,10 @@ const LiveSession = () => {
               .from("session-recordings")
               .createSignedUrl(b.fileName, 60 * 60 * 24 * 7);
             if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
-            await supabase.functions.invoke("save-session-recording", {
+            const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
               body: { booking_id: b.bookingId, recording_url: signedData.signedUrl },
             });
+            if (saveRecordingError) throw saveRecordingError;
             await clearRecordingBackup(b.bookingId);
             toast.success("تم استرداد ورفع تسجيل سابق محفوظ محلياً ✅");
           } catch (e) {
@@ -1101,25 +1102,29 @@ const LiveSession = () => {
       return;
     }
 
-    // Success
-    uploadFailureCountRef.current = 0;
-    lastUploadedSizeRef.current = blob.size;
-    setUploadStatus("synced");
-    setLastUploadAt(Date.now());
-    console.log("[chunked-upload] uploaded", blob.size, "bytes");
-
-    // Persist URL on first successful upload of this session
+    // Storage upload alone is not success: the session must also be linked.
     try {
-      const { data: signedData } = await supabase.storage
+      const { data: signedData, error: signedError } = await supabase.storage
         .from("session-recordings")
         .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+      if (signedError) throw signedError;
       if (!signedData?.signedUrl) throw new Error("Signed recording URL unavailable");
       const recordingUrl = signedData.signedUrl;
-      await supabase.functions.invoke("save-session-recording", {
+      const { error: saveRecordingError } = await supabase.functions.invoke("save-session-recording", {
         body: { booking_id: bookingId, recording_url: recordingUrl },
       });
+      if (saveRecordingError) throw saveRecordingError;
+      uploadFailureCountRef.current = 0;
+      lastUploadedSizeRef.current = blob.size;
+      setUploadStatus("synced");
+      setLastUploadAt(Date.now());
     } catch (e) {
-      console.warn("[chunked-upload] save-session-recording skipped:", e);
+      setUploadStatus("queued");
+      uploadFailureCountRef.current += 1;
+      if (uploadFailureCountRef.current === 1) {
+        toast.warning("رُفع الملف لكن تعذر ربطه بالحصة — النسخة المحلية محفوظة لإعادة المحاولة", { id: "rec-upload-fail" });
+      }
+      console.warn("[chunked-upload] recording link failed; local backup retained");
     }
 
     chunkUploadInFlightRef.current = false;

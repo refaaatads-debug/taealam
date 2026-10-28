@@ -300,7 +300,9 @@ jobs:
             supabase/functions/admin-wallet-action/index.ts \
             supabase/functions/make-phone-call/index.ts \
             supabase/functions/twilio-call/index.ts \
-            supabase/functions/_shared/call-wallet-amount.ts > security-release.sha256
+            supabase/functions/_shared/call-wallet-amount.ts \
+            supabase/functions/save-session-recording/index.ts \
+            supabase/functions/_shared/session-recording-url.ts > security-release.sha256
           while IFS= read -r name || [ -n "$name" ]; do
             [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]] || exit 1
             test -s "supabase/migrations/$name"
@@ -313,7 +315,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: scripts/apply-verified-migration.sh,scripts/security-migrations.list,security-release.sha256,supabase/migrations/20261028*.sql,supabase/functions/admin-wallet-action/index.ts,supabase/functions/make-phone-call/index.ts,supabase/functions/twilio-call/index.ts,supabase/functions/_shared/call-wallet-amount.ts
+          source: scripts/apply-verified-migration.sh,scripts/security-migrations.list,security-release.sha256,supabase/migrations/20261028*.sql,supabase/functions/admin-wallet-action/index.ts,supabase/functions/make-phone-call/index.ts,supabase/functions/twilio-call/index.ts,supabase/functions/_shared/call-wallet-amount.ts,supabase/functions/save-session-recording/index.ts,supabase/functions/_shared/session-recording-url.ts
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -938,7 +940,8 @@ jobs:
             functions_root=/root/taealam/supabase_setup/docker/volumes/functions
             security_functions_changed=false
             for relative in admin-wallet-action/index.ts make-phone-call/index.ts \
-                twilio-call/index.ts _shared/call-wallet-amount.ts; do
+                twilio-call/index.ts _shared/call-wallet-amount.ts \
+                save-session-recording/index.ts _shared/session-recording-url.ts; do
               if ! cmp -s "$staging/supabase/functions/$relative" "$functions_root/$relative"; then
                 cp "$staging/supabase/functions/$relative" "$functions_root/$relative"
                 security_functions_changed=true

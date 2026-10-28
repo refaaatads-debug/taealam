@@ -11,3 +11,4 @@
 - [Site-wide page backgrounds](site-wide-page-backgrounds.md) — Keep main page surfaces near-white across the web app; reserve color for intentional sections and cards.
 - [Shared profile read rollout](shared-profile-read-rollout.md) — Ship compatible mobile reads before restricting private tables; web deployment alone does not prove mobile rollout.
 - [Student phone privacy](student-phone-privacy.md) — Never expose student phones to teachers, even with bookings; enforce across UI, API, RPC, tables and call history.
+- [Self-hosted storage origins](self-hosted-storage-origins.md) — Server Supabase URLs use an internal origin; browser signed URLs use the public proxy. Validate both explicitly.

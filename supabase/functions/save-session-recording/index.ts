@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { parseSessionRecordingUrl } from "../_shared/session-recording-url.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -29,23 +30,8 @@ serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    let recordingUrl: URL;
-    try {
-      recordingUrl = new URL(recording_url);
-    } catch {
-      return new Response(JSON.stringify({ error: "رابط التسجيل غير صالح" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabaseOrigin = new URL(supabaseUrl).origin;
-    const isSessionRecordingObject =
-      recordingUrl.protocol === "https:" &&
-      recordingUrl.origin === supabaseOrigin &&
-      recordingUrl.pathname.startsWith("/storage/v1/object/") &&
-      recordingUrl.pathname.includes("/session-recordings/");
-    if (!isSessionRecordingObject) {
+    const recording = parseSessionRecordingUrl(recording_url, supabaseUrl);
+    if (!recording) {
       return new Response(JSON.stringify({ error: "رابط التسجيل غير مسموح" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -85,6 +71,16 @@ serve(async (req) => {
       });
     }
 
+    if (
+      recording.bookingId !== booking.id ||
+      (recording.ownerId !== booking.teacher_id && recording.ownerId !== booking.student_id)
+    ) {
+      return new Response(JSON.stringify({ error: "التسجيل لا يخص هذه الحصة" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: session, error: sessionError } = await admin
       .from("sessions")
       .select("id, started_at, ended_at, duration_minutes")
@@ -100,7 +96,7 @@ serve(async (req) => {
 
     const { error: updateSessionError } = await admin
       .from("sessions")
-      .update({ recording_url })
+      .update({ recording_url: recording.url })
       .eq("id", session.id);
 
     if (updateSessionError) {
@@ -122,7 +118,7 @@ serve(async (req) => {
       if (existingMaterial) {
         const { error: updateMaterialError } = await admin
           .from("session_materials")
-          .update({ recording_url })
+          .update({ recording_url: recording.url })
           .eq("id", existingMaterial.id);
 
         if (updateMaterialError) throw updateMaterialError;
@@ -144,7 +140,7 @@ serve(async (req) => {
           student_id: booking.student_id,
           title: `حصة مع ${teacherProfile?.full_name || "معلم"}`,
           description: `مدة الحصة: ${sessionDuration} دقيقة`,
-          recording_url,
+          recording_url: recording.url,
           duration_minutes: sessionDuration,
           expires_at: expiresAt,
         });
