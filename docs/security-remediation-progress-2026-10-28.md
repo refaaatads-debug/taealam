@@ -1,0 +1,95 @@
+# Security remediation progress — 2026-10-28
+
+This is a progress record, **not completion of the full remediation request**.
+Web and supporting services only; the mobile source and workflow were not changed.
+
+## Release evidence
+
+- Verified production web SHA: `b116e982ab3dbb490ac61c7b3c58e204f131b97d`.
+- GitHub Actions run `40660289915` completed successfully, and the VPS marker
+  matched the run SHA. This includes the on-demand Agora change.
+- Corrective migrations `20261028000200_restrict_wallet_mutation_rpcs.sql`,
+  `20261028000300_atomic_admin_wallet_operations.sql`, and
+  `20261028000400_guard_teacher_admin_fields.sql` have non-empty production
+  fingerprints matching their source files.
+
+## Verified production corrections
+
+- Wallet mutation RPCs retain their signatures but reject untrusted callers.
+  Production ACL checks confirm anon/authenticated cannot execute them and
+  service_role can.
+- Administrative wallet mutations use a persistent operation UUID, database
+  serialization, a unique operation record, and an atomic audit log.
+- Teacher administrative fields have an INSERT/UPDATE guard. Personal edits
+  remain permitted; existing in-person approval safeguards remain installed.
+- The stale-session cleanup RPC has a pinned search_path and restricted execution.
+- Profile-update bank payload logging was removed.
+- Clean installation, type checking, tests, and compilation gate deployment.
+- Corrective migrations have a transfer manifest, content checksums, transactional
+  fingerprint recording, matching-version skips, and explicit missing/mismatch errors.
+- DOMPurify was updated to 3.4.17. Internal package-proxy download locations were
+  removed from the lockfile without changing package versions or integrity hashes.
+- Telephone cost calculations are normalized to cents before wallet RPC calls.
+
+## Verification performed
+
+- A uniquely named schema clone was created in the separate PostgreSQL test
+  container. Existing databases were preserved. No production financial
+  transactions were used for tests.
+- Wallet authorization, invalid amounts, duplicate-credit rollback, teacher field
+  authorization, and administrative audit-failure rollback tests passed.
+- Eight simultaneous copies of the same administrative wallet operation produced
+  one ledger effect in the isolated database.
+- Migration runner checks covered matching skips, missing files, and changed hashes.
+- Independent clean installation, types, tests, and production compilation passed.
+- Latest local verification: 33 test files / 151 passing tests.
+- The public homepage was visually checked at a phone viewport; public home,
+  search, packages, and teacher-application routes returned HTTP 200.
+- Signed-in UI and real payment/call-provider transactions were not verified.
+
+## Performance correction
+
+The internal-call provider loads the Agora SDK on demand instead of importing it
+into the initial application bundle. Local production compilation changed the
+main bundle from approximately 2.37 MB (677 KB gzip) to 745 KB (230 KB gzip).
+The SDK remains available in a separate approximately 1.61 MB chunk.
+This is a bundle measurement, not proof of runtime latency or session capacity.
+
+## Preserved source and backups
+
+Pre-existing uncommitted VPS source changes were archived without replacing that
+working tree. A fresh database dump was created and its archive listing verified
+before the emergency wallet correction. Subsequent Actions deployments created
+their normal pre-deployment database/web/functions backups.
+
+These checks do **not** prove a complete disaster-recovery restore or offsite
+backup retention.
+
+## Remaining scope — do not mark resolved
+
+1. Production phone/bank read isolation: broad policies/grants are still present.
+   Review shared web/mobile direct table reads before restricting them.
+2. Private certificates/support/chat files: production support-files and chat-files
+   remain public. Complete fresh signed-URL access in all affected consumers and
+   preserve existing files before changing bucket visibility.
+3. Short-lived assignment links and full owner/participant/staff storage tests.
+4. Complete staff-permission, role, family-link and protected-field coverage;
+   the new teacher field guard is not a full authorization-system audit.
+5. End-to-end payment/webhook/refund/withdrawal recovery and reconciliation.
+   The administrative wallet transaction does not make all payment flows atomic.
+6. Full fresh-schema migration replay and old-version upgrades. The validation
+   database used the actual production schema, not a replay of all historical SQL.
+7. A production cleanup-materials-daily cron invocation fails because its URL
+   setting is missing; its request currently also lacks an explicit auth header.
+   No deletion job was manually executed during verification.
+8. Shared durable rate limiting, trusted proxy-chain review, staged CSP deployment,
+   and complete host/container exposure review. UFW and host metrics were inspected;
+   ports were not changed without dependency verification.
+9. Offsite backup destination, retention, and a full isolated restore exercise.
+10. Remaining dependency advisories and existing ESLint/type-safety debt.
+    The latest production dependency audit still reported 2 high, 3 moderate,
+    and 1 low package entries; no critical entries.
+11. Gradual financial/live-session component separation and measured API/SQL tuning.
+12. Signed-in student/teacher/admin/staff journeys, phone/RTL/accessibility, Riyadh
+    boundary cases, and isolated capacity tests. No 100/500/1000-session capacity
+    claim has been established.
