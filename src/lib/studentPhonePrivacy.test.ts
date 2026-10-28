@@ -18,6 +18,11 @@ describe("student phone confidentiality", () => {
     expect(dialog).toContain("body: { studentId, bookingId, estimatedMinutes: minutes }");
     expect(dialog).not.toMatch(/get_booking_contact|studentPhone|student_phone|from\("profiles"\)|from\("call_logs"\)/);
   });
+  it("keeps the masked phone option for in-person teacher bookings", () => {
+    const schedule = readFileSync(resolve("src/components/teacher/TeacherScheduleTable.tsx"), "utf8");
+    expect(schedule).toContain("<CallStudentButton");
+    expect(schedule).not.toContain('allowPhoneCall={chatBookingMode !== "in_person"}');
+  });
   it("teacher history uses a projection without even partial student numbers", () => {
     const text = readFileSync(resolve("src/pages/TeacherWallet.tsx"), "utf8");
     expect(text).toContain('from("teacher_call_history")');
