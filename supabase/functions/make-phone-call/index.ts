@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { callWalletAmount } from "../_shared/call-wallet-amount.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
@@ -90,7 +91,7 @@ serve(async (req) => {
       normalizedPhone = "+" + normalizedPhone;
     }
 
-    const requiredBalance = Math.ceil(estimatedMinutes) * PRICE_PER_MINUTE;
+    const requiredBalance = callWalletAmount(estimatedMinutes, PRICE_PER_MINUTE);
 
     // Check balance
     const { data: wallet } = await supabase

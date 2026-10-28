@@ -297,7 +297,10 @@ jobs:
         run: |
           set -eu
           sha256sum scripts/apply-verified-migration.sh scripts/security-migrations.list \
-            supabase/functions/admin-wallet-action/index.ts > security-release.sha256
+            supabase/functions/admin-wallet-action/index.ts \
+            supabase/functions/make-phone-call/index.ts \
+            supabase/functions/twilio-call/index.ts \
+            supabase/functions/_shared/call-wallet-amount.ts > security-release.sha256
           while IFS= read -r name || [ -n "$name" ]; do
             [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]] || exit 1
             test -s "supabase/migrations/$name"
@@ -310,7 +313,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          source: scripts/apply-verified-migration.sh,scripts/security-migrations.list,security-release.sha256,supabase/migrations/20261028*.sql,supabase/functions/admin-wallet-action/index.ts
+          source: scripts/apply-verified-migration.sh,scripts/security-migrations.list,security-release.sha256,supabase/migrations/20261028*.sql,supabase/functions/admin-wallet-action/index.ts,supabase/functions/make-phone-call/index.ts,supabase/functions/twilio-call/index.ts,supabase/functions/_shared/call-wallet-amount.ts
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -933,10 +936,15 @@ jobs:
               done < scripts/security-migrations.list
             )
             functions_root=/root/taealam/supabase_setup/docker/volumes/functions
-            if ! cmp -s "$staging/supabase/functions/admin-wallet-action/index.ts" \
-                "$functions_root/admin-wallet-action/index.ts"; then
-              cp "$staging/supabase/functions/admin-wallet-action/index.ts" \
-                "$functions_root/admin-wallet-action/index.ts"
+            security_functions_changed=false
+            for relative in admin-wallet-action/index.ts make-phone-call/index.ts \
+                twilio-call/index.ts _shared/call-wallet-amount.ts; do
+              if ! cmp -s "$staging/supabase/functions/$relative" "$functions_root/$relative"; then
+                cp "$staging/supabase/functions/$relative" "$functions_root/$relative"
+                security_functions_changed=true
+              fi
+            done
+            if [ "$security_functions_changed" = true ]; then
               docker restart supabase-edge-functions
             fi
             rsync -a --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r "$staging/dist/" /var/www/html/

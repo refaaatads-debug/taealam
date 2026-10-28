@@ -20,3 +20,15 @@ description: GitHub Actions limits long embedded SSH scripts, and separate SSH a
 **Why:** The remote main branch advanced while a pre-deployment backup was being created; the stale-head guard correctly stopped the first push.
 
 **How to apply:** Compare remote main with the local release branch after backup, fast-forward or merge safely, and only report deployment after the workflow SHA matches the VPS marker.
+
+**Rule:** Package lockfiles used outside Replit must not depend on internal package-proxy DNS names. Preserve locked versions and integrity hashes; use the environment's configured registry.
+
+**Why:** A clean installation passed inside Replit but failed in GitHub Actions because an internal package-proxy host was unreachable there. This was a portability error, not a package-security rejection.
+
+**How to apply:** Test installation in the external runner as well as locally. Never change registry routing to get around a firewall rejection.
+
+**Rule:** When streaming a shell script through SSH stdin, give child metadata queries an explicit empty stdin. Reserve piped stdin for commands that intentionally consume it.
+
+**Why:** A child `docker exec -i` silently consumed the remainder of a streamed script, so subsequent validation commands never ran even though the shell exited successfully.
+
+**How to apply:** Redirect single-query commands from `/dev/null`, pass SQL via a dedicated pipe or heredoc, and verify explicit end-of-check markers.

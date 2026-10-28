@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { callWalletAmount } from "../_shared/call-wallet-amount.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 
@@ -105,7 +106,7 @@ Deno.serve(async (req) => {
 
     // Estimated minutes: request param → booking duration → fallback 30
     const estimatedMinutes = reqMinutes || booking.duration_minutes || 30;
-    const requiredBalance = Math.ceil(estimatedMinutes) * PRICE_PER_MINUTE;
+    const requiredBalance = callWalletAmount(estimatedMinutes, PRICE_PER_MINUTE);
 
     // ── FIX 1: Check wallet balance before making any calls ──
     const { data: wallet } = await admin
@@ -177,12 +178,17 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    await admin.rpc("deduct_wallet_balance", {
+    const { error: deductionError } = await admin.rpc("deduct_wallet_balance", {
       _user_id: callerId,
       _amount: requiredBalance,
       _reference_id: callLog?.id || null,
       _description: `مكالمة هاتفية مؤتمر (${estimatedMinutes} دقيقة)`,
     });
+    if (deductionError) {
+      await admin.from("call_logs").update({ status: "failed", cost: 0 })
+        .eq("id", callLog?.id);
+      throw new Error("Wallet reservation failed");
+    }
 
     // Call both parties
     let studentSid = "";
