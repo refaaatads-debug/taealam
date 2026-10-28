@@ -2152,7 +2152,7 @@ export type Database = {
       teacher_subjects: {
         Row: {
           id: string
-          subject_id: string
+          subject_id: string | null
           teacher_id: string
         }
         Insert: {
@@ -2863,6 +2863,28 @@ export type Database = {
           _user_id: string
         }
         Returns: number
+      }
+      get_my_in_person_package_credit_history: {
+        Args: { p_subscription_id: string }
+        Returns: {
+          booking_id: string | null
+          booking_status: string | null
+          consumed_minutes: number
+          created_at: string
+          instruction_duration_minutes: number | null
+          released_minutes: number
+          reservation_id: string
+          reservation_status: string
+          request_group_id: string
+          reserved_minutes: number
+          scheduled_at: string | null
+          settled_at: string | null
+          subject_id: string
+          subject_name: string | null
+          subscription_id: string
+          teacher_id: string | null
+          teacher_name: string | null
+        }[]
       }
       get_call_wallet_summary: {
         Args: { _month?: string }
