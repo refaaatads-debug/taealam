@@ -238,10 +238,13 @@ Deno.serve(async (req) => {
       // Stop any successfully created leg; never leave a party in an orphan conference.
       for (const sid of [studentSid, teacherSid].filter(Boolean)) {
         try {
-          await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${sid}.json`, {
-            method: "POST", headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ Status: "completed" }),
-          });
+          for (const status of ["completed", "canceled"]) {
+            const stopped = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${sid}.json`, {
+              method: "POST", headers: { Authorization: twilioAuth, "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ Status: status }),
+            });
+            if (stopped.ok) break; // queued legs need canceled; answered legs need completed.
+          }
         } catch { console.error("Conference leg cleanup failed"); }
       }
       // Refund if calls failed after deduction

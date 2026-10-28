@@ -11,7 +11,7 @@ const callId = "71000000-0000-4000-8000-000000000004";
 const studentPhone = "+966511111111";
 const teacherPhone = "+966522222222";
 const platformPhone = "+15005550006";
-type Options = { unauthorized?: boolean; wrongTeacher?: boolean; balance?: number; failReservation?: boolean; failProviderAt?: number };
+type Options = { unauthorized?: boolean; wrongTeacher?: boolean; balance?: number; failReservation?: boolean; failProviderAt?: number; queuedLeg?: boolean };
 type Write = { table: string; action: string; payload: Record<string, unknown> };
 
 function evaluate(name: string, dependencies: Record<string, unknown>) {
@@ -76,6 +76,7 @@ function harness(options: Options = {}) {
         return Response.json({ sid: `CA${String(provider.length).repeat(32)}` });
       }
       providerCancellations.push(parameters.get("Status") || "");
+      if (options.queuedLeg && parameters.get("Status") === "completed") return Response.json({}, { status: 400 });
       return Response.json({ status: "completed" });
     },
   });
@@ -141,10 +142,10 @@ describe("masked Twilio conference (mock provider only; no billable calls)", () 
     }
   });
   it("cancels the created leg and refunds when the second leg fails, without reflecting provider phone errors", async () => {
-    const h = harness({ failProviderAt: 2 });
+    const h = harness({ failProviderAt: 2, queuedLeg: true });
     const response = await h.primary(h.request({ bookingId, estimatedMinutes: 3 }));
     expect(response.status).toBe(500);
-    expect(h.providerCancellations).toEqual(["completed"]);
+    expect(h.providerCancellations).toEqual(["completed", "canceled"]);
     expect(h.reservations.filter((item) => item.name === "credit_wallet_balance")).toHaveLength(1);
     expect(h.reservations[1].args._amount).toBe(0.9);
     expect(JSON.stringify({ body: await response.json(), writes: h.writes })).not.toContain(studentPhone);
