@@ -107,7 +107,7 @@ const TeacherAssignments = () => {
       const studentIdsSubs = Array.from(new Set(subsList.map((s: any) => s.student_id).filter(Boolean)));
       let profMap: Record<string, string> = {};
       if (studentIdsSubs.length > 0) {
-        const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIdsSubs);
+        const { data: profs } = await supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIdsSubs);
         (profs || []).forEach((p: any) => { profMap[p.user_id] = p.full_name || "طالب"; });
       }
        const titleMap: Record<string, any> = {};
@@ -125,7 +125,7 @@ const TeacherAssignments = () => {
     const studentIds = Array.from(new Set(((realBookings as any[]) || []).map(b => b.student_id).filter(Boolean)));
     let list: { id: string; name: string }[] = [];
     if (studentIds.length > 0) {
-      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds);
+      const { data: profs } = await supabase.from("public_profiles").select("user_id, full_name").in("user_id", studentIds);
       list = (profs || [])
         .map((p: any) => ({ id: p.user_id, name: p.full_name || "طالب" }))
         .sort((a, b) => a.name.localeCompare(b.name, "ar"));

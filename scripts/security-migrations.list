@@ -1,3 +1,4 @@
 20261028000200_restrict_wallet_mutation_rpcs.sql
 20261028000300_atomic_admin_wallet_operations.sql
 20261028000400_guard_teacher_admin_fields.sql
+20261028000500_private_profile_reads.sql

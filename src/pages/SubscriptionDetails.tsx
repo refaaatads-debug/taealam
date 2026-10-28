@@ -96,7 +96,7 @@ const SubscriptionDetails = () => {
 
       // Get teacher_profiles.id for each teacher (teacher_subjects uses teacher_profiles.id not user_id)
       const teacherProfilesRes = await supabase
-        .from("teacher_profiles")
+        .from("public_teacher_profiles")
         .select("id, user_id")
         .in("user_id", teacherIds);
       const userIdToProfileId = new Map((teacherProfilesRes.data ?? []).map((tp: any) => [tp.user_id, tp.id]));

@@ -44,7 +44,7 @@ const ReviewSubmission = () => {
     const s: any = subData;
     const [{ data: aData }, { data: pData }] = await Promise.all([
       supabase.from("assignments" as any).select("*").eq("id", s.assignment_id).maybeSingle(),
-      supabase.from("profiles").select("full_name").eq("user_id", s.student_id).maybeSingle(),
+      supabase.from("public_profiles").select("full_name").eq("user_id", s.student_id).maybeSingle(),
     ]);
     setSub({ ...s, assignment: aData || null, profiles: pData || null });
     if (s.teacher_score != null) setScore(String(s.teacher_score));

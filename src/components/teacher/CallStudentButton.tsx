@@ -55,7 +55,10 @@ export default function CallStudentButton({
         setStudentId(resolvedStudentId);
         const { data: publicProfile } = await supabase.from("public_profiles").select("full_name").eq("user_id", resolvedStudentId).maybeSingle();
         if (allowPhoneCall) {
-          const { data: privateProfile } = await supabase.from("profiles").select("phone").eq("user_id", resolvedStudentId).maybeSingle();
+          const { data: privateProfile, error: contactError } = await supabase
+            .rpc("get_booking_contact", { p_user_id: resolvedStudentId, p_booking_id: bookingId || undefined })
+            .maybeSingle();
+          if (contactError) toast.error("تعذر إتاحة بيانات الاتصال لهذا الحجز");
           setStudentPhone(privateProfile?.phone || "");
         } else {
           setStudentPhone("");

@@ -2804,6 +2804,10 @@ export type Database = {
       }
     }
     Functions: {
+      get_booking_contact: {
+        Args: { p_user_id: string; p_booking_id?: string | null }
+        Returns: { user_id: string; phone: string | null }[]
+      }
       accept_booking_group: {
         Args: { _group_id: string; _teacher_id: string }
         Returns: {

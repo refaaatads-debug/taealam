@@ -1,11 +1,13 @@
 # Security remediation progress — 2026-10-28
 
 This is a progress record, **not completion of the full remediation request**.
-Web and supporting services only; the mobile source and workflow were not changed.
+The initial scope was web/supporting services. A later explicit exception permits
+only the affected mobile profile/contact read adapters. Mobile design, unrelated
+features, pre-existing edits, and its workflow are not changed by that exception.
 
 ## Release evidence
 
-- Verified production web SHA: `b116e982ab3dbb490ac61c7b3c58e204f131b97d`.
+- Verified production web SHA for the financial/performance phase: `b116e982ab3dbb490ac61c7b3c58e204f131b97d`.
 - GitHub Actions run `40660289915` completed successfully, and the VPS marker
   matched the run SHA. This includes the on-demand Agora change.
 - Corrective migrations `20261028000200_restrict_wallet_mutation_rpcs.sql`,
@@ -42,7 +44,7 @@ Web and supporting services only; the mobile source and workflow were not change
   one ledger effect in the isolated database.
 - Migration runner checks covered matching skips, missing files, and changed hashes.
 - Independent clean installation, types, tests, and production compilation passed.
-- Latest local verification: 33 test files / 151 passing tests.
+- Latest local verification: 34 test files / 152 passing web tests.
 - The public homepage was visually checked at a phone viewport; public home,
   search, packages, and teacher-application routes returned HTTP 200.
 - Signed-in UI and real payment/call-provider transactions were not verified.
@@ -68,7 +70,8 @@ backup retention.
 ## Remaining scope — do not mark resolved
 
 1. Production phone/bank read isolation: broad policies/grants are still present.
-   Review shared web/mobile direct table reads before restricting them.
+   The compatible adapters and additive API are now implemented; activate the
+   separately gated cutover only after compatible mobile clients are released.
 2. Private certificates/support/chat files: production support-files and chat-files
    remain public. Complete fresh signed-URL access in all affected consumers and
    preserve existing files before changing bucket visibility.
@@ -93,3 +96,25 @@ backup retention.
 12. Signed-in student/teacher/admin/staff journeys, phone/RTL/accessibility, Riyadh
     boundary cases, and isolated capacity tests. No 100/500/1000-session capacity
     claim has been established.
+
+## Approved profile/contact compatibility stage
+
+- Mobile identity enrichment and incoming caller names use explicit public
+  projections; booking availability and subject lookup use the public teacher
+  projection. Existing owner-only private profile/bank settings remain unchanged.
+- The phone flow uses `get_booking_contact`, scoped to the requested student and
+  booking. The function returns only identity/phone, requires authentication,
+  and permits teachers only for confirmed/completed bookings they own. Own-contact
+  and existing administrator access remain allowed.
+- Pending/unrelated/mismatched bookings cannot authorize phone access. A stale
+  mobile request cannot overwrite the newly selected participant's phone.
+- Matching web cross-user reads use the same public/contact contracts.
+- Migration 20261028000500 is the additive compatibility stage. Migration
+  20261028000600 removes broad private-table read policies and is deliberately
+  excluded from automatic production application until mobile release evidence.
+- Both stages were tested together on an isolated clone using actual database
+  roles, including anonymous denial, unrelated-user denial, permitted teacher
+  contact, student owner settings, teacher bank ownership and administrator access.
+- Mobile type checking, four new source-contract checks, and existing profile,
+  availability and call-direction tests passed. Signed-in native UI, an installed
+  mobile release and live telephone transactions were not verified.

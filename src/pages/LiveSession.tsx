@@ -1833,7 +1833,7 @@ const LiveSession = () => {
           let hourlyRate = 0;
           try {
             const { data: tp } = await supabase
-              .from("teacher_profiles")
+              .from("public_teacher_profiles")
               .select("hourly_rate")
               .eq("user_id", currentBookingData.teacher_id)
               .maybeSingle();
