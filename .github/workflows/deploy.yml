@@ -219,6 +219,21 @@ jobs:
             run_edge_functions=true
           fi
           echo "run=$run_edge_functions" >> "$GITHUB_OUTPUT"
+      - name: Detect in-person package credit history RPC
+        id: package-credit-history-scope
+        shell: bash
+        run: |
+          run_package_credit_history=false
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+              && git diff --name-only "$before" "$GITHUB_SHA" -- \
+                supabase/migrations/20261028000100_in_person_package_credit_history_rpc.sql \
+                .github/workflows/deploy.yml | grep -q .; then
+              run_package_credit_history=true
+            fi
+          fi
+          echo "run=$run_package_credit_history" >> "$GITHUB_OUTPUT"
       - name: Prepare private VPS build staging
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -249,6 +264,17 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
           source: supabase/migrations/20261026000300_separate_in_person_teaching_and_debit.sql
+          target: /tmp/ajyal-build-${{ github.sha }}
+          overwrite: true
+      - name: Transfer package credit history migration to staging
+        if: steps.package-credit-history-scope.outputs.run == 'true'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          source: supabase/migrations/20261028000100_in_person_package_credit_history_rpc.sql
           target: /tmp/ajyal-build-${{ github.sha }}
           overwrite: true
       - name: Recheck main immediately before VPS activation
@@ -564,6 +590,50 @@ jobs:
             else
               echo "skip: finance migrations unchanged"
             fi
+      - name: Apply and verify owner-scoped package credit history RPC
+        if: steps.package-credit-history-scope.outputs.run == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          envs: DEPLOY_SHA
+          script: |
+            set -eu
+            staging=/tmp/ajyal-build-$DEPLOY_SHA
+            migration="$staging/supabase/migrations/20261028000100_in_person_package_credit_history_rpc.sql"
+            test -s "$migration"
+            expected_hash="daef48b5a8eea621cf6a9720c484f1cc7b3f7f96a9ec6a88a885d93e899100c3"
+            actual_hash="$(sha256sum "$migration" | awk '{print $1}')"
+            test "$actual_hash" = "$expected_hash" || {
+              echo "Package credit history migration fingerprint mismatch; refusing to apply." >&2
+              exit 1
+            }
+            db_container="$(docker ps --filter name=supabase-db --format '{{.Names}}' | head -n 1)"
+            test -n "$db_container"
+            docker exec -i -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$migration"
+            verified="$(docker exec -u postgres "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -Atc "
+              SELECT
+                p.prosecdef
+                AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+                  WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'
+                )
+                AND NOT has_table_privilege('authenticated', 'public.in_person_credit_reservations', 'SELECT')
+              FROM pg_proc p
+              WHERE p.oid = to_regprocedure('public.get_my_in_person_package_credit_history(uuid)')
+            ")"
+            test "$verified" = "t" || {
+              echo "RPC ownership or privilege verification failed." >&2
+              exit 1
+            }
+            echo "Owner-scoped package credit history RPC applied and verified; no table SELECT grants were added."
       - name: Apply payout migrations and activate the verified build
         uses: appleboy/ssh-action@v1.0.3
         env:
