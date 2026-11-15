@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveSessionTransportProvider } from "@/lib/sessionTransportPolicy";
 
 // ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
 // useinbandfec=1        → forward error correction (masks packet loss, prevents cuts)
@@ -103,7 +104,7 @@ export function useWebRTC({
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
-  const transportProviderRef = useRef<"webrtc" | "agora">("webrtc");
+  const transportProviderRef = useRef<"unknown" | "webrtc" | "agora">("unknown");
   const agoraClientRef = useRef<any>(null);
   const agoraAudioTrackRef = useRef<any>(null);
   const agoraScreenTrackRef = useRef<any>(null);
@@ -220,6 +221,7 @@ export function useWebRTC({
   // Send data via DataChannel
   const sendDataMessage = useCallback((msg: any) => {
     const message = { ...msg, _senderId: userId };
+    if (transportProviderRef.current === "unknown") return;
     if (transportProviderRef.current === "agora") {
       const channel = channelRef.current;
       if (!channel || !agoraRealtimeReadyRef.current) {
@@ -608,7 +610,7 @@ export function useWebRTC({
   }, [userId, sendSignal, createPeerConnection]);
 
   const start = useCallback(async () => {
-    transportProviderRef.current = "webrtc";
+    transportProviderRef.current = "unknown";
     setTransportProvider("unknown");
     let transportData: any = null;
     try {
@@ -634,18 +636,18 @@ export function useWebRTC({
       }
       const { data } = tokenResponse;
       transportData = data;
-      if (data?.provider === "agora" && data?.token && data?.appId && data?.channel && data?.uid) {
+      const selectedProvider = resolveSessionTransportProvider(data);
+      if (selectedProvider === "agora") {
         transportProviderRef.current = "agora";
         setTransportProvider("agora");
-      } else if (data?.provider === "webrtc" && data?.legacyActive === true) {
+      } else {
+        // Keep WebRTC only for bookings the server explicitly pins as active legacy sessions.
         transportProviderRef.current = "webrtc";
         setTransportProvider("webrtc");
-      } else {
-        throw new Error("مزود الاتصال للحصة غير متاح");
       }
     } catch (error) {
       console.error("[session] transport selection failed; session will not start", error);
-      transportProviderRef.current = "webrtc";
+      transportProviderRef.current = "unknown";
       setTransportProvider("unknown");
       const status = Number((error as any)?.status ?? (error as any)?.context?.status);
       if (status === 401) throw new Error("انتهت صلاحية تسجيل الدخول. أعد تحميل الصفحة وسجّل الدخول مجددًا.");
@@ -993,6 +995,10 @@ export function useWebRTC({
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
+    if (transportProviderRef.current === "unknown") {
+      alert("جارٍ تجهيز اتصال الحصة. حاول مشاركة الشاشة بعد اكتمال الانضمام.");
+      return;
+    }
     if (transportProviderRef.current === "agora") {
       const client = agoraClientRef.current;
       if (!client) return;
@@ -1581,7 +1587,7 @@ export function useWebRTC({
         agoraScreenTrackRef.current = null;
       }
     }
-    transportProviderRef.current = "webrtc";
+    transportProviderRef.current = "unknown";
     setTransportProvider("unknown");
     pcRef.current?.close();
     pcRef.current = null;
