@@ -995,6 +995,10 @@ export function useWebRTC({
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
+    if (transportProviderRef.current === "unknown") {
+      alert("جارٍ تجهيز اتصال الحصة. حاول مشاركة الشاشة بعد اكتمال الانضمام.");
+      return;
+    }
     if (transportProviderRef.current === "agora") {
       const client = agoraClientRef.current;
       if (!client) return;
