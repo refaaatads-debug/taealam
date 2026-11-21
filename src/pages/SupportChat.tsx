@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SignedUrl } from "@/components/SignedUrl";
 import { useSearchParams, Link } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { supabase } from "@/integrations/supabase/client";
@@ -197,7 +198,10 @@ const SupportChat = () => {
 
   const isImage = (type?: string | null) => type?.startsWith("image/");
 
-  const renderFileAttachment = (msg: Message) => {
+  const renderFileAttachment = (msg: Message) =>
+    msg.file_url ? <SignedUrl url={msg.file_url}>{(u) => renderFileAttachmentInner({ ...msg, file_url: u })}</SignedUrl> : null;
+
+  const renderFileAttachmentInner = (msg: Message) => {
     if (!msg.file_url) return null;
     if (msg.file_type?.startsWith("audio/")) return <VoicePlayer url={msg.file_url} />;
     const isMe = !msg.is_admin;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SignedAnchor } from "@/components/SignedUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -404,15 +405,15 @@ export default function WithdrawalSection() {
                     <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-2">📝 {w.teacher_notes}</p>
                   )}
                   {w.attachment_url && (
-                    <a
-                      href={w.attachment_url}
+                    <SignedAnchor
+                        url={w.attachment_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
                     >
                       <Download className="h-3.5 w-3.5" />
                       {w.attachment_name || "تحميل المرفق"}
-                    </a>
+                    </SignedAnchor>
                   )}
                   {w.admin_notes && (
                     <p className="text-xs text-muted-foreground bg-primary/5 rounded-lg p-2">💬 رد الإدارة: {w.admin_notes}</p>

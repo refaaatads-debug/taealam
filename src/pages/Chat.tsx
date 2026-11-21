@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SignedUrl } from "@/components/SignedUrl";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -505,7 +506,10 @@ const Chat = () => {
     }
   };
 
-  const renderFileMessage = (msg: ChatMessage) => {
+  const renderFileMessage = (msg: ChatMessage) =>
+    msg.file_url ? <SignedUrl url={resolveChatMediaUrl(msg.file_url)}>{(u) => renderFileMessageInner({ ...msg, file_url: u })}</SignedUrl> : null;
+
+  const renderFileMessageInner = (msg: ChatMessage) => {
     if (!msg.file_url) return null;
     const isAudio = msg.file_type?.startsWith("audio/");
     const isImg = msg.file_type?.startsWith("image/");
