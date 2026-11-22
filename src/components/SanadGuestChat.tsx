@@ -1,8 +1,10 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
+
+// Markdown is only needed when the guest opens the chat panel.
+const ReactMarkdown = lazy(() => import("react-markdown"));
 
 type Message = {
   role: "user" | "assistant";
@@ -136,7 +138,9 @@ export default function SanadGuestChat() {
                     </p>
                   )}
                   <div className="prose prose-sm max-w-none prose-p:my-0 prose-p:leading-7 prose-strong:text-current">
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    <Suspense fallback={<p>{message.content}</p>}>
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </Suspense>
                   </div>
                 </div>
               </div>
