@@ -14,9 +14,9 @@ const Footer = () => {
     "footer_description",
     "منصة تعليمية ذكية تربط الطلاب بأفضل المدرسين في السعودية والوطن العربي، مدعومة بالذكاء الاصطناعي."
   );
-  const email = getSetting("footer_email", "info@taallam.com");
-  const phone = getSetting("footer_phone", "+966 50 000 0000");
-  const address = getSetting("footer_address", "الرياض، المملكة العربية السعودية");
+  const email = getSetting("footer_email", "");
+  const phone = getSetting("footer_phone", "+966570567341");
+  const address = getSetting("footer_address", "المملكة العربية السعودية");
   const copyright = normalizeBrandText(
     getSetting("footer_copyright", `© 2026 ${BRAND_NAME}. جميع الحقوق محفوظة.`),
     `© 2026 ${BRAND_NAME}. جميع الحقوق محفوظة.`
@@ -145,14 +145,16 @@ const Footer = () => {
               تواصل معنا
             </h4>
             <ul className="flex flex-col gap-3.5 text-sm opacity-75">
-              <li className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-background/10 flex items-center justify-center flex-shrink-0">
-                  <Mail className="h-4 w-4" />
-                </div>
-                <a href={`mailto:${email}`} dir="ltr" className="hover:opacity-100 hover:text-gold transition-colors mt-1">
-                  {email}
-                </a>
-              </li>
+              {email ? (
+                <li className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-background/10 flex items-center justify-center flex-shrink-0">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <a href={`mailto:${email}`} dir="ltr" className="hover:opacity-100 hover:text-gold transition-colors mt-1">
+                    {email}
+                  </a>
+                </li>
+              ) : null}
               <li className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-background/10 flex items-center justify-center flex-shrink-0">
                   <Phone className="h-4 w-4" />
