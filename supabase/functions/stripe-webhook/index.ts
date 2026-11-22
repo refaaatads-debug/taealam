@@ -437,6 +437,12 @@ serve(async (req) => {
           .eq("user_id", userId)
           .eq("is_active", true);
 
+        await adminClient.from("notifications").insert({
+          user_id: userId,
+          title: "انتهت باقتك 📋",
+          body: "انتهى اشتراكك. يمكنك تجديد الباقة للاستمرار في التعلم.",
+          type: "subscription_expired",
+        });
       }
     }
 
