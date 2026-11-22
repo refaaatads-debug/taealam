@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Square, Loader2, X } from "lucide-react";
+import { Mic, Loader2, Trash2, Pause, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -17,6 +17,8 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
   const [levels, setLevels] = useState<number[]>(Array(20).fill(0.1));
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -55,6 +57,7 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
         if (!analyserRef.current) return;
+        if (pausedRef.current) { rafRef.current = requestAnimationFrame(tick); return; }
         analyserRef.current.getByteFrequencyData(data);
         // Compute amplitude bands and shift into the bars array
         let sum = 0;
@@ -102,6 +105,8 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
         const blob = new Blob(chunksRef.current, { type: blobType });
         stopStream();
         setRecording(false);
+        setPaused(false);
+        pausedRef.current = false;
         setSeconds(0);
         setLevels(Array(20).fill(0.1));
         if (wasCancelled) return;
@@ -115,7 +120,7 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
       rec.start(250);
       setRecording(true);
       setSeconds(0);
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+      timerRef.current = setInterval(() => { if (!pausedRef.current) setSeconds((s) => s + 1); }, 1000);
       startMeter(stream);
     } catch (err: any) {
       console.error("mic error", err);
@@ -131,6 +136,18 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
     recorderRef.current?.stop();
   };
 
+  const togglePause = () => {
+    const rec = recorderRef.current;
+    if (!recording || !rec) return;
+    try {
+      if (pausedRef.current) rec.resume(); else rec.pause();
+      pausedRef.current = !pausedRef.current;
+      setPaused(pausedRef.current);
+    } catch (e) {
+      console.warn("pause not supported", e);
+    }
+  };
+
   const cancel = () => {
     if (!recording) return;
     cancelledRef.current = true;
@@ -139,26 +156,28 @@ export default function VoiceRecorder({ onRecorded, disabled }: Props) {
 
   if (recording) {
     return (
-      <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded-2xl px-2 py-1 shrink-0">
-        <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-        <span className="text-xs font-mono text-destructive font-bold tabular-nums w-[42px]">
-          {String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
-        </span>
+      <div className="flex items-center gap-2 bg-muted border border-border rounded-full px-2 py-1 shrink-0" dir="rtl">
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10" onClick={cancel} title="حذف التسجيل">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={togglePause} title={paused ? "استئناف" : "إيقاف مؤقت"}>
+          {paused ? <Mic className="h-4 w-4 text-destructive" /> : <Pause className="h-4 w-4" />}
+        </Button>
         {/* Live waveform meter */}
-        <div className="flex items-end gap-[2px] h-6 w-24" aria-hidden="true">
+        <div className="flex items-center gap-[2px] h-6 w-24" aria-hidden="true" dir="ltr">
           {levels.map((v, i) => (
             <span
               key={i}
-              className="flex-1 bg-destructive rounded-full transition-[height] duration-75"
+              className={`flex-1 rounded-full transition-[height] duration-75 ${paused ? "bg-muted-foreground" : "bg-primary"}`}
               style={{ height: `${Math.round(v * 100)}%`, minHeight: 2 }}
             />
           ))}
         </div>
-        <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={cancel} title="إلغاء">
-          <X className="h-4 w-4" />
-        </Button>
-        <Button type="button" size="icon" className="h-7 w-7 rounded-lg" onClick={stop} title="إنهاء التسجيل">
-          <Square className="h-3.5 w-3.5" />
+        <span className="text-xs font-mono font-bold tabular-nums w-[42px] text-center" dir="ltr">
+          {String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
+        </span>
+        <Button type="button" size="icon" className="h-9 w-9 rounded-full bg-primary text-primary-foreground" onClick={stop} title="إرسال التسجيل">
+          <Send className="h-4 w-4 -scale-x-100" />
         </Button>
       </div>
     );
