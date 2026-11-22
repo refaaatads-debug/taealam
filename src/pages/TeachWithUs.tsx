@@ -7,6 +7,7 @@ import {
   UserPlus, FileCheck, Wallet, Star,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ export default function TeachWithUs() {
 
   return (
     <div className="teacher-page min-h-[100dvh] pb-16 font-cairo md:pb-0" dir="rtl">
+      <SEOHead title="انضم كمدرس" description="قدّم طلبك للتدريس أونلاين مع منصة أجيال المعرفة." canonical="/teach-with-us" />
       <Navbar />
       <main>
         <section className="tw-hero">

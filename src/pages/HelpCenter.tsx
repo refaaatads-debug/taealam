@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import BottomNav from "@/components/BottomNav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const HelpCenter = () => {
 
   return (
     <div className="min-h-screen bg-background pb-32">
+      <SEOHead title="مركز المساعدة" description="مساعدة ودعم لاستخدام منصة أجيال المعرفة: الحجز والحصص والحساب." canonical="/help" />
       <Navbar />
       <main className="container mx-auto px-4 py-6 max-w-3xl">
         <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4 gap-2">

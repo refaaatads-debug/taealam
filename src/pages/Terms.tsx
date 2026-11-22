@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { FileText, Users, Shield, CreditCard, BookOpen, AlertTriangle, Settings, RefreshCw } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import Footer from "@/components/Footer";
 import PublicPageHeader from "@/components/PublicPageHeader";
 
@@ -17,7 +18,8 @@ const sections = [
 
 const Terms = () => (
   <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
-    <Navbar />
+    <SEOHead title="الشروط والأحكام" description="شروط وأحكام استخدام منصة أجيال المعرفة." canonical="/terms" />
+      <Navbar />
     <PublicPageHeader icon={FileText} eyebrow="وضوح قبل البدء" title="الشروط والأحكام" description="آخر تحديث: أبريل 2026" />
     <main className="container max-w-4xl py-14">
 

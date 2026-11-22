@@ -1,12 +1,14 @@
 import { motion } from "framer-motion";
 import { RotateCcw, CheckCircle, XCircle, MessageSquare, Clock } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import Footer from "@/components/Footer";
 import PublicPageHeader from "@/components/PublicPageHeader";
 
 const RefundPolicy = () => (
   <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
-    <Navbar />
+    <SEOHead title="سياسة الاسترجاع" description="سياسة الاسترجاع والإلغاء في منصة أجيال المعرفة." canonical="/refund" />
+      <Navbar />
     <PublicPageHeader icon={RotateCcw} eyebrow="وضوح ومرونة" title="سياسة الاسترداد" description="متى نراجع طلبات استرداد رسوم الحصص؟" />
     <main className="container max-w-4xl py-14">
 

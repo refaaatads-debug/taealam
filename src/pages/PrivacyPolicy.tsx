@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Shield, Database, Eye, Share2, Lock, UserCheck, Cookie } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import Footer from "@/components/Footer";
 import PublicPageHeader from "@/components/PublicPageHeader";
 
@@ -54,7 +55,8 @@ const sections = [
 
 const PrivacyPolicy = () => (
   <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
-    <Navbar />
+    <SEOHead title="سياسة الخصوصية" description="سياسة الخصوصية في منصة أجيال المعرفة وكيف نتعامل مع بياناتك." canonical="/privacy" />
+      <Navbar />
     <PublicPageHeader icon={Shield} eyebrow="ثقة وخصوصية" title="سياسة الخصوصية" description="آخر تحديث: أبريل 2026" />
     <main className="container max-w-4xl py-14">
 
