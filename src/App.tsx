@@ -44,6 +44,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 const TeacherWallet = lazy(() => import("./pages/TeacherWallet"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
@@ -152,6 +153,7 @@ const App = () => (
               <Route path="/help" element={<HelpCenter />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
+              <Route path="/delete-account" element={<DeleteAccount />} />
               <Route path="/refund" element={<RefundPolicy />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
