@@ -4,7 +4,8 @@ Sitemap: https://ajyalalmaerifa.com/sitemap.xml
 User-agent: *
 Allow: /
 Allow: /search
-Allow: /pricing
+Allow: /packages
+Allow: /help
 Allow: /teach-with-us
 Allow: /faq
 Allow: /install

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
+import SEOHead from "@/components/SEOHead";
 import Footer from "@/components/Footer";
 import { BRAND_NAME } from "@/lib/brand";
 import PublicPageHeader from "@/components/PublicPageHeader";
@@ -83,6 +84,7 @@ const FAQ = () => {
 
   return (
     <div className="min-h-screen bg-background text-[#102f50]" dir="rtl">
+      <SEOHead title="الأسئلة الشائعة" description="إجابات عن أسئلة الطلاب وأولياء الأمور حول الحجز والحصص والدفع في منصة أجيال المعرفة." canonical="/faq" />
       <Navbar />
       <PublicPageHeader
         icon={HelpCircle}
