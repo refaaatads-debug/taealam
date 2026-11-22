@@ -5,6 +5,19 @@ import { Mic, MicOff, Loader2, Volume2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+const STAGE_LABELS: Record<string, string> = {
+  kindergarten: "رياض الأطفال",
+  primary: "المرحلة الابتدائية",
+  middle: "المرحلة المتوسطة",
+  high_school: "المرحلة الثانوية",
+  university: "المرحلة الجامعية",
+};
+const stageLabel = (value?: string | null) => {
+  const v = (value || "").toString().trim();
+  if (!v) return "غير محددة";
+  return STAGE_LABELS[v] || v;
+};
+
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2500;
 
@@ -20,6 +33,7 @@ const VoiceTutorInner = () => {
   const retryCountRef = useRef<number>(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const studentNameRef = useRef<string>("");
+  const studentStageRef = useRef<string>("غير محددة");
 
   useEffect(() => { studentNameRef.current = studentName; }, [studentName]);
 
@@ -29,11 +43,12 @@ const VoiceTutorInner = () => {
       if (!user) { setHasPremium(false); return; }
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
+        .select("full_name, teaching_stage")
+        .eq("user_id", user.id)
         .maybeSingle();
       const name = (profile?.full_name || user.user_metadata?.full_name || "").toString().trim();
       if (name) setStudentName(name);
+      studentStageRef.current = stageLabel((profile as any)?.teaching_stage);
 
       const { data: subs } = await supabase
         .from("user_subscriptions")
@@ -65,20 +80,16 @@ const VoiceTutorInner = () => {
 
       const name = studentNameRef.current;
       const firstName = name ? name.split(" ")[0] : "";
-      const overrides = {
-        agent: {
-          prompt: {
-            prompt: name
-              ? `أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. اسم الطالب الذي تتحدث معه هو "${name}". نادِه باسمه "${firstName}" أثناء المحادثة بدلاً من كلمة "طالب" أو "الطالب". تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.`
-              : "أنت معلم ذكي ومساعد تعليمي في منصة أجيال المعرفة. تحدث وأجب دائماً باللغة العربية الفصحى فقط. لا تستخدم الإنجليزية أبداً حتى لو تحدث الطالب بالإنجليزية — أجبه بالعربية دائماً وشجّعه على استخدام العربية. كن ودوداً ومشجعاً وقدّم شرحاً واضحاً بالعربية.",
-          },
-        },
+      // The tutor prompt lives on the ElevenLabs agent; we only send per-student values.
+      const dynamicVariables = {
+        student_name: firstName || "عزيزي الطالب",
+        student_stage: studentStageRef.current,
       };
 
       await conversationInstance.startSession({
         signedUrl: data.signedUrl,
         connectionType: "websocket",
-        overrides,
+        dynamicVariables,
       } as any);
     } catch (e: any) {
       console.error("startSession error:", e);
