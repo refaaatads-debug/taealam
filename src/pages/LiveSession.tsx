@@ -351,6 +351,7 @@ const LiveSession = () => {
     bookingId: bookingId || "",
     userId: user?.id || "",
     expectedRemoteUserId,
+    canShareScreen: isTeacher,
     onRemoteStream: (stream) => {
       const audioTracks = stream.getAudioTracks().length;
       const videoTracks = stream.getVideoTracks().length;

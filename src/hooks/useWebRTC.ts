@@ -73,6 +73,8 @@ interface UseWebRTCOptions {
   bookingId: string;
   userId: string;
   expectedRemoteUserId?: string;
+  /** Only the teacher may publish a screen. Students are viewers only. */
+  canShareScreen?: boolean;
   onRemoteStream?: (stream: MediaStream) => void;
   onConnectionState?: (state: RTCPeerConnectionState) => void;
   onRemoteJoin?: (remoteUserId: string) => void;
@@ -85,6 +87,7 @@ export function useWebRTC({
   bookingId,
   userId,
   expectedRemoteUserId,
+  canShareScreen = false,
   onRemoteStream,
   onConnectionState,
   onRemoteJoin,
@@ -92,6 +95,8 @@ export function useWebRTC({
   onRemoteLeave,
   onDataMessage,
 }: UseWebRTCOptions) {
+  const canShareScreenRef = useRef(canShareScreen);
+  canShareScreenRef.current = canShareScreen;
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -738,6 +743,9 @@ export function useWebRTC({
       client.on("user-published", async (remoteUser: any, mediaType: "audio" | "video") => {
         const remoteUserId = String(remoteUser.uid);
         if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
+        // The teacher is the only legitimate screen publisher. If we are the teacher,
+        // the remote is the student: ignore any video track they publish.
+        if (mediaType === "video" && canShareScreenRef.current) return;
         try {
           await client.subscribe(remoteUser, mediaType);
         } catch (error) {
@@ -993,6 +1001,8 @@ export function useWebRTC({
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
+    // Screen sharing is teacher-only (also enforced by the Agora token on the server).
+    if (!canShareScreen) return;
     if (transportProviderRef.current === "agora") {
       const client = agoraClientRef.current;
       if (!client) return;
@@ -1168,7 +1178,7 @@ export function useWebRTC({
 
     // Start the direct screen recorder (independent of canvas) — guaranteed video capture.
     startDirectScreenRecorder(stream);
-  }, [screenSharing, sendDataMessage, startDirectScreenRecorder, stopDirectScreenRecorder]);
+  }, [canShareScreen, screenSharing, sendDataMessage, startDirectScreenRecorder, stopDirectScreenRecorder]);
 
   // Manual recording (screen share based - kept for manual use)
   const startRecording = useCallback(async () => {
