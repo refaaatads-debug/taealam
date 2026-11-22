@@ -113,13 +113,19 @@ Deno.serve(async (req) => {
     const channel = `ajyal_${bookingId.replaceAll("-", "")}`;
     const uid = authData.user.id;
     const expireAt = Math.floor(Date.now() / 1000) + 60 * 60;
-    const token = RtcTokenBuilder.buildTokenWithUserAccount(
+    // Only the teacher may publish video (the only video track in a session is a screen share).
+    // Students get join + audio + data privileges, but video privilege 0 (not granted).
+    // Note: Agora enforces publish privileges only when co-host authentication is enabled on the project.
+    const isTeacher = authData.user.id === booking.teacher_id;
+    const token = RtcTokenBuilder.buildTokenWithUidAndPrivilege(
       appId,
       appCertificate,
       channel,
       uid,
-      RtcRole.PUBLISHER,
       expireAt,
+      expireAt,
+      expireAt,
+      isTeacher ? expireAt : 0,
       expireAt,
     );
     return json({ provider: "agora", appId, channel, uid, token, expiresAt: expireAt }, 200, cors);
