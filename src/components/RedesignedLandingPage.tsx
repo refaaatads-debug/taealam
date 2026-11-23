@@ -5,6 +5,7 @@ import {
   Headphones, Lightbulb, MessageCircle, Search, ShieldCheck, Sparkles,
   Star, Target, Video,
 } from "lucide-react";
+import HomeCitySubjects from "@/components/HomeCitySubjects";
 import SEOHead from "@/components/SEOHead";
 import SanadGuestChat from "@/components/SanadGuestChat";
 import Navbar from "@/components/Navbar";
@@ -112,6 +113,8 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
             <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl bg-[#17344d] px-5 py-5 text-white sm:flex-row sm:items-center md:px-7"><p className="max-w-xl text-sm leading-7 text-white/80">لكل مرحلة احتياجها؛ استكشف المواد والمدرسين وابحث عن البداية المناسبة.</p><Link to={ctaTarget} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#c5e5d8] px-5 py-3 text-xs font-extrabold text-[#17344d] transition hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30">اكتشف طريقك <ArrowLeft className="h-4 w-4" aria-hidden="true" /></Link></div>
           </div>
         </section>
+
+        <HomeCitySubjects />
 
         <section className="overflow-hidden bg-[#fbfcfd] px-5 py-16 md:px-8 md:py-24">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[.85fr_1.15fr] lg:gap-20">
