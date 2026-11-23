@@ -4,7 +4,7 @@ describe('live voice account gate', () => {
   const active = { account_status: 'active', is_deleted: false };
   it('accepts active profile with role', () => expect(liveVoiceAccountAllowed(active, [{ role: 'student' }])).toBe(true));
   it.each([null, {}, { ...active, account_status: 'suspended' }, { ...active, account_status: 'inactive' }, { ...active, is_deleted: true }, { ...active, is_deleted: null }])('fails closed on profile %j', p => expect(liveVoiceAccountAllowed(p, [{role:'student'}])).toBe(false));
-  it.each([null, []])('rejects missing role %j', r => expect(liveVoiceAccountAllowed(active,r)).toBe(false));
+  it.each([{roles:null}, {roles:[]}])('rejects missing role %j', ({roles}) => expect(liveVoiceAccountAllowed(active,roles)).toBe(false));
 });
 describe('prepaid premium gate', () => {
   const valid={is_active:true,remaining_minutes:1,subscription_plans:{tier:'premium'}};
