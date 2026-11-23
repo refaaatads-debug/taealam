@@ -61,6 +61,7 @@ install -m700 "$stage/scripts/voice-cap-reconcile.py" "$base/reconcile.py"
 printf '%s\n' '* * * * * root /usr/bin/flock -n /run/shared-voice-cap.lock /usr/bin/timeout 55 /usr/bin/python3 /root/backups/shared-voice-cap-20261123/reconcile.py >> /root/backups/shared-voice-cap-20261123/reconcile.log 2>&1' > /etc/cron.d/shared-voice-cap
 chmod 644 /etc/cron.d/shared-voice-cap
 docker restart supabase-edge-functions
+python3 "$stage/scripts/wait-voice-readiness.py"
 # Add hashed assets, preserve older assets for cached clients/rollback. Index last.
 cp -a "$stage/dist/assets/." "$web/assets/"
 cp -a "$stage/dist/index.html" "$web/index.html"

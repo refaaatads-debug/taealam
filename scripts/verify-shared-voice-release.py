@@ -1,4 +1,4 @@
-import subprocess,json,urllib.request,urllib.error,base64,hmac,hashlib,time,pathlib
+import subprocess,json,urllib.request,urllib.error,base64,hmac,hashlib,time,pathlib,sys
 ROOT=pathlib.Path('/root/taealam/supabase_setup/docker/volumes/functions');STAGE=pathlib.Path('/root/shared-voice-cap-stage')
 def sql(q):return subprocess.check_output(['docker','exec','-i','supabase-db','psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres','-At'],input=q,text=True,timeout=20).strip()
 def enc(x):return base64.urlsafe_b64encode(json.dumps(x,separators=(',',':')).encode()).decode().rstrip('=')
@@ -34,7 +34,8 @@ assert p['version_id']==cfg['versionId'] and p['conversation_config']['conversat
 print('PROVIDER_PINNED_299_AUTH_PASS')
 for f in ['ai-tutor-token/index.ts','ai-tutor-chat/index.ts','_shared/live-voice-cap-config.json','_shared/live-voice-cap-config.ts','_shared/live-voice-daily-preview.ts','_shared/tts-daily-budget-preview.ts','_shared/premium-voice.ts']:
  assert (ROOT/f).read_bytes()==(STAGE/'supabase/functions'/f).read_bytes(),f
-assert pathlib.Path('/var/www/html/index.html').read_bytes()==(STAGE/'dist/index.html').read_bytes();print('LIVE_SOURCE_AND_INDEX_EXACT_PASS')
+if '--backend-only' not in sys.argv:assert pathlib.Path('/var/www/html/index.html').read_bytes()==(STAGE/'dist/index.html').read_bytes()
+print('LIVE_SOURCE_EXACT_PASS')
 for url in ['https://ajyalalmaerifa.com/','https://ajyalalmaerifa.com/healthz']:
  with urllib.request.urlopen(url,timeout=15) as r:assert r.status==200
 print('WEB_HEALTH_PASS_NO_PAID_CALLS')
