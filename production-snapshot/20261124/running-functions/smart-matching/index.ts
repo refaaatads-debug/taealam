@@ -1,0 +1,136 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "smart-matching", 20);
+  if (!rate.allowed) return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+    status: 429,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+  });
+
+  const start = Date.now();
+  try {
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return new Response(JSON.stringify({ error: "غير مصرح" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: { user } } = await authClient.auth.getUser(token);
+    if (!user) return new Response(JSON.stringify({ error: "غير مصرح" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { subject, student_level, budget_max } = await req.json();
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let query = supabase
+      .from("teacher_profiles")
+      .select("*")
+      .eq("is_approved", true)
+      .order("avg_rating", { ascending: false })
+      .limit(20);
+
+    if (budget_max) query = query.lte("hourly_rate", budget_max);
+
+    const { data: teachers, error } = await query;
+    if (error) throw error;
+
+    const userIds = (teachers || []).map((t: any) => t.user_id);
+    const teacherIds = (teachers || []).map((t: any) => t.id);
+
+    const [profilesRes, subjectsRes] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
+      supabase.from("teacher_subjects").select("teacher_id, subject_id, subjects(name)").in("teacher_id", teacherIds),
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.user_id, p]));
+    const subjectMap = new Map<string, any[]>();
+    for (const ts of (subjectsRes.data ?? [])) {
+      if (!subjectMap.has(ts.teacher_id)) subjectMap.set(ts.teacher_id, []);
+      subjectMap.get(ts.teacher_id)!.push(ts);
+    }
+
+    let filtered = teachers || [];
+    if (subject) {
+      filtered = filtered.filter((t: any) => {
+        const subs = subjectMap.get(t.id) || [];
+        return subs.some((ts: any) => ts.subjects?.name === subject);
+      });
+    }
+
+    const scored = filtered.map((t: any) => {
+      let score = 0;
+      score += (t.avg_rating || 0) * 20;
+      score += Math.min((t.total_sessions || 0) / 10, 30);
+      score += Math.min((t.total_reviews || 0) / 5, 20);
+      score += (t.years_experience || 0) * 2;
+
+      const profile = profileMap.get(t.user_id);
+      const subs = subjectMap.get(t.id) || [];
+
+      return {
+        id: t.id, user_id: t.user_id,
+        name: profile?.full_name || "مدرس",
+        avatar_url: profile?.avatar_url,
+        subject: subs[0]?.subjects?.name || subject || "عام",
+        rating: t.avg_rating || 0,
+        total_sessions: t.total_sessions || 0,
+        total_reviews: t.total_reviews || 0,
+        hourly_rate: t.hourly_rate,
+        years_experience: t.years_experience || 0,
+        bio: t.bio, is_verified: t.is_verified,
+        match_score: Math.round(score),
+        match_reason: getMatchReason(score, t),
+      };
+    });
+
+    scored.sort((a: any, b: any) => b.match_score - a.match_score);
+    const topTeachers = scored.slice(0, 3);
+    const responseTime = Date.now() - start;
+
+    // Log the matching operation
+    await supabase.from("ai_logs").insert({
+      feature_name: "smart_matching",
+      input_summary: `مادة: ${subject || "عام"}, ميزانية: ${budget_max || "غير محددة"}`,
+      output_summary: `${topTeachers.length} معلمين، أعلى: ${topTeachers[0]?.match_score || 0}`,
+      status: "success",
+      response_time_ms: responseTime,
+      quality_score: topTeachers.length > 0 ? 90 : 30,
+    });
+
+    return new Response(JSON.stringify({ teachers: topTeachers }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const responseTime = Date.now() - start;
+    console.error("Smart matching error:", e);
+
+    try {
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      await supabase.from("ai_logs").insert({
+        feature_name: "smart_matching",
+        status: "failed",
+        response_time_ms: responseTime,
+        error_message: e instanceof Error ? e.message.slice(0, 500) : "Unknown",
+      });
+    } catch {}
+
+    return new Response(JSON.stringify({ error: "حدث خطأ في نظام التوصيات" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+
+function getMatchReason(score: number, teacher: any): string {
+  if (score > 80) return "أفضل تطابق بناءً على التقييم والخبرة";
+  if ((teacher.avg_rating || 0) >= 4.8) return "تقييم ممتاز من الطلاب";
+  if ((teacher.total_sessions || 0) > 50) return "خبرة واسعة في التدريس";
+  if ((teacher.years_experience || 0) > 5) return "سنوات خبرة طويلة في المجال";
+  return "مدرس مميز ومعتمد";
+}
