@@ -1,0 +1,167 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { loadDailyVoiceConfig } from "../_shared/live-voice-cap-config.ts";
+import { generateBudgetedTts } from "../_shared/tts-daily-budget-preview.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+import { shouldGenerateTutorAudio } from "../_shared/premium-voice.ts";
+
+const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" - مدرس ذكي ودود يساعد الطلاب العرب.
+- اشرح المفاهيم بأسلوب بسيط واضح بالعربية الفصحى.
+- استخدم أمثلة من الحياة اليومية.
+- إذا طلب الطالب الممارسة بالإنجليزية، صحّح النطق والقواعد بلطف.
+- اقترح كلمات صعبة لينطقها ويتدرب عليها.
+- اجعل ردودك قصيرة (2-4 جمل) ليسهل سماعها.`;
+
+async function callGroq(messages: any[], apiKey: string): Promise<string | null> {
+  for (const model of await getGroqModels(apiKey)) {
+    try {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+          max_tokens: 512,
+        }),
+      });
+      if (resp.status === 429) { console.log(`${model} rate-limited, trying next...`); continue; }
+      if (!resp.ok) { console.error(`${model} error:`, resp.status); continue; }
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) { console.log("Used model:", model); return text; }
+    } catch (e) { console.error(`${model} exception:`, e); }
+  }
+  return null;
+}
+
+async function callGemini(messages: any[], apiKey: string): Promise<string | null> {
+  try {
+    const model = await getGeminiModel(apiKey);
+    const contents = messages.map((m: any) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents }) }
+    );
+    if (!resp.ok) { console.error("Gemini error:", resp.status, await resp.text()); return null; }
+    const data = await resp.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (e) { console.error("Gemini exception:", e); return null; }
+}
+
+// Hard 25s timeout: AI+TTS chain must finish before edge runtime kills isolate
+// (which drops the shared HTTP/2 connection causing collateral NetworkErrors).
+const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+  Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
+
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "ai-tutor-chat", 20);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
+  const TIMEOUT_RESP = new Response(
+    JSON.stringify({ error: "انتهت مهلة الطلب، حاول مرة أخرى" }),
+    { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+  const inner = (async (): Promise<Response> => {
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { messages, speak = true } = await req.json();
+    if (!Array.isArray(messages)) return new Response(JSON.stringify({ error: "messages required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // Preserve non-voice text features, including older clients requesting
+    // speak:true by default. Only provider-paid audio is premium restricted.
+    let audioAllowed = false;
+    if (speak !== false) {
+      const { data: subscriptions, error: entitlementError } = await supabase
+        .from("user_subscriptions")
+        .select("is_active,remaining_minutes,subscription_plans:plan_id(tier)")
+        .eq("user_id", user.id);
+      // Fail closed for audio on DB errors; text still uses existing auth policy.
+      audioAllowed = !entitlementError && shouldGenerateTutorAudio(speak, subscriptions || []);
+    }
+
+    const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
+
+    let text = await callGroq(messages, GROQ_API_KEY);
+    if (!text) {
+      console.log("All Groq models failed, trying Gemini...");
+      text = await callGemini(messages, GEMINI_API_KEY);
+    }
+    if (!text) return new Response(JSON.stringify({ error: "كل النماذج مشغولة، حاول بعد دقيقة" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    let audioBase64 = null;
+    let audioDisabledReason: string | null = null;
+    const capConfig = await loadDailyVoiceConfig();
+    if (audioAllowed && !capConfig.enabled) audioDisabledReason = "voice_temporarily_unavailable";
+    if (audioAllowed && text && capConfig.enabled) {
+      const { data: voiceSetting } = await supabase.from("site_settings").select("value").eq("key", "ai_tutor_voice_id").maybeSingle();
+      const voiceId = voiceSetting?.value?.trim() || "EXAVITQu4vr4xnSDxMaL";
+      const ELEVENLABS_API_KEY = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
+      const ELEVENLABS_API_KEY_BACKUP = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
+      if (ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP) {
+        try {
+          const capped = await generateBudgetedTts({
+            userId: user.id,
+            operationId: "tts_" + crypto.randomUUID(),
+            reserve: async (uid) => {
+              const r = await supabase.rpc("reserve_live_voice", { p_user: uid, p_kind: "tts" });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data;
+            },
+            bind: async (id, operation) => {
+              const r = await supabase.rpc("bind_live_voice", { p_reservation: id, p_conversation: operation });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data === true;
+            },
+            settle: async (operation, seconds) => {
+              const r = await supabase.rpc("settle_live_voice", { p_conversation: operation, p_actual: seconds });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data;
+            },
+            generate: async () => {
+              const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`;
+              const ttsBody = JSON.stringify({ text: text.slice(0, 1000), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 } });
+              // No retry after ambiguous paid generation. Provider failures retain reservation.
+              const ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP, "Content-Type": "application/json" }, body: ttsBody, signal: AbortSignal.timeout(15_000) });
+              if (!ttsResp.ok) throw new Error("tts_unavailable");
+              const buf = await ttsResp.arrayBuffer();
+              if (buf.byteLength > 6_000_000) throw new Error("tts_response_too_large");
+              return new Uint8Array(buf);
+            },
+          });
+          if (capped.audio) audioBase64 = base64Encode(capped.audio.slice().buffer as ArrayBuffer);
+          else audioDisabledReason = capped.reason || "voice_budget_unavailable";
+        } catch { audioDisabledReason = "voice_budget_unavailable"; console.error("TTS request exception"); }
+      }
+    }
+    return new Response(JSON.stringify({ text, audio: audioBase64, ...(speak !== false && !audioAllowed ? { audio_disabled_reason: "premium_required" } : audioDisabledReason ? { audio_disabled_reason: audioDisabledReason } : {}) }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch {
+    console.error("ai-tutor-chat request failed");
+    return new Response(JSON.stringify({ error: "تعذر معالجة المحادثة حالياً" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+  })(); // end inner
+  return withTimeout(inner, 25_000, TIMEOUT_RESP);
+});

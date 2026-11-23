@@ -1,0 +1,9 @@
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'view_advanced_analytics';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_featured_teachers';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_student_profiles';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_teacher_profiles';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_pending_teachers';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_sessions_status';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'view_call_transcripts';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_domain_ssl';
+ALTER TYPE public.app_permission ADD VALUE IF NOT EXISTS 'manage_audit_log';

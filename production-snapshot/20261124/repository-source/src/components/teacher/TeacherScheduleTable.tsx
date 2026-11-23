@@ -1,0 +1,531 @@
+import { useState, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall, Video, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { toast } from "sonner";
+import { notificationTemplates } from "@/lib/notificationTemplates";
+import { motion, AnimatePresence } from "framer-motion";
+import CallStudentButton from "@/components/teacher/CallStudentButton";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
+import { Eraser, RotateCcw } from "lucide-react";
+
+interface BookingRow {
+  id: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  status: string;
+  session_status?: string | null;
+  student_name?: string;
+  subject_name?: string;
+  student_id?: string;
+  has_subscription?: boolean;
+  actual_duration_minutes?: number | null;
+}
+
+interface TeacherScheduleTableProps {
+  onInstantSessionSent?: () => void;
+}
+
+export default function TeacherScheduleTable({ onInstantSessionSent }: TeacherScheduleTableProps = {}) {
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+  const [liveSessionIds, setLiveSessionIds] = useState<Set<string>>(new Set());
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (user?.id) setHiddenIds(getHiddenBookings(user.id));
+  }, [user?.id]);
+  const visibleBookings = useMemo(() => bookings.filter(b => !hiddenIds.has(b.id)), [bookings, hiddenIds]);
+  const bookingIds = useMemo(() => visibleBookings.map(b => b.id), [visibleBookings]);
+  const unreadCounts = useUnreadMessages(bookingIds);
+  const { play: playNotificationSound } = useNotificationSound();
+
+  // Compute total unread per student
+  const unreadByStudent = useMemo(() => {
+    const result: Record<string, number> = {};
+    visibleBookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      result[key] = (result[key] || 0) + (unreadCounts[b.id] || 0);
+    });
+    return result;
+  }, [visibleBookings, unreadCounts]);
+
+  // Get latest booking id per student for chat link
+  // IMPORTANT: uses ALL bookings (not just visible) so chat is never lost when schedule is cleared
+  const latestBookingByStudent = useMemo(() => {
+    const result: Record<string, string> = {};
+    bookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      if (!result[key]) result[key] = b.id; // bookings ordered desc → first = latest
+    });
+    return result;
+  }, [bookings]);
+
+  // All distinct student pairs (for "conversations" section even when schedule is hidden)
+  const allStudentPairs = useMemo(() => {
+    const seen = new Set<string>();
+    const pairs: { studentId: string; studentName: string; bookingId: string }[] = [];
+    bookings.forEach(b => {
+      if (!seen.has(b.student_id)) {
+        seen.add(b.student_id);
+        pairs.push({ studentId: b.student_id, studentName: b.student_name || "طالب", bookingId: b.id });
+      }
+    });
+    return pairs;
+  }, [bookings]);
+
+  const handleHideBooking = (bookingId: string) => {
+    if (!user?.id) return;
+    hideBooking(user.id, bookingId);
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء الحصة من الجدول");
+  };
+
+  const handleClearAll = () => {
+    if (!user?.id) return;
+    if (!confirm("هل تريد إخفاء جميع الحصص من الجدول؟ (لن يتم حذفها من النظام)")) return;
+    hideAllBookings(user.id, bookings.map(b => b.id));
+    setHiddenIds(new Set(getHiddenBookings(user.id)));
+    toast.success("تم إخفاء كل الحصص من الجدول");
+  };
+
+  const handleRestoreAll = () => {
+    if (!user?.id) return;
+    clearHiddenBookings(user.id);
+    setHiddenIds(new Set());
+    toast.success("تم استعادة جميع الحصص");
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchBookings();
+
+    const channel = supabase
+      .channel("teacher-schedule-table")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter: `teacher_id=eq.${user.id}` }, (payload) => {
+        const updated = payload.new as any;
+        // When student accepts (session_status changes to in_progress)
+        if (updated?.session_status === "in_progress") {
+          setLiveSessionIds(prev => {
+            if (!prev.has(updated.id)) {
+              playNotificationSound();
+              toast.success("الطالب قبل الجلسة! يمكنك البدء الآن 🎉");
+            }
+            return new Set(prev).add(updated.id);
+          });
+        }
+        fetchBookings();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  const fetchBookings = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("bookings")
+      .select("id, scheduled_at, duration_minutes, status, session_status, student_id, subject_id, cancellation_reason, subjects(name), sessions(duration_minutes,duration_seconds,deducted_minutes,started_at,ended_at)")
+      .eq("teacher_id", user.id)
+      .in("status", ["confirmed", "completed", "pending", "cancelled"])
+      .order("scheduled_at", { ascending: false });
+
+    if (!data || data.length === 0) { setBookings([]); setLoading(false); return; }
+
+    // Batch profile/subscription lookups in chunks of 50 to avoid URL length limits (314+ students)
+    const studentIds = [...new Set(data.map(b => b.student_id))];
+    const CHUNK = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < studentIds.length; i += CHUNK) chunks.push(studentIds.slice(i, i + CHUNK));
+
+    const [profileResults, subResults] = await Promise.all([
+      Promise.all(chunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
+      Promise.all(chunks.map(c => supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", c).eq("is_active", true))),
+    ]);
+    const profiles = profileResults.flatMap(r => r.data ?? []);
+    const subs = subResults.flatMap(r => r.data ?? []);
+    const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
+    const subSet = new Set(subs.filter(s => s.sessions_remaining > 0).map(s => s.user_id));
+
+    const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
+    setLiveSessionIds(new Set(inProgress));
+
+    setBookings(data.map(b => {
+      // sessions has UNIQUE constraint on booking_id → Supabase returns object not array
+      const sessRaw = (b as any).sessions;
+      const sess = (Array.isArray(sessRaw) ? sessRaw[0] : sessRaw) ?? null;
+      // Priority: deducted_minutes (trigger, authoritative) → duration_seconds → duration_minutes → wall-clock
+      // This order matches TeacherPerformanceTab and SubscriptionDetails for consistency.
+      let actualMins: number | null = null;
+      if (sess?.deducted_minutes && sess.deducted_minutes > 0) {
+        actualMins = sess.deducted_minutes;
+      } else if (sess?.duration_seconds && sess.duration_seconds > 0) {
+        actualMins = Math.ceil(sess.duration_seconds / 60);
+      } else if (sess?.duration_minutes && sess.duration_minutes > 0) {
+        actualMins = sess.duration_minutes;
+      } else if (sess?.started_at && sess?.ended_at) {
+        actualMins = Math.max(1, Math.ceil((new Date(sess.ended_at).getTime() - new Date(sess.started_at).getTime()) / 60000));
+      }
+      return {
+        id: b.id,
+        scheduled_at: b.scheduled_at,
+        duration_minutes: b.duration_minutes,
+        status: b.status,
+        session_status: b.session_status,
+        student_id: b.student_id,
+        student_name: profileMap.get(b.student_id) || "طالب",
+        subject_name: (b.subjects as any)?.name || "مادة",
+        has_subscription: subSet.has(b.student_id),
+        actual_duration_minutes: actualMins,
+      };
+    }));
+    setLoading(false);
+  };
+
+  const handleInstantSession = async (studentId: string, studentName: string) => {
+    if (!user) return;
+
+    // Block if teacher already has an active instant session (waiting or in progress)
+    const { data: teacherActiveSessions } = await supabase
+      .from("bookings")
+      .select("id, session_status")
+      .eq("teacher_id", user.id)
+      .in("session_status", ["waiting_acceptance", "in_progress"])
+      .limit(1);
+
+    if (teacherActiveSessions && teacherActiveSessions.length > 0) {
+      const isInProgress = teacherActiveSessions[0].session_status === "in_progress";
+      toast.error(
+        isInProgress
+          ? "أنت في جلسة جارية الآن، لا يمكنك إرسال جلسة فورية جديدة"
+          : "لديك طلب جلسة فورية في انتظار القبول، يرجى الانتهاء منه أولاً"
+      );
+      return;
+    }
+
+    // Instant sessions are NOT bound by teacher availability schedule
+
+    // Check student subscription
+    const { data: subs } = await supabase
+      .from("user_subscriptions")
+      .select("remaining_minutes")
+      .eq("user_id", studentId)
+      .eq("is_active", true)
+      .gte("remaining_minutes", 15)
+      .gt("ends_at", new Date().toISOString());
+
+    if (!subs || subs.length === 0) {
+      toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
+        description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+      });
+      return;
+    }
+
+    const { data: newBooking, error } = await supabase.from("bookings").insert({
+      teacher_id: user.id,
+      student_id: studentId,
+      scheduled_at: new Date().toISOString(),
+      duration_minutes: 45,
+      status: "confirmed" as any,
+      session_status: "waiting_acceptance",
+    }).select("id").single();
+
+    if (error || !newBooking) {
+      const isBalanceError = error?.message?.includes("INSUFFICIENT_BALANCE") || error?.code === "P0001";
+      if (isBalanceError) {
+        toast.error(`لا يمكن إرسال جلسة فورية للطالب ${studentName}`, {
+          description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. يجب أن يجدد اشتراكه أولاً.",
+        });
+      } else {
+        toast.error("حدث خطأ أثناء إنشاء الجلسة", {
+          description: "لم نتمكن من إرسال طلب الجلسة الفورية. يرجى المحاولة مرة أخرى.",
+        });
+      }
+      return;
+    }
+
+    const { data: teacherProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    await supabase.from("notifications").insert({
+      user_id: studentId,
+      ...notificationTemplates.instantSessionFromTeacher({
+        teacherName: teacherProfile?.full_name || "معلمك",
+      }),
+    });
+
+    toast.success(`تم إرسال طلب جلسة فورية إلى ${studentName}. في انتظار قبول الطالب...`);
+    fetchBookings();
+    // Notify parent (TeacherDashboard) to also refresh its upcoming-sessions list
+    onInstantSessionSent?.();
+  };
+
+  const openCancelDialog = (bookingId: string, studentId?: string) => {
+    setCancelTarget({ id: bookingId, studentId });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-primary/10 text-primary border-0 text-[10px]">مكتملة</Badge>;
+      case "confirmed":
+        return <Badge className="bg-secondary/10 text-secondary border-0 text-[10px]">مؤكدة</Badge>;
+      case "pending":
+        return <Badge className="bg-amber-500/10 text-amber-600 border-0 text-[10px]">قيد الانتظار</Badge>;
+      case "cancelled":
+        return <Badge className="bg-destructive/10 text-destructive border-0 text-[10px]">تم الإلغاء</Badge>;
+      default:
+        return <Badge className="bg-muted text-muted-foreground border-0 text-[10px]">{status}</Badge>;
+    }
+  };
+
+  const groupedByStudent = useMemo(() => {
+    const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
+    visibleBookings.forEach(b => {
+      const key = b.student_id || "unknown";
+      if (!groups[key]) {
+        groups[key] = { studentName: b.student_name || "طالب", studentId: key, bookings: [] };
+      }
+      groups[key].bookings.push(b);
+    });
+    return Object.values(groups);
+  }, [visibleBookings]);
+
+  if (loading) {
+    return (
+      <Card className="border-0 shadow-card">
+        <CardContent className="p-8 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-0 shadow-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2 font-bold flex-wrap">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <CalendarCheck className="h-4 w-4 text-primary" />
+          </div>
+          جدول الحصص
+          {visibleBookings.length > 0 && <Badge className="bg-primary/10 text-primary border-0 text-xs">{visibleBookings.length}</Badge>}
+          <div className="mr-auto flex items-center gap-1.5">
+            {hiddenIds.size > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1" onClick={handleRestoreAll} title="استعادة الحصص المخفية">
+                <RotateCcw className="h-3 w-3" /> استعادة ({hiddenIds.size})
+              </Button>
+            )}
+            {visibleBookings.length > 0 && (
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10" onClick={handleClearAll} title="مسح الجدول بالكامل">
+                <Eraser className="h-3 w-3" /> مسح الجدول
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {groupedByStudent.length === 0 && allStudentPairs.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground text-center py-3">الجدول فارغ أو مُخفى</p>
+            <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" /> محادثاتي
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {allStudentPairs.map(pair => {
+                  const unread = unreadByStudent[pair.studentId] || 0;
+                  return (
+                    <Link key={pair.studentId} to={`/chat?booking=${pair.bookingId}`}
+                      className="relative inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-foreground">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      {pair.studentName}
+                      {unread > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                          {unread}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : groupedByStudent.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص</p>
+        ) : (
+          groupedByStudent.map(group => {
+            const isExpanded = expandedStudent === group.studentId;
+            const completedCount = group.bookings.filter(b => b.status === "completed").length;
+            const activeCount = group.bookings.filter(b => b.status !== "completed").length;
+            const hasLive = group.bookings.some(b => liveSessionIds.has(b.id));
+            const liveBooking = group.bookings.find(b => liveSessionIds.has(b.id));
+            const waitingBooking = group.bookings.find(b => b.session_status === "waiting_acceptance");
+            const groupUnread = unreadByStudent[group.studentId] || 0;
+            const chatBookingId = latestBookingByStudent[group.studentId];
+
+            return (
+              <div key={group.studentId} className={`rounded-xl border overflow-hidden ${hasLive ? "border-secondary/50 bg-secondary/5" : "bg-muted/20"}`}>
+                <button
+                  onClick={() => setExpandedStudent(isExpanded ? null : group.studentId)}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${hasLive ? "bg-secondary/20" : "bg-primary/10"}`}>
+                      <User className={`h-4 w-4 ${hasLive ? "text-secondary" : "text-primary"}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">
+                        {group.studentName}
+                        {hasLive && <span className="text-secondary text-xs mr-2 animate-pulse">● الطالب جاهز</span>}
+                        {waitingBooking && !hasLive && <span className="text-amber-500 text-xs mr-2">⏳ في انتظار القبول</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {activeCount > 0 && <span className="text-secondary">{activeCount} حصة قادمة</span>}
+                        {activeCount > 0 && completedCount > 0 && " • "}
+                        {completedCount > 0 && <span>{completedCount} مكتملة</span>}
+                      </p>
+                    </div>
+                    {/* Removed start session button - sessions start from upcoming sessions section */}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg h-7 px-2 gap-1 text-[10px] border-secondary/30 text-secondary hover:bg-secondary/10"
+                      onClick={(e) => { e.stopPropagation(); handleInstantSession(group.studentId, group.studentName); }}
+                    >
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      جلسة فورية
+                    </Button>
+                    {chatBookingId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg h-7 px-2 gap-1 text-[10px] relative"
+                        onClick={(e) => e.stopPropagation()}
+                        asChild
+                      >
+                        <Link to={`/chat?booking=${chatBookingId}`}>
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          دردشة
+                          {groupUnread > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                              {groupUnread}
+                            </span>
+                          )}
+                        </Link>
+                      </Button>
+                    )}
+                    {chatBookingId && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <CallStudentButton
+                          bookingId={chatBookingId}
+                          variant="outline"
+                          size="sm"
+                          iconOnly
+                          className="rounded-lg h-7 w-7 p-0 border-secondary/30 text-secondary hover:bg-secondary/10"
+                        />
+                      </div>
+                    )}
+                    <Badge className="bg-primary/10 text-primary border-0 text-[10px]">{group.bookings.length} حصة</Badge>
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t overflow-hidden"
+                    >
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border/50 bg-muted/30">
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المادة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">التاريخ</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الوقت</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">المدة الفعلية</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">الحالة</th>
+                              <th className="text-right py-2 px-3 text-xs font-bold text-muted-foreground">إجراءات</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.bookings.map(b => (
+                              <tr key={b.id} className={`border-b border-border/20 transition-colors ${b.status === "completed" ? "bg-destructive/5" : "hover:bg-muted/50"}`}>
+                                <td className="py-2.5 px-3 text-muted-foreground">{b.subject_name}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{new Date(b.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{b.duration_minutes} د</td>
+                                <td className="py-2.5 px-3">
+                                  {b.actual_duration_minutes != null && b.actual_duration_minutes > 0
+                                    ? <span className="font-medium text-foreground">{Math.floor(b.actual_duration_minutes / 60) > 0 ? Math.floor(b.actual_duration_minutes / 60) + " س " : ""}{b.actual_duration_minutes % 60} د</span>
+                                    : b.status === "completed"
+                                      ? <span className="text-xs text-amber-500/80">جلسة قصيرة</span>
+                                      : <span className="text-muted-foreground/40 text-xs">—</span>}
+                                </td>
+                                <td className="py-2.5 px-3">{getStatusBadge(b.status)}</td>
+                                <td className="py-2.5 px-3">
+                                  <div className="flex items-center gap-1">
+                                    {b.status !== "completed" && b.status !== "cancelled" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 text-amber-600 hover:bg-amber-500/10"
+                                        onClick={() => openCancelDialog(b.id, b.student_id)}
+                                        title="إلغاء الحصة"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                      onClick={() => handleHideBooking(b.id)}
+                                      title="إخفاء من الجدول"
+                                    >
+                                      <Eraser className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+
+      <CancelSessionDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => !v && setCancelTarget(null)}
+        bookingId={cancelTarget?.id ?? null}
+        studentId={cancelTarget?.studentId ?? null}
+        onCancelled={() => fetchBookings()}
+      />
+    </Card>
+  );
+}

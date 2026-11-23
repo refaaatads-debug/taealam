@@ -1,0 +1,4 @@
+/* Hide only AITutor live-voice controls; text, read-aloud and all JS remain intact. */
+main:has(input[placeholder="اكتب سؤالك هنا..."]) [role="tablist"]:has([id$="-trigger-text"]) [role="tab"][id$="-trigger-voice"],
+main:has(input[placeholder="اكتب سؤالك هنا..."]) [role="tabpanel"][id$="-content-voice"] { display: none !important; }
+main:has(input[placeholder="اكتب سؤالك هنا..."]) [role="tablist"]:has([id$="-trigger-text"]):has([id$="-trigger-voice"]) { grid-template-columns: minmax(0, 1fr) !important; }

@@ -1,0 +1,1262 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+// ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
+// useinbandfec=1        → forward error correction (masks packet loss, prevents cuts)
+// minptime=20           → 20ms packet time (standard for voice, less header overhead)
+// maxaveragebitrate=128000 → 128 kbps (studio-quality voice, vs browser default ~32kbps)
+// maxplaybackrate=48000 → full 48 kHz wideband (capture all voice frequencies)
+// stereo=0              → force mono decode (saves bandwidth, voice doesn't need stereo)
+// sprop-stereo=0        → tell encoder to send mono
+function injectOpusParams(sdp: string): string {
+  const opusMatch = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
+  if (!opusMatch) return sdp;
+  const pt = opusMatch[1];
+  const opusParams = "useinbandfec=1;minptime=20;maxaveragebitrate=128000;maxplaybackrate=48000;stereo=0;sprop-stereo=0";
+  // If fmtp line already exists for this payload type, append our params
+  if (new RegExp(`a=fmtp:${pt} `).test(sdp)) {
+    return sdp.replace(
+      new RegExp(`(a=fmtp:${pt} [^\r\n]*)`),
+      (m) => {
+        if (m.includes("useinbandfec")) return m; // already set
+        return `${m};${opusParams}`;
+      }
+    );
+  }
+  // Otherwise insert a new fmtp line after the rtpmap line
+  return sdp.replace(
+    `a=rtpmap:${pt} opus/48000/2`,
+    `a=rtpmap:${pt} opus/48000/2
+a=fmtp:${pt} ${opusParams}`
+  );
+}
+
+// Self-hosted coturn (ajyal.app) — credentials issued by the
+// `turn-credentials` Edge Function (HMAC, expires after TURN_TTL).
+// Cached briefly so renegotiations don't hammer the function.
+const TURN_HOST_FALLBACK = "ajyal.app";
+let cachedIce: { config: RTCConfiguration; expiresAt: number } | null = null;
+
+const buildIceServers = async (): Promise<RTCConfiguration> => {
+  // Reuse credentials while still valid (with a 60s safety window)
+  if (cachedIce && cachedIce.expiresAt - 60_000 > Date.now()) {
+    return cachedIce.config;
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke("turn-credentials");
+    if (error) throw error;
+    if (!data?.iceServers?.length) throw new Error("Empty iceServers from turn-credentials");
+
+    const config: RTCConfiguration = {
+      iceServers: data.iceServers as RTCIceServer[],
+      bundlePolicy: "max-bundle",      // bundle audio+data on one 5-tuple → less overhead
+      iceCandidatePoolSize: 10,        // pre-gather candidates for faster connection
+    };
+    const ttlMs = (Number(data.ttl) || 3600) * 1000;
+    cachedIce = { config, expiresAt: Date.now() + ttlMs };
+    return config;
+  } catch (err) {
+    console.error("Failed to fetch TURN credentials, falling back to STUN-only:", err);
+    return {
+      iceServers: [
+        { urls: `stun:${TURN_HOST_FALLBACK}:3478` },
+        { urls: "stun:stun.l.google.com:19302" },
+      ],
+      bundlePolicy: "max-bundle",
+      iceCandidatePoolSize: 10,
+    };
+  }
+};
+
+interface UseWebRTCOptions {
+  bookingId: string;
+  userId: string;
+  onRemoteStream?: (stream: MediaStream) => void;
+  onConnectionState?: (state: RTCPeerConnectionState) => void;
+  onRemoteJoin?: () => void;
+  onRemoteLeave?: () => void;
+  onDataMessage?: (msg: any) => void;
+}
+
+export function useWebRTC({
+  bookingId,
+  userId,
+  onRemoteStream,
+  onConnectionState,
+  onRemoteJoin,
+  onRemoteLeave,
+  onDataMessage,
+}: UseWebRTCOptions) {
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const channelRef = useRef<any>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const makingOfferRef = useRef(false);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const reconnectAttemptsRef = useRef(0);
+  const isRestartingRef      = useRef(false);   // mutex — prevents concurrent ICE restarts
+  const disconnectTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNegotiatingRef     = useRef(false);   // true while onnegotiationneeded offer/answer in flight
+  const joinRetryIntervalRef = useRef<number | null>(null);
+  const onDataMessageRef = useRef(onDataMessage);
+  onDataMessageRef.current = onDataMessage;
+
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>("new");
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [dataChannelReady, setDataChannelReady] = useState(false);
+  const [iceTransportType, setIceTransportType] = useState<string>("unknown");
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  // Direct screen-stream recorder (preferred when teacher is screen-sharing — works on Brave/Safari/iOS)
+  const directScreenRecorderRef = useRef<MediaRecorder | null>(null);
+  const directScreenChunksRef = useRef<Blob[]>([]);
+  const screenTransceiverRef = useRef<RTCRtpTransceiver | null>(null);
+  // Guard flag: set to true before calling t.stop() so stale "ended" handlers
+  // from the previous share session don't fire replaceTrack(null) onto the NEW track.
+  const screenEndedCancelledRef = useRef(false);
+  // Always points to the latest active remote stream (audio+video) for recording
+  const latestRemoteStreamRef = useRef<MediaStream | null>(null);
+  const recordingHiddenVideoRef = useRef<HTMLVideoElement | null>(null);
+  // Persistent audio mixer for the direct screen recorder (re-attaches remote audio when it arrives later)
+  const recorderAudioCtxRef = useRef<AudioContext | null>(null);
+  const recorderAudioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const recorderAttachedStreamsRef = useRef<WeakSet<MediaStream>>(new WeakSet());
+
+  // Stable refs for callbacks
+  const onRemoteStreamRef = useRef(onRemoteStream);
+  onRemoteStreamRef.current = onRemoteStream;
+  const onConnectionStateRef = useRef(onConnectionState);
+  onConnectionStateRef.current = onConnectionState;
+  const onRemoteJoinRef = useRef(onRemoteJoin);
+  onRemoteJoinRef.current = onRemoteJoin;
+  const onRemoteLeaveRef = useRef(onRemoteLeave);
+  onRemoteLeaveRef.current = onRemoteLeave;
+
+  const waitForChannelSubscription = useCallback((
+    channel: any,
+    onResubscribe?: () => void,
+  ) => {
+    return new Promise<any>((resolve, reject) => {
+      let settled = false;
+      channel.subscribe((status: string) => {
+        if (status === "SUBSCRIBED") {
+          if (!settled) {
+            settled = true;
+            resolve(channel);
+          } else if (onResubscribe) {
+            // Supabase Realtime reconnected after internet outage — notify caller
+            console.log("[webrtc] Realtime channel re-subscribed after outage");
+            onResubscribe();
+          }
+        }
+        if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && !settled) {
+          settled = true;
+          reject(new Error(`Channel subscription failed: ${status}`));
+        }
+      });
+    });
+  }, []);
+
+  const initLocalMedia = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,          // AGC causes volume pumping → disable
+          channelCount: 1,                  // Mono: ideal for voice teaching sessions
+          sampleRate: 48000,                // Opus native sample rate
+          // Chrome-specific: disable extra processing that degrades voice quality
+          ...(({ googHighpassFilter: false, googTypingNoiseDetection: false }) as any),
+        },
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setVideoEnabled(false);
+      return stream;
+    } catch (err) {
+      console.error("Failed to get user media:", err);
+      return null;
+    }
+  }, []);
+
+  const sendSignal = useCallback(async (signalType: string, payload: any) => {
+    const channel = channelRef.current;
+    if (!channel) return;
+    await channel.send({
+      type: "broadcast",
+      event: "signal",
+      payload: { bookingId, senderId: userId, signalType, payload },
+    });
+  }, [bookingId, userId]);
+
+  // Send data via DataChannel
+  const sendDataMessage = useCallback((msg: any) => {
+    const dc = dataChannelRef.current;
+    if (dc && dc.readyState === "open") {
+      dc.send(JSON.stringify(msg));
+    }
+  }, []);
+
+  const setupDataChannel = useCallback((dc: RTCDataChannel) => {
+    dataChannelRef.current = dc;
+    dc.onopen = () => {
+      console.log("DataChannel open");
+      setDataChannelReady(true);
+    };
+    dc.onclose = () => {
+      console.log("DataChannel closed");
+      setDataChannelReady(false);
+    };
+    dc.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        onDataMessageRef.current?.(msg);
+      } catch {}
+    };
+  }, []);
+
+  const createPeerConnection = useCallback(async () => {
+    if (pcRef.current) pcRef.current.close();
+
+    const iceConfig = await buildIceServers();
+    const pc = new RTCPeerConnection(iceConfig);
+    pcRef.current = pc;
+
+    // Create DataChannel (only initiator creates it)
+    const dc = pc.createDataChannel("session-data", { ordered: true });
+    setupDataChannel(dc);
+
+    // Receive DataChannel from remote
+    pc.ondatachannel = (event) => {
+      setupDataChannel(event.channel);
+    };
+
+    // Add local tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current!);
+      });
+    }
+
+    // Pre-add a video transceiver for screen sharing (inactive by default)
+    // This ensures stable m-line ordering across renegotiations
+    const videoTransceiver = pc.addTransceiver("video", { direction: "sendrecv" });
+    screenTransceiverRef.current = videoTransceiver;
+
+    // Handle remote tracks
+    const remote = new MediaStream();
+    const syncRemoteStream = () => {
+      const updated = new MediaStream(remote.getTracks());
+      latestRemoteStreamRef.current = updated;
+      // Update hidden recording <video> srcObject so canvas keeps capturing live frames
+      if (recordingHiddenVideoRef.current) {
+        recordingHiddenVideoRef.current.srcObject = updated;
+        recordingHiddenVideoRef.current.play().catch(() => {});
+      }
+      setRemoteStream(updated);
+      onRemoteStreamRef.current?.(updated);
+    };
+
+    latestRemoteStreamRef.current = remote;
+    setRemoteStream(remote);
+
+    pc.ontrack = (event) => {
+      const incomingTracks = event.streams[0]?.getTracks().length
+        ? event.streams[0].getTracks()
+        : [event.track];
+
+      incomingTracks.forEach((track) => {
+        const exists = remote.getTracks().some((existingTrack) => existingTrack.id === track.id);
+        if (!exists) {
+          remote.addTrack(track);
+        }
+
+        track.addEventListener("unmute", syncRemoteStream);
+        track.addEventListener("mute", syncRemoteStream);
+        track.addEventListener("ended", () => {
+          remote.getTracks().forEach((existingTrack) => {
+            if (existingTrack.id === track.id) {
+              remote.removeTrack(existingTrack);
+            }
+          });
+          syncRemoteStream();
+        });
+      });
+
+      syncRemoteStream();
+    };
+
+    pc.onicecandidate = async (event) => {
+      if (event.candidate) {
+        await sendSignal("ice-candidate", { candidate: event.candidate.toJSON() });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      setConnectionState(state);
+      onConnectionStateRef.current?.(state);
+      if (state === "connected") {
+        // M4: Merged into one block — release mutex, reset backoff, detect ICE type
+        isRestartingRef.current = false;
+        reconnectAttemptsRef.current = 0;
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        detectIceTransportType(pc);
+        // Stop join retry on connection established
+        if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+        // Boost audio sender priority so audio packets are never dropped in favour of video
+        pc.getSenders().forEach(async (sender) => {
+          if (!sender.track || sender.track.kind !== "audio") return;
+          try {
+            const params = sender.getParameters();
+            if (!params.encodings || params.encodings.length === 0) params.encodings = [{} as any];
+            params.encodings[0].maxBitrate = 128_000;      // 128 kbps — highest quality voice
+            (params.encodings[0] as any).priority = "high";
+            (params.encodings[0] as any).networkPriority = "high";
+            await sender.setParameters(params);
+            console.log("[audio] sender priority=high, maxBitrate=128kbps, FEC+wideband active");
+          } catch (e) {
+            console.warn("[audio] setParameters failed:", e);
+          }
+        });
+      }
+      if (state === "disconnected") {
+        // Auto-recovery: try ICE restart after 12s (tolerates brief tab switches / flaps).
+        // Clears any pre-existing timer to avoid stacking up multiple restarts.
+        // ALSO skipped when a renegotiation is in flight (e.g. screen share track added)
+        // because direction changes transiently put ICE into "checking" which looks like disconnect.
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        disconnectTimerRef.current = setTimeout(() => {
+          disconnectTimerRef.current = null;
+          if (isRestartingRef.current) return; // already handled by failed handler
+          if (isNegotiatingRef.current) {
+            console.log("[webrtc] disconnected during negotiation — skipping ICE restart, waiting for renegotiation to settle");
+            return;
+          }
+          const cur = pcRef.current;
+          if (cur && (cur.connectionState === "disconnected" || cur.iceConnectionState === "disconnected")) {
+            console.log("[webrtc] disconnected >12s — attempting ICE restart");
+            restartConnection();
+          }
+        }, 12000);
+      }
+      if (state === "failed") {
+        // B1: Release mutex first — a failed state means the last restart ended (even if
+        // unsuccessfully). Without this, the backoff setTimeout can never call
+        // restartConnection() again because the mutex would still be held.
+        isRestartingRef.current = false;
+        // Cancel the disconnected 12s timer — backoff handles restart from here.
+        if (disconnectTimerRef.current) {
+          clearTimeout(disconnectTimerRef.current);
+          disconnectTimerRef.current = null;
+        }
+        const attempt = reconnectAttemptsRef.current;
+        const delay = Math.min(2000 * Math.pow(2, attempt), 15000); // exponential backoff, max 15s
+        reconnectAttemptsRef.current = attempt + 1;
+        console.log(`[webrtc] failed — retry attempt ${attempt + 1} in ${delay}ms`);
+        setTimeout(() => {
+          if (pcRef.current?.connectionState === "failed") restartConnection();
+        }, delay);
+      }
+    };
+
+    pc.onnegotiationneeded = async () => {
+      isNegotiatingRef.current = true;
+      try {
+        if (pc.signalingState !== "stable") return;
+        makingOfferRef.current = true;
+        // Clear stale pending candidates — they belong to the previous ICE generation
+        // and would cause "Unknown ufrag" errors if applied to the new description.
+        pendingCandidatesRef.current = [];
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return;
+        // Inject Opus FEC + bitrate before sending
+        const offerWithOpus = new RTCSessionDescription({
+          type: offer.type,
+          sdp: injectOpusParams(offer.sdp || ""),
+        });
+        await pc.setLocalDescription(offerWithOpus);
+        await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
+      } catch (err) {
+        // InvalidStateError is expected during signaling collision — ignore silently
+        if ((err as DOMException)?.name !== 'InvalidStateError') {
+          console.error('Negotiation error:', err);
+        }
+      } finally {
+        makingOfferRef.current = false;
+        // Give the ICE agent 3s to settle after offer/answer before clearing the flag.
+        // This covers the period where stale candidates could still arrive.
+        setTimeout(() => { isNegotiatingRef.current = false; }, 3000);
+      }
+    };
+
+    return pc;
+  }, [sendSignal, setupDataChannel]);
+
+  const detectIceTransportType = useCallback(async (pc: RTCPeerConnection) => {
+    try {
+      const stats = await pc.getStats();
+      let activeCandidatePairId: string | null = null;
+      stats.forEach((report) => {
+        if (report.type === "transport" && report.selectedCandidatePairId) {
+          activeCandidatePairId = report.selectedCandidatePairId;
+        }
+      });
+      if (!activeCandidatePairId) {
+        stats.forEach((report) => {
+          if (report.type === "candidate-pair" && report.state === "succeeded") {
+            activeCandidatePairId = report.id;
+          }
+        });
+      }
+      if (activeCandidatePairId) {
+        const pair = stats.get(activeCandidatePairId);
+        if (pair?.localCandidateId) {
+          const local = stats.get(pair.localCandidateId);
+          if (local) {
+            const cType = local.candidateType;
+            if (cType === "relay") setIceTransportType("TURN Relay");
+            else if (cType === "srflx") setIceTransportType("STUN");
+            else if (cType === "host") setIceTransportType("Direct");
+            else if (cType === "prflx") setIceTransportType("Direct (prflx)");
+            else setIceTransportType(cType || "unknown");
+            console.log("ICE transport type:", cType, "| server:", local.url || local.relayProtocol || "N/A");
+            return;
+          }
+        }
+      }
+      setIceTransportType("unknown");
+    } catch (err) {
+      console.error("Failed to detect ICE transport type:", err);
+      setIceTransportType("unknown");
+    }
+  }, []);
+
+  const handleSignal = useCallback(async (signalType: string, payload: any, senderId: string) => {
+    if (senderId === userId) return;
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    try {
+      if (signalType === "offer") {
+        const isPolitePeer = userId.localeCompare(senderId) > 0;
+        const offerCollision = makingOfferRef.current || pc.signalingState !== "stable";
+        if (offerCollision && !isPolitePeer) return;
+
+        if (pc.signalingState === "have-local-offer") {
+          await pc.setLocalDescription({ type: "rollback" } as any);
+        } else if (pc.signalingState !== "stable") {
+          return;
+        }
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        const answer = await pc.createAnswer();
+        const answerWithOpus = new RTCSessionDescription({
+          type: answer.type,
+          sdp: injectOpusParams(answer.sdp || ""),
+        });
+        await pc.setLocalDescription(answerWithOpus);
+        await sendSignal("answer", { sdp: pc.localDescription?.toJSON() });
+
+        for (const c of pendingCandidatesRef.current) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+          } catch (iceErr) {
+            const msg = (iceErr as DOMException)?.message || "";
+            if (msg.includes("ufrag")) {
+              console.debug("[webrtc] discarding stale pending ICE candidate (Unknown ufrag):", msg);
+            } else {
+              console.warn("[webrtc] addIceCandidate (pending) failed:", msg);
+            }
+          }
+        }
+        pendingCandidatesRef.current = [];
+      } else if (signalType === "answer") {
+        if (pc.signalingState === "have-local-offer") {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          for (const c of pendingCandidatesRef.current) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(c));
+            } catch (iceErr) {
+              const msg = (iceErr as DOMException)?.message || "";
+              if (msg.includes("ufrag")) {
+                console.debug("[webrtc] discarding stale pending ICE candidate (Unknown ufrag):", msg);
+              } else {
+                console.warn("[webrtc] addIceCandidate (pending) failed:", msg);
+              }
+            }
+          }
+          pendingCandidatesRef.current = [];
+        }
+      } else if (signalType === "ice-candidate") {
+        if (pc.remoteDescription) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          } catch (iceErr) {
+            const msg = (iceErr as DOMException)?.message || "";
+            if (msg.includes("Unknown ufrag") || msg.includes("unknown ufrag") || msg.includes("ufrag")) {
+              // Stale candidate from a previous ICE generation (before last restart/renegotiation).
+              // Safely discard — the ICE agent only uses candidates matching the current ufrag.
+              console.debug("[webrtc] discarding stale ICE candidate (Unknown ufrag):", msg);
+            } else {
+              throw iceErr; // re-throw unexpected errors
+            }
+          }
+        } else {
+          pendingCandidatesRef.current.push(payload.candidate);
+        }
+      } else if (signalType === "join") {
+        onRemoteJoinRef.current?.();
+        if (isRestartingRef.current) {
+          // M3: A join arrived mid-ICE-restart — rebuilding the PC now would create
+          // offer glare and abort the ongoing restart. Skip the rebuild; the ICE
+          // restart's own offer/answer will re-establish the connection.
+          console.log("[webrtc] join received during ICE restart — skipping PC rebuild");
+          return;
+        }
+        // Remote peer (re)joined — rebuild the peer connection from scratch.
+        // Do NOT create an explicit offer here; onnegotiationneeded fires automatically
+        // after tracks are added, avoiding race conditions with concurrent offers
+        // that cause "m-line order mismatch" errors.
+        pendingCandidatesRef.current = [];
+        makingOfferRef.current = false;
+        await createPeerConnection();
+      } else if (signalType === "leave") {
+        onRemoteLeaveRef.current?.();
+      }
+    } catch (err) {
+      console.error("Signal handling error:", err);
+    }
+  }, [userId, sendSignal, createPeerConnection]);
+
+  const start = useCallback(async () => {
+    await initLocalMedia();
+
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    pendingCandidatesRef.current = [];
+    makingOfferRef.current = false;
+
+    const channel = supabase
+      .channel(`webrtc-${bookingId}`, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "signal" }, (event: any) => {
+        const signal = event.payload;
+        if (signal?.senderId !== userId) {
+          handleSignal(signal.signalType, signal.payload, signal.senderId);
+        }
+      });
+
+    await waitForChannelSubscription(channel, async () => {
+      // Realtime channel reconnected after internet outage.
+      // If WebRTC is still broken, re-send "join" so the peer rebuilds the connection.
+      const pcState = pcRef.current?.connectionState;
+      if (pcState === "failed" || pcState === "disconnected") {
+        console.log("[webrtc] Realtime back — re-sending join (WebRTC state:", pcState, ")");
+        try {
+          await sendSignal("join", { userId });
+        } catch (e) {
+          console.warn("[webrtc] re-join signal failed:", e);
+        }
+      }
+    });
+    channelRef.current = channel;
+    await createPeerConnection();
+    await sendSignal("join", { userId });
+
+    // Retry "join" every 3 s until WebRTC connects — fixes race condition where
+    // one peer sends "join" before the other has subscribed to the channel.
+    if (joinRetryIntervalRef.current) clearInterval(joinRetryIntervalRef.current);
+    let _retryCount = 0;
+    joinRetryIntervalRef.current = window.setInterval(async () => {
+      const s = pcRef.current?.connectionState;
+      if (s === "connected" || _retryCount >= 15) {
+        if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+        return;
+      }
+      _retryCount++;
+      await sendSignal("join", { userId, retry: _retryCount });
+    }, 3000);
+  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal]);
+
+  const restartConnection = useCallback(async () => {
+    if (isRestartingRef.current) return; // prevent concurrent restarts
+    isRestartingRef.current = true;
+    const pc = pcRef.current;
+    if (!pc) { isRestartingRef.current = false; return; }
+    try {
+      if (pc.signalingState !== "stable") { isRestartingRef.current = false; return; }
+      // Clear pending candidates — ICE restart generates new ufrag, old candidates are invalid.
+      pendingCandidatesRef.current = [];
+      const offer = await pc.createOffer({ iceRestart: true });
+      const restartOfferWithOpus = new RTCSessionDescription({
+        type: offer.type,
+        sdp: injectOpusParams(offer.sdp || ""),
+      });
+      await pc.setLocalDescription(restartOfferWithOpus);
+      await sendSignal("offer", { sdp: pc.localDescription?.toJSON() });
+      // mutex released when connection transitions to connected/failed (see state handler above)
+    } catch (err) {
+      console.error("Restart error:", err);
+      isRestartingRef.current = false; // release on error so next attempt can proceed
+    }
+  }, [sendSignal]);
+
+  /**
+   * Adaptive bitrate: tunes outbound video sender params based on network quality.
+   * Called by useConnectionQuality consumer when quality drops/recovers.
+   */
+  const setVideoQuality = useCallback(async (level: "high" | "medium" | "low") => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    const profile = {
+      high:   { maxBitrate: 4_000_000, maxFramerate: 30, scaleResolutionDownBy: 1 },
+      medium: { maxBitrate: 1_200_000, maxFramerate: 24, scaleResolutionDownBy: 1.5 },
+      low:    { maxBitrate: 400_000,   maxFramerate: 15, scaleResolutionDownBy: 2 },
+    }[level];
+
+    pc.getSenders().forEach(async (sender) => {
+      if (!sender.track || sender.track.kind !== "video") return;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{} as any];
+        }
+        params.encodings[0].maxBitrate = profile.maxBitrate;
+        (params.encodings[0] as any).maxFramerate = profile.maxFramerate;
+        (params.encodings[0] as any).scaleResolutionDownBy = profile.scaleResolutionDownBy;
+        await sender.setParameters(params);
+        console.log(`[adaptive-bitrate] -> ${level}`, profile);
+      } catch (e) {
+        console.warn("[adaptive-bitrate] setParameters failed:", e);
+      }
+    });
+  }, []);
+
+  const toggleMic = useCallback(() => {
+    localStreamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+      setMicEnabled(t.enabled);
+    });
+  }, []);
+
+  const toggleVideo = useCallback(() => {
+    localStreamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+      setVideoEnabled(t.enabled);
+    });
+  }, []);
+
+  // Start a direct MediaRecorder on the raw screen-share stream + mixed audio.
+  // Works in 100% of modern browsers (incl. Brave/Safari) — no canvas pipeline.
+  const startDirectScreenRecorder = useCallback((screenStream: MediaStream) => {
+    try {
+      if (directScreenRecorderRef.current && directScreenRecorderRef.current.state !== "inactive") return;
+
+      // Mix local mic + remote audio into the recording
+      const audioTracks: MediaStreamTrack[] = [];
+      try {
+        const audioCtx = new AudioContext();
+        recorderAudioCtxRef.current = audioCtx;
+        const dest = audioCtx.createMediaStreamDestination();
+        recorderAudioDestRef.current = dest;
+        const localAudio = localStreamRef.current;
+        const remoteAudio = latestRemoteStreamRef.current;
+        if (localAudio && localAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(localAudio).connect(dest); } catch {}
+        }
+        if (remoteAudio && remoteAudio.getAudioTracks().length > 0) {
+          try { audioCtx.createMediaStreamSource(remoteAudio).connect(dest); } catch {}
+        }
+        audioTracks.push(...dest.stream.getAudioTracks());
+        console.log("[direct-recorder] audio tracks attached:", audioTracks.length, "local:", !!localAudio, "remote:", !!remoteAudio);
+      } catch (e) {
+        console.warn("[direct-recorder] audio mix failed, using raw tracks:", e);
+        if (localStreamRef.current) audioTracks.push(...localStreamRef.current.getAudioTracks());
+      }
+
+      const combined = new MediaStream([
+        ...screenStream.getVideoTracks(),
+        ...audioTracks,
+      ]);
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : MediaRecorder.isTypeSupported("video/webm")
+            ? "video/webm"
+            : MediaRecorder.isTypeSupported("video/mp4")
+              ? "video/mp4"
+              : "";
+
+      console.log("[direct-recorder] starting, mimeType:", mimeType);
+      const recorder = mimeType
+        ? new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 })
+        : new MediaRecorder(combined, { videoBitsPerSecond: 2_500_000 });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          directScreenChunksRef.current.push(e.data);
+        }
+      };
+      recorder.onerror = (e) => console.error("[direct-recorder] error:", e);
+      recorder.start(1000);
+      directScreenRecorderRef.current = recorder;
+      console.log("[direct-recorder] started");
+    } catch (err) {
+      console.error("[direct-recorder] start failed:", err);
+    }
+  }, []);
+
+  const stopDirectScreenRecorder = useCallback(() => {
+    const r = directScreenRecorderRef.current;
+    if (r && r.state !== "inactive") {
+      try { r.requestData(); } catch {}
+      try { r.stop(); } catch {}
+    }
+    directScreenRecorderRef.current = null;
+  }, []);
+
+  const toggleScreenShare = useCallback(async () => {
+    const pc = pcRef.current;
+    const transceiver = screenTransceiverRef.current;
+    if (!pc || !transceiver) return;
+
+    if (screenSharing) {
+      // Cancel any pending "ended" handler from this share session BEFORE stopping
+      // the track, so it cannot fire replaceTrack(null) after we've explicitly stopped.
+      screenEndedCancelledRef.current = true;
+
+      // NOTE: do NOT stop the direct screen recorder here — we want a single
+      // continuous recording for the whole session. The recorder will be
+      // stopped only when the session ends (in `stop()`).
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+      await transceiver.sender.replaceTrack(null);
+      transceiver.direction = "sendrecv";
+      setScreenSharing(false);
+      sendDataMessage({ type: "screen-share-status", active: false });
+      return;
+    }
+
+    const ua = navigator.userAgent || "";
+    const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1);
+    const hasDisplayMedia = !!navigator.mediaDevices?.getDisplayMedia;
+
+    if (!hasDisplayMedia) {
+      alert(
+        isIOS
+          ? "مشاركة الشاشة تتطلب iPadOS 16 أو أحدث مع متصفح Safari."
+          : "مشاركة الشاشة غير مدعومة على هذا الجهاز/المتصفح. يُرجى استخدام Chrome/Edge على الكمبيوتر."
+      );
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          frameRate: { ideal: 30, max: 60 },
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+        } as any,
+        audio: false,
+      });
+    } catch (err: any) {
+      if (err?.name === "NotAllowedError") return;
+      console.error("Screen share failed:", err);
+      alert("تعذّر بدء مشاركة الشاشة على هذا الجهاز. جرّب من متصفح حديث على الكمبيوتر.");
+      return;
+    }
+
+    screenStreamRef.current = stream;
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      alert("لم يتم الحصول على إشارة فيديو من المصدر المختار.");
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    // Hint encoder to prioritize sharpness/motion balance for screen content
+    try { (videoTrack as any).contentHint = "detail"; } catch {}
+
+    await transceiver.sender.replaceTrack(videoTrack);
+    transceiver.direction = "sendrecv";
+
+    try {
+      const params = transceiver.sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{ maxBitrate: 4_000_000, maxFramerate: 30 } as any];
+      } else {
+        params.encodings[0].maxBitrate = 4_000_000;
+        (params.encodings[0] as any).maxFramerate = 30;
+        (params.encodings[0] as any).networkPriority = "high";
+        (params.encodings[0] as any).priority = "high";
+      }
+      // Prefer low-latency mode when supported
+      (params as any).degradationPreference = "maintain-framerate";
+      await transceiver.sender.setParameters(params);
+    } catch (e) {
+      console.warn("setParameters failed (non-fatal):", e);
+    }
+
+    // Reset the cancel flag for this new share session
+    screenEndedCancelledRef.current = false;
+
+    videoTrack.addEventListener("ended", async () => {
+      // Guard: skip if user explicitly stopped via the toggle button (flag set before t.stop())
+      // This prevents a stale "ended" handler from overwriting the track of a NEW share session.
+      if (screenEndedCancelledRef.current) return;
+      // Keep the direct recorder running — we want one continuous recording for the whole session.
+      await transceiver.sender.replaceTrack(null);
+      screenStreamRef.current = null;
+      setScreenSharing(false);
+      sendDataMessage({ type: "screen-share-status", active: false });
+    });
+
+    setScreenSharing(true);
+    sendDataMessage({ type: "screen-share-status", active: true });
+
+    // Start the direct screen recorder (independent of canvas) — guaranteed video capture.
+    startDirectScreenRecorder(stream);
+  }, [screenSharing, sendDataMessage, startDirectScreenRecorder, stopDirectScreenRecorder]);
+
+  // Manual recording (screen share based - kept for manual use)
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" } as any,
+        audio: true,
+      });
+      recordedChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus" : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => stream.getTracks().forEach((t) => t.stop());
+      stream.getVideoTracks()[0].addEventListener("ended", () => stopRecording());
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      console.error("Recording cancelled");
+    }
+  }, []);
+
+  // Auto video recording - captures remote video/screen + combined audio using offscreen canvas
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasIntervalRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const startAutoRecording = useCallback(() => {
+    try {
+      // Avoid double-start
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        console.log("[recording] already running, skip");
+        return;
+      }
+      const localAudioStream = localStreamRef.current;
+      const remoteMediaStream = latestRemoteStreamRef.current ?? remoteStream;
+      if (!localAudioStream && !remoteMediaStream) {
+        console.warn("[recording] no streams yet, will retry");
+        return;
+      }
+
+      // Create offscreen canvas for video capture
+      const canvas = document.createElement("canvas");
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext("2d", { alpha: false })!;
+      canvasRef.current = canvas;
+
+      // Hidden video element bound to LIVE remote stream
+      const sourceStream = remoteMediaStream ?? localAudioStream;
+      const hiddenVideo = document.createElement("video");
+      hiddenVideo.srcObject = sourceStream;
+      hiddenVideo.muted = true;
+      hiddenVideo.playsInline = true;
+      hiddenVideo.autoplay = true;
+      // Mount offscreen so the browser actually decodes frames (Safari/iOS requirement)
+      hiddenVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenVideo.setAttribute("data-recording-hidden", "true");
+      document.body.appendChild(hiddenVideo);
+      hiddenVideo.play().catch((e) => console.warn("[recording] remote hidden video play failed:", e));
+      recordingHiddenVideoRef.current = hiddenVideo;
+
+      // Hidden video for LOCAL screen share (so we capture teacher's shared screen)
+      const hiddenLocalVideo = document.createElement("video");
+      hiddenLocalVideo.muted = true;
+      hiddenLocalVideo.playsInline = true;
+      hiddenLocalVideo.autoplay = true;
+      hiddenLocalVideo.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;";
+      hiddenLocalVideo.setAttribute("data-recording-hidden", "true");
+      document.body.appendChild(hiddenLocalVideo);
+
+      // If teacher is already screen-sharing when recording starts, bind it immediately
+      if (screenStreamRef.current && screenStreamRef.current.getVideoTracks().length > 0) {
+        hiddenLocalVideo.srcObject = screenStreamRef.current;
+        hiddenLocalVideo.play().catch((e) => console.warn("[recording] local hidden video play failed:", e));
+      }
+
+      let audioLevel = 0;
+      let analyserNode: AnalyserNode | null = null;
+      let analyserData: Uint8Array<ArrayBuffer> | null = null;
+
+      const getLocalVideoStream = (): MediaStream | null => {
+        // Only screen share — camera is not used in this system
+        if (screenStreamRef.current && screenStreamRef.current.getVideoTracks().length > 0) {
+          return screenStreamRef.current;
+        }
+        return null;
+      };
+
+      const getRemoteVideoStream = (): MediaStream | null => {
+        const live = latestRemoteStreamRef.current;
+        if (live && live.getVideoTracks().some(t => t.readyState === "live")) return live;
+        return null;
+      };
+
+      const drawVideoFit = (vid: HTMLVideoElement, dx: number, dy: number, dw: number, dh: number) => {
+        const vw = vid.videoWidth || dw;
+        const vh = vid.videoHeight || dh;
+        const scale = Math.min(dw / vw, dh / vh);
+        const w = vw * scale;
+        const h = vh * scale;
+        const x = dx + (dw - w) / 2;
+        const y = dy + (dh - h) / 2;
+        ctx.drawImage(vid, x, y, w, h);
+      };
+
+      const drawFrame = () => {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, "#1e293b");
+        grad.addColorStop(1, "#0f172a");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const liveRemote = getRemoteVideoStream();
+        if (liveRemote && hiddenVideo.srcObject !== liveRemote) {
+          hiddenVideo.srcObject = liveRemote;
+          hiddenVideo.addEventListener("loadedmetadata", () => {
+            hiddenVideo.play().catch(() => {});
+          }, { once: true });
+          hiddenVideo.play().catch(() => {});
+        }
+        const liveLocal = getLocalVideoStream();
+        if (liveLocal && hiddenLocalVideo.srcObject !== liveLocal) {
+          hiddenLocalVideo.srcObject = liveLocal;
+          hiddenLocalVideo.addEventListener("loadedmetadata", () => {
+            hiddenLocalVideo.play().catch((e) => console.warn("[recording] local video play after metadata failed:", e));
+          }, { once: true });
+          hiddenLocalVideo.play().catch(() => {});
+        } else if (!liveLocal && hiddenLocalVideo.srcObject) {
+          hiddenLocalVideo.srcObject = null;
+        }
+
+        // Recording priority:
+        // 1) Local screen share (teacher sharing on this device)
+        // 2) Remote video stream (other participant's screen/camera)
+        // 3) Whiteboard (if active)
+        // 4) Audio-only placeholder
+        const hasLocal = hiddenLocalVideo.readyState >= 2 && (hiddenLocalVideo.videoWidth || 0) > 0;
+        const hasRemote = hiddenVideo.readyState >= 2 && (hiddenVideo.videoWidth || 0) > 0;
+        const wbEl = document.querySelector('canvas[data-whiteboard="true"]') as HTMLCanvasElement | null;
+        const hasWhiteboard = !!(wbEl && wbEl.width > 0 && wbEl.height > 0);
+
+        if (hasLocal) {
+          drawVideoFit(hiddenLocalVideo, 0, 0, canvas.width, canvas.height);
+        } else if (hasRemote) {
+          drawVideoFit(hiddenVideo, 0, 0, canvas.width, canvas.height);
+        } else if (hasWhiteboard) {
+          // Fullscreen whiteboard
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const scale = Math.min(canvas.width / wbEl!.width, canvas.height / wbEl!.height);
+          const w = wbEl!.width * scale;
+          const h = wbEl!.height * scale;
+          ctx.drawImage(wbEl!, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+        } else {
+          if (analyserNode && analyserData) {
+            analyserNode.getByteFrequencyData(analyserData);
+            let sum = 0;
+            for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+            audioLevel = Math.min(1, sum / analyserData.length / 128);
+          } else {
+            audioLevel = 0.3 + Math.sin(Date.now() / 400) * 0.15;
+          }
+          const cx = canvas.width / 2;
+          const cy = canvas.height / 2 - 40;
+          const baseR = 80;
+          const r = baseR + audioLevel * 60;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(56, 189, 248, ${0.15 + audioLevel * 0.25})`;
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+          ctx.fillStyle = "#38bdf8";
+          ctx.fill();
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(cx - 14, cy - 28, 28, 40);
+          ctx.beginPath();
+          ctx.arc(cx, cy + 12, 14, 0, Math.PI, false);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 32px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("جلسة صوتية مباشرة", canvas.width / 2, canvas.height / 2 + 80);
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "20px sans-serif";
+          ctx.fillText("تسجيل جارٍ...", canvas.width / 2, canvas.height / 2 + 115);
+        }
+
+        // Overlay whiteboard as a thumbnail only when teacher is sharing screen/camera
+        // (so we see both the screen AND the whiteboard if both are active).
+        try {
+          if (hasLocal && hasWhiteboard) {
+            const wbW = 360;
+            const wbH = (wbEl!.height / wbEl!.width) * wbW;
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(20, 20, wbW, wbH);
+            ctx.drawImage(wbEl!, 20, 20, wbW, wbH);
+            ctx.strokeStyle = "#38bdf8";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(20, 20, wbW, wbH);
+          }
+        } catch {}
+
+        const now = new Date();
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(canvas.width - 200, canvas.height - 40, 200, 40);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "14px monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(now.toLocaleTimeString("ar-SA"), canvas.width - 10, canvas.height - 12);
+      };
+
+      // Initial frame to seed the stream
+      drawFrame();
+
+      // Setup audio analyser for visualizer (best-effort)
+      try {
+        const tmpCtx = new AudioContext();
+        const allAudio = [
+          ...(localAudioStream?.getAudioTracks() || []),
+          ...(remoteMediaStream?.getAudioTracks() || []),
+        ];
+        if (allAudio.length > 0) {
+          const src = tmpCtx.createMediaStreamSource(new MediaStream(allAudio));
+          analyserNode = tmpCtx.createAnalyser();
+          analyserNode.fftSize = 256;
+          analyserData = new Uint8Array(new ArrayBuffer(analyserNode.frequencyBinCount));
+          src.connect(analyserNode);
+        }
+      } catch (e) {
+        console.warn("[recording] analyser init failed:", e);
+      }
+
+      // Draw loop
+      canvasIntervalRef.current = window.setInterval(drawFrame, 66);
+
+      const canvasStream = canvas.captureStream(15);
+
+      // Mix audio with try/catch — AudioContext can fail without user gesture
+      const audioTracks: MediaStreamTrack[] = [];
+      const attachedAudioStreams = new WeakSet<MediaStream>();
+      try {
+        const audioCtx = new AudioContext();
+        audioCtxRef.current = audioCtx;
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume().catch(() => {});
+        }
+        const dest = audioCtx.createMediaStreamDestination();
+        const tryAttach = (s: MediaStream | null) => {
+          if (!s || attachedAudioStreams.has(s) || s.getAudioTracks().length === 0) return;
+          try {
+            audioCtx.createMediaStreamSource(s).connect(dest);
+            attachedAudioStreams.add(s);
+            console.log("[recording] audio attached, tracks:", s.getAudioTracks().length);
+          } catch (e) { console.warn("[recording] audio attach failed:", e); }
+        };
+        tryAttach(localAudioStream);
+        tryAttach(remoteMediaStream);
+        audioTracks.push(...dest.stream.getAudioTracks());
+        // Re-attach audio if remote stream arrives/changes later
+        const audioReattach = window.setInterval(() => {
+          tryAttach(localStreamRef.current);
+          tryAttach(latestRemoteStreamRef.current);
+        }, 1500);
+        (canvasRef as any)._audioInterval = audioReattach;
+      } catch (e) {
+        console.warn("[recording] AudioContext failed, recording video only:", e);
+        if (localAudioStream) audioTracks.push(...localAudioStream.getAudioTracks());
+        if (remoteMediaStream) audioTracks.push(...remoteMediaStream.getAudioTracks());
+      }
+
+      const combinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioTracks,
+      ]);
+
+      // IMPORTANT: do NOT wipe chunks here — preserve across restarts (reconnect/renegotiation)
+      // Chunks are only cleared when a NEW session starts via resetRecordingBuffer()
+      // Use VP8 for maximum browser compatibility (Safari, iOS, older Chrome).
+      // VP9 produces smaller files but fails to decode in many <video> players, causing black screens.
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+          ? "video/webm;codecs=vp8"
+          : MediaRecorder.isTypeSupported("video/webm")
+            ? "video/webm"
+            : "";
+      console.log("[recording] starting with mimeType:", mimeType, "videoTracks:", canvasStream.getVideoTracks().length, "audioTracks:", audioTracks.length);
+      const recorder = mimeType
+        ? new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 1_000_000 })
+        : new MediaRecorder(combinedStream, { videoBitsPerSecond: 1_000_000 });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+          if (recordedChunksRef.current.length === 1) {
+            console.log("[recording] first chunk received:", e.data.size, "bytes");
+          }
+        }
+      };
+      recorder.onerror = (e) => console.error("[recording] MediaRecorder error:", e);
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      console.log("[recording] started successfully");
+    } catch (err) {
+      console.error("[recording] Auto video recording failed:", err);
+    }
+  }, [remoteStream]);
+
+  const stopRecording = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.addEventListener("stop", () => {
+          console.log("[recording] stopped, chunks:", recordedChunksRef.current.length,
+            "total bytes:", recordedChunksRef.current.reduce((s, b) => s + b.size, 0));
+          resolve();
+        }, { once: true });
+        try { recorder.requestData(); } catch {}
+        try { recorder.stop(); } catch { resolve(); }
+      } else {
+        resolve();
+      }
+      if (canvasIntervalRef.current) {
+        clearInterval(canvasIntervalRef.current);
+        canvasIntervalRef.current = null;
+      }
+      const audioInt = (canvasRef as any)._audioInterval;
+      if (audioInt) {
+        clearInterval(audioInt);
+        (canvasRef as any)._audioInterval = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
+      // Remove hidden video elements appended to DOM during recording
+      if (recordingHiddenVideoRef.current) {
+        try { recordingHiddenVideoRef.current.remove(); } catch {}
+        recordingHiddenVideoRef.current = null;
+      }
+      try {
+        document.querySelectorAll('video[data-recording-hidden="true"]').forEach((el) => el.remove());
+      } catch {}
+      canvasRef.current = null;
+      setIsRecording(false);
+    });
+  }, []);
+
+  const getRecordingBlob = useCallback(() => {
+    // Prefer the direct screen recording when it has data — guaranteed real screen video
+    // (works on Brave, Safari, iOS without canvas pipeline issues).
+    if (directScreenChunksRef.current.length > 0) {
+      const directSize = directScreenChunksRef.current.reduce((s, b) => s + b.size, 0);
+      if (directSize > 0) {
+        return new Blob(directScreenChunksRef.current, { type: "video/webm" });
+      }
+    }
+    if (recordedChunksRef.current.length === 0) return null;
+    return new Blob(recordedChunksRef.current, { type: "video/webm" });
+  }, []);
+
+  const stop = useCallback(async () => {
+    await sendSignal("leave", { userId });
+    if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    dataChannelRef.current?.close();
+    dataChannelRef.current = null;
+    setDataChannelReady(false);
+    pcRef.current?.close();
+    pcRef.current = null;
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
+    stopDirectScreenRecorder();
+    if (isRecording) stopRecording();
+  }, [userId, isRecording, stopRecording, stopDirectScreenRecorder, sendSignal]);
+
+  useEffect(() => {
+    return () => {
+      if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+      pcRef.current?.close();
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      dataChannelRef.current?.close();
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, []);
+
+  return {
+    localStream,
+    remoteStream,
+    connectionState,
+    micEnabled,
+    videoEnabled,
+    screenSharing,
+    isRecording,
+    dataChannelReady,
+    iceTransportType,
+    start,
+    stop,
+    toggleMic,
+    toggleVideo,
+    toggleScreenShare,
+    startRecording,
+    startAutoRecording,
+    stopRecording,
+    getRecordingBlob,
+    restartConnection,
+    sendDataMessage,
+    setVideoQuality,
+    pcRef,
+  };
+}
