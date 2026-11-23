@@ -1,0 +1,12 @@
+.gemini-pilot-shell { max-width: 780px; margin: 0 auto; padding: 24px 16px; color: #17334c; }
+.gemini-pilot-notice { background: #fff7e7; border: 1px solid #ead09b; border-radius: 16px; padding: 16px 20px; margin-bottom: 18px; }
+.gemini-pilot-notice strong { font-size: 18px; }
+.gemini-pilot-notice p, .gemini-pilot-footnote { font-size: 14px; line-height: 1.8; margin: 8px 0 0; }
+.gemini-pilot-actions { display: grid; gap: 16px; padding: 0 12px; }
+.gemini-pilot-actions label { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.8; }
+.gemini-pilot-actions input { margin-top: 6px; }
+.gemini-pilot-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.gemini-pilot-buttons button { background: #254c79; color: white; border-radius: 999px; padding: 12px 18px; font-size: 14px; }
+.gemini-pilot-buttons button:disabled { background: #e3eaf1; color: #6c7b89; cursor: not-allowed; }
+.gemini-pilot-actions p { font-size: 14px; min-height: 22px; }
+.gemini-pilot-footnote { padding: 12px; color: #5c6f81; }
