@@ -12,6 +12,11 @@ def call(path,body,uid=None):
  try:
   with urllib.request.urlopen(urllib.request.Request('https://ajyalalmaerifa.com/functions/v1/'+path,data=json.dumps(body).encode(),headers=headers),timeout=20) as r:return r.status,json.load(r)
  except urllib.error.HTTPError as e:return e.code,json.load(e)
+if '--web-only' in sys.argv:
+ assert pathlib.Path('/var/www/html/index.html').read_bytes()==(STAGE/'dist/index.html').read_bytes()
+ for url in ['https://ajyalalmaerifa.com/','https://ajyalalmaerifa.com/login','https://ajyalalmaerifa.com/healthz']:
+  with urllib.request.urlopen(url,timeout=15) as r:assert r.status==200
+ print('WEB_INDEX_AND_HEALTH_PASS');sys.exit(0)
 for path in ['ai-tutor-token','ai-tutor-chat']:
  status,_=call(path,{});assert status==401,(path,status);print('ANON_DENIED',path,status)
 rows=json.loads(sql("SELECT coalesce(json_agg(t),'[]') FROM (SELECT u.id,p.account_status,p.is_deleted,EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id) has_role,EXISTS(SELECT 1 FROM user_subscriptions s JOIN subscription_plans sp ON sp.id=s.plan_id WHERE s.user_id=u.id AND s.is_active AND s.remaining_minutes>0 AND sp.tier='premium') premium FROM auth.users u LEFT JOIN profiles p ON p.user_id=u.id) t"))

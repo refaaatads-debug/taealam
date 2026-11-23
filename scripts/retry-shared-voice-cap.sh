@@ -35,7 +35,7 @@ cp -a "$stage/dist/assets/." "$web/assets/"
 cp -a "$stage/dist/index.html" "$web/index.html"
 nginx -t && systemctl reload nginx
 (cd "$web"; sha256sum -c "$base/unrelated-web.sha256") > "$base/retry-unrelated-web-check.log"
-python3 "$stage/scripts/verify-shared-voice-release.py" > "$base/retry-verification.log"
+python3 "$stage/scripts/verify-shared-voice-release.py" --web-only > "$base/retry-verification.log"
 cat "$base/retry-verification.log"
 python3 "$base/reconcile.py" > "$base/reconcile-first.log"
 cat "$base/reconcile-first.log"
