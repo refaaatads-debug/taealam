@@ -11,7 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "deno-bin": "^2.2.7",
-    "embedded-postgres": "^18.7.0-beta.19",
+    "embedded-postgres": "^15.20.0-beta.19",
     "pg": "^8.23.1"
   }
 }

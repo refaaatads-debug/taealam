@@ -21,9 +21,9 @@ The helper is not yet integrated into the actual deployed `ai-tutor-chat` source
 - Deno2.2.7 type/dependency check passed for preview endpoint and TTS helper.
 -60 unit tests pass across stage1, live daily gate, reconcile worker and TTS helper.
 -31 isolated SQL assertions pass including shared TTS/web allowance and persistent overrun breaker.
--Actual local PostgreSQL18.7:32 parallel connections x3reservation rounds,32denials at exhaustion,32duplicate settlements; exactly900held and one refund. Production PostgreSQL is15.8, so rerun on matching staging version before rollout.
+-Actual local PostgreSQL18.7:32 parallel connections x3reservation rounds,32denials at exhaustion,32duplicate settlements; exactly900held and one refund. The same stress test then passed on local PostgreSQL15.20, matching the production15.x major version (production15.8).
 -Production read-only check: existing immutable provider version exists; auth true;600sec max; duration override false. Proposed cap tables absent.
 
-Still blocked from release by product meaning, actual chat integration/reconcile scheduler, matching-Postgres tests, provider version pinning/cutoff proof and separately approved paid cutoff test. No main merge, DB migration, provider switch, OTA or paid generation done.
+Still blocked from release by product meaning, actual chat integration/reconcile scheduler,  provider version pinning/cutoff proof and separately approved paid cutoff test. No main merge, DB migration, provider switch, OTA or paid generation done.
 
 Sources: https://elevenlabs.io/docs/api-reference/text-to-speech/convert and https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps . Both list output formats and generation payloads, neither establishes a hard audio-duration input cap.
