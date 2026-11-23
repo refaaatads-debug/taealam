@@ -1,3 +1,5 @@
+import { issueCappedVoiceTicket } from "../_shared/live-voice-daily-preview.ts";
+import { loadDailyVoiceConfig } from "../_shared/live-voice-cap-config.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 import { getProviderApiKey } from "../_shared/ai-models.ts";
@@ -66,7 +68,7 @@ serve(async (req) => {
         status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
       });
     }
-    const subsList = allSubs || [];
+    const subsList = (allSubs || []).map(s => ({...s,subscription_plans:Array.isArray(s.subscription_plans) ? (s.subscription_plans.length===1 ? s.subscription_plans[0] : null) : s.subscription_plans}));
     const activeSubs = subsList.filter((s: any) => s.is_active);
     const premiumSubs = subsList.filter((s: any) => s.subscription_plans?.tier === "premium");
     const validPremium = subsList.find(liveVoicePremiumAllowed);
@@ -137,34 +139,41 @@ serve(async (req) => {
       });
     }
 
-    // Get signed URL — primary key first, fallback to backup on quota/auth error
-    const tryGetSignedUrl = (key: string) =>
-      fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}&include_conversation_id=true`,
-        { headers: { "xi-api-key": key } });
-
-    let response = await tryGetSignedUrl(ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP);
-    if ((response.status === 401 || response.status === 402 || response.status === 429) && ELEVENLABS_API_KEY_BACKUP) {
-      console.warn("ElevenLabs primary key exhausted, switching to backup key...");
-      response = await tryGetSignedUrl(ELEVENLABS_API_KEY_BACKUP);
-    }
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("ElevenLabs signed-url error:", response.status, errText);
-      return new Response(JSON.stringify({ error: "تعذر الحصول على رابط المحادثة" }), {
-        status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const cap = await loadDailyVoiceConfig();
+    if (!cap.enabled || cap.agentId === agentId) throw new Error("cap_not_ready");
+    // Use a service client without the incoming Authorization header. Only these
+    // RPCs may reserve budget; browsers cannot invoke them directly.
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const providerKey = ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP;
+    const api = async (path: string) => {
+      const r = await fetch("https://api.elevenlabs.io/v1/convai/" + path, {
+        headers: { "xi-api-key": providerKey }, signal: AbortSignal.timeout(4000)
       });
-    }
-
-    const { signed_url } = await response.json();
-    if (typeof signed_url !== "string" || !signed_url.startsWith("wss://api.elevenlabs.io/") || !new URL(signed_url).searchParams.has("conversation_id")) {
-      throw new Error("Provider did not return a single-use conversation URL");
-    }
-    return new Response(JSON.stringify({ signedUrl: signed_url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      if (!r.ok) throw new Error("provider_unavailable");
+      return r.json();
+    };
+    const result = await issueCappedVoiceTicket(user.id, {
+      ...cap,
+      getAgentVersion: async (a,v) => {
+        const config = await api("agents/"+encodeURIComponent(a)+"?version_id="+encodeURIComponent(v));
+        const branches = await api("agents/"+encodeURIComponent(a)+"/branches?include_archived=true");
+        const tip = await api("agents/"+encodeURIComponent(a));
+        config.isolated_branch_verified = branches.results?.length === 1 &&
+          (branches.meta?.total === undefined || branches.meta.total === 1) &&
+          branches.results[0].id === config.main_branch_id &&
+          tip.version_id === v && tip.main_branch_id === config.main_branch_id;
+        return config;
+      },
+      reserve: async uid => { const r=await admin.rpc("reserve_live_voice",{p_user:uid,p_kind:"live"}); if(r.error)throw Error("reservation_failed"); return r.data; },
+      mint: async (a,v) => (await api("conversation/get-signed-url?"+new URLSearchParams({agent_id:a,version_id:v,include_conversation_id:"true"}))).signed_url,
+      bind: async (id,c) => { const r=await admin.rpc("bind_live_voice",{p_reservation:id,p_conversation:c}); if(r.error)throw Error("binding_failed"); return r.data===true; }
     });
+    return new Response(JSON.stringify(result.allowed ? result : {
+      error: "انتهى الحد اليومي للصوت أو توجد محادثة محجوزة. يمكنك المتابعة بالكتابة.",
+      reason_code: "reason" in result ? result.reason : "voice_unavailable"
+    }), {status:result.allowed?200:429,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
   } catch (e) {
-    console.error("ai-tutor-token request failed:", e);
+    console.error("ai-tutor-token request failed");
     return new Response(JSON.stringify({ error: "تعذر بدء المحادثة الصوتية" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

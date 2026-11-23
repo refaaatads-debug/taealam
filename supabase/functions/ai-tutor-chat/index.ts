@@ -3,7 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { loadDailyVoiceConfig } from "../_shared/live-voice-cap-config.ts";
+import { generateBudgetedTts } from "../_shared/tts-daily-budget-preview.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+import { shouldGenerateTutorAudio } from "../_shared/premium-voice.ts";
 
 const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" - مدرس ذكي ودود يساعد الطلاب العرب.
 - اشرح المفاهيم بأسلوب بسيط واضح بالعربية الفصحى.
@@ -87,6 +90,18 @@ serve(async (req) => {
     const { messages, speak = true } = await req.json();
     if (!Array.isArray(messages)) return new Response(JSON.stringify({ error: "messages required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Preserve non-voice text features, including older clients requesting
+    // speak:true by default. Only provider-paid audio is premium restricted.
+    let audioAllowed = false;
+    if (speak !== false) {
+      const { data: subscriptions, error: entitlementError } = await supabase
+        .from("user_subscriptions")
+        .select("is_active,remaining_minutes,subscription_plans:plan_id(tier)")
+        .eq("user_id", user.id);
+      // Fail closed for audio on DB errors; text still uses existing auth policy.
+      audioAllowed = !entitlementError && shouldGenerateTutorAudio(speak, subscriptions || []);
+    }
+
     const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
     const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
 
@@ -98,26 +113,51 @@ serve(async (req) => {
     if (!text) return new Response(JSON.stringify({ error: "كل النماذج مشغولة، حاول بعد دقيقة" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     let audioBase64 = null;
-    if (speak && text) {
+    let audioDisabledReason: string | null = null;
+    const capConfig = await loadDailyVoiceConfig();
+    if (audioAllowed && !capConfig.enabled) audioDisabledReason = "voice_temporarily_unavailable";
+    if (audioAllowed && text && capConfig.enabled) {
       const { data: voiceSetting } = await supabase.from("site_settings").select("value").eq("key", "ai_tutor_voice_id").maybeSingle();
       const voiceId = voiceSetting?.value?.trim() || "EXAVITQu4vr4xnSDxMaL";
       const ELEVENLABS_API_KEY = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
       const ELEVENLABS_API_KEY_BACKUP = await getProviderApiKey("elevenlabs_backup", "ELEVENLABS_API_KEY_BACKUP");
       if (ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP) {
         try {
-          const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
-          const ttsBody = JSON.stringify({ text: text.slice(0, 1000), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 } });
-          let ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json" }, body: ttsBody });
-          if ((ttsResp.status === 401 || ttsResp.status === 402 || ttsResp.status === 429) && ELEVENLABS_API_KEY_BACKUP) {
-            console.warn("ElevenLabs TTS primary key exhausted, switching to backup key...");
-            ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY_BACKUP, "Content-Type": "application/json" }, body: ttsBody });
-          }
-          if (ttsResp.ok) { const buf = await ttsResp.arrayBuffer(); audioBase64 = base64Encode(new Uint8Array(buf)); }
-          else console.error("TTS request failed:", ttsResp.status);
-        } catch { console.error("TTS request exception"); }
+          const capped = await generateBudgetedTts({
+            userId: user.id,
+            operationId: "tts_" + crypto.randomUUID(),
+            reserve: async (uid) => {
+              const r = await supabase.rpc("reserve_live_voice", { p_user: uid, p_kind: "tts" });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data;
+            },
+            bind: async (id, operation) => {
+              const r = await supabase.rpc("bind_live_voice", { p_reservation: id, p_conversation: operation });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data === true;
+            },
+            settle: async (operation, seconds) => {
+              const r = await supabase.rpc("settle_live_voice", { p_conversation: operation, p_actual: seconds });
+              if (r.error) throw new Error("voice_budget_unavailable");
+              return r.data;
+            },
+            generate: async () => {
+              const ttsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`;
+              const ttsBody = JSON.stringify({ text: text.slice(0, 1000), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 } });
+              // No retry after ambiguous paid generation. Provider failures retain reservation.
+              const ttsResp = await fetch(ttsUrl, { method: "POST", headers: { "xi-api-key": ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP, "Content-Type": "application/json" }, body: ttsBody, signal: AbortSignal.timeout(15_000) });
+              if (!ttsResp.ok) throw new Error("tts_unavailable");
+              const buf = await ttsResp.arrayBuffer();
+              if (buf.byteLength > 6_000_000) throw new Error("tts_response_too_large");
+              return new Uint8Array(buf);
+            },
+          });
+          if (capped.audio) audioBase64 = base64Encode(capped.audio.slice().buffer as ArrayBuffer);
+          else audioDisabledReason = capped.reason || "voice_budget_unavailable";
+        } catch { audioDisabledReason = "voice_budget_unavailable"; console.error("TTS request exception"); }
       }
     }
-    return new Response(JSON.stringify({ text, audio: audioBase64 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ text, audio: audioBase64, ...(speak !== false && !audioAllowed ? { audio_disabled_reason: "premium_required" } : audioDisabledReason ? { audio_disabled_reason: audioDisabledReason } : {}) }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch {
     console.error("ai-tutor-chat request failed");
     return new Response(JSON.stringify({ error: "تعذر معالجة المحادثة حالياً" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
