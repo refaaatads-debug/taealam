@@ -1,0 +1,42 @@
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();let count=0;
+await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE TABLE public.profiles(user_id uuid, account_status text,is_deleted boolean); CREATE TABLE public.user_roles(user_id uuid,role text); CREATE TABLE public.subscription_plans(id uuid,tier text); CREATE TABLE public.user_subscriptions(user_id uuid,plan_id uuid,is_active boolean,remaining_minutes numeric);`);
+await db.exec(fs.readFileSync(new URL('../../supabase/migrations/20261123_live_voice_daily_preview.sql',import.meta.url),'utf8'));
+// Deterministic local fixture clock, not a production schema/time change.
+const fn=(await db.query(`SELECT pg_get_functiondef('public.reserve_live_voice(uuid)'::regprocedure) AS s`)).rows[0].s;
+await db.exec(fn.replace('clock_timestamp()',`'2026-11-23T09:00:00Z'::timestamptz`));
+const u='00000000-0000-0000-0000-000000000001',u2='00000000-0000-0000-0000-000000000002',plan='10000000-0000-0000-0000-000000000001';
+await db.query(`INSERT INTO auth.users VALUES ($1),($2)`,[u,u2]);await db.query(`INSERT INTO profiles VALUES($1,'active',false),($2,'active',false)`,[u,u2]);await db.query(`INSERT INTO user_roles VALUES($1,'student'),($2,'student')`,[u,u2]);await db.query(`INSERT INTO subscription_plans VALUES($1,'premium')`,[plan]);await db.query(`INSERT INTO user_subscriptions VALUES($1,$2,true,100),($3,$2,true,100)`,[u,plan,u2]);
+const reserve=async id=>(await db.query('SELECT reserve_live_voice($1) AS r',[id])).rows[0].r;
+const bind=async(id,c)=>(await db.query('SELECT bind_live_voice($1,$2) AS r',[id,c])).rows[0].r;
+const settle=async(c,n)=>(await db.query('SELECT settle_live_voice($1,$2) AS r',[c,n])).rows[0].r;
+const check=(v,msg)=>{assert(v,msg);count++};
+let a=await reserve(u);check(a.allowed,'valid');check(!(await reserve(u)).allowed,'one outstanding reservation');
+// Simulate time inside the same local usage day without releasing held debit.
+await db.exec(`UPDATE live_voice_reservations SET blocked_until='2020-01-01'`);
+let b=await reserve(u);check(b.allowed,'second block');await db.exec(`UPDATE live_voice_reservations SET blocked_until='2020-01-01'`);
+let c=await reserve(u);check(c.allowed,'third block');await db.exec(`UPDATE live_voice_reservations SET blocked_until='2020-01-01'`);
+check((await reserve(u)).reason==='daily_limit','900-second cap');
+check((await reserve(u2)).allowed,'users independent');
+await db.exec(`UPDATE live_voice_reservations SET blocked_until='2030-01-01'`);
+check(await bind(a.reservation_id,'conv_a'),'bind');check(!await bind(a.reservation_id,'conv_b'),'cannot rebind');
+check((await settle('conv_a',100)).ok,'settle');check((await settle('conv_a',0)).duplicate,'replay idempotent');
+check((await db.query('SELECT reserved_seconds FROM live_voice_days WHERE user_id=$1',[u])).rows[0].reserved_seconds===700,'refund exactly once');
+check(!(await bind(b.reservation_id,'invalid')),'invalid conversation');
+check((await settle('conv_missing',10)).reason==='unknown_conversation','unknown id');
+await db.query(`UPDATE live_voice_reservations SET created_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[b.reservation_id]);
+check(!await bind(b.reservation_id,'conv_late'),'late-issued ticket never exposed');
+check(await bind(c.reservation_id,'conv_c'),'third bind');
+check((await settle('conv_c',350)).provider_overrun,'provider overrun flagged');
+check((await db.query('SELECT reserved_seconds FROM live_voice_days WHERE user_id=$1',[u])).rows[0].reserved_seconds===750,'overrun counted without clipping');
+
+await db.exec(`UPDATE profiles SET account_status='suspended' WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','suspended rejected');
+await db.exec(`UPDATE profiles SET account_status='active'; DELETE FROM user_roles WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','roleless rejected');
+await db.exec(`INSERT INTO user_roles VALUES('${u2}','student'); UPDATE user_subscriptions SET remaining_minutes=0 WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','zero balance rejected');
+await db.exec(fn.replace('clock_timestamp()',`'2026-11-23T20:50:00Z'::timestamptz`));check((await reserve(u)).reason==='day_boundary','Riyadh midnight start guard');
+const denied=(await db.query(`SELECT has_function_privilege('authenticated','public.reserve_live_voice(uuid)','EXECUTE') AS p`)).rows[0].p;check(!denied,'no client RPC privilege');
+check((await db.query(`SELECT has_function_privilege('service_role','public.reserve_live_voice(uuid)','EXECUTE') AS p`)).rows[0].p,'service-only RPC');
+await db.exec('SET ROLE authenticated');let blocked=false;try{await db.query('SELECT * FROM live_voice_days')}catch{blocked=true}check(blocked,'private ledger not readable by clients');await db.exec('RESET ROLE');
+console.log(count,'SQL assertions PASS in isolated PostgreSQL-compatible PGlite. Row-lock parallel stress still requires real multi-connection Postgres.');await db.close();
