@@ -19,11 +19,15 @@ The helper is now integrated OFF PRODUCTION into the exact retrieved live `ai-tu
 ## Work verified off production
 
 - Deno2.2.7 type/dependency check passed for preview endpoint and TTS helper.
--68 unit tests pass across stage1, live daily gate, reconcile worker and TTS helper.
--31 isolated SQL assertions pass including shared TTS/web allowance and persistent overrun breaker.
+-79 unit tests pass across stage1, live daily gate, reconcile worker and TTS helper.
+-33 isolated SQL assertions pass including shared TTS/web allowance and persistent overrun breaker.
 -Actual local PostgreSQL18.7:32 parallel connections x3reservation rounds,32denials at exhaustion,32duplicate settlements; exactly900held and one refund. The same stress test then passed on local PostgreSQL15.20, matching the production15.x major version (production15.8).
 -Production read-only check: existing immutable provider version exists; auth true;600sec max; duration override false. Proposed cap tables absent.
 
 Current release hold: approved single paid cutoff proof in progress on isolated zero-traffic provider branch. No main merge, cap DB migration, production provider switch or OTA. Private source config defaults disabled; integrated token endpoint never falls back to uncapped issuance. Private Python reconciliation worker is prepared for flock-protected once-per-minute cron; no public worker endpoint. Actual production activation still requires proof report and renewed publishing approval.
 
 Sources: https://elevenlabs.io/docs/api-reference/text-to-speech/convert and https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps . Both list output formats and generation payloads, neither establishes a hard audio-duration input cap.
+
+## Selected follow-up, 13:09
+
+Owner selected299second provider maximum with300second reservation and approved one additional proof call. New agent created directly with299maximum, existing auth/override/security settings preserved, one branch including archived, no old600second local versions. Production stays unchanged. Proof currently in progress. Returned signed URLs encode branch but no version; a foreign old branch can be placed in a minted URL even though config GET rejects it404. No connection with that foreign route has been attempted. Substitution protection remains an explicit release gate, not assumed safe.

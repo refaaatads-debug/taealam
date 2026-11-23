@@ -32,6 +32,7 @@ docker restart supabase-edge-functions
 # Production default provider version was never switched, so no provider rollback.
 ROLLBACK
 chmod 700 "$base/rollback.sh"
+trap 'status=$?; trap - EXIT; if [ "$status" -ne 0 ]; then sh "$base/rollback.sh"; fi; exit "$status"' EXIT
 # Validate schema migration against local staging before this script is authorized.
 docker exec -i supabase-db psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres < "$stage/supabase/migrations/20261123_live_voice_daily_preview.sql"
 for f in ai-tutor-token/index.ts ai-tutor-chat/index.ts _shared/live-voice-daily-preview.ts _shared/tts-daily-budget-preview.ts _shared/premium-voice.ts _shared/live-voice-cap-config.ts _shared/live-voice-cap-config.json; do cp -a "$stage/supabase/functions/$f" "$root/$f"; done
