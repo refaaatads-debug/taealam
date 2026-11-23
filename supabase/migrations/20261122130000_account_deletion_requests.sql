@@ -20,3 +20,5 @@ CREATE POLICY "Users read own deletion request" ON public.account_deletion_reque
   FOR SELECT TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "Admins manage deletion requests" ON public.account_deletion_requests
   FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.account_deletion_requests TO authenticated;
+GRANT ALL ON public.account_deletion_requests TO service_role;
