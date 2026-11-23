@@ -140,7 +140,7 @@ serve(async (req) => {
     }
 
     const cap = await loadDailyVoiceConfig();
-    if (!cap.enabled || cap.agentId !== agentId) throw new Error("cap_not_ready");
+    if (!cap.enabled || cap.agentId === agentId) throw new Error("cap_not_ready");
     // Use a service client without the incoming Authorization header. Only these
     // RPCs may reserve budget; browsers cannot invoke them directly.
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -154,7 +154,16 @@ serve(async (req) => {
     };
     const result = await issueCappedVoiceTicket(user.id, {
       ...cap,
-      getAgentVersion: (a,v) => api("agents/"+encodeURIComponent(a)+"?version_id="+encodeURIComponent(v)),
+      getAgentVersion: async (a,v) => {
+        const config = await api("agents/"+encodeURIComponent(a)+"?version_id="+encodeURIComponent(v));
+        const branches = await api("agents/"+encodeURIComponent(a)+"/branches?include_archived=true");
+        const tip = await api("agents/"+encodeURIComponent(a));
+        config.isolated_branch_verified = branches.results?.length === 1 &&
+          (branches.meta?.total === undefined || branches.meta.total === 1) &&
+          branches.results[0].id === config.main_branch_id &&
+          tip.version_id === v && tip.main_branch_id === config.main_branch_id;
+        return config;
+      },
       reserve: async uid => { const r=await admin.rpc("reserve_live_voice",{p_user:uid,p_kind:"live"}); if(r.error)throw Error("reservation_failed"); return r.data; },
       mint: async (a,v) => (await api("conversation/get-signed-url?"+new URLSearchParams({agent_id:a,version_id:v,include_conversation_id:"true"}))).signed_url,
       bind: async (id,c) => { const r=await admin.rpc("bind_live_voice",{p_reservation:id,p_conversation:c}); if(r.error)throw Error("binding_failed"); return r.data===true; }

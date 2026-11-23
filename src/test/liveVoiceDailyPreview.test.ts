@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { issueCappedVoiceTicket, reconcileCappedVoice, type VoiceCapDependencies } from '../../supabase/functions/_shared/live-voice-daily-preview';
 function fixture() {
- const config={agent_id:'agent_a',version_id:'version_a',conversation_config:{conversation:{max_duration_seconds:300}},platform_settings:{auth:{enable_auth:true},overrides:{conversation_config_override:{conversation:{max_duration_seconds:false},agent:{prompt:{prompt:false}}}}}};
+ const config={agent_id:'agent_a',version_id:'version_a',branch_id:'branch_a',main_branch_id:'branch_a',isolated_branch_verified:true,conversation_config:{conversation:{max_duration_seconds:299}},platform_settings:{auth:{enable_auth:true},overrides:{conversation_config_override:{conversation:{max_duration_seconds:false},agent:{prompt:{prompt:false}}}}}};
  const calls:string[]=[];
  const deps:VoiceCapDependencies={enabled:true,agentId:'agent_a',versionId:'version_a',getAgentVersion:async()=>config,
  reserve:async id=>{calls.push(id);return {allowed:true,reservation_id:'res_a',max_seconds:300}},
- mint:async()=>{calls.push('mint');return 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_a&conversation_id=conv_a&conversation_signature=secret'},
+ mint:async()=>{calls.push('mint');return 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_a&branch_id=branch_a&conversation_id=conv_a&conversation_signature=secret'},
  bind:async()=>{calls.push('bind');return true}};
  return {config,calls,deps};
 }
 describe('daily cap preview ticket gate',()=>{
  it('disabled by default in adapters; does not reserve when disabled',async()=>{const f=fixture();f.deps.enabled=false;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('cap_not_ready');expect(f.calls).toEqual([])});
  it('binds before returning single-use link',async()=>{const f=fixture();const r=await issueCappedVoiceTicket('u',f.deps);expect(r.allowed).toBe(true);expect(f.calls).toEqual(['u','mint','bind']);});
- it.each([60,600,900,undefined])('rejects unapproved provider maximum %j',async n=>{const f=fixture();f.config.conversation_config.conversation.max_duration_seconds=n as any;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version');expect(f.calls).toEqual([])});
+ it.each([60,300,600,900,undefined])('rejects unapproved provider maximum %j',async n=>{const f=fixture();f.config.conversation_config.conversation.max_duration_seconds=n as any;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version');expect(f.calls).toEqual([])});
+ it('rejects agent with unverified branch isolation',async()=>{const f=fixture();f.config.isolated_branch_verified=false;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version')});
+ it('rejects foreign branch in returned URL',async()=>{const f=fixture();f.deps.mint=async()=> 'wss://api.elevenlabs.io/x?agent_id=agent_a&branch_id=foreign&conversation_id=conv_a&conversation_signature=x';await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_signed_url')});
  it('rejects public agent',async()=>{const f=fixture();f.config.platform_settings.auth.enable_auth=false;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version')});
  it('rejects client duration override',async()=>{const f=fixture();f.config.platform_settings.overrides.conversation_config_override.conversation.max_duration_seconds=true;await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version')});
  it('rejects mismatched version',async()=>{const f=fixture();f.config.version_id='other';await expect(issueCappedVoiceTicket('u',f.deps)).rejects.toThrow('unsafe_provider_version')});

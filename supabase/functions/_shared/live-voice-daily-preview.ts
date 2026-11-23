@@ -1,5 +1,5 @@
-// Preview only. Not imported by any deployed function. No direct client signed URL
-// can bypass the pinned provider-enforced 300-second version.
+// Off production. Requires approved release after cutoff and substitution gates.
+// Provider signature branch-binding remains unverified; do not claim bypass-proof.
 export type VoiceCapDependencies = {
   enabled: boolean;
   agentId: string;
@@ -15,8 +15,8 @@ export async function issueCappedVoiceTicket(authenticatedUserId: string, deps: 
   if (!authenticatedUserId) throw new Error('unauthorized');
   // Resolve the EXACT immutable version, not mutable branch tip or main config.
   const config = await deps.getAgentVersion(deps.agentId, deps.versionId);
-  if (config.agent_id !== deps.agentId || config.version_id !== deps.versionId ||
-      config.conversation_config?.conversation?.max_duration_seconds !== 300 ||
+  if (config.isolated_branch_verified !== true || !config.main_branch_id || config.branch_id !== config.main_branch_id || config.agent_id !== deps.agentId || config.version_id !== deps.versionId ||
+      config.conversation_config?.conversation?.max_duration_seconds !== 299 ||
       config.platform_settings?.auth?.enable_auth !== true ||
       config.platform_settings?.overrides?.conversation_config_override?.conversation?.max_duration_seconds !== false ||
       config.platform_settings?.overrides?.conversation_config_override?.agent?.prompt?.prompt !== false) {
@@ -30,12 +30,12 @@ export async function issueCappedVoiceTicket(authenticatedUserId: string, deps: 
   const u = new URL(signedUrl);
   const conversationId = u.searchParams.get('conversation_id');
   if (u.protocol !== 'wss:' || u.hostname !== 'api.elevenlabs.io' ||
-      u.searchParams.get('agent_id') !== deps.agentId || !u.searchParams.get('conversation_signature') ||
+      u.searchParams.get('branch_id') !== config.main_branch_id || u.searchParams.get('agent_id') !== deps.agentId || !u.searchParams.get('conversation_signature') ||
       !conversationId?.startsWith('conv_')) throw new Error('unsafe_signed_url');
   if (!await deps.bind(reservation.reservation_id, conversationId)) throw new Error('binding_failed');
   // Preserve existing web response contract. A countdown can be added separately
   // for UX but is never the enforcement mechanism.
-  return { allowed: true, signedUrl, maxSeconds: 300 };
+  return { allowed: true, signedUrl, maxSeconds: 299 };
 }
 
 export async function reconcileCappedVoice(

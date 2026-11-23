@@ -26,7 +26,13 @@ Deno.serve(async (req: Request) => {
   const versionId=Deno.env.get('LIVE_VOICE_CAPPED_VERSION_ID') ?? '';
   const result=await issueCappedVoiceTicket(user.id,{
    enabled:true,agentId,versionId,
-   getAgentVersion:async(a,v)=>api('agents/'+encodeURIComponent(a)+'?version_id='+encodeURIComponent(v)),
+   getAgentVersion:async(a,v)=>{
+    const config=await api('agents/'+encodeURIComponent(a)+'?version_id='+encodeURIComponent(v));
+    const branches=await api('agents/'+encodeURIComponent(a)+'/branches?include_archived=true');
+    const tip=await api('agents/'+encodeURIComponent(a));
+    config.isolated_branch_verified=branches.results?.length===1 && (branches.meta?.total===undefined || branches.meta.total===1) && branches.results[0].id===config.main_branch_id && tip.version_id===v;
+    return config;
+   },
    reserve:async(uid)=>{const r=await db.rpc('reserve_live_voice',{p_user:uid});if(r.error)throw Error('reservation_failed');return r.data;},
    mint:async(a,v)=>{const q=new URLSearchParams({agent_id:a,version_id:v,include_conversation_id:'true'});return (await api('conversation/get-signed-url?'+q)).signed_url;},
    bind:async(id,c)=>{const r=await db.rpc('bind_live_voice',{p_reservation:id,p_conversation:c});if(r.error)throw Error('binding_failed');return r.data===true;},
