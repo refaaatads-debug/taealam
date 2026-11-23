@@ -1,3 +1,5 @@
+> CURRENT POLICY UPDATE13:39: daily allowance is300seconds/account/Riyadh day, shared web connected time and newly generated mobile TTS. Provider max299seconds, reservation300. Earlier900second/three-session text below is historical and superseded. No eligibility expansion, deployment or paid test approval.
+
 # Both-platform scope update, 2026-11-23
 
 Owner accepted five-minute live sessions, Riyadh day, proposed two-table/three-RPC DB scope, and requested both web and mobile instead of live-web-only. Owner approved implementation and the shared900second product rule. Latest release gate holds publishing until the separately approved test is reported and owner approves publishing. This replaces the live-only scope assumption in the earlier design, not the release gates.

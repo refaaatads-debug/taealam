@@ -1,3 +1,5 @@
+> CURRENT POLICY UPDATE13:39: daily allowance is300seconds/account/Riyadh day, shared web connected time and newly generated mobile TTS. Provider max299seconds, reservation300. Earlier900second/three-session text below is historical and superseded. No eligibility expansion, deployment or paid test approval.
+
 # Live voice daily cap: preview, not deployed
 
 ## Status and proposed product rule

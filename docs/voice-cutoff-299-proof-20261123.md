@@ -1,3 +1,5 @@
+> CURRENT POLICY UPDATE13:39: daily allowance is300seconds/account/Riyadh day, shared web connected time and newly generated mobile TTS. Provider max299seconds, reservation300. Earlier900second/three-session text below is historical and superseded. No eligibility expansion, deployment or paid test approval.
+
 # Follow-up proof:299second isolated agent, 2026-11-23
 
 Owner selected option2 and approved exactly one more call, no retries, no student data, SAR5cap. No further TTS. Publishing remains a separate decision.

@@ -1,3 +1,5 @@
+> CURRENT POLICY UPDATE13:39: daily allowance is300seconds/account/Riyadh day, shared web connected time and newly generated mobile TTS. Provider max299seconds, reservation300. Earlier900second/three-session text below is historical and superseded. No eligibility expansion, deployment or paid test approval.
+
 # Offline substitution test plan and relay fallback
 
 Status: awaiting explicit approval. Do not execute. No current permission for more connections.

@@ -41,8 +41,8 @@ BEGIN
  SELECT reserved_seconds INTO n FROM public.live_voice_days WHERE user_id=p_user AND usage_day=d FOR UPDATE;
  IF EXISTS(SELECT 1 FROM public.live_voice_reservations WHERE user_id=p_user AND state<>'settled' AND blocked_until>t) THEN
  RETURN jsonb_build_object('allowed',false,'reason','conversation_reserved'); END IF;
- hold:=CASE WHEN p_kind='live' THEN 300 ELSE LEAST(300,900-n) END;
- IF hold<=0 OR n+hold>900 THEN RETURN jsonb_build_object('allowed',false,'reason','daily_limit'); END IF;
+ hold:=CASE WHEN p_kind='live' THEN 300 ELSE LEAST(300,300-n) END;
+ IF hold<=0 OR n+hold>300 THEN RETURN jsonb_build_object('allowed',false,'reason','daily_limit'); END IF;
  UPDATE public.live_voice_days SET reserved_seconds=reserved_seconds+hold WHERE user_id=p_user AND usage_day=d;
  INSERT INTO public.live_voice_reservations(user_id,usage_day,held_seconds,blocked_until,kind)
  VALUES(p_user,d,hold,t+CASE WHEN p_kind='live' THEN interval '20 minutes 10 seconds' ELSE interval '2 minutes' END,p_kind) RETURNING id INTO rid;
