@@ -35,7 +35,7 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM public.profiles WHERE user_id=p_user AND account_status='active' AND is_deleted=false)
  OR NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=p_user)
  OR NOT EXISTS(SELECT 1 FROM public.user_subscriptions s JOIN public.subscription_plans sp ON sp.id=s.plan_id
- WHERE s.user_id=p_user AND s.is_active=true AND s.remaining_minutes>0 AND sp.tier='premium') THEN
+ WHERE s.user_id=p_user AND s.is_active=true AND s.remaining_minutes>0 AND s.remaining_minutes::text NOT IN ('NaN','Infinity','-Infinity') AND sp.tier='premium') THEN
  RETURN jsonb_build_object('allowed',false,'reason','account_ineligible'); END IF;
  INSERT INTO public.live_voice_days(user_id,usage_day) VALUES(p_user,d) ON CONFLICT DO NOTHING;
  SELECT reserved_seconds INTO n FROM public.live_voice_days WHERE user_id=p_user AND usage_day=d FOR UPDATE;

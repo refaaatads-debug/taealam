@@ -37,6 +37,8 @@ await db.exec('UPDATE live_voice_reservations SET actual_seconds=NULL WHERE actu
 await db.exec(`UPDATE profiles SET account_status='suspended' WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','suspended rejected');
 await db.exec(`UPDATE profiles SET account_status='active'; DELETE FROM user_roles WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','roleless rejected');
 await db.exec(`INSERT INTO user_roles VALUES('${u2}','student'); UPDATE user_subscriptions SET remaining_minutes=0 WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','zero balance rejected');
+await db.exec(`UPDATE user_subscriptions SET remaining_minutes='NaN' WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','NaN balance rejected');
+await db.exec(`UPDATE user_subscriptions SET remaining_minutes='Infinity' WHERE user_id='${u2}'`);check((await reserve(u2)).reason==='account_ineligible','infinite balance rejected');
 await db.exec('UPDATE live_voice_reservations SET actual_seconds=NULL WHERE actual_seconds>held_seconds');
 await db.exec(fn.replace('clock_timestamp()',`'2026-11-23T20:50:00Z'::timestamptz`));check((await reserve(u)).reason==='day_boundary','Riyadh midnight start guard');
 const denied=(await db.query(`SELECT has_function_privilege('authenticated','public.reserve_live_voice(uuid,text)','EXECUTE') AS p`)).rows[0].p;check(!denied,'no client RPC privilege');
