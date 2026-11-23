@@ -4,6 +4,7 @@ import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/b
 import { getGeminiModel, getGroqModels, getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+import { shouldGenerateTutorAudio } from "../_shared/premium-voice.ts";
 
 const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" - مدرس ذكي ودود يساعد الطلاب العرب.
 - اشرح المفاهيم بأسلوب بسيط واضح بالعربية الفصحى.
@@ -87,6 +88,18 @@ serve(async (req) => {
     const { messages, speak = true } = await req.json();
     if (!Array.isArray(messages)) return new Response(JSON.stringify({ error: "messages required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Preserve non-voice text features, including older clients requesting
+    // speak:true by default. Only provider-paid audio is premium restricted.
+    let audioAllowed = false;
+    if (speak !== false) {
+      const { data: subscriptions, error: entitlementError } = await supabase
+        .from("user_subscriptions")
+        .select("is_active,remaining_minutes,subscription_plans:plan_id(tier)")
+        .eq("user_id", user.id);
+      // Fail closed for audio on DB errors; text still uses existing auth policy.
+      audioAllowed = !entitlementError && shouldGenerateTutorAudio(speak, subscriptions || []);
+    }
+
     const GROQ_API_KEY = await getProviderApiKey("groq", "GROQ_API_KEY");
     const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
 
@@ -98,7 +111,7 @@ serve(async (req) => {
     if (!text) return new Response(JSON.stringify({ error: "كل النماذج مشغولة، حاول بعد دقيقة" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     let audioBase64 = null;
-    if (speak && text) {
+    if (audioAllowed && text) {
       const { data: voiceSetting } = await supabase.from("site_settings").select("value").eq("key", "ai_tutor_voice_id").maybeSingle();
       const voiceId = voiceSetting?.value?.trim() || "EXAVITQu4vr4xnSDxMaL";
       const ELEVENLABS_API_KEY = await getProviderApiKey("elevenlabs", "ELEVENLABS_API_KEY");
@@ -117,7 +130,7 @@ serve(async (req) => {
         } catch { console.error("TTS request exception"); }
       }
     }
-    return new Response(JSON.stringify({ text, audio: audioBase64 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ text, audio: audioBase64, ...(speak !== false && !audioAllowed ? { audio_disabled_reason: "premium_required" } : {}) }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch {
     console.error("ai-tutor-chat request failed");
     return new Response(JSON.stringify({ error: "تعذر معالجة المحادثة حالياً" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
