@@ -1,9 +1,11 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Loader2, Volume2, RefreshCw } from "lucide-react";
+import { Mic, MicOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+import { VoiceTutorPanel } from "./VoiceTutorPanel";
 
 const STAGE_LABELS: Record<string, string> = {
   kindergarten: "رياض الأطفال",
@@ -23,6 +25,8 @@ const RETRY_DELAY_MS = 2500;
 
 const VoiceTutorInner = () => {
   const [connecting, setConnecting] = useState(false);
+  const [userText, setUserText] = useState("");
+  const [assistantText, setAssistantText] = useState("");
   const [studentName, setStudentName] = useState<string>("");
   const [hasPremium, setHasPremium] = useState<boolean | null>(null);
   const [disconnectMsg, setDisconnectMsg] = useState<string>("");
@@ -101,7 +105,13 @@ const VoiceTutorInner = () => {
   }, []);
 
   const conversation = useConversation({
+    onMessage: ({ source, message }) => {
+      if (source === "user") setUserText(message);
+      else if (source === "ai") setAssistantText(message);
+    },
     onConnect: () => {
+      setUserText("");
+      setAssistantText("");
       sessionStartRef.current = Date.now();
       retryCountRef.current = 0;
       setRetryCount(0);
@@ -163,36 +173,13 @@ const VoiceTutorInner = () => {
   const isActive = conversation.status === "connected";
 
   return (
-    <div className="text-center py-8">
-      <div className={`relative inline-flex items-center justify-center w-32 h-32 rounded-full mb-6 transition-all ${
-        isActive
-          ? "bg-gradient-to-br from-primary to-secondary shadow-2xl shadow-primary/40 animate-pulse"
-          : "bg-muted"
-      }`}>
-        {isActive && conversation.isSpeaking && (
-          <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
-        )}
-        {retrying && !isActive ? (
-          <RefreshCw className="h-14 w-14 text-muted-foreground animate-spin" />
-        ) : isActive ? (
-          <Volume2 className="h-14 w-14 text-primary-foreground" />
-        ) : (
-          <Mic className="h-14 w-14 text-muted-foreground" />
-        )}
-      </div>
-
-      <h3 className="text-lg font-bold mb-1">
-        {isActive
-          ? conversation.isSpeaking ? "المعلم يتحدث..." : "أنا أستمع إليك"
-          : retrying ? `إعادة الاتصال... (${retryCount}/${MAX_RETRIES})`
-          : studentName ? `مرحباً ${studentName.split(" ")[0]} 👋` : "محادثة صوتية مباشرة"}
-      </h3>
-      <p className="text-sm text-muted-foreground mb-6">
-        {isActive
-          ? "تحدث بالعربية — معلمك الذكي يفهمك ويجيبك بالعربية"
-          : "تحدث مع المعلم الذكي بصوتك مباشرة بالعربية"}
-      </p>
-
+    <VoiceTutorPanel
+      state={isActive ? conversation.isSpeaking ? "speaking" : "listening" : retrying ? "retrying" : connecting ? "connecting" : "idle"}
+      getOutputVolume={conversation.getOutputVolume}
+      studentName={studentName.split(" ")[0]}
+      userText={userText}
+      assistantText={assistantText}
+    >
       {hasPremium === false && !isActive && !retrying && (
         <div className="mb-4 p-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground max-w-md mx-auto">
           🔒 المحادثة الصوتية الحية متاحة فقط لمشتركي <strong className="text-foreground">الباقة الاحترافية</strong> مع رصيد دقائق متبقي.
@@ -220,15 +207,12 @@ const VoiceTutorInner = () => {
           {connecting ? "جاري الاتصال..." : "ابدأ المحادثة بالعربية"}
         </Button>
       ) : (
-        <Button onClick={stop} size="lg" variant="destructive" className="gap-2 rounded-full px-8" disabled={!isActive && !retrying}>
+        <Button data-ending="true" onClick={stop} size="lg" variant="destructive" className="gap-2 rounded-full px-8" disabled={!isActive && !retrying}>
           <MicOff className="h-4 w-4" /> {retrying ? "إلغاء" : "إنهاء المحادثة"}
         </Button>
       )}
 
-      <p className="text-xs text-muted-foreground mt-6">
-        💡 جرّب: "اشرح لي هذه المسألة" أو "صحّح إجابتي" أو "لخّص لي هذا الدرس"
-      </p>
-    </div>
+    </VoiceTutorPanel>
   );
 };
 
