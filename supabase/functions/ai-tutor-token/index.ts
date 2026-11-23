@@ -7,6 +7,11 @@ import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Reversible owner-requested stop. Text tutor and TTS are separate routes.
+  const LIVE_VOICE_ENABLED = false;
+  if (!LIVE_VOICE_ENABLED) return new Response(JSON.stringify({
+    reason_code: "live_voice_disabled", error: "المحادثات الصوتية الحية متوقفة. استخدم نص + نطق."
+  }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
   const rate = checkEdgeRateLimit(req, "ai-tutor-token", 5);
   if (!rate.allowed) {
     return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
