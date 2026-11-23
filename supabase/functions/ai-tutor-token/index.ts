@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle
 import { getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+import { liveVoiceAccountAllowed, liveVoicePremiumAllowed, allowLiveVoiceIssuance } from "../_shared/live-voice-access.ts";
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -38,19 +39,37 @@ serve(async (req) => {
       });
     }
 
+    const [{ data: profile, error: profileError }, { data: roles, error: roleError }] = await Promise.all([
+      supabase.from("profiles").select("account_status,is_deleted").eq("user_id", user.id).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", user.id),
+    ]);
+    if (profileError || roleError || !liveVoiceAccountAllowed(profile, roles)) {
+      return new Response(JSON.stringify({ error: "الحساب غير مؤهل لبدء المحادثة الصوتية", reason_code: "account_ineligible" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+    if (!allowLiveVoiceIssuance(user.id)) {
+      return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول بعد دقيقة", reason_code: "user_rate_limited" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60", "Cache-Control": "no-store" },
+      });
+    }
+
     // Check premium subscription with detailed reason classification
-    const { data: allSubs } = await supabase
+    const { data: allSubs, error: subscriptionError } = await supabase
       .from("user_subscriptions")
       .select("id, remaining_minutes, is_active, subscription_plans:plan_id(tier, name_ar)")
       .eq("user_id", user.id)
       .order("remaining_minutes", { ascending: false });
 
+    if (subscriptionError) {
+      return new Response(JSON.stringify({ error: "تعذر التحقق من الاشتراك", reason_code: "subscription_check_failed" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     const subsList = allSubs || [];
     const activeSubs = subsList.filter((s: any) => s.is_active);
     const premiumSubs = subsList.filter((s: any) => s.subscription_plans?.tier === "premium");
-    const validPremium = premiumSubs.find(
-      (s: any) => s.is_active && (s.remaining_minutes ?? 0) > 0
-    );
+    const validPremium = subsList.find(liveVoicePremiumAllowed);
 
     if (!validPremium) {
       let reason_code = "no_subscription";
@@ -120,10 +139,10 @@ serve(async (req) => {
 
     // Get signed URL — primary key first, fallback to backup on quota/auth error
     const tryGetSignedUrl = (key: string) =>
-      fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+      fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}&include_conversation_id=true`,
         { headers: { "xi-api-key": key } });
 
-    let response = await tryGetSignedUrl(ELEVENLABS_API_KEY);
+    let response = await tryGetSignedUrl(ELEVENLABS_API_KEY || ELEVENLABS_API_KEY_BACKUP);
     if ((response.status === 401 || response.status === 402 || response.status === 429) && ELEVENLABS_API_KEY_BACKUP) {
       console.warn("ElevenLabs primary key exhausted, switching to backup key...");
       response = await tryGetSignedUrl(ELEVENLABS_API_KEY_BACKUP);
@@ -138,8 +157,11 @@ serve(async (req) => {
     }
 
     const { signed_url } = await response.json();
+    if (typeof signed_url !== "string" || !signed_url.startsWith("wss://api.elevenlabs.io/") || !new URL(signed_url).searchParams.has("conversation_id")) {
+      throw new Error("Provider did not return a single-use conversation URL");
+    }
     return new Response(JSON.stringify({ signedUrl: signed_url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   } catch (e) {
     console.error("ai-tutor-token request failed:", e);
