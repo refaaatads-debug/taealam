@@ -14,6 +14,8 @@ export function geminiTokenConfig(issuedAtMs: number) {
       model: GEMINI_LIVE_MODEL,
       config: {
         responseModalities: ['AUDIO'],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
         systemInstruction: GEMINI_ARABIC_INSTRUCTION,
         // No tools, grounding, resumption, video or compression in the pilot.
       },

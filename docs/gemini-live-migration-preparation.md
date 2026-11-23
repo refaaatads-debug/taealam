@@ -16,8 +16,8 @@ Prepare an adult, synthetic-data voice pilot using `gemini-3.8-live`. Keep Eleve
 - Full 300-second reservation before minting. Failed/ambiguous minting keeps its debit. No client timing refund, no new refund endpoint, no client access to ledger tables. Gemini rows remain reserved, without an ElevenLabs conversation ID, so the existing ElevenLabs reconciler does not touch them.
 - Ephemeral credentials: one use, at most 60 seconds to start, absolute expiry 300 seconds from issuance, server-locked model and Arabic instruction. No session resumption, tools, grounding, video or cross-session history in this pilot.
 - Uses existing `getProviderApiKey('gemini', 'GEMINI_API_KEY')`, honoring the owner's one-key preference. The long-lived key never reaches web/mobile code. Browser receives only an ephemeral credential and deadlines with no-store headers.
-- Unwired browser SDK transport with absolute-deadline guard, interruption/event callback surface and explicit cleanup. It is NOT a finished audio/UI integration: PCM capture, playback queue, microphone permissions, mute, background/visibility handling and orb state mapping still need implementation and tests.
-- Pinned `@google/genai` 3.6.1. Eight offline policy/contract tests. Existing cap/access tests also run. Rollback preparation script refuses to change production and includes a local file-restore rehearsal only.
+- Local development-only browser entry now wires microphone AudioWorklet capture to mono 16kHz PCM, 24kHz queued playback, interruption flush, real output-level orb, mute, end, visibility/pagehide cleanup and absolute deadline. It is excluded from production build inputs and App routes. Signed-out/consent UI checks, mocked session lifecycle and fake-device browser audio tests pass. Real provider interoperability and physical-device testing remain unverified.
+- Pinned `@google/genai` 3.6.1. Sixteen offline pilot/PCM/lifecycle tests, plus existing cap/access tests, 62 total. Rollback preparation script refuses to change production and includes a local file-restore rehearsal only.
 
 ## Enforcement caveats and release gates
 
@@ -37,7 +37,7 @@ Read-only production inspection: Gemini provider is enabled, no model override o
 
 The owner prefers one shared Gemini key. Keep that choice, with separate route/model usage metrics. Revocation/rotation and credential failures then affect all Gemini features. Separate keys in one project do NOT isolate project/model quotas or billing. Separate projects are needed for stronger isolation. A shared key also loses key-level feature attribution, but application usage logs can still estimate per-feature cost without storing student audio or transcripts. Existing spend, project identity, tier and active quota remain unverified.
 
-A secure request has been completed for a new key. It has NOT been read, tested, installed or substituted. The owner selected the new saved key for all features, but has not approved installing it. Preserve the existing production key until the owner explicitly approves the exact shared-key change. See `gemini-key-rotation-proposal.md` for the verified sixteen-consumer blast radius and exact proposed operation. Use a restricted Gemini API key only. During a future approved installation, transfer the saved key through a protected secret path into the server secret store, never a repository, PR, `.env` committed file, command output or chat. Restart/update only the approved services, then verify that Sanad still works. Do not create a second untracked secret copy.
+The new key was subsequently installed through the separately approved secret-only rotation at 21:31 Riyadh. A free model-catalog read and key-match/readiness checks passed; no generation test was done. The owner selected and separately approved the shared-key installation. The old key remains active for rollback. See `gemini-key-rotation-proposal.md` for the verified sixteen-consumer blast radius and exact proposed operation. Use a restricted Gemini API key only. During a future approved installation, transfer the saved key through a protected secret path into the server secret store, never a repository, PR, `.env` committed file, command output or chat. Restart/update only the approved services, then verify that Sanad still works. Do not create a second untracked secret copy.
 
 ## Privacy and terms
 
@@ -57,13 +57,13 @@ Mobile is currently record -> upload/transcribe -> text response -> encoded audi
 
 A native migration needs PCM microphone capture (16kHz mono signed PCM), streaming output playback at the provider-declared rate, echo/interrupt handling, Bluetooth/headset/background cleanup, permissions and provider event state mapping. Current expo-audio record-to-file flow is not proof of supported full-duplex PCM streaming. Evaluate native module support on the installed Expo/RN versions; if required, build/review/release a native update, never silently publish OTA. Keep app text, saved replays and device speech working. No mobile file, dependency, OTA, APK or store release changed here.
 
-Web requires replacing `@elevenlabs/react` session handling, not just swapping the token URL. Keep it until Gemini audio capture/playback and orb state integration pass real-device tests. ElevenLabs TTS in `ai-tutor-chat` must remain until a separately approved mobile audio replacement. A complete ElevenLabs removal is therefore at least two releases, not one key switch.
+The isolated development entry replaces the session interface and wires Gemini audio/orb; the normal web route still uses `@elevenlabs/react`. Keep it unchanged until Gemini integration passes approved provider tests and physical-device tests. ElevenLabs TTS in `ai-tutor-chat` must remain until a separately approved mobile audio replacement. A complete ElevenLabs removal is therefore at least two releases, not one key switch.
 
 ## Rollout and rollback
 
 1. Resolve under-18/product-contract eligibility. Confirm adult test environment, project identity, restricted key, paid/free data treatment and synthetic test scope.
 2. Owner approves a small explicit test spend. Verify token minting/config locks in the exact edge runtime, then one bounded audio pilot and cutoff/reuse/overrun tests. None done yet.
-3. Complete browser PCM pipeline and UX with isolated tests; approve exact branch/commit, deployment scope, backup and tester account.
+3. Browser pipeline and local UX harness are prepared; complete real-device and approved provider tests, then approve exact branch/commit, deployment scope, backup and adult tester account.
 4. Capture current backend/web/config hashes and a nonsecret secret-name inventory. Rehearse exact scoped rollback on copied files before deploy. Current script is only a plan/local file rehearsal, not this release rollback.
 5. Deploy additive adult pilot with allowlist only when approved and legally suitable; do not reroute Sanad, change text models or automatically replace the shared key.
 6. Only after accepted evidence, separately approve production student-compatible architecture, privacy and mobile migration.
@@ -89,3 +89,9 @@ Rollback: first disable new Gemini issuance, then wait at least token expiry plu
 - Restricted API key requirements: https://ai.google.dev/gemini-api/docs/api-key
 - Per-project quotas: https://ai.google.dev/gemini-api/docs/rate-limits?authuser=0
 - Cloud Live per-turn billing context, not a substitute for Developer API account verification: https://cloud.google.com/model-garden/pricing
+
+## Local preview, 22:45 update
+
+Run `npm run dev -- --host 127.0.0.1`, then open `/gemini-adult-pilot.html` locally. This dev-only entry is not in App navigation or production build output. It requires an existing authenticated session and server allowlist/gates, which remain disabled/undeployed. The checkbox is an acknowledgement, not proof of adult eligibility or payment permission. Do not enable it for a child-directed deployment.
+
+Offline evidence: `node scripts/capture-gemini-pilot.mjs` captures mobile/desktop UI with external networking blocked; `node scripts/test-gemini-audio-offline.mjs` uses Chromium fake microphone and a synthetic tone to verify capture/resampling, mute-no-send, actual output meter, interruption queue flush and ended microphone tracks. No provider call, speech generation or student audio is used. Local preview screenshots show idle UI and signed-out denial, not a Gemini conversation. Output transcription is requested for visual text tracking and adds text-token cost.
