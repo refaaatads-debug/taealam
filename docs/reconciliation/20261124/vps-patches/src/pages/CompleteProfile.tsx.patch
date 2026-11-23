@@ -1,0 +1,20 @@
+diff --git asrc/pages/CompleteProfile.tsx bsrc/pages/CompleteProfile.tsx
+index 77925f7..8752ef4 100644
+--- asrc/pages/CompleteProfile.tsx
++++ bsrc/pages/CompleteProfile.tsx
+@@ -80,12 +80,12 @@ const CompleteProfile = () => {
+ 
+     const { data: updated, error } = await supabase
+       .from("profiles")
+-      .update({
++      .upsert({
++        user_id: user.id,
+         full_name: parsed.data.full_name,
+         phone: parsed.data.phone,
+         teaching_stage: parsed.data.teaching_stage,
+-      } as any)
+-      .eq("user_id", user.id)
++      } as any, { onConflict: "user_id" })
+       .select("full_name, phone, teaching_stage")
+       .maybeSingle();
+ 

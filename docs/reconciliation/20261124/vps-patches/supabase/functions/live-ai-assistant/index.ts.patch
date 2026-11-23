@@ -1,0 +1,13 @@
+diff --git asupabase/functions/live-ai-assistant/index.ts bsupabase/functions/live-ai-assistant/index.ts
+index 0be7716..8c8bf32 100644
+--- asupabase/functions/live-ai-assistant/index.ts
++++ bsupabase/functions/live-ai-assistant/index.ts
+@@ -107,7 +107,7 @@ ${STRICT_RULES}
+       method: "POST",
+       headers: { Authorization: `Bearer ${GEMINI_API_KEY}`, "Content-Type": "application/json" },
+       body: JSON.stringify({
+-        model: "gemini-2.0-flash",
++        model: "gemini-2.5-flash",
+         messages: [
+           { role: "system", content: systemPrompt },
+           { role: "user", content: userPrompt },

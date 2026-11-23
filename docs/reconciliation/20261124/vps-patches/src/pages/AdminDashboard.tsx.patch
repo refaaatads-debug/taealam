@@ -1,0 +1,526 @@
+diff --git asrc/pages/AdminDashboard.tsx bsrc/pages/AdminDashboard.tsx
+index daaab61..3f65f20 100644
+--- asrc/pages/AdminDashboard.tsx
++++ bsrc/pages/AdminDashboard.tsx
+@@ -39,6 +39,7 @@ import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
+ import SessionPricingTab from "@/components/admin/SessionPricingTab";
+ import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
+ import AdminTeamManagementTab from "@/components/admin/AdminTeamManagementTab";
++import AdminPermissionsTab from "@/components/admin/AdminPermissionsTab";
+ import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
+ import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
+ import ViolationsTab from "@/components/admin/ViolationsTab";
+@@ -47,12 +48,17 @@ import AdvancedAnalyticsTab from "@/components/admin/AdvancedAnalyticsTab";
+ import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
+ import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
+ import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
++import AdminTeacherContactDialog from "@/components/admin/AdminTeacherContactDialog";
+ import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
+ import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+ import { Lock } from "lucide-react";
+ 
+ const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
+ 
++const certificateUrl = (value: string) => value?.startsWith("http")
++  ? value
++  : supabase.storage.from("support-files").getPublicUrl(value).data.publicUrl;
++
+ const TAB_TITLES: Record<string, string> = {
+   overview: "نظرة عامة",
+   users: "إدارة المستخدمين",
+@@ -78,6 +84,7 @@ const TAB_TITLES: Record<string, string> = {
+   admin_notifications: "مركز الإشعارات",
+   wallets: "المحافظ والمكالمات",
+   team: "فريق الإدارة وسجل العمليات",
++  admin_permissions: "صلاحيات أقسام لوحة الإدارة",
+   advanced_analytics: "التحليلات المتقدمة",
+   featured_teachers: "المدرسون المميزون",
+   financial_hub: "المركز المالي",
+@@ -315,16 +322,19 @@ const AdminDashboard = () => {
+   };
+ 
+   const approveTeacher = async (teacherId: string) => {
+-    const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", teacherId);
++    const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true, approval_status: "approved" } as any).eq("id", teacherId);
+     if (error) { toast.error("حدث خطأ: " + error.message); return; }
+     toast.success("تمت الموافقة على المعلم!");
+     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
+     setStats(prev => ({ ...prev, pendingTeachers: Math.max(0, prev.pendingTeachers - 1) }));
+   };
+ 
+-  const rejectTeacher = async (teacherId: string, userId: string) => {
+-    await supabase.from("teacher_profiles").delete().eq("id", teacherId);
+-    await supabase.from("user_roles").update({ role: "student" as any }).eq("user_id", userId);
++  const rejectTeacher = async (teacherId: string, _userId: string) => {
++    const { error } = await supabase
++      .from("teacher_profiles")
++      .update({ is_approved: false, is_verified: false, approval_status: "rejected" } as any)
++      .eq("id", teacherId);
++    if (error) { toast.error("تعذر رفض طلب المعلم: " + error.message); return; }
+     toast.success("تم رفض طلب المعلم");
+     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
+   };
+@@ -386,6 +396,7 @@ const AdminDashboard = () => {
+     admin_notifications: "manage_notifications",
+     domain_ssl: "manage_domain_ssl",
+     team: "manage_admins",
++    admin_permissions: "manage_admins",
+   };
+ 
+   const renderContent = () => {
+@@ -428,6 +439,7 @@ const AdminDashboard = () => {
+       case "admin_notifications": return <AdminNotificationsTab />;
+       case "wallets": return <WalletsManagementTab />;
+       case "team": return <AdminTeamManagementTab />;
++      case "admin_permissions": return <AdminPermissionsTab />;
+       case "domain_ssl": return <DomainSSLTab />;
+       case "advanced_analytics": return <AdvancedAnalyticsTab />;
+       default: return null;
+@@ -447,42 +459,39 @@ const AdminDashboard = () => {
+             permissions={access.permissions}
+           />
+           <SidebarInset>
+-            {/* Top Bar - Professional */}
+-            <header className="sticky top-0 z-20 border-b bg-gradient-to-l from-primary/10 via-background/95 to-secondary/10 backdrop-blur-md">
+-              <div className="flex items-center gap-3 px-4 md:px-6 h-16">
+-                <SidebarTrigger className="h-9 w-9 hover:bg-primary/10 rounded-lg transition-colors" />
+-                <div className="h-6 w-px bg-border" />
+-                <div className="flex items-center gap-2.5 min-w-0">
+-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shrink-0">
+-                    <Shield className="h-5 w-5 text-primary-foreground" />
+-                  </div>
+-                  <div className="min-w-0">
+-                    <h1 className="text-base md:text-lg font-black text-foreground leading-tight truncate">
+-                      {TAB_TITLES[activeTab] || "لوحة التحكم"}
+-                    </h1>
+-                    <p className="text-[11px] text-muted-foreground leading-tight hidden sm:block">
+-                      {access.isFullAdmin ? "المدير العام" : "مشرف"} · {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long" })}
+-                    </p>
+-                  </div>
++            {/* Top Bar */}
++            <header className="sticky top-0 z-20 h-14 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center">
++              <div className="flex items-center gap-3 px-4 md:px-6 w-full">
++                <SidebarTrigger className="h-8 w-8 hover:bg-muted rounded-md transition-colors text-muted-foreground" />
++                <div className="h-4 w-px bg-border" />
++                <span className="hidden lg:block text-xs font-bold text-primary whitespace-nowrap">منصة أجيال المعرفة</span>
++                <div className="h-4 w-px bg-border hidden lg:block" />
++                <div className="min-w-0">
++                  <h1 className="text-[15px] font-semibold text-foreground leading-none truncate">
++                    {TAB_TITLES[activeTab] || "لوحة التحكم"}
++                  </h1>
++                  <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
++                    {new Date().toLocaleDateString("ar-SA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
++                  </p>
+                 </div>
+                 <div className="mr-auto flex items-center gap-2">
+                   <AdminQuickSearch onNavigateTab={handleTabChange} />
+-                  <Badge variant="outline" className="hidden md:flex items-center gap-1.5 bg-success/10 border-success/30 text-success">
+-                    <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+-                    متصل
+-                  </Badge>
++                  <div className="hidden md:flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200/80 rounded-md px-2.5 py-1 font-medium">
++                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
++                    مباشر
++                  </div>
+                   {(badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed) > 0 && (
+-                    <Badge className="bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20 gap-1">
++                    <div className="flex items-center gap-1.5 text-[11px] text-red-600 bg-red-50 border border-red-200/80 rounded-md px-2.5 py-1 font-medium">
+                       <AlertTriangle className="h-3 w-3" />
+-                      {badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed} مهمة
+-                    </Badge>
++                      {badgeCounts.withdrawals + badgeCounts.support + badgeCounts.pendingBookings + badgeCounts.unreviewed} تنبيه
++                    </div>
+                   )}
+                 </div>
+               </div>
+             </header>
+ 
+             {/* Main Content */}
+-            <main className="flex-1 p-4 md:p-6 space-y-6 animate-fade-in bg-gradient-to-br from-background via-background to-muted/20 min-h-[calc(100vh-4rem)]">
++            <main className="flex-1 p-4 md:p-6 space-y-5 bg-muted/20 min-h-[calc(100vh-3.5rem)]">
+               {renderContent()}
+             </main>
+           </SidebarInset>
+@@ -496,64 +505,60 @@ const AdminDashboard = () => {
+    Sub-components for each section
+    ============================================================ */
+ 
+-const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string; value: string | number; icon: React.ElementType; color: string; subtitle?: string }) => (
+-  <Card className="border border-border/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative bg-gradient-to-br from-card to-card/80">
+-    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`} />
+-    <CardContent className="p-5 relative">
+-      <div className="flex items-start justify-between gap-3">
+-        <div className="space-y-1.5 min-w-0">
+-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide truncate">{label}</p>
+-          <p className="text-3xl font-black text-foreground tracking-tight">{value}</p>
+-          {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
+-        </div>
+-        <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
+-          <Icon className="h-5 w-5 text-primary-foreground" />
++const StatCard = ({ label, value, icon: Icon, color, subtitle, accent }: { label: string; value: string | number; icon: React.ElementType; color: string; subtitle?: string; accent?: string }) => (
++  <Card className="border border-border/50 bg-card/95 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
++    <CardContent className="p-4">
++      <div className="flex items-center justify-between gap-3 mb-3">
++        <p className="text-xs font-medium text-muted-foreground leading-tight">{label}</p>
++        <div className={`w-8 h-8 rounded-lg ${accent || "bg-muted"} flex items-center justify-center shrink-0`}>
++          <Icon className="h-[15px] w-[15px]" />
+         </div>
+       </div>
+-      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-100 transition-opacity`} />
++      <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
++      {subtitle && <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p>}
+     </CardContent>
+   </Card>
+ );
+ 
+ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab }: any) => (
+-  <div className="space-y-6">
++  <div className="space-y-5">
+     {/* Period filter */}
+     <div className="flex items-center justify-between flex-wrap gap-3">
+       <div>
+-        <h2 className="text-lg font-black text-foreground">نظرة عامة</h2>
+-        <p className="text-xs text-muted-foreground">إحصائيات محدّثة حسب الفترة المختارة</p>
++        <h2 className="text-base font-semibold text-foreground">نظرة عامة</h2>
++        <p className="text-xs text-muted-foreground mt-0.5">الإحصاءات الكلية للمنصة</p>
+       </div>
+       <AdminPeriodFilter value={period} onChange={setPeriod} />
+     </div>
+ 
+-    {/* Urgent tasks + Live alerts */}
+-    <div className="grid lg:grid-cols-2 gap-6">
+-      <AdminUrgentTasks onOpenTab={onOpenTab} />
+-      <AdminLiveAlerts onOpenTab={onOpenTab} />
++    {/* Primary KPIs */}
++    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
++      <StatCard label="إجمالي المستخدمين" value={stats.users.toLocaleString("ar-SA")} icon={Users} color="" accent="bg-blue-50 text-blue-600" />
++      <StatCard label="المعلمون المسجلون" value={stats.teachers.toLocaleString("ar-SA")} icon={GraduationCap} color="" accent="bg-violet-50 text-violet-600" />
++      <StatCard label="إجمالي الحجوزات" value={stats.bookings.toLocaleString("ar-SA")} icon={BookOpen} color="" accent="bg-sky-50 text-sky-600" />
++      <StatCard label="الإيرادات الكلية" value={`${stats.revenue.toLocaleString("ar-SA")} ر.س`} icon={DollarSign} color="" accent="bg-emerald-50 text-emerald-600" />
+     </div>
+ 
+-    {/* Stats Grid */}
+-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+-      <StatCard label="إجمالي المستخدمين" value={stats.users} icon={Users} color="from-primary to-primary/70" />
+-      <StatCard label="المعلمين المسجلين" value={stats.teachers} icon={GraduationCap} color="from-secondary to-secondary/70" />
+-      <StatCard label="إجمالي الحجوزات" value={stats.bookings} icon={BookOpen} color="from-info to-info/70" />
+-      <StatCard label="الإيرادات" value={`${stats.revenue} ر.س`} icon={DollarSign} color="from-success to-success/70" />
++    {/* Secondary KPIs */}
++    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
++      <StatCard label="طلبات معلمين معلقة" value={stats.pendingTeachers} icon={UserCheck} color="" accent="bg-amber-50 text-amber-600" />
++      <StatCard label="حصص مكتملة" value={stats.completedSessions.toLocaleString("ar-SA")} icon={CheckCircle} color="" accent="bg-emerald-50 text-emerald-600" />
++      <StatCard label="حجوزات ملغاة" value={stats.cancelledBookings.toLocaleString("ar-SA")} icon={XCircle} color="" accent="bg-rose-50 text-rose-600" />
++      <StatCard label="المخالفات المسجلة" value={stats.violations} icon={ShieldAlert} color="" accent="bg-red-50 text-red-600" />
+     </div>
+ 
+-    {/* Secondary Stats */}
+-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+-      <StatCard label="طلبات معلقة" value={stats.pendingTeachers} icon={UserCheck} color="from-warning to-warning/70" />
+-      <StatCard label="حصص مكتملة" value={stats.completedSessions} icon={CheckCircle} color="from-success to-success/70" />
+-      <StatCard label="حجوزات ملغاة" value={stats.cancelledBookings} icon={XCircle} color="from-destructive to-destructive/70" />
+-      <StatCard label="المخالفات" value={stats.violations} icon={ShieldAlert} color="from-destructive to-destructive/70" />
++    {/* Urgent tasks + Live alerts */}
++    <div className="grid lg:grid-cols-2 gap-4">
++      <AdminUrgentTasks onOpenTab={onOpenTab} />
++      <AdminLiveAlerts onOpenTab={onOpenTab} />
+     </div>
+ 
+     {/* Charts */}
+-    <div className="grid lg:grid-cols-2 gap-6">
+-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+-        <CardHeader className="pb-2">
+-          <CardTitle className="text-sm font-bold flex items-center gap-2">
+-            <BarChart3 className="h-4 w-4 text-primary" />
++    <div className="grid lg:grid-cols-2 gap-4">
++      <Card className="border border-border/50 bg-card shadow-sm">
++        <CardHeader className="pb-2 px-5 pt-5">
++          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
++            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+             الحجوزات والإيرادات الشهرية
+           </CardTitle>
+         </CardHeader>
+@@ -575,10 +580,10 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
+         </CardContent>
+       </Card>
+ 
+-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+-        <CardHeader className="pb-2">
+-          <CardTitle className="text-sm font-bold flex items-center gap-2">
+-            <Users className="h-4 w-4 text-secondary" />
++      <Card className="border border-border/50 bg-card shadow-sm">
++        <CardHeader className="pb-2 px-5 pt-5">
++          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
++            <Users className="h-4 w-4 text-muted-foreground" />
+             توزيع المستخدمين
+           </CardTitle>
+         </CardHeader>
+@@ -596,10 +601,10 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
+     </div>
+ 
+     {bookingStatusData.length > 0 && (
+-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+-        <CardHeader className="pb-2">
+-          <CardTitle className="text-sm font-bold flex items-center gap-2">
+-            <Clock className="h-4 w-4 text-accent-foreground" />
++      <Card className="border border-border/50 bg-card shadow-sm">
++        <CardHeader className="pb-2 px-5 pt-5">
++          <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
++            <Clock className="h-4 w-4 text-muted-foreground" />
+             توزيع حالة الحجوزات
+           </CardTitle>
+         </CardHeader>
+@@ -618,96 +623,149 @@ const OverviewContent = ({ stats, monthlyBookings, bookingStatusData, pieData, p
+   </div>
+ );
+ 
+-const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => (
+-  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+-    <CardHeader>
+-      <div className="flex items-center justify-between flex-wrap gap-3">
+-        <CardTitle className="text-sm font-bold flex items-center gap-2">
+-          <UserCheck className="h-4 w-4 text-secondary" />
+-          طلبات تسجيل المعلمين ({teachers.length})
+-        </CardTitle>
+-        <div className="flex items-center gap-2">
+-          <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
+-          <ExportCSVButton
+-            data={teachers.map((t: any) => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
+-            headers={[{ key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" }, { key: "experience", label: "الخبرة" }, { key: "date", label: "التاريخ" }]}
+-            filename="طلبات_المعلمين"
+-          />
+-        </div>
++const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher }: any) => {
++  const [search, setSearch] = useState("");
++  const filtered = teachers.filter((t: any) =>
++    !search || (t.profile?.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
++    (t.profile?.phone || "").includes(search)
++  );
++  const pending = teachers.length;
++
++  return (
++    <div className="space-y-4">
++      {/* KPIs */}
++      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
++        {[
++          { label: "إجمالي الطلبات", value: pending, icon: UserCheck, cls: "bg-blue-50 text-blue-600" },
++          { label: "المواد المطلوبة", value: [...new Set(teachers.flatMap((t: any) => t.subjects || []))].length, icon: GraduationCap, cls: "bg-violet-50 text-violet-600" },
++          { label: "متوسط سنوات الخبرة", value: pending > 0 ? (teachers.reduce((s: number, t: any) => s + (t.years_experience || 0), 0) / pending).toFixed(1) : 0, icon: TrendingUp, cls: "bg-emerald-50 text-emerald-600" },
++          { label: "لديهم شهادات", value: teachers.filter((t: any) => t.certificates?.length > 0).length, icon: FileText, cls: "bg-amber-50 text-amber-600" },
++        ].map((k, i) => (
++          <div key={i} className="bg-card border border-border/50 rounded-lg p-3.5">
++            <div className="flex items-center justify-between mb-2">
++              <p className="text-[11px] font-medium text-muted-foreground">{k.label}</p>
++              <div className={`w-7 h-7 rounded-md flex items-center justify-center ${k.cls.split(" ")[0]}`}>
++                <k.icon className={`h-[14px] w-[14px] ${k.cls.split(" ")[1]}`} />
++              </div>
++            </div>
++            <p className="text-xl font-bold text-foreground">{k.value}</p>
++          </div>
++        ))}
+       </div>
+-    </CardHeader>
+-    <CardContent>
+-      {teachers.length === 0 ? (
+-        <div className="text-center py-12">
+-          <CheckCircle className="h-12 w-12 text-success mx-auto mb-3 opacity-60" />
+-          <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
+-        </div>
+-      ) : (
+-        <div className="space-y-3">
+-          {teachers.map((t: any) => (
+-            <div key={t.id} className="p-4 bg-muted/30 rounded-xl space-y-3 hover:bg-muted/50 transition-colors">
+-              <div className="flex items-center justify-between">
+-                <div className="flex items-center gap-3">
+-                  <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
+-                    <GraduationCap className="h-5 w-5 text-secondary" />
+-                  </div>
+-                  <div>
+-                    <p className="font-bold text-foreground text-sm">{t.profile?.full_name || "بدون اسم"}</p>
+-                    <p className="text-xs text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"}</p>
+-                  </div>
+-                </div>
+-                <div className="flex gap-2">
+-                  <Button size="sm" className="rounded-lg bg-success hover:bg-success/90 text-success-foreground gap-1" onClick={() => approveTeacher(t.id)}>
+-                    <CheckCircle className="h-3.5 w-3.5" />
+-                    موافقة
+-                  </Button>
+-                  <Button size="sm" variant="destructive" className="rounded-lg gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
+-                    <XCircle className="h-3.5 w-3.5" />
+-                    رفض
+-                  </Button>
+-                </div>
++
++      <Card className="border border-border/50 bg-card shadow-sm">
++        <CardHeader className="px-5 pt-5 pb-3">
++          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
++            <CardTitle className="text-sm font-semibold text-foreground">
++              طلبات تسجيل المعلمين{" "}
++              <span className="text-muted-foreground font-normal">({filtered.length})</span>
++            </CardTitle>
++            <div className="flex items-center gap-2 flex-wrap">
++              <div className="relative">
++                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
++                <input
++                  placeholder="بحث بالاسم أو الهاتف..."
++                  value={search}
++                  onChange={(e) => setSearch(e.target.value)}
++                  className="pr-9 h-8 text-sm w-44 rounded-md border border-border/60 bg-muted/30 px-3 focus:outline-none focus:ring-1 focus:ring-primary"
++                />
+               </div>
+-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-background/60 rounded-lg p-3">
+-                <div><span className="text-muted-foreground">سنوات الخبرة</span><p className="font-medium text-foreground mt-0.5">{t.years_experience || 0} سنوات</p></div>
+-                <div><span className="text-muted-foreground">الجنسية</span><p className="font-medium text-foreground mt-0.5">{t.nationality || "—"}</p></div>
+-                <div><span className="text-muted-foreground">المواد</span><p className="font-medium text-foreground mt-0.5">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</p></div>
+-                <div><span className="text-muted-foreground">أوقات التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_from && t.available_to ? `${t.available_from} - ${t.available_to}` : "—"}</p></div>
+-                {t.available_days && t.available_days.length > 0 && (
+-                  <div className="col-span-2"><span className="text-muted-foreground">أيام التوفر</span><p className="font-medium text-foreground mt-0.5">{t.available_days.join("، ")}</p></div>
+-                )}
+-                {t.teaching_stages && t.teaching_stages.length > 0 && (
+-                  <div className="col-span-2"><span className="text-muted-foreground">المراحل الدراسية</span>
+-                    <div className="flex flex-wrap gap-1 mt-0.5">{t.teaching_stages.map((stage: string) => <Badge key={stage} variant="secondary" className="text-[10px]">{stage}</Badge>)}</div>
++              <DateFilter dateFrom={teacherDateFrom} dateTo={teacherDateTo} onDateFromChange={setTeacherDateFrom} onDateToChange={setTeacherDateTo} />
++              <ExportCSVButton
++                data={filtered.map((t: any) => ({ name: t.profile?.full_name || "", phone: t.profile?.phone || "", experience: t.years_experience || 0, nationality: t.nationality || "", subjects: (t.subjects || []).join(", "), stages: (t.teaching_stages || []).join(", "), certs: t.certificates?.length || 0, date: new Date(t.created_at).toLocaleDateString("ar-SA") }))}
++                headers={[
++                  { key: "name", label: "الاسم" }, { key: "phone", label: "الهاتف" },
++                  { key: "experience", label: "الخبرة (سنوات)" }, { key: "nationality", label: "الجنسية" },
++                  { key: "subjects", label: "المواد" }, { key: "stages", label: "المراحل" },
++                  { key: "certs", label: "عدد الشهادات" }, { key: "date", label: "التاريخ" },
++                ]}
++                filename="طلبات_المعلمين"
++              />
++            </div>
++          </div>
++        </CardHeader>
++        <CardContent className="px-5 pb-5">
++          {filtered.length === 0 ? (
++            <div className="flex flex-col items-center gap-2 py-16 text-muted-foreground">
++              <CheckCircle className="h-10 w-10 opacity-20" />
++              <p className="text-sm">لا توجد طلبات معلقة</p>
++            </div>
++          ) : (
++            <div className="space-y-3">
++              {filtered.map((t: any) => (
++                <div key={t.id} className="border border-border/50 rounded-lg overflow-hidden bg-card hover:border-border transition-colors">
++                  {/* Header row */}
++                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/20 border-b border-border/40">
++                    <div className="flex items-center gap-3 min-w-0">
++                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
++                        <GraduationCap className="h-4.5 w-4.5 text-primary" />
++                      </div>
++                      <div className="min-w-0">
++                        <p className="font-semibold text-sm text-foreground truncate">{t.profile?.full_name || "بدون اسم"}</p>
++                        <p className="text-[11px] text-muted-foreground">{t.profile?.phone || "لا يوجد رقم"} · {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
++                      </div>
++                    </div>
++                    <div className="flex items-center gap-2 shrink-0">
++                      <AdminTeacherContactDialog userId={t.user_id} userName={t.profile?.full_name} />
++                      <Button size="sm" className="h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => approveTeacher(t.id)}>
++                        <CheckCircle className="h-3.5 w-3.5" /> قبول
++                      </Button>
++                      <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1" onClick={() => rejectTeacher(t.id, t.user_id)}>
++                        <XCircle className="h-3.5 w-3.5" /> رفض
++                      </Button>
++                    </div>
+                   </div>
+-                )}
+-                {t.bio && <div className="col-span-2 md:col-span-4"><span className="text-muted-foreground">النبذة</span><p className="font-medium text-foreground mt-0.5">{t.bio}</p></div>}
+-              </div>
+-              {t.certificates && t.certificates.length > 0 && (
+-                <div className="text-xs">
+-                  <span className="text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
+-                  <div className="flex flex-wrap gap-2 mt-1">
+-                    {t.certificates.map((c: any) => (
+-                      <a key={c.id} href={c.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+-                        <FileText className="h-3 w-3" />{c.name}
+-                      </a>
+-                    ))}
++                  {/* Details grid */}
++                  <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-xs">
++                    <div><span className="text-muted-foreground block">سنوات الخبرة</span><span className="font-medium text-foreground">{t.years_experience || 0} سنوات</span></div>
++                    <div><span className="text-muted-foreground block">الجنسية</span><span className="font-medium text-foreground">{t.nationality || "—"}</span></div>
++                    <div><span className="text-muted-foreground block">المواد</span><span className="font-medium text-foreground">{t.subjects?.length > 0 ? t.subjects.join("، ") : "—"}</span></div>
++                    <div><span className="text-muted-foreground block">أوقات التوفر</span><span className="font-medium text-foreground">{t.available_from && t.available_to ? `${t.available_from} — ${t.available_to}` : "—"}</span></div>
++                    {t.available_days?.length > 0 && (
++                      <div className="col-span-2"><span className="text-muted-foreground block">أيام التوفر</span><span className="font-medium text-foreground">{t.available_days.join("، ")}</span></div>
++                    )}
++                    {t.teaching_stages?.length > 0 && (
++                      <div className="col-span-2">
++                        <span className="text-muted-foreground block mb-1">المراحل الدراسية</span>
++                        <div className="flex flex-wrap gap-1">
++                          {t.teaching_stages.map((s: string) => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{s}</span>)}
++                        </div>
++                      </div>
++                    )}
++                    {t.bio && (
++                      <div className="col-span-2 md:col-span-4">
++                        <span className="text-muted-foreground block">نبذة</span>
++                        <span className="font-medium text-foreground line-clamp-2">{t.bio}</span>
++                      </div>
++                    )}
+                   </div>
++                  {/* Certificates */}
++                  {t.certificates?.length > 0 && (
++                    <div className="px-4 py-2.5 border-t border-border/40 bg-muted/10 flex items-center gap-2 flex-wrap">
++                      <span className="text-[11px] text-muted-foreground font-medium">الشهادات ({t.certificates.length}):</span>
++                      {t.certificates.map((c: any) => (
++                        <a key={c.id} href={certificateUrl(c.file_url)} target="_blank" rel="noopener noreferrer"
++                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/15 transition-colors">
++                          <FileText className="h-3 w-3" /> {c.name}
++                        </a>
++                      ))}
++                    </div>
++                  )}
+                 </div>
+-              )}
+-              <p className="text-[10px] text-muted-foreground">تاريخ التسجيل: {new Date(t.created_at).toLocaleDateString("ar-SA")}</p>
++              ))}
+             </div>
+-          ))}
+-        </div>
+-      )}
+-    </CardContent>
+-  </Card>
+-);
++          )}
++        </CardContent>
++      </Card>
++    </div>
++  );
++};
+ 
+ const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter, bookingDateFrom, bookingDateTo, setBookingDateFrom, setBookingDateTo }: any) => (
+-  <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+-    <CardHeader>
++  <Card className="border border-border/50 bg-card shadow-sm">
++    <CardHeader className="px-5 pt-5 pb-3">
+       <div className="flex items-center justify-between flex-wrap gap-3">
+-        <CardTitle className="text-sm font-bold">آخر الحجوزات ({bookings.length})</CardTitle>
++        <CardTitle className="text-sm font-semibold text-foreground">آخر الحجوزات <span className="text-muted-foreground font-normal">({bookings.length})</span></CardTitle>
+         <div className="flex items-center gap-2 flex-wrap">
+           <StatusFilter value={bookingStatusFilter} onChange={setBookingStatusFilter} options={[
+             { value: "pending", label: "معلقة" }, { value: "confirmed", label: "مؤكدة" },
+@@ -728,14 +786,17 @@ const BookingsContent = ({ bookings, bookingStatusFilter, setBookingStatusFilter
+       ) : (
+         <div className="space-y-2">
+           {bookings.map((b: any) => (
+-            <div key={b.id} className="flex items-center justify-between p-3.5 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
+-              <div>
+-                <p className="font-medium text-sm text-foreground">{b.student_name} ← {b.teacher_name}</p>
+-                <p className="text-xs text-muted-foreground">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")} • {b.duration_minutes} دقيقة{b.price ? ` • ${b.price} ر.س` : ""}</p>
++            <div key={b.id} className="flex items-center justify-between py-2.5 px-1 border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors">
++              <div className="flex items-center gap-2.5 min-w-0">
++                <span className={["w-1.5 h-1.5 rounded-full shrink-0", b.status === "completed" ? "bg-emerald-500" : b.status === "confirmed" ? "bg-blue-500" : b.status === "cancelled" ? "bg-red-400" : "bg-amber-400"].join(" ")} />
++                <div className="min-w-0">
++                  <p className="text-sm text-foreground truncate">{b.student_name} <span className="text-muted-foreground">·</span> {b.teacher_name}</p>
++                  <p className="text-[11px] text-muted-foreground mt-0.5">{new Date(b.scheduled_at).toLocaleDateString("ar-SA")} · {b.duration_minutes} د{b.price ? ` · ${b.price} ر.س` : ""}</p>
++                </div>
+               </div>
+-              <Badge variant={b.status === "completed" ? "default" : b.status === "confirmed" ? "secondary" : "outline"} className="text-xs">
++              <span className={["text-[11px] font-medium px-2 py-0.5 rounded shrink-0", b.status === "completed" ? "bg-emerald-50 text-emerald-700" : b.status === "confirmed" ? "bg-blue-50 text-blue-700" : b.status === "cancelled" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700"].join(" ")}>
+                 {b.status === "completed" ? "مكتملة" : b.status === "confirmed" ? "مؤكدة" : b.status === "cancelled" ? "ملغاة" : "معلقة"}
+-              </Badge>
++              </span>
+             </div>
+           ))}
+         </div>

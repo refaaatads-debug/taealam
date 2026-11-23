@@ -1,0 +1,52 @@
+diff --git asupabase/functions/ai-support/index.ts bsupabase/functions/ai-support/index.ts
+index 58cb5cb..9b86748 100644
+--- asupabase/functions/ai-support/index.ts
++++ bsupabase/functions/ai-support/index.ts
+@@ -6,9 +6,11 @@ const corsHeaders = {
+ };
+ 
+ const GROQ_MODELS = [
+-  "llama-3.3-70b-versatile",
+-  "llama-3.1-8b-instant",
+-  "meta-llama/llama-4-scout-17b-16e-instruct",
++  // Keep this list aligned with the models currently exposed by Groq.
++  // The previous Llama 3 / Llama 4 ids were retired and made every request
++  // fall through to the (also retired) Gemini 2.0 fallback.
++  "openai/gpt-oss-120b",
++  "qwen/qwen3.6-27b",
+ ];
+ 
+ function formatDate(iso: string): string {
+@@ -278,7 +280,7 @@ async function callGeminiFallback(messages: any[], sysPrompt: string, apiKey: st
+     .map((m: any) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+   if (!contents.length) contents.push({ role: "user", parts: [{ text: "مرحبا" }] });
+   const resp = await fetch(
+-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey,
++    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
+     { method: "POST", headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ system_instruction: { parts: [{ text: sysPrompt }] }, contents }) }
+   );
+@@ -343,10 +345,21 @@ Deno.serve(async (req) => {
+         return json({ role: "assistant", content: msg.content || "", ticket: createdTicket });
+       }
+ 
+-      convo.push(msg);
++      // Send only the standard assistant fields back on the next tool hop.
++      // Some Groq models include a provider-specific `reasoning` field that
++      // should not be replayed as part of the OpenAI-compatible transcript.
++      convo.push({
++        role: "assistant",
++        content: msg.content || "",
++        ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}),
++      });
+       for (const tc of msg.tool_calls) {
+         let parsedArgs: any = {};
+-        try { parsedArgs = JSON.parse(tc.function.arguments || "{}"); } catch { /* ignore */ }
++        try {
++          parsedArgs = typeof tc.function?.arguments === "string"
++            ? JSON.parse(tc.function.arguments || "{}")
++            : (tc.function?.arguments || {});
++        } catch { /* ignore */ }
+         const result = await runTool(tc.function.name, parsedArgs, { supabase, userId, role });
+         if (tc.function.name === "create_support_ticket" && result?.success) {
+           createdTicket = { id: result.ticket_id };

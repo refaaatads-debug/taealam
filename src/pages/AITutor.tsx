@@ -15,6 +15,8 @@ import { safeErrorMessage } from "@/lib/safeErrorMessage";
 
 interface Msg { role: "user" | "assistant"; content: string; audio?: string }
 
+const LIVE_VOICE_ENABLED = false;
+
 const AITutor = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -90,9 +92,9 @@ const AITutor = () => {
         </Card>
 
         <Tabs defaultValue="text" className="mb-4">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-1">
             <TabsTrigger value="text" className="gap-2"><MessageSquare className="h-4 w-4" /> نص + نطق</TabsTrigger>
-            <TabsTrigger value="voice" className="gap-2"><Phone className="h-4 w-4" /> محادثة صوتية حية</TabsTrigger>
+            {LIVE_VOICE_ENABLED && <TabsTrigger value="voice" className="gap-2"><Phone className="h-4 w-4" /> محادثة صوتية حية</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="text" className="space-y-3 mt-4">
@@ -145,13 +147,13 @@ const AITutor = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="voice" className="mt-4">
+          {LIVE_VOICE_ENABLED && <TabsContent value="voice" className="mt-4">
             <Card>
               <CardContent className="p-4">
                 <LiveVoiceTutor />
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </main>
       <BottomNav />

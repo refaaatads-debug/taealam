@@ -1,0 +1,83 @@
+diff --git asrc/pages/AdminTeacherProfile.tsx bsrc/pages/AdminTeacherProfile.tsx
+index 35a7111..e0cda89 100644
+--- asrc/pages/AdminTeacherProfile.tsx
++++ bsrc/pages/AdminTeacherProfile.tsx
+@@ -14,6 +14,7 @@ import {
+ import { toast } from "sonner";
+ import { format } from "date-fns";
+ import TeacherSessionsTab from "@/components/admin/TeacherSessionsTab";
++import AdminTeacherContactDialog from "@/components/admin/AdminTeacherContactDialog";
+ import { ar } from "date-fns/locale";
+ 
+ interface TeacherBundle {
+@@ -37,6 +38,10 @@ interface TeacherBundle {
+   lastLogin?: string | null;
+ }
+ 
++const certificateUrl = (value: string) => value?.startsWith("http")
++  ? value
++  : supabase.storage.from("support-files").getPublicUrl(value).data.publicUrl;
++
+ const AdminTeacherProfile = () => {
+   const { id } = useParams<{ id: string }>();
+   const navigate = useNavigate();
+@@ -152,7 +157,11 @@ const AdminTeacherProfile = () => {
+   const toggleApproval = async () => {
+     if (!data?.teacher) return;
+     const next = !data.teacher.is_approved;
+-    const { error } = await supabase.from("teacher_profiles").update({ is_approved: next, is_verified: next }).eq("id", data.teacher.id);
++    const { error } = await supabase.from("teacher_profiles").update({
++      is_approved: next,
++      is_verified: next,
++      approval_status: next ? "approved" : "rejected",
++    } as any).eq("id", data.teacher.id);
+     if (error) { toast.error("فشل التحديث"); return; }
+     toast.success(next ? "تمت الموافقة على المعلم" : "تم إلغاء اعتماد المعلم");
+     loadTeacher();
+@@ -169,6 +178,7 @@ const AdminTeacherProfile = () => {
+   const accountStatus = (() => {
+     const banned = data.warnings.find((w: any) => w.is_banned);
+     if (banned) return { label: "موقوف", color: "bg-destructive/15 text-destructive border-destructive/30" };
++    if (t.approval_status === "rejected") return { label: "مرفوض", color: "bg-destructive/15 text-destructive border-destructive/30" };
+     if (!t.is_approved) return { label: "بانتظار الموافقة", color: "bg-amber-500/15 text-amber-600 border-amber-500/30" };
+     return { label: "معتمد ونشط", color: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" };
+   })();
+@@ -222,6 +232,11 @@ const AdminTeacherProfile = () => {
+             </div>
+ 
+             <div className="flex flex-col gap-2">
++              <AdminTeacherContactDialog
++                userId={id || ""}
++                userName={p.full_name}
++                onSent={() => { setActiveTab("support"); void loadTeacher(); }}
++              />
+               <Button size="sm" variant={t.is_approved ? "outline" : "default"} onClick={toggleApproval} className="gap-1">
+                 {t.is_approved ? <><XCircle className="h-4 w-4" />إلغاء الاعتماد</> : <><CheckCircle2 className="h-4 w-4" />اعتماد المعلم</>}
+               </Button>
+@@ -312,6 +327,26 @@ const AdminTeacherProfile = () => {
+                   <Row label="الشهادات" value={`${data.certificates.length} شهادة`} />
+                 </CardContent>
+               </Card>
++              {data.certificates.length > 0 && (
++                <Card>
++                  <CardHeader><CardTitle className="text-sm">الشهادات والمؤهلات ({data.certificates.length})</CardTitle></CardHeader>
++                  <CardContent className="space-y-2">
++                    {data.certificates.map((c: any) => (
++                      <div key={c.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
++                        <div className="min-w-0">
++                          <p className="text-sm font-medium truncate">{c.name || c.file_name || "شهادة"}</p>
++                          <p className="text-[11px] text-muted-foreground truncate">{c.file_name || "ملف الشهادة"}</p>
++                        </div>
++                        <Button size="sm" variant="outline" className="shrink-0 gap-1" asChild>
++                          <a href={certificateUrl(c.file_url)} target="_blank" rel="noopener noreferrer">
++                            <FileText className="h-3.5 w-3.5" /> فتح الشهادة
++                          </a>
++                        </Button>
++                      </div>
++                    ))}
++                  </CardContent>
++                </Card>
++              )}
+             </TabsContent>
+ 
+                         <TabsContent value="sessions" className="m-0">

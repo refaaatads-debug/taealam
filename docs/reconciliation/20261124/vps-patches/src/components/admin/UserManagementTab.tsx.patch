@@ -1,0 +1,261 @@
+diff --git asrc/components/admin/UserManagementTab.tsx bsrc/components/admin/UserManagementTab.tsx
+index 69cac03..96f9fec 100644
+--- asrc/components/admin/UserManagementTab.tsx
++++ bsrc/components/admin/UserManagementTab.tsx
+@@ -14,7 +14,7 @@ import { toast } from "sonner";
+ import {
+   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
+   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
+-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen
++  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen, RotateCcw
+ } from "lucide-react";
+ import { Switch } from "@/components/ui/switch";
+ import ExportCSVButton from "./ExportCSVButton";
+@@ -31,6 +31,7 @@ interface UserProfile {
+   free_trial_used: boolean | null;
+   created_at: string;
+   updated_at: string;
++  is_deleted?: boolean | null;
+ }
+ 
+ interface UserDetail extends UserProfile {
+@@ -39,7 +40,7 @@ interface UserDetail extends UserProfile {
+   points?: number;
+   streak?: number;
+   badges?: { name_ar: string; icon: string | null }[];
+-  subscriptions?: { plan_name: string; sessions_remaining: number; is_active: boolean; ends_at: string }[];
++  subscriptions?: { plan_name: string; sessions_remaining: number; is_active: boolean; starts_at: string | null; ends_at: string | null }[];
+   bookingsAsStudent?: number;
+   // Teacher data
+   teacherProfile?: {
+@@ -190,7 +191,7 @@ export default function UserManagementTab() {
+       const promises: Promise<any>[] = [
+         supabase.from("student_points").select("total_points, streak_days").eq("user_id", profile.user_id).maybeSingle(),
+         supabase.from("student_badges").select("badge_id, badges(name_ar, icon)").eq("user_id", profile.user_id),
+-        supabase.from("user_subscriptions").select("sessions_remaining, is_active, ends_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
++        supabase.from("user_subscriptions").select("sessions_remaining, is_active, starts_at, ends_at, subscription_plans(name_ar)").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+         supabase.from("bookings").select("id", { count: "exact", head: true }).eq("student_id", profile.user_id),
+         (supabase as any).from("user_warnings").select("warning_type, description, created_at, warning_count").eq("user_id", profile.user_id).order("created_at", { ascending: false }),
+       ];
+@@ -216,6 +217,7 @@ export default function UserManagementTab() {
+         plan_name: s.subscription_plans?.name_ar || "—",
+         sessions_remaining: s.sessions_remaining,
+         is_active: s.is_active,
++        starts_at: s.starts_at,
+         ends_at: s.ends_at,
+       }));
+       detail.bookingsAsStudent = studentBookingsRes.count ?? 0;
+@@ -370,7 +372,7 @@ export default function UserManagementTab() {
+     if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
+     setUserRolesMap(prev => new Map(prev).set(userId, newRole));
+     if (newRole === "teacher") {
+-      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true }, { onConflict: "user_id" });
++      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true, approval_status: "approved" } as any, { onConflict: "user_id" });
+     }
+     if (selectedUser?.user_id === userId) {
+       setSelectedUser(prev => prev ? { ...prev, role: newRole } : null);
+@@ -379,12 +381,26 @@ export default function UserManagementTab() {
+   };
+ 
+   const deleteUser = async (userId: string) => {
+-    await supabase.from("user_roles").delete().eq("user_id", userId);
+-    await supabase.from("teacher_profiles").delete().eq("user_id", userId);
+-    await supabase.from("profiles").delete().eq("user_id", userId);
+-    setAllUsers(prev => prev.filter(u => u.user_id !== userId));
++    const { error } = await supabase.from("profiles").update({
++      is_deleted: true,
++      deleted_at: new Date().toISOString(),
++      deleted_by: currentUser?.id || null,
++    } as any).eq("user_id", userId);
++    if (error) { toast.error("تعذر حذف الحساب: " + error.message); return; }
++    setAllUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_deleted: true } : u));
+     if (selectedUser?.user_id === userId) setSelectedUser(null);
+-    toast.success("تم حذف بيانات المستخدم");
++    toast.success("تم حذف الحساب ويمكن استعادته من لوحة الإدارة");
++  };
++
++  const restoreUser = async (userId: string) => {
++    const { error } = await supabase.from("profiles").update({
++      is_deleted: false,
++      deleted_at: null,
++      deleted_by: null,
++    } as any).eq("user_id", userId);
++    if (error) { toast.error("تعذر استعادة الحساب: " + error.message); return; }
++    setAllUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_deleted: false } : u));
++    toast.success("تمت استعادة الحساب وإعادة تفعيله");
+   };
+ 
+   const roleLabel = (r: string) => {
+@@ -485,9 +501,12 @@ export default function UserManagementTab() {
+                       <td className="py-3 font-medium text-foreground">{u.full_name || "—"}</td>
+                       <td className="py-3 text-muted-foreground" dir="ltr">{u.phone || "—"}</td>
+                       <td className="py-3">
+-                        <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
+-                          {roleLabel(userRole)}
+-                        </Badge>
++                        <div className="flex flex-wrap items-center gap-1">
++                          <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
++                            {roleLabel(userRole)}
++                          </Badge>
++                          {u.is_deleted && <Badge variant="destructive" className="text-[10px]">محذوف من الإدارة</Badge>}
++                        </div>
+                       </td>
+                       <td className="py-3">
+                         {userPerms.length > 0 ? (
+@@ -531,7 +550,18 @@ export default function UserManagementTab() {
+                               <FolderOpen className="h-3.5 w-3.5" />
+                             </Button>
+                           )}
+-                          {!isCurrentUser && (
++                          {!isCurrentUser && u.is_deleted && (
++                            <Button
++                              size="sm"
++                              variant="ghost"
++                              className="h-auto px-2 py-1 text-xs text-green-600 hover:text-green-700 hover:bg-green-100"
++                              onClick={() => restoreUser(u.user_id)}
++                              title="استعادة الحساب"
++                            >
++                              <RotateCcw className="h-3.5 w-3.5 ml-1" /> استعادة الحساب
++                            </Button>
++                          )}
++                          {!isCurrentUser && !u.is_deleted && (
+                             <>
+                               <Button
+                                 size="sm"
+@@ -752,24 +782,43 @@ export default function UserManagementTab() {
+                     </h3>
+                     {selectedUser.subscriptions && selectedUser.subscriptions.length > 0 ? (
+                       <div className="space-y-2 mb-4">
+-                        {selectedUser.subscriptions.map((sub, i) => (
+-                          <div key={i} className="flex items-center justify-between bg-background/60 rounded-lg p-3">
+-                            <div>
+-                              <p className="text-sm font-medium text-foreground">{sub.plan_name}</p>
+-                              <p className="text-xs text-muted-foreground">
+-                                ينتهي: {new Date(sub.ends_at).toLocaleDateString("ar-SA")}
+-                              </p>
+-                            </div>
+-                            <div className="flex items-center gap-2">
+-                              <Badge variant={sub.is_active ? "default" : "outline"} className="text-xs">
+-                                {sub.is_active ? "نشط" : "منتهي"}
+-                              </Badge>
+-                              <Badge variant="secondary" className="text-xs">
+-                                {sub.sessions_remaining} حصة متبقية
+-                              </Badge>
++                        {selectedUser.subscriptions.map((sub, i) => {
++                          const now = Date.now();
++                          const hasStarted = !sub.starts_at || new Date(sub.starts_at).getTime() <= now;
++                          const hasEnded = !!sub.ends_at && new Date(sub.ends_at).getTime() <= now;
++                          const status = sub.is_active && hasStarted && !hasEnded
++                            ? { label: "نشطة", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" }
++                            : hasEnded
++                              ? { label: "منتهية", className: "bg-red-500/10 text-red-700 border-red-500/30" }
++                              : { label: "غير نشطة", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" };
++                          return (
++                            <div key={i} className="rounded-xl border border-border/60 bg-background/70 p-4 space-y-3">
++                              <div className="flex items-start justify-between gap-3">
++                                <div className="min-w-0">
++                                  <p className="text-sm font-bold text-foreground truncate">{sub.plan_name}</p>
++                                  <p className="text-[11px] text-muted-foreground mt-0.5">حالة الاشتراك الفعلية حسب التواريخ والحالة المسجلة</p>
++                                </div>
++                                <Badge variant="outline" className={`shrink-0 text-xs font-bold ${status.className}`}>
++                                  {status.label}
++                                </Badge>
++                              </div>
++                              <div className="grid grid-cols-2 gap-2 text-xs">
++                                <div className="rounded-lg bg-muted/40 px-3 py-2">
++                                  <p className="text-muted-foreground mb-1">بداية الاشتراك</p>
++                                  <p className="font-semibold text-foreground">{sub.starts_at ? new Date(sub.starts_at).toLocaleDateString("ar-SA") : "غير محدد"}</p>
++                                </div>
++                                <div className="rounded-lg bg-muted/40 px-3 py-2">
++                                  <p className="text-muted-foreground mb-1">نهاية الاشتراك</p>
++                                  <p className="font-semibold text-foreground">{sub.ends_at ? new Date(sub.ends_at).toLocaleDateString("ar-SA") : "غير محدد"}</p>
++                                </div>
++                              </div>
++                              <div className="flex items-center justify-between text-xs border-t border-border/50 pt-2">
++                                <span className="text-muted-foreground">الرصيد المتبقي</span>
++                                <span className="font-bold text-primary">{sub.sessions_remaining} حصة</span>
++                              </div>
+                             </div>
+-                          </div>
+-                        ))}
++                          );
++                        })}
+                       </div>
+                     ) : (
+                       <p className="text-xs text-muted-foreground mb-4">لا توجد اشتراكات حالية</p>
+@@ -943,74 +992,7 @@ export default function UserManagementTab() {
+                   </div>
+                 )}
+ 
+-                {/* Permissions grouped by section */}
+-                <div className="bg-muted/30 rounded-xl p-4">
+-                  <h3 className="font-bold text-sm flex items-center gap-2 mb-3">
+-                    <KeyRound className="h-4 w-4 text-primary" /> صلاحيات أقسام لوحة الإدارة
+-                  </h3>
+-                  <p className="text-xs text-muted-foreground mb-3">
+-                    اختر الأقسام التي يمكن لهذا المستخدم الوصول إليها. كل صلاحية تتحكم في إظهار/إخفاء قسم في لوحة الأدمن.
+-                  </p>
+-                  <div className="space-y-4">
+-                    {Array.from(new Set(Object.values(PERMISSION_LABELS).map(p => p.group))).map(groupName => {
+-                      const groupPerms = Object.entries(PERMISSION_LABELS).filter(([, info]) => info.group === groupName);
+-                      const groupKeys = groupPerms.map(([k]) => k);
+-                      const userPerms = selectedUser.permissions || [];
+-                      const allChecked = groupKeys.every(k => userPerms.includes(k));
+-                      return (
+-                        <div key={groupName} className="border rounded-lg p-3 bg-background/40">
+-                          <div className="flex items-center justify-between mb-2">
+-                            <h4 className="text-xs font-bold text-primary">{groupName}</h4>
+-                            <Button
+-                              size="sm"
+-                              variant="ghost"
+-                              className="h-6 text-[10px]"
+-                              disabled={selectedUser.user_id === currentUser?.id}
+-                              onClick={() => {
+-                                groupKeys.forEach(k => {
+-                                  const has = userPerms.includes(k);
+-                                  if (allChecked ? has : !has) togglePermission(selectedUser.user_id, k, has);
+-                                });
+-                              }}
+-                            >
+-                              {allChecked ? "إلغاء الكل" : "منح الكل"}
+-                            </Button>
+-                          </div>
+-                          <div className="space-y-2">
+-                            {groupPerms.map(([key, info]) => {
+-                              const hasPermission = userPerms.includes(key);
+-                              return (
+-                                <div key={key} className="flex items-center justify-between bg-background/60 rounded-lg p-2.5">
+-                                  <div className="flex items-center gap-2.5 min-w-0">
+-                                    <span className="text-base">{info.icon}</span>
+-                                    <div className="min-w-0">
+-                                      <p className="text-xs font-medium text-foreground truncate">{info.label}</p>
+-                                      <p className="text-[10px] text-muted-foreground truncate">{info.description}</p>
+-                                    </div>
+-                                  </div>
+-                                  <Switch
+-                                    checked={hasPermission}
+-                                    onCheckedChange={() => togglePermission(selectedUser.user_id, key, hasPermission)}
+-                                    disabled={selectedUser.user_id === currentUser?.id}
+-                                  />
+-                                </div>
+-                              );
+-                            })}
+-                          </div>
+-                        </div>
+-                      );
+-                    })}
+-                  </div>
+-                  {(selectedUser.permissions || []).length > 0 && (
+-                    <div className="mt-3 flex flex-wrap gap-1.5">
+-                      {(selectedUser.permissions || []).map(p => (
+-                        <Badge key={p} className="bg-primary/10 text-primary border-0 text-[10px] gap-1">
+-                          {PERMISSION_LABELS[p]?.icon} {PERMISSION_LABELS[p]?.label}
+-                        </Badge>
+-                      ))}
+-                    </div>
+-                  )}
+-                </div>
++
+ 
+ 
+                 {selectedUser.warnings && selectedUser.warnings.length > 0 && (

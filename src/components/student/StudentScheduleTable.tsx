@@ -76,9 +76,22 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
     const result: Record<string, string> = {};
     bookings.filter(b => !historyOnly || new Date(b.scheduled_at).getTime() < Date.now() || ["completed", "cancelled"].includes(b.status)).forEach(b => {
       const key = b.teacher_id || "unknown";
-      if (!result[key]) result[key] = b.id;
+      if (!result[key]) result[key] = b.id; // bookings ordered desc → first = latest
     });
     return result;
+  }, [bookings]);
+
+  // All distinct teacher pairs (for "conversations" section even when schedule is hidden)
+  const allTeacherPairs = useMemo(() => {
+    const seen = new Set<string>();
+    const pairs: { teacherId: string; teacherName: string; bookingId: string }[] = [];
+    bookings.forEach(b => {
+      if (!seen.has(b.teacher_id)) {
+        seen.add(b.teacher_id);
+        pairs.push({ teacherId: b.teacher_id, teacherName: b.teacher_name || "معلم", bookingId: b.id });
+      }
+    });
+    return pairs;
   }, [bookings]);
 
   const handleHideBooking = (bookingId: string) => {
@@ -514,7 +527,33 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
           </CardTitle>
         </CardHeader>
         {!isTableCollapsed && <CardContent className="space-y-3">
-          {groupedByTeacher.length === 0 ? (
+          {groupedByTeacher.length === 0 && allTeacherPairs.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground text-center py-3">الجدول فارغ أو مُخفى</p>
+              <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" /> محادثاتي
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {allTeacherPairs.map(pair => {
+                    const unread = unreadByTeacher[pair.teacherId] || 0;
+                    return (
+                      <Link key={pair.teacherId} to={`/chat?booking=${pair.bookingId}`}
+                        className="relative inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-foreground">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        {pair.teacherName}
+                        {unread > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
+                            {unread}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : groupedByTeacher.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص</p>
           ) : (
             groupedByTeacher.map(group => {

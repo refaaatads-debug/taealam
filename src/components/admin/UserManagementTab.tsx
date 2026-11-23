@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   Users, Search, Trash2, Eye, Edit, BookOpen, Clock, Star,
   GraduationCap, Award, Package, Save, X, Phone, User, Calendar,
-  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen,
+  Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen, RotateCcw,
   CheckCircle2, CircleOff, Timer, CalendarDays, Sparkles, IdCard
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -32,6 +32,7 @@ interface UserProfile {
   free_trial_used: boolean | null;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean | null;
 }
 
 interface UserDetail extends UserProfile {
@@ -453,7 +454,7 @@ export default function UserManagementTab() {
     if (error) { toast.error("حدث خطأ في تغيير الدور"); return; }
     setUserRolesMap(prev => new Map(prev).set(userId, newRole));
     if (newRole === "teacher") {
-      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true }, { onConflict: "user_id" });
+      await supabase.from("teacher_profiles").upsert({ user_id: userId, hourly_rate: 0, is_approved: true, approval_status: "approved" } as any, { onConflict: "user_id" });
     }
     if (selectedUser?.user_id === userId) {
       setSelectedUser(prev => prev ? { ...prev, role: newRole } : null);
@@ -462,12 +463,26 @@ export default function UserManagementTab() {
   };
 
   const deleteUser = async (userId: string) => {
-    await supabase.from("user_roles").delete().eq("user_id", userId);
-    await supabase.from("teacher_profiles").delete().eq("user_id", userId);
-    await supabase.from("profiles").delete().eq("user_id", userId);
-    setAllUsers(prev => prev.filter(u => u.user_id !== userId));
+    const { error } = await supabase.from("profiles").update({
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: currentUser?.id || null,
+    } as any).eq("user_id", userId);
+    if (error) { toast.error("تعذر حذف الحساب: " + error.message); return; }
+    setAllUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_deleted: true } : u));
     if (selectedUser?.user_id === userId) setSelectedUser(null);
-    toast.success("تم حذف بيانات المستخدم");
+    toast.success("تم حذف الحساب ويمكن استعادته من لوحة الإدارة");
+  };
+
+  const restoreUser = async (userId: string) => {
+    const { error } = await supabase.from("profiles").update({
+      is_deleted: false,
+      deleted_at: null,
+      deleted_by: null,
+    } as any).eq("user_id", userId);
+    if (error) { toast.error("تعذر استعادة الحساب: " + error.message); return; }
+    setAllUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_deleted: false } : u));
+    toast.success("تمت استعادة الحساب وإعادة تفعيله");
   };
 
   const roleLabel = (r: string) => {
@@ -586,9 +601,12 @@ export default function UserManagementTab() {
                       <td className="py-3 font-medium text-foreground">{u.full_name || "—"}</td>
                       <td className="py-3 text-muted-foreground" dir="ltr">{u.phone || "—"}</td>
                       <td className="py-3">
-                        <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
-                          {roleLabel(userRole)}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant={userRole === "admin" ? "default" : userRole === "teacher" ? "secondary" : "outline"} className="text-xs">
+                            {roleLabel(userRole)}
+                          </Badge>
+                          {u.is_deleted && <Badge variant="destructive" className="text-[10px]">محذوف من الإدارة</Badge>}
+                        </div>
                       </td>
                       <td className="py-3">
                         {userPerms.length > 0 ? (
@@ -632,7 +650,18 @@ export default function UserManagementTab() {
                               <FolderOpen className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {!isCurrentUser && (
+                          {!isCurrentUser && u.is_deleted && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-auto px-2 py-1 text-xs text-green-600 hover:text-green-700 hover:bg-green-100"
+                              onClick={() => restoreUser(u.user_id)}
+                              title="استعادة الحساب"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 ml-1" /> استعادة الحساب
+                            </Button>
+                          )}
+                          {!isCurrentUser && !u.is_deleted && (
                             <>
                               <Button
                                 size="sm"
@@ -1028,6 +1057,9 @@ export default function UserManagementTab() {
                     </div>
                   </div>
                 )}
+
+
+
 
                 {/* Permissions grouped by section */}
                 <div className="bg-muted/30 rounded-xl p-4">

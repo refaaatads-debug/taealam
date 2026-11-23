@@ -1,0 +1,43 @@
+diff --git asrc/pages/Chat.tsx bsrc/pages/Chat.tsx
+index c3af8d3..e0aff43 100644
+--- asrc/pages/Chat.tsx
++++ bsrc/pages/Chat.tsx
+@@ -84,26 +84,19 @@ const Chat = () => {
+           setHasActiveSubscription(!!(sub && sub.length > 0));
+         }
+ 
+-        // Get ALL booking IDs between this pair for unified chat
+-        const { data: pairBookings } = await supabase
+-          .from("bookings")
+-          .select("id")
+-          .or(`and(student_id.eq.${booking.student_id},teacher_id.eq.${booking.teacher_id}),and(student_id.eq.${booking.teacher_id},teacher_id.eq.${booking.student_id})`);
+-        
+-        const ids = pairBookings?.map(b => b.id) || [bookingId];
+-        setAllBookingIds(ids);
+-
+-        // Fetch messages from ALL bookings between this pair
+-        const oneYearAgo = new Date();
+-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+-        
+-        const { data: msgs } = await supabase
+-          .from("chat_messages")
+-          .select("*")
+-          .in("booking_id", ids)
+-          .gte("created_at", oneYearAgo.toISOString())
+-          .order("created_at", { ascending: true });
++        // جلب كل رسائل الزوج بكفاءة عبر دالة واحدة في قاعدة البيانات
++        // يحل مشكلة الـ URL الطويل عند وجود مئات الـ booking IDs
++        const [{ data: msgs }, { data: pairIds }] = await Promise.all([
++          supabase.rpc('get_pair_messages', { p_booking_id: bookingId }),
++          supabase.rpc('get_pair_booking_ids', { p_booking_id: bookingId }),
++        ]);
++
+         if (msgs) setMessages(msgs as ChatMessage[]);
++
++        // تحديث booking IDs للـ realtime filter
++        const ids = pairIds ? (pairIds as any[]).map((r: any) => r.bid) : [];
++        setAllBookingIds(ids.length > 0 ? ids : [bookingId]);
++
+         setLoading(false);
+       }
+     };

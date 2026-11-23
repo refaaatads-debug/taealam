@@ -1,0 +1,122 @@
+diff --git asrc/components/ProtectedRoute.tsx bsrc/components/ProtectedRoute.tsx
+index 6b58ddc..d83d1e8 100644
+--- asrc/components/ProtectedRoute.tsx
++++ bsrc/components/ProtectedRoute.tsx
+@@ -1,5 +1,7 @@
+-import { Navigate } from "react-router-dom";
++import { Navigate, useLocation } from "react-router-dom";
+ import BrandLoader from "@/components/BrandLoader";
++import TeacherApprovalBlocked from "@/components/TeacherApprovalBlocked";
++import AccountDeletedBlocked from "@/components/AccountDeletedBlocked";
+ import { useAuth } from "@/contexts/AuthContext";
+ import { useState, useEffect } from "react";
+ import { supabase } from "@/integrations/supabase/client";
+@@ -8,33 +10,78 @@ import { ShieldAlert } from "lucide-react";
+ 
+ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+   const { user, loading, roles } = useAuth();
++  const location = useLocation();
+   const [isBanned, setIsBanned] = useState(false);
+   const [banChecked, setBanChecked] = useState(false);
++  const [isDeleted, setIsDeleted] = useState(false);
++  const [teacherApprovalStatus, setTeacherApprovalStatus] = useState<string | null>(null);
++  const [teacherStatusChecked, setTeacherStatusChecked] = useState(false);
+ 
+   useEffect(() => {
+-    if (!user) { setBanChecked(true); return; }
+-    // Admins are never banned
+-    if (roles.includes("admin")) { setBanChecked(true); return; }
++    let active = true;
++    if (!user) {
++      setBanChecked(true);
++      setTeacherStatusChecked(true);
++      return () => { active = false; };
++    }
+ 
++    const isAdmin = roles.includes("admin");
++    const isTeacher = roles.includes("teacher");
++    if (isAdmin) {
++      setBanChecked(true);
++      setTeacherStatusChecked(true);
++      setTeacherApprovalStatus(null);
++      setIsDeleted(false);
++      return () => { active = false; };
++    }
++
++    setBanChecked(false);
++    setTeacherStatusChecked(false);
+     void (async () => {
+       try {
+-        const { data } = await supabase
+-          .from("user_warnings")
+-          .select("is_banned")
+-          .eq("user_id", user.id)
+-          .eq("is_banned", true)
+-          .limit(1);
++        const [{ data: warnings }, { data: accountProfile }, { data: teacherProfile }] = await Promise.all([
++          supabase
++            .from("user_warnings")
++            .select("is_banned")
++            .eq("user_id", user.id)
++            .eq("is_banned", true)
++            .limit(1),
++          supabase
++            .from("profiles")
++            .select("*")
++            .eq("user_id", user.id)
++            .maybeSingle(),
++          isTeacher
++            ? supabase
++                .from("teacher_profiles")
++                .select("*")
++                .eq("user_id", user.id)
++                .maybeSingle()
++            : Promise.resolve({ data: null }),
++        ]);
+ 
+-        setIsBanned((data ?? []).length > 0);
++        if (!active) return;
++        setIsBanned((warnings ?? []).length > 0);
++        setIsDeleted(Boolean((accountProfile as any)?.is_deleted));
++        const profile = teacherProfile as any;
++        setTeacherApprovalStatus(profile?.approval_status ?? (profile?.is_approved ? "approved" : "pending"));
+       } catch {
++        if (!active) return;
+         setIsBanned(false);
++        setIsDeleted(false);
++        setTeacherApprovalStatus(null);
+       } finally {
+-        setBanChecked(true);
++        if (active) {
++          setBanChecked(true);
++          setTeacherStatusChecked(true);
++        }
+       }
+     })();
+-  }, [user, roles]);
+ 
+-  if (loading || !banChecked) {
++    return () => { active = false; };
++  }, [user, roles, location.pathname]);
++
++  if (loading || !banChecked || (roles.includes("teacher") && !roles.includes("admin") && !teacherStatusChecked)) {
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-background">
+         <BrandLoader />
+@@ -44,7 +91,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+ 
+   if (!user) return <Navigate to="/login" replace />;
+ 
+-  if (isBanned) {
++  if (isDeleted && location.pathname !== "/support") {
++    return <AccountDeletedBlocked />;
++  }
++
++  if (teacherApprovalStatus === "rejected" && location.pathname !== "/support") {
++    return <TeacherApprovalBlocked />;
++  }
++
++  if (isBanned && location.pathname !== "/support") {
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4" dir="rtl">
+         <div className="max-w-md w-full bg-card rounded-2xl shadow-card p-8 text-center space-y-4">

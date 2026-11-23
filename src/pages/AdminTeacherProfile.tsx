@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import TeacherSessionsTab from "@/components/admin/TeacherSessionsTab";
 import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
+import AdminTeacherContactDialog from "@/components/admin/AdminTeacherContactDialog";
 import { ar } from "date-fns/locale";
 
 interface TeacherBundle {
@@ -195,7 +196,11 @@ const AdminTeacherProfile = () => {
   const toggleApproval = async () => {
     if (!data?.teacher) return;
     const next = !data.teacher.is_approved;
-    const { error } = await supabase.from("teacher_profiles").update({ is_approved: next, is_verified: next }).eq("id", data.teacher.id);
+    const { error } = await supabase.from("teacher_profiles").update({
+      is_approved: next,
+      is_verified: next,
+      approval_status: next ? "approved" : "rejected",
+    } as any).eq("id", data.teacher.id);
     if (error) { toast.error("فشل التحديث"); return; }
     toast.success(next ? "تمت الموافقة على المعلم" : "تم إلغاء اعتماد المعلم");
     loadTeacher();
@@ -209,6 +214,7 @@ const AdminTeacherProfile = () => {
   const accountStatus = (() => {
     const banned = data.warnings.find((w: any) => w.is_banned);
     if (banned) return { label: "موقوف", color: "bg-destructive/15 text-destructive border-destructive/30" };
+    if (t.approval_status === "rejected") return { label: "مرفوض", color: "bg-destructive/15 text-destructive border-destructive/30" };
     if (!t.is_approved) return { label: "بانتظار الموافقة", color: "bg-amber-500/15 text-amber-600 border-amber-500/30" };
     return { label: "معتمد ونشط", color: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" };
   })();
@@ -262,6 +268,11 @@ const AdminTeacherProfile = () => {
             </div>
 
             <div className="flex flex-col gap-2">
+              <AdminTeacherContactDialog
+                userId={id || ""}
+                userName={p.full_name}
+                onSent={() => { setActiveTab("support"); void loadTeacher(); }}
+              />
               <Button size="sm" variant={t.is_approved ? "outline" : "default"} onClick={toggleApproval} className="gap-1">
                 {t.is_approved ? <><XCircle className="h-4 w-4" />إلغاء الاعتماد</> : <><CheckCircle2 className="h-4 w-4" />اعتماد المعلم</>}
               </Button>

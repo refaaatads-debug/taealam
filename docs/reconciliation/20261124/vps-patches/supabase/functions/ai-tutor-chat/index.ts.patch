@@ -1,0 +1,25 @@
+diff --git asupabase/functions/ai-tutor-chat/index.ts bsupabase/functions/ai-tutor-chat/index.ts
+index b2ca385..fb300d4 100644
+--- asupabase/functions/ai-tutor-chat/index.ts
++++ bsupabase/functions/ai-tutor-chat/index.ts
+@@ -15,9 +15,8 @@ const SYSTEM_PROMPT = `أنت "مساعد منصة أجيال المعرفة" -
+ - اجعل ردودك قصيرة (2-4 جمل) ليسهل سماعها.`;
+ 
+ const GROQ_MODELS = [
+-  "llama-3.1-8b-instant",
+-  "llama-3.3-70b-versatile",
+-  "meta-llama/llama-4-scout-17b-16e-instruct",
++  "openai/gpt-oss-120b",
++  "qwen/qwen3.6-27b",
+ ];
+ 
+ async function callGroq(messages: any[], apiKey: string): Promise<string | null> {
+@@ -49,7 +48,7 @@ async function callGemini(messages: any[], apiKey: string): Promise<string | nul
+       parts: [{ text: m.content }],
+     }));
+     const resp = await fetch(
+-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
++      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+       { method: "POST", headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents }) }
+     );

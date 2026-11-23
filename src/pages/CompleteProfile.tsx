@@ -81,12 +81,12 @@ const CompleteProfile = () => {
 
     const { data: updated, error } = await supabase
       .from("profiles")
-      .update({
+      .upsert({
+        user_id: user.id,
         full_name: parsed.data.full_name,
         phone: parsed.data.phone,
         teaching_stage: parsed.data.teaching_stage,
-      } as any)
-      .eq("user_id", user.id)
+      } as any, { onConflict: "user_id" })
       .select("full_name, phone, teaching_stage")
       .maybeSingle();
 

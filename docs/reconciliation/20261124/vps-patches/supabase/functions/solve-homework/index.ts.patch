@@ -1,0 +1,25 @@
+diff --git asupabase/functions/solve-homework/index.ts bsupabase/functions/solve-homework/index.ts
+index 957f0b2..c98bfd8 100644
+--- asupabase/functions/solve-homework/index.ts
++++ bsupabase/functions/solve-homework/index.ts
+@@ -29,16 +29,15 @@ const SYSTEM_PROMPT = `أنت مساعد ذكي في منصة "أجيال الم
+ إذا الصورة غير واضحة أو ليست واجباً، أعد JSON: {"error": "السبب"}.
+ الرد دائماً بالعربية.`;
+ 
+-// Vision-capable Groq models in priority order
+-const VISION_MODELS = [
+-  "meta-llama/llama-4-scout-17b-16e-instruct",
+-];
++// Groq's current model catalogue no longer exposes a vision model.
++// Gemini remains the vision provider and is called directly below.
++const VISION_MODELS: string[] = [];
+ 
+ // Gemini vision fallback
+ async function callGeminiVision(base64Data: string, mimeType: string, userText: string, apiKey: string): Promise<string | null> {
+   try {
+     const resp = await fetch(
+-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
++      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+       {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },

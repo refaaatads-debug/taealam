@@ -1,0 +1,28 @@
+diff --git asrc/components/admin/AdminUrgentTasks.tsx bsrc/components/admin/AdminUrgentTasks.tsx
+index f29c6a7..03dc722 100644
+--- asrc/components/admin/AdminUrgentTasks.tsx
++++ bsrc/components/admin/AdminUrgentTasks.tsx
+@@ -183,7 +183,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
+     try {
+       let targetTable = ""; let targetId = "";
+       if (t.kind === "teacher") {
+-        const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", t.raw.id);
++        const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true, approval_status: "approved" } as any).eq("id", t.raw.id);
+         if (error) throw error;
+         targetTable = "teacher_profiles"; targetId = t.raw.id;
+         toast.success("تمت الموافقة على المعلم");
+@@ -220,8 +220,12 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
+     try {
+       let targetTable = ""; let targetId = "";
+       if (t.kind === "teacher") {
+-        await supabase.from("teacher_profiles").delete().eq("id", t.raw.id);
+-        await supabase.from("user_roles").update({ role: "student" as any }).eq("user_id", t.raw.user_id);
++        const { error } = await supabase.from("teacher_profiles").update({
++          is_approved: false,
++          is_verified: false,
++          approval_status: "rejected",
++        } as any).eq("id", t.raw.id);
++        if (error) throw error;
+         targetTable = "teacher_profiles"; targetId = t.raw.id;
+         toast.success("تم رفض طلب المعلم");
+       } else if (t.kind === "withdrawal") {

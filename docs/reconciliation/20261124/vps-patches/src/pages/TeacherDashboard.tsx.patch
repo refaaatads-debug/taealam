@@ -1,0 +1,28 @@
+diff --git asrc/pages/TeacherDashboard.tsx bsrc/pages/TeacherDashboard.tsx
+index 18bb81a..f4f2a52 100644
+--- asrc/pages/TeacherDashboard.tsx
++++ bsrc/pages/TeacherDashboard.tsx
+@@ -190,6 +190,23 @@ const TeacherDashboard = () => {
+       sessions: tp?.total_sessions || 0,
+       rating: Number(tp?.avg_rating) || 0,
+     });
++      // جلب آخر 5 حصص مكتملة لروابط الدردشة
++      const { data: completedSess } = await supabase
++        .from("bookings")
++        .select("id, student_id, scheduled_at, subjects(name)")
++        .eq("teacher_id", user.id)
++        .eq("status", "completed")
++        .order("scheduled_at", { ascending: false })
++        .limit(5);
++      if (completedSess && completedSess.length > 0) {
++        const sIds = [...new Set(completedSess.map((b: any) => b.student_id))];
++        const { data: sProfs } = await supabase
++          .from("public_profiles")
++          .select("user_id, full_name")
++          .in("user_id", sIds);
++        const pMap = new Map((sProfs ?? []).map((p: any) => [p.user_id, p.full_name]));
++      }
++
+     } catch (fetchErr) {
+       console.error("[teacher-dashboard] fetchData error:", fetchErr);
+       // Transient network error (e.g. edge-function crash dropped HTTP/2 connection).

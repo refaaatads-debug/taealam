@@ -21,7 +21,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
+  Bell, LogOut, ShieldCheck, KeyRound, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,6 +141,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "الإدارة والنظام",
       items: [
         { id: "team", title: "فريق الإدارة وسجل العمليات", icon: ShieldCheck, permission: "manage_admins" },
+        { id: "admin_permissions", title: "صلاحيات أقسام لوحة الإدارة", icon: KeyRound, permission: "manage_admins" },
       ],
     },
   ];
@@ -191,15 +192,18 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                       className="relative h-11 rounded-xl text-[13px] font-semibold leading-5 text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.title}</span>
+                      <span className="truncate text-[13px]">{item.title}</span>
                       {item.badge && item.badge > 0 ? (
                         <Badge
                           variant="destructive"
-                          className="mr-auto text-[9px] px-1.5 py-0 h-4 min-w-4 flex items-center justify-center rounded-full"
+                          className="mr-auto text-[9px] px-1.5 py-0 h-4 min-w-[16px] flex items-center justify-center rounded-full"
                         >
                           {item.badge}
                         </Badge>
                       ) : null}
+                      {activeTab === item.id && (
+                        <span className="absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-l-full" />
+                      )}
                     </SidebarMenuButton>
                     {item.children && item.children.length > 0 && (
                       <SidebarMenuSub>
@@ -231,7 +235,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout} tooltip="تسجيل الخروج" className="h-10 rounded-xl text-rose-600 hover:bg-rose-50 hover:text-rose-700">
               <LogOut className="h-4 w-4" />
-              <span>تسجيل الخروج</span>
+              <span className="text-[13px]">تسجيل الخروج</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

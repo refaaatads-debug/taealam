@@ -42,6 +42,7 @@ import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import LearningMaterialsSection from "@/components/learning-materials/LearningMaterialsSection";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
 import AdminNotificationsTab from "@/components/admin/AdminNotificationsTab";
+import AdminPermissionsTab from "@/components/admin/AdminPermissionsTab";
 import AdminTeamManagementTab from "@/components/admin/AdminTeamManagementTab";
 import WalletsManagementTab from "@/components/admin/WalletsManagementTab";
 import CallTranscriptsTab from "@/components/admin/CallTranscriptsTab";
@@ -456,7 +457,7 @@ const AdminDashboard = () => {
   };
 
   const approveTeacher = async (teacherId: string) => {
-    const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true }).eq("id", teacherId);
+    const { error } = await supabase.from("teacher_profiles").update({ is_approved: true, is_verified: true, approval_status: "approved" } as any).eq("id", teacherId);
     if (error) { toast.error(safeErrorMessage(error, "تعذر تنفيذ العملية. حاول مرة أخرى.")); return; }
     toast.success("تمت الموافقة على المعلم!");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
@@ -464,8 +465,8 @@ const AdminDashboard = () => {
   };
 
   const rejectTeacher = async (teacherId: string, userId: string) => {
-    await supabase.from("teacher_profiles").delete().eq("id", teacherId);
-    await supabase.from("user_roles").update({ role: "student" as any }).eq("user_id", userId);
+    const { error } = await supabase.from("teacher_profiles").update({ is_approved: false, is_verified: false, approval_status: "rejected" } as any).eq("id", teacherId);
+    if (error) { toast.error(safeErrorMessage(error, "تعذر تنفيذ العملية. حاول مرة أخرى.")); return; }
     toast.success("تم رفض طلب المعلم");
     setPendingTeachers(prev => prev.filter(t => t.id !== teacherId));
   };
@@ -541,6 +542,7 @@ const AdminDashboard = () => {
     admin_notifications: "manage_notifications",
     domain_ssl: "manage_domain_ssl",
     team: "manage_admins",
+    admin_permissions: "manage_admins",
     platform_health: "view_overview",
   };
 
@@ -590,6 +592,7 @@ const AdminDashboard = () => {
       case "admin_notifications": return <AdminNotificationsTab />;
       case "wallets": return <WalletsManagementTab />;
       case "team": return <AdminTeamManagementTab />;
+      case "admin_permissions": return <AdminPermissionsTab />;
       case "domain_ssl": return <DomainSSLTab />;
       case "advanced_analytics": return <AdvancedAnalyticsTab />;
       case "platform_health": return <AdminPlatformHealthTab onNavigateTab={handleTabChange} />;

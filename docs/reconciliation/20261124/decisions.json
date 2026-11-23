@@ -1,0 +1,82 @@
+[
+  {
+    "path": "supabase/functions/ai-tutor-chat/index.ts",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "supabase/functions/ai-support/index.ts",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "supabase/functions/grade-assignment/index.ts",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "supabase/functions/solve-homework/index.ts",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "supabase/functions/live-ai-assistant/index.ts",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/pages/Chat.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 1
+  },
+  {
+    "path": "src/pages/StudentDashboard.tsx",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/pages/TeacherDashboard.tsx",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/pages/AdminTeacherProfile.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 2
+  },
+  {
+    "path": "src/pages/AdminDashboard.tsx",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/components/admin/WithdrawalRequestsTab.tsx",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/components/admin/AdminSidebar.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 9
+  },
+  {
+    "path": "src/components/admin/TeacherProfilesTab.tsx",
+    "decision": "retain-current-whole-file-review-VPS-patch",
+    "reason": "overlapping behavior; preserve current financial, approval, dashboard or provider-security fixes"
+  },
+  {
+    "path": "src/components/admin/UserManagementTab.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 4
+  },
+  {
+    "path": "src/components/teacher/TeacherScheduleTable.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 3
+  },
+  {
+    "path": "src/components/student/StudentScheduleTable.tsx",
+    "decision": "keep-current-in-conflicts-apply-nonoverlap",
+    "blocks": 3
+  }
+]
