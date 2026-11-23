@@ -4,23 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import BrandLoader from "@/components/BrandLoader";
 import RedesignedLandingPage, { LandingTeacher } from "@/components/RedesignedLandingPage";
 import { useAuth } from "@/contexts/AuthContext";
-import teacher1 from "@/assets/teacher-1.jpg";
-import teacher2 from "@/assets/teacher-2.jpg";
-import teacher3 from "@/assets/teacher-3.jpg";
-import teacher4 from "@/assets/teacher-4.jpg";
-
-const fallbackTeachers: LandingTeacher[] = [
-  { name: "أ. سارة المحمدي", subject: "رياضيات", rating: 4.9, students: 320, price: 80, img: teacher1, badge: "الأكثر حجزاً", sessions: 1200 },
-  { name: "أ. خالد العتيبي", subject: "فيزياء", rating: 4.8, students: 280, price: 90, img: teacher2, badge: "مدرس مميز", sessions: 980 },
-  { name: "أ. نورة الشهري", subject: "إنجليزي", rating: 4.9, students: 410, price: 70, img: teacher3, badge: "الأعلى تقييماً", sessions: 1450 },
-  { name: "أ. أحمد الحربي", subject: "كيمياء", rating: 4.7, students: 195, price: 85, img: teacher4, badge: "خبير", sessions: 760 },
-];
-
-const fallbackImages = [teacher1, teacher2, teacher3, teacher4];
-
 const Index = () => {
   const { user, roles, loading } = useAuth();
-  const [teachers, setTeachers] = useState<LandingTeacher[]>(fallbackTeachers);
+  const [teachers, setTeachers] = useState<LandingTeacher[]>([]);
 
   useEffect(() => {
     const loadFeatured = async () => {
@@ -53,18 +39,21 @@ const Index = () => {
         }
       });
 
-      setTeachers(featured.map((item: any, index: number) => {
+      setTeachers(featured.filter((item: any) => {
+        const profile: any = profileMap.get(item.teacher_id);
+        return Boolean(profile?.full_name && teacherMap.has(item.teacher_id));
+      }).map((item: any) => {
         const profile: any = profileMap.get(item.teacher_id);
         const teacherProfile: any = teacherMap.get(item.teacher_id);
         return {
           name: profile?.full_name || "مدرس",
           subject: item.subject_label || subjectMap.get(item.teacher_id) || "متعدد",
-          rating: Number(item.rating_override ?? teacherProfile?.avg_rating ?? 4.8),
-          students: item.students_count ?? teacherProfile?.total_sessions ?? 100,
-          price: Number(item.price ?? teacherProfile?.hourly_rate ?? 80),
-          img: item.image_url || profile?.avatar_url || fallbackImages[index % fallbackImages.length],
+          rating: Number(item.rating_override ?? teacherProfile?.avg_rating ?? 0),
+          students: item.students_count ?? null,
+          price: item.price != null || teacherProfile?.hourly_rate != null ? Number(item.price ?? teacherProfile.hourly_rate) : null,
+          img: item.image_url || profile?.avatar_url || null,
           badge: item.badge_label || "مدرس مميز",
-          sessions: item.sessions_count ?? teacherProfile?.total_sessions ?? 500,
+          sessions: item.sessions_count ?? teacherProfile?.total_sessions ?? 0,
           hidePrice: !!item.hide_price,
         };
       }));
