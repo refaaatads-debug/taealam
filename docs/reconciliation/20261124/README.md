@@ -14,7 +14,7 @@ Based on current main `131f4d25c1a9c8a5011ab9bc1d44b1df00d96b3c`, not the old di
 
 ## Deliberately unresolved
 
-This is not a wholesale copy. Seventeen tracked files had overlapping edits. `decisions.json` records the initial merge choices; the notes here describe final targeted adaptations. Every old edit is retained under `vps-patches/`, including edits not activated.
+This is not a wholesale copy. Sixteen tracked files had overlapping edits; four tracked files merged cleanly. `decisions.json` records the initial merge choices; the notes here describe final targeted adaptations. Every old edit is retained under `vps-patches/`, including edits not activated.
 
 - `WithdrawalRequestsTab`: retain current atomic withdrawal-payment RPC, earning-ledger writes, allocations and states. Legacy VPS UI replaces these with incompatible writes. Needs focused UI port, not choosing the VPS file.
 - `TeacherProfilesTab`: retain current conflict-aware approval status and server-calculated withdrawable balances. Old table layout must be ported separately if wanted.
