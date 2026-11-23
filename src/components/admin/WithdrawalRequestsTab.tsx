@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SignedAnchor } from "@/components/SignedUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -385,8 +386,8 @@ export default function WithdrawalRequestsTab() {
                       <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">📝 ملاحظات المعلم: {r.teacher_notes}</p>
                     )}
                     {r.attachment_url && (
-                      <a
-                        href={r.attachment_url}
+                      <SignedAnchor
+                        url={r.attachment_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
@@ -394,7 +395,7 @@ export default function WithdrawalRequestsTab() {
                         <Download className="h-3.5 w-3.5" />
                         <FileText className="h-3.5 w-3.5" />
                         {r.attachment_name || "تحميل المرفق"}
-                      </a>
+                      </SignedAnchor>
                     )}
 
                     {isExpanded && (

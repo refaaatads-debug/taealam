@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { SignedUrl } from "@/components/SignedUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -2565,29 +2566,33 @@ const LiveSession = () => {
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}
                       <p>{m.text}</p>
-                      {m.fileUrl && m.fileType?.startsWith("image/") && (
+                      {m.fileUrl && (
+<SignedUrl url={m.fileUrl}>{(signedFileUrl) => { const m2 = { ...m, fileUrl: signedFileUrl }; return (<>
+{m2.fileUrl && m2.fileType?.startsWith("image/") && (
                         <div className="mt-2">
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="block">
-                            <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
+                          <button type="button" onClick={() => openFileInNewTab(m2.fileUrl!, m2.fileName, m2.fileType)} className="block">
+                            <img src={m2.fileUrl} alt={m2.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
                           </button>
-                          <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "image")} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
+                          <button type="button" onClick={() => downloadFile(m2.fileUrl!, m2.fileName || "image")} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
                             <Download className="h-3 w-3" /> تحميل
                           </button>
                         </div>
                       )}
-                      {m.fileUrl && (m.fileType === "application/pdf" || m.fileName?.endsWith(".pdf")) && (
+                      {m2.fileUrl && (m2.fileType === "application/pdf" || m2.fileName?.endsWith(".pdf")) && (
                         <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
                           <FileText className="h-4 w-4 shrink-0 text-destructive" />
-                          <span className="text-xs truncate flex-1">{m.fileName || "PDF"}</span>
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="text-[11px] underline text-primary shrink-0">فتح</button>
-                          <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "file.pdf")} className="shrink-0 text-primary">
+                          <span className="text-xs truncate flex-1">{m2.fileName || "PDF"}</span>
+                          <button type="button" onClick={() => openFileInNewTab(m2.fileUrl!, m2.fileName, m2.fileType)} className="text-[11px] underline text-primary shrink-0">فتح</button>
+                          <button type="button" onClick={() => downloadFile(m2.fileUrl!, m2.fileName || "file.pdf")} className="shrink-0 text-primary">
                             <Download className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       )}
-                      {m.fileUrl && m.fileType?.startsWith("audio/") && (
-                        <VoicePlayer url={m.fileUrl} fileName={m.fileName} />
+                      {m2.fileUrl && m2.fileType?.startsWith("audio/") && (
+                        <VoicePlayer url={m2.fileUrl} fileName={m2.fileName} />
                       )}
+</>); }}</SignedUrl>
+)}
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">{m.time}</p>
                   </motion.div>

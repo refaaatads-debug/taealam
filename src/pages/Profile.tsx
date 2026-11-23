@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SignedAnchor } from "@/components/SignedUrl";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -743,9 +744,9 @@ const Profile = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <a href={c.file_url} target="_blank" rel="noopener noreferrer">
+                          <SignedAnchor url={c.file_url} target="_blank" rel="noopener noreferrer">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><FileText className="h-3.5 w-3.5 text-primary" /></Button>
-                          </a>
+                          </SignedAnchor>
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteCert(c.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>

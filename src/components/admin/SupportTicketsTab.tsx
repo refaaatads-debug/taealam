@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { SignedUrl } from "@/components/SignedUrl";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useAuth } from "@/contexts/AuthContext";
@@ -552,7 +553,10 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
 
   const isImage = (type?: string | null) => type?.startsWith("image/");
 
-  const renderFileAttachment = (msg: Message) => {
+  const renderFileAttachment = (msg: Message) =>
+    msg.file_url ? <SignedUrl url={msg.file_url}>{(u) => renderFileAttachmentInner({ ...msg, file_url: u })}</SignedUrl> : null;
+
+  const renderFileAttachmentInner = (msg: Message) => {
     if (!msg.file_url) return null;
     if (msg.file_type?.startsWith("audio/")) return <VoicePlayer url={msg.file_url} />;
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");

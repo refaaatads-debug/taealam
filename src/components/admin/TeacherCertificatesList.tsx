@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SignedAnchor, useSignedUrl } from "@/components/SignedUrl";
 import { Award, ExternalLink, FileCheck2, FileText, Image as ImageIcon, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,6 +34,7 @@ const certificateDate = (value?: string | null) => value
 
 export default function TeacherCertificatesList({ certificates, compact = false }: Props) {
   const [selected, setSelected] = useState<TeacherCertificate | null>(null);
+  const signedSelectedUrl = useSignedUrl(selected?.file_url);
 
   return (
     <>
@@ -55,7 +57,7 @@ export default function TeacherCertificatesList({ certificates, compact = false 
                 <div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-slate-700" title={certificate.name}>{certificate.name}</p><p className="mt-0.5 truncate text-[10px] text-slate-400">{certificate.file_name || "ملف الشهادة"} · {certificateDate(certificate.created_at)}</p></div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button type="button" size="sm" variant="outline" onClick={() => setSelected(certificate)} className="h-7 gap-1 rounded-lg border-amber-200 px-2 text-[10px] text-amber-700 hover:bg-amber-50"><Maximize2 className="h-3 w-3" /> عرض</Button>
-                  <a href={certificate.file_url} target="_blank" rel="noopener noreferrer" aria-label={`فتح ${certificate.name}`}><Button type="button" size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-slate-400 hover:bg-white hover:text-[#174477]"><ExternalLink className="h-3.5 w-3.5" /></Button></a>
+                  <SignedAnchor url={certificate.file_url} target="_blank" rel="noopener noreferrer" aria-label={`فتح ${certificate.name}`}><Button type="button" size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-slate-400 hover:bg-white hover:text-[#174477]"><ExternalLink className="h-3.5 w-3.5" /></Button></SignedAnchor>
                 </div>
               </div>
             ))}
@@ -66,7 +68,7 @@ export default function TeacherCertificatesList({ certificates, compact = false 
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className="flex h-[min(88vh,800px)] w-[min(96vw,1000px)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl p-0" dir="rtl">
           <DialogHeader className="flex shrink-0 flex-row items-center justify-between border-b border-slate-100 bg-white px-5 py-4"><DialogTitle className="flex min-w-0 items-center gap-2 text-sm font-black text-slate-800"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><Award className="h-4 w-4" /></span><span className="truncate">{selected?.name || "عرض الشهادة"}</span></DialogTitle><Button type="button" variant="ghost" size="icon" onClick={() => setSelected(null)} className="h-8 w-8 rounded-lg"><X className="h-4 w-4" /></Button></DialogHeader>
-          {selected && <div className="min-h-0 flex-1 bg-slate-100 p-3 sm:p-5">{isImageFile(selected) ? <div className="flex h-full items-center justify-center overflow-auto"><img src={selected.file_url} alt={selected.name} className="max-h-full max-w-full rounded-xl bg-white object-contain shadow-lg" /></div> : isPdfFile(selected) ? <iframe src={selected.file_url} title={selected.name} className="h-full w-full rounded-xl border border-slate-200 bg-white" /> : <div className="flex h-full flex-col items-center justify-center text-center"><FileText className="mb-3 h-12 w-12 text-slate-400" /><p className="text-sm font-bold text-slate-700">هذا النوع من الملفات يفتح في تبويب مستقل</p><a href={selected.file_url} target="_blank" rel="noopener noreferrer" className="mt-4"><Button type="button" className="gap-2 rounded-xl bg-[#174477]"><ExternalLink className="h-4 w-4" /> فتح الملف</Button></a></div>}</div>}
+          {selected && <div className="min-h-0 flex-1 bg-slate-100 p-3 sm:p-5">{isImageFile(selected) ? <div className="flex h-full items-center justify-center overflow-auto"><img src={(signedSelectedUrl || "")} alt={selected.name} className="max-h-full max-w-full rounded-xl bg-white object-contain shadow-lg" /></div> : isPdfFile(selected) ? <iframe src={(signedSelectedUrl || "")} title={selected.name} className="h-full w-full rounded-xl border border-slate-200 bg-white" /> : <div className="flex h-full flex-col items-center justify-center text-center"><FileText className="mb-3 h-12 w-12 text-slate-400" /><p className="text-sm font-bold text-slate-700">هذا النوع من الملفات يفتح في تبويب مستقل</p><a href={(signedSelectedUrl || "")} target="_blank" rel="noopener noreferrer" className="mt-4"><Button type="button" className="gap-2 rounded-xl bg-[#174477]"><ExternalLink className="h-4 w-4" /> فتح الملف</Button></a></div>}</div>}
         </DialogContent>
       </Dialog>
     </>
