@@ -13,8 +13,8 @@ export function providerMp3Seconds(bytes: Uint8Array): number {
  while(at<bytes.length){
   if(bytes.length-at===128 && String.fromCharCode(...bytes.slice(at,at+3))==='TAG') {at+=128;break;}
   if(at+4>bytes.length)throw Error('truncated_mp3');
-  const a=bytes[at],b=bytes[at+1],c=bytes[at+2],d=bytes[at+3];
-  if(a!==255 || (b&0xfe)!==0xfa || (c>>4)!==9 || ((c>>2)&3)!==0 || (d>>6)===3) throw Error('unsupported_mp3');
+  const a=bytes[at],b=bytes[at+1],c=bytes[at+2];
+  if(a!==255 || (b&0xfe)!==0xfa || (c>>4)!==9 || ((c>>2)&3)!==0) throw Error('unsupported_mp3');
   const frameLength=Math.floor(144*128000/44100)+((c>>1)&1);
   if(at+frameLength>bytes.length)throw Error('truncated_mp3');
   at+=frameLength;frames++;

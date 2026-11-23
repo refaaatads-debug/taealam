@@ -2,6 +2,7 @@ import {describe,it,expect} from 'vitest';
 import {providerMp3Seconds,generateBudgetedTts} from '../../supabase/functions/_shared/tts-daily-budget-preview';
 function mp3(frames:number){const out=new Uint8Array(417*frames);for(let i=0;i<frames;i++){out.set([255,251,144,0],i*417)}return out;}
 describe('server-owned MP3 duration',()=>{
+ it('accepts mono frames',()=>{const b=mp3(2);b[3]=192;b[420]=192;expect(providerMp3Seconds(b)).toBe(1)});
  it('counts samples not file byte estimate',()=>expect(providerMp3Seconds(mp3(100))).toBe(3));
  it('counts padding frames conservatively',()=>expect(providerMp3Seconds(mp3(11485))).toBe(301));
  it.each([new Uint8Array(),new Uint8Array([1,2,3]),mp3(2).slice(0,-1)])('rejects malformed %j',v=>expect(()=>providerMp3Seconds(v)).toThrow());

@@ -15,6 +15,7 @@ CREATE TABLE public.live_voice_reservations (
  actual_seconds integer CHECK(actual_seconds>=0), settled_at timestamptz,
  FOREIGN KEY(user_id,usage_day) REFERENCES public.live_voice_days(user_id,usage_day)
 );
+CREATE INDEX live_voice_pending ON public.live_voice_reservations(created_at) WHERE state<>'settled';
 ALTER TABLE public.live_voice_days ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_voice_reservations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.live_voice_days, public.live_voice_reservations FROM PUBLIC,anon,authenticated;
