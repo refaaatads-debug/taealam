@@ -114,8 +114,6 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
           </div>
         </section>
 
-        <HomeCitySubjects />
-
         <section className="overflow-hidden bg-[#fbfcfd] px-5 py-16 md:px-8 md:py-24">
           <div className="mx-auto grid max-w-7xl items-center gap-10 md:grid-cols-[.85fr_1.15fr] lg:gap-20">
             <motion.div {...reveal} className="relative order-2 flex justify-center md:order-1"><div className="absolute bottom-5 h-24 w-56 rounded-full bg-[#16776c]/15 blur-2xl" /><img src={mobileAppPreview} alt="واجهة تطبيق أجيال المعرفة للجوال" className="relative h-auto w-[220px] max-w-full object-contain drop-shadow-2xl sm:w-[270px]" style={{ clipPath: "inset(1.1% 4.1% 1.7% 4.1% round 8%)" }} loading="lazy" /></motion.div>
@@ -125,6 +123,8 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
             </motion.div>
           </div>
         </section>
+
+        <HomeCitySubjects />
 
         <section className="bg-[#f6f9fa] px-5 py-16 text-[#17344d] md:px-8 md:py-24">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.8fr_1.2fr] lg:items-center"><div><p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">بداية سهلة وواضحة</p><h2 className="mt-4 text-3xl font-black leading-tight md:text-4xl">رحلتك التعليمية<br /><span className="text-[#16776c]">في ثلاث خطوات</span></h2><p className="mt-5 max-w-sm text-sm leading-7 text-[#17344d]/65">من اختيار احتياجك إلى أول حصة، ابدأ حين تكون مستعداً.</p></div>
