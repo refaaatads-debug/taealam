@@ -43,6 +43,15 @@ describe('disabled/unwired Gemini pilot contract', () => {
     await expect(issueGeminiPilotTicket(f)).rejects.toThrow('unsafe_ephemeral_token');
     expect(f.reserve).toHaveBeenCalledTimes(1);
   });
+  it('uses the immutable requested deadline when provider omits expiry', async () => {
+    const f = fixture();
+    const result = await issueGeminiPilotTicket({ ...f, mint: async () => ({ name: 'auth_tokens/test' }) });
+    expect(result).toMatchObject({ expiresAt: geminiTokenConfig(now).expireTime });
+  });
+  it.each(['', 'not-a-date', new Date(now - 1).toISOString()])('rejects invalid or expired returned expiry %s', async expireTime => {
+    const f = fixture(); f.mint.mockResolvedValue({ name: 'auth_tokens/test', expireTime });
+    await expect(issueGeminiPilotTicket(f)).rejects.toThrow('unsafe_ephemeral_token');
+  });
   it('does not accept expired client tickets', () => {
     expect(() => validateGeminiPilotTicket({ allowed: true, provider: 'gemini', model: 'gemini-3.8-live', token: 'auth_tokens/test', expiresAt: new Date(now).toISOString(), newSessionExpiresAt: new Date(now).toISOString(), maxSeconds: 300 }, now)).toThrow();
   });

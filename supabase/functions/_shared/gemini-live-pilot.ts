@@ -37,12 +37,15 @@ export async function issueGeminiPilotTicket(deps: {
   const config = geminiTokenConfig(issuedAt);
   const token = await deps.mint(config);
   // Do not refund a possibly minted token on ambiguous errors.
-  if (!token.name?.startsWith('auth_tokens/') || !token.expireTime ||
-      Date.parse(token.expireTime) > Date.parse(config.expireTime) ||
-      !Number.isFinite(Date.parse(token.expireTime)) || deps.now() >= issuedAt + 60_000) {
+  // Google may omit expireTime in the mint response. The requested immutable
+  // server deadline remains authoritative; never invent a later client deadline.
+  const expiry = token.expireTime ?? config.expireTime;
+  if (!token.name?.startsWith('auth_tokens/') ||
+      Date.parse(expiry) > Date.parse(config.expireTime) ||
+      !Number.isFinite(Date.parse(expiry)) || Date.parse(expiry) <= deps.now() || deps.now() >= issuedAt + 60_000) {
     throw Error('unsafe_ephemeral_token');
   }
   return { allowed: true, provider: 'gemini', model: GEMINI_LIVE_MODEL,
-    token: token.name, expiresAt: token.expireTime,
+    token: token.name, expiresAt: expiry,
     newSessionExpiresAt: config.newSessionExpireTime, maxSeconds: 300 };
 }
