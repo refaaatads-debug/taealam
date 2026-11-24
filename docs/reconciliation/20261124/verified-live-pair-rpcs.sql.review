@@ -1,0 +1,47 @@
+-- Read-only catalog capture,2026-11-24. Already present live. Review only, do not apply automatically.
+CREATE OR REPLACE FUNCTION public.get_pair_booking_ids(p_booking_id uuid)
+ RETURNS TABLE(bid uuid)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_student_id UUID; v_teacher_id UUID;
+BEGIN
+  SELECT b.student_id, b.teacher_id INTO v_student_id, v_teacher_id
+  FROM bookings b WHERE b.id = p_booking_id;
+  IF v_student_id IS NULL THEN RETURN; END IF;
+  IF auth.uid() IS DISTINCT FROM v_student_id AND auth.uid() IS DISTINCT FROM v_teacher_id THEN RETURN; END IF;
+  RETURN QUERY
+  SELECT b.id FROM bookings b
+  WHERE (b.student_id = v_student_id AND b.teacher_id = v_teacher_id)
+     OR (b.student_id = v_teacher_id AND b.teacher_id = v_student_id);
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.get_pair_messages(p_booking_id uuid)
+ RETURNS TABLE(id uuid, booking_id uuid, sender_id uuid, content text, is_filtered boolean, created_at timestamp with time zone, file_url text, file_name text, file_type text, expires_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_student_id UUID; v_teacher_id UUID;
+BEGIN
+  SELECT b.student_id, b.teacher_id INTO v_student_id, v_teacher_id
+  FROM bookings b WHERE b.id = p_booking_id;
+  IF v_student_id IS NULL THEN RETURN; END IF;
+  IF auth.uid() IS DISTINCT FROM v_student_id AND auth.uid() IS DISTINCT FROM v_teacher_id THEN RETURN; END IF;
+  RETURN QUERY
+  SELECT cm.id, cm.booking_id, cm.sender_id, cm.content,
+    cm.is_filtered, cm.created_at, cm.file_url, cm.file_name, cm.file_type, cm.expires_at
+  FROM chat_messages cm
+  INNER JOIN bookings b ON b.id = cm.booking_id
+  WHERE (
+    (b.student_id = v_student_id AND b.teacher_id = v_teacher_id) OR
+    (b.student_id = v_teacher_id AND b.teacher_id = v_student_id)
+  )
+  AND cm.created_at >= NOW() - INTERVAL '1 year'
+  ORDER BY cm.created_at ASC;
+END;
+$function$

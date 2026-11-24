@@ -1,3 +1,4 @@
+import { loadPairChatHistory } from "@/lib/pairChatHistory";
 import { useState, useEffect, useRef } from "react";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
@@ -274,31 +275,13 @@ const Chat = () => {
           setHasActiveSubscription(!!(sub && sub.length > 0));
         }
 
-        // Get ALL booking IDs between this pair for unified chat
-        // The booking already gives us the canonical student/teacher
-        // direction. Use two equality filters instead of a raw OR expression;
-        // this avoids opening a valid, but empty, single-booking thread when
-        // the pair has older bookings containing the actual messages.
-        const { data: pairBookings } = await supabase
-          .from("bookings")
-          .select("id")
-          .eq("student_id", booking.student_id)
-          .eq("teacher_id", booking.teacher_id);
-        
-        const ids = [...new Set([bookingId, ...(pairBookings?.map(b => b.id) || [])])];
-        setAllBookingIds(ids);
-
-        // Fetch messages from ALL bookings between this pair
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        
-        const { data: msgs } = await supabase
-          .from("chat_messages")
-          .select("*")
-          .in("booking_id", ids)
-          .gte("created_at", oneYearAgo.toISOString())
-          .order("created_at", { ascending: true });
-        if (msgs) setMessages(msgs as ChatMessage[]);
+        try {
+          const history = await loadPairChatHistory(supabase, bookingId, booking.student_id, booking.teacher_id);
+          setAllBookingIds(history.bookingIds);
+          setMessages(history.messages as ChatMessage[]);
+        } catch {
+          toast.error("تعذر تحميل المحادثة. حاول مرة أخرى.");
+        }
         setLoading(false);
       }
     };

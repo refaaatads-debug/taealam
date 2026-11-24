@@ -1,3 +1,5 @@
+> Update08:45: see COMBINED-UPDATE.md and RELEASE-PLAN.md. The earlier build/conflict status below is historical; full build now passes and additional ports/tests are present. No deployment or main merge.
+
 # VPS source reconciliation, 24 November 2026
 
 DRAFT, partial reconciliation. No merge or deployment is requested by this PR. Production was read only. This branch is NOT a certified replacement for the served frontend.

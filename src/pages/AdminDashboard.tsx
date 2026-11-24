@@ -903,6 +903,8 @@ const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, 
 );
 
 const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => {
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const visibleTeachers = teachers.filter((teacher: any) => !teacherSearch || (teacher.profile?.full_name || "").toLowerCase().includes(teacherSearch.toLowerCase()) || (teacher.profile?.phone || "").includes(teacherSearch));
   const [expandedTeacherIds, setExpandedTeacherIds] = useState<string[]>([]);
   const toggleTeacherDetails = (teacherId: string) => {
     setExpandedTeacherIds(current => current.includes(teacherId)
@@ -929,14 +931,15 @@ const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherD
       </div>
     </CardHeader>
     <CardContent>
-      {teachers.length === 0 ? (
+      <Input className="mb-3" aria-label="ابحث في طلبات المعلمين" placeholder="ابحث بالاسم أو الجوال..." value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} />
+      {visibleTeachers.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle className="h-12 w-12 text-success mx-auto mb-3 opacity-60" />
           <p className="text-muted-foreground">لا توجد طلبات معلقة</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {teachers.map((t: any) => {
+          {visibleTeachers.map((t: any) => {
             const detailsOpen = expandedTeacherIds.includes(t.id);
             const subjects = Array.isArray(t.subjects) ? t.subjects : [];
             const stages = Array.isArray(t.teaching_stages) ? t.teaching_stages : [];

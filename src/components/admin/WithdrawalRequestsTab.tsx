@@ -5,13 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp, CreditCard, Plus, Minus, Gift, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, DollarSign, FileText, Download, ChevronDown, ChevronUp, CreditCard, Plus, Minus, Gift, Loader2, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import StatusFilter from "./StatusFilter";
+import { AdminKPIBar } from "./AdminKPIBar";
 import { summarizeWithdrawalAllocations } from "@/lib/withdrawalAllocationBreakdown";
 
 export default function WithdrawalRequestsTab() {
@@ -23,6 +24,7 @@ export default function WithdrawalRequestsTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Adjustment form
   const [showAdjustment, setShowAdjustment] = useState(false);
@@ -244,6 +246,7 @@ export default function WithdrawalRequestsTab() {
   };
 
   const filtered = requests.filter(r => {
+    if (searchQuery && !(r.teacher_name || "").toLowerCase().includes(searchQuery.toLowerCase())) return false;
     const created = new Date(r.created_at);
     if (dateFrom && created < new Date(dateFrom)) return false;
     if (dateTo) { const end = new Date(dateTo); end.setHours(23,59,59,999); if (created > end) return false; }
@@ -253,6 +256,13 @@ export default function WithdrawalRequestsTab() {
 
   return (
     <div className="space-y-4">
+      <AdminKPIBar kpis={[
+        { label: "إجمالي الطلبات", value: requests.length, icon: DollarSign },
+        { label: "طلبات معلقة", value: requests.filter(r => r.status === "pending").length, icon: Clock },
+        { label: "مبلغ انتظار الصرف", value: requests.filter(r => r.status === "pending").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CreditCard },
+        { label: "إجمالي المدفوع", value: requests.filter(r => r.status === "paid").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CheckCircle },
+      ]} />
+      <Input aria-label="ابحث باسم المعلم" placeholder="ابحث باسم المعلم..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
       {/* Admin Adjustments (Bonuses/Deductions) */}
       <Card className="border-0 shadow-card">
         <CardHeader>

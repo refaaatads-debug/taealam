@@ -35,7 +35,7 @@ const TeacherProfilesTab = () => {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<TeacherRow[]>([]);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "approved" | "pending" | "issues">("all");
+  const [filter, setFilter] = useState<"all" | "approved" | "pending" | "rejected" | "issues">("all");
 
   useEffect(() => { loadTeachers(); }, []);
 
@@ -91,7 +91,8 @@ const TeacherProfilesTab = () => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (filter === "approved" && !r.is_approved) return false;
-      if (filter === "pending" && r.is_approved) return false;
+      if (filter === "pending" && (r.is_approved || r.approval_status === "rejected")) return false;
+      if (filter === "rejected" && r.approval_status !== "rejected") return false;
       if (filter === "issues" && r.open_tickets === 0) return false;
       if (!q) return true;
       return (r.full_name || "").toLowerCase().includes(q) || (r.phone || "").toLowerCase().includes(q);
@@ -172,6 +173,7 @@ const TeacherProfilesTab = () => {
                 { id: "all", label: "الكل" },
                 { id: "approved", label: "معتمد" },
                 { id: "pending", label: "بانتظار الموافقة" },
+                { id: "rejected", label: "مرفوضون" },
                 { id: "issues", label: "مشاكل" },
               ].map((f) => (
                 <Button
@@ -224,6 +226,8 @@ const TeacherProfilesTab = () => {
                       )}
                       {r.is_approved ? (
                         <Badge variant="secondary" className="text-xs">معتمد</Badge>
+                      ) : r.approval_status === "rejected" ? (
+                        <Badge variant="destructive" className="text-xs">مرفوض</Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-600">بانتظار</Badge>
                       )}

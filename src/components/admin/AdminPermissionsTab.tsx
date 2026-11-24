@@ -131,9 +131,9 @@ const AdminPermissionsTab = () => {
   const filtered = users.filter(u => u.full_name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="flex gap-4 h-full" dir="rtl">
+    <div className="flex flex-col gap-4 h-full lg:flex-row" dir="rtl">
       {/* Users List */}
-      <div className="w-80 shrink-0 space-y-3">
+      <div className="w-full lg:w-80 shrink-0 space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -198,7 +198,7 @@ const AdminPermissionsTab = () => {
             {/* User Header */}
             <Card>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">{selected.full_name.charAt(0)}</AvatarFallback>
@@ -208,7 +208,7 @@ const AdminPermissionsTab = () => {
                       <p className="text-xs text-muted-foreground">{selected.permissions.length} صلاحية مفعّلة من أصل {Object.keys(PERMISSION_LABELS).length}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" className="h-8 text-xs" disabled={selected.user_id === currentUser?.id} onClick={() => grantAll(selected.user_id)}>
                       <ShieldCheck className="h-3.5 w-3.5 ml-1" /> منح الكل
                     </Button>
