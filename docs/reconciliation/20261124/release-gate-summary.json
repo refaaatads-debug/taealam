@@ -1,0 +1,132 @@
+{
+  "observedAt": "2026-11-24T08:53:00+03:00",
+  "sourceWeb": "79d96dafd100df518423c3067da29973f37782c1",
+  "sourceApi": "2f9e445144b6f614d922a9e924b10610792c7d83",
+  "recordedMigrations": [
+    {
+      "migration": "20261021001100_in_person_session_lifecycle.sql",
+      "recordedSha256": "4f30245ae45bcf4da440307526346f701542d504b1187f0692c683e20092a647",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001200_mode_aware_booking_expiry.sql",
+      "recordedSha256": "18d3e3961b2813b6e40e98770214dc49c40e16bf09f82b876e27d8037cb8a822",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001300_in_person_session_financial_gates.sql",
+      "recordedSha256": "c91dc0ce01545fd1cc2db12fc9ec0b173af78584ac751d6bd791325ab67e47f7",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001400_idempotent_online_session_earning_rollup.sql",
+      "recordedSha256": "e4add73a05335e154755f6bc490af2c192d2e0deba208b4ee19ecc782482c6af",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001500_financial_snapshot_and_duration_safety.sql",
+      "recordedSha256": "96b3a373f801f1f2892e82f55560c02ef3f3c81b7927ca570e989553968cde1e",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001600_teacher_reporting_and_month_scope.sql",
+      "recordedSha256": "c3304aba867f576596021c9a5f56198b95da0d624dc0f1e15b78c86b3dc5f850",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001700_unified_teacher_withdrawals.sql",
+      "recordedSha256": "280e95810ca362d9bbc3d6c91be1af0dbba397188764938e1bc994c32674fa92",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261021001800_snapshot_in_person_teaching_duration.sql",
+      "recordedSha256": "2517f99f5e332dd853e7c9f65718a10ebfe5479079b0ec66bef62e87ddbbe6de",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261022000100_manual_in_person_teacher_payouts.sql",
+      "recordedSha256": "40af3d6be404874cb6ffd130ce0d9d089234f35200c5a09a6e4a42e50e72b225",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261022000200_canonical_teacher_balance_and_package_minutes.sql",
+      "recordedSha256": "d50eb2d58ce19b500e57489603cdad294b9b0edd00b39d74e2f8822d76463d0f",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261026000100_configurable_in_person_package_minutes.sql",
+      "recordedSha256": "e0cc71e2b6db36a7e0dfe52ebae672356debfa315d9708cddec5372c63b036ee",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261026000200_sync_teacher_service_locations.sql",
+      "recordedSha256": "cc6c7c39247d11541fbdd75d102d1afca4c3b7fab85103643d07e67b523599f3",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261026000300_separate_in_person_teaching_and_debit.sql",
+      "recordedSha256": "1b2bfd53cf0e41698badead0ed049bc0500f50ab62897c3757eedc55ab50e0d9",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261026000400_in_person_teaching_stage.sql",
+      "recordedSha256": "8dfd9fb9004bca8d8ca597db6c88c6807be58029e0521489d3a705e839e28cf9",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261027000100_in_person_request_conflict_duration.sql",
+      "recordedSha256": "0e89a8871540305a710249e1bcf028a025097ae00f3fc7bb978e1aef38fb863e",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000200_restrict_wallet_mutation_rpcs.sql",
+      "recordedSha256": "8aa94d476f4c687c3554923831bedac0459090a975f27595c96006c6d9f68992",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000300_atomic_admin_wallet_operations.sql",
+      "recordedSha256": "f3ddd4235e2adcec50cd72467793cd1ed53022df02774d25b45849ebebfb7740",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000400_guard_teacher_admin_fields.sql",
+      "recordedSha256": "11ade9dec97cb19cb83d3dbdd397e9e05e8f12e98ee7e7b65c93a0dc647ebd94",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000500_private_profile_reads.sql",
+      "recordedSha256": "d025c382a927d4b47f96182cbb8ed68e5069682551cd1e951b79b2a16431e3aa",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000700_deny_teacher_student_phone.sql",
+      "recordedSha256": "f37cfcf557ee9b798c25f52dca9d76a2c563252f2a93505646a80d1d02725f78",
+      "sourceMatches": true
+    },
+    {
+      "migration": "20261028000800_learning_material_links.sql",
+      "recordedSha256": "5bcded5de60526410246f5498b4ffcbb7b55f4d8c7e7b5b167db832ba0dad218",
+      "sourceMatches": true
+    }
+  ],
+  "liveDrift": [
+    "guard_teacher_admin_fields contains narrow nested rating-trigger exception",
+    "guard_profiles_client_writes and pair RPCs require captured live review evidence"
+  ],
+  "stagingEstablished": false,
+  "privateBucketReadiness": false,
+  "buckets": {
+    "chat-files": "public",
+    "support-files": "public",
+    "session-recordings": "private",
+    "assignment-files": "private"
+  },
+  "configPublicFieldsMatchedLiveHashes": [
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "VITE_TURNSTILE_SITE_KEY",
+    "VITE_GOOGLE_MAPS_API_KEY"
+  ],
+  "supabaseUrlVerifiedHost": "ajyalalmaerifa.com",
+  "databaseChangesProposed": [],
+  "deploymentPerformed": false
+}

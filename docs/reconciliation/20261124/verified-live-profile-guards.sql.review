@@ -1,0 +1,81 @@
+-- READ-ONLY CATALOG EVIDENCE, 2026-11-24. Never run this as a migration.
+-- Includes existing live exceptions absent from canonical automatic migrations.
+
+CREATE OR REPLACE FUNCTION public.guard_profiles_client_writes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+BEGIN
+  IF current_user NOT IN ('authenticated','anon') THEN RETURN NEW; END IF;
+  IF auth.uid() IS NOT NULL AND public.has_role(auth.uid(), 'admin'::public.app_role) THEN RETURN NEW; END IF;
+  IF TG_OP = 'INSERT' THEN
+    NEW.level := 'bronze';
+    NEW.free_trial_used := false;
+    NEW.account_status := 'active';
+    NEW.is_deleted := false;
+    NEW.deleted_at := NULL;
+    NEW.deleted_by := NULL;
+    RETURN NEW;
+  END IF;
+  NEW.id := OLD.id;
+  NEW.user_id := OLD.user_id;
+  NEW.created_at := OLD.created_at;
+  NEW.level := OLD.level;
+  NEW.referral_code := OLD.referral_code;
+  NEW.account_status := OLD.account_status;
+  NEW.is_deleted := OLD.is_deleted;
+  NEW.deleted_at := OLD.deleted_at;
+  NEW.deleted_by := OLD.deleted_by;
+  IF OLD.free_trial_used IS TRUE THEN NEW.free_trial_used := true; END IF;
+  RETURN NEW;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.guard_teacher_admin_fields()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+  personal_fields text[] := ARRAY[
+    'bio','years_experience','available_from','available_to','available_days',
+    'nationality','teaching_stages','bank_name','iban','account_holder_name',
+    'vat_enabled','tax_id','cv_url','updated_at',
+    'teaching_mode','city_id','in_person_latitude','in_person_longitude',
+    'in_person_service_radius_km','in_person_enabled'
+  ];
+BEGIN
+  IF auth.role() = 'service_role'
+     OR (auth.role() IS NULL AND session_user IN ('postgres','supabase_admin'))
+     OR public.has_role(auth.uid(), 'admin'::public.app_role) THEN
+    RETURN NEW;
+  END IF;
+  -- A review insert/update runs update_teacher_rating (a nested system trigger) which only moves the rating counters.
+  IF pg_trigger_depth() > 1
+     AND (to_jsonb(NEW) - ARRAY['avg_rating','total_reviews','updated_at'])
+         IS NOT DISTINCT FROM (to_jsonb(OLD) - ARRAY['avg_rating','total_reviews','updated_at']) THEN
+    RETURN NEW;
+  END IF;
+  IF auth.uid() IS NULL OR NEW.user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Profile owner required' USING ERRCODE = '42501';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF COALESCE(NEW.is_approved,false) OR COALESCE(NEW.is_verified,false)
+       OR COALESCE(NEW.balance,0) <> 0 OR COALESCE(NEW.hourly_rate,0) <> 0
+       OR COALESCE(NEW.approval_status,'pending') <> 'pending'
+       OR COALESCE(NEW.in_person_approval_status,'not_requested') <> 'not_requested'
+       OR NEW.in_person_teacher_rate_sar IS NOT NULL
+       OR COALESCE(NEW.avg_rating,0) <> 0 OR COALESCE(NEW.total_sessions,0) <> 0
+       OR COALESCE(NEW.total_reviews,0) <> 0 THEN
+      RAISE EXCEPTION 'Administrative fields cannot be set at registration' USING ERRCODE = '42501';
+    END IF;
+  ELSIF (to_jsonb(NEW) - personal_fields) IS DISTINCT FROM (to_jsonb(OLD) - personal_fields) THEN
+    RAISE EXCEPTION 'Administrative fields require authorization' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$function$
+;
