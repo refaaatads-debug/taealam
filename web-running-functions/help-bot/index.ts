@@ -1,0 +1,81 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+
+const SYSTEM_PROMPT = `أنت مساعد دعم ذكي لـ"منصة أجيال المعرفة" - منصة تعليمية عربية للحصص الخصوصية أونلاين.
+
+معلومات عن المنصة:
+- المنصة توفر حصص خصوصية مباشرة بين الطلاب والمعلمين عبر فيديو/صوت + سبورة تفاعلية
+- نظام الباقات: الطالب يشترك بباقة فيها دقائق، تُخصم تلقائياً عند انتهاء الحصة (إذا الحصة < 5 دقائق لا تُحسب)
+- المعلمون يحتاجون موافقة الإدارة قبل التدريس
+- يوجد نظام واجبات، تقارير AI للحصص، مكافآت للطلاب
+- الدفع عبر Stripe (Apple Pay, Mada، بطاقات)
+- يمكن طلب سحب الأرباح للمعلمين
+- يوجد نظام مكالمات صوتية + شات نصي بين الطالب والمعلم
+
+أجب باختصار ووضوح بالعربية. إذا السؤال خارج نطاق المنصة، اعتذر بلطف ووجّه المستخدم للدعم البشري عبر /support.
+لا تخترع معلومات لست متأكداً منها. إذا كان السؤال يحتاج تدخل بشري (مشكلة دفع، شكوى محددة، طلب إلغاء)، اقترح فتح تذكرة دعم.`;
+
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const rate = checkEdgeRateLimit(req, "help-bot", 10);
+  if (!rate.allowed) {
+    return new Response(JSON.stringify({ error: "طلبات كثيرة، حاول لاحقاً" }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rate.retryAfterSeconds) },
+    });
+  }
+
+  try {
+    const { messages } = await req.json();
+    if (!Array.isArray(messages)) {
+      return new Response(JSON.stringify({ error: "Invalid messages" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
+    const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GEMINI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: geminiModel,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...messages.slice(-10),
+        ],
+      }),
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text();
+      console.error("AI error:", resp.status, t);
+      if (resp.status === 429) {
+        return new Response(JSON.stringify({ error: "تم تجاوز الحد المسموح، حاول لاحقاً" }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: "AI request failed" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const data = await resp.json();
+    const reply = data.choices?.[0]?.message?.content || "عذراً، لم أتمكن من الإجابة الآن.";
+
+    return new Response(JSON.stringify({ reply }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("help-bot error:", e);
+    return new Response(JSON.stringify({ error: "تعذر معالجة الطلب حالياً" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

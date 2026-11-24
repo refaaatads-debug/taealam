@@ -1,0 +1,461 @@
+import Navbar from "@/components/Navbar";
+import BrandLoader from "@/components/BrandLoader";
+import BottomNav from "@/components/BottomNav";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CalendarCheck, DollarSign, Users, Clock, Star, BarChart3, Settings, AlertCircle, MessageSquare, Play, X, Loader2 } from "lucide-react";
+
+import BookingRequests from "@/components/teacher/BookingRequests";
+import WarningsSection from "@/components/teacher/WarningsSection";
+import WithdrawalSection from "@/components/teacher/WithdrawalSection";
+import TeacherScheduleTable from "@/components/teacher/TeacherScheduleTable";
+import TeacherCustomerServiceButton from "@/components/teacher/CustomerServiceButton";
+import TeacherSessionMaterials from "@/components/teacher/TeacherSessionMaterials";
+import ScheduledSessionsCalendar from "@/components/ScheduledSessionsCalendar";
+
+import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import CancelSessionDialog from "@/components/teacher/CancelSessionDialog";
+import { useIsPhoneDevice } from "@/hooks/use-is-phone";
+
+const TeacherDashboard = () => {
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({ earnings: 0, students: 0, sessions: 0, rating: 0 });
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [teacherProfile, setTeacherProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [openRequestsCount, setOpenRequestsCount] = useState(0);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; studentId?: string } | null>(null);
+  const scheduleIds = useMemo(() => schedule.map((s: any) => s.id), [schedule]);
+  const unreadCounts = useUnreadMessages(scheduleIds);
+  const isPhone = useIsPhoneDevice();
+
+  useEffect(() => {
+    if (!user) return;
+    fetchData();
+
+    const channel = supabase
+      .channel("teacher-bookings")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "bookings",
+        filter: `teacher_id=eq.${user.id}`,
+      }, (payload) => {
+        fetchData();
+        // Only toast on INSERT (truly new booking).
+        // Cancellations / status updates come through the notifications table with proper Arabic text,
+        // so we avoid a generic "booking updated" message here.
+        if (payload.eventType === "INSERT") {
+          toast.info("لديك حجز جديد! 📚");
+        }
+      })
+      .subscribe();
+
+    // Realtime: booking requests count updates instantly
+    const reqChannel = supabase
+      .channel(`teacher-requests-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "booking_requests",
+      }, (payload) => {
+        fetchData();
+        if (payload.eventType === "INSERT") toast.info("طلب حجز جديد! 🔔");
+      })
+      .subscribe();
+
+    // Realtime: teacher notifications (instant toast)
+    const notifChannel = supabase
+      .channel(`teacher-notif-${user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        const n = payload.new as any;
+        toast.info(n.title || "إشعار جديد", { description: n.body });
+      })
+      .subscribe();
+
+    // Realtime: earnings update instantly when a session ends
+    const earningsChannel = supabase
+      .channel(`teacher-earnings-${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "teacher_earnings",
+        filter: `teacher_id=eq.${user.id}`,
+      }, () => fetchData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(reqChannel);
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(earningsChannel);
+    };
+  }, [user]);
+
+  const fetchData = async () => {
+    if (!user) return;
+    try {
+
+    const { data: tp } = await supabase
+      .from("teacher_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+    setTeacherProfile(tp);
+
+    const { count: reqCount } = await supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open")
+      .gte("expires_at", new Date().toISOString());
+    setOpenRequestsCount(reqCount || 0);
+
+    const now = new Date().toISOString();
+    // Fetch upcoming scheduled sessions + accepted instant sessions (in_progress)
+    const [{ data: upcomingScheduled }, { data: liveSessions }, { data: waitingAcceptance }] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .gte("scheduled_at", now)
+        .order("scheduled_at")
+        .limit(10),
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .eq("session_status", "in_progress")
+        .order("scheduled_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("bookings")
+        .select("*, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "confirmed")
+        .eq("session_status", "waiting_acceptance")
+        .order("scheduled_at", { ascending: false })
+        .limit(10),
+    ]);
+    // Merge and deduplicate
+    const allIds = new Set<string>();
+    const upcoming: typeof upcomingScheduled = [];
+    [...(liveSessions || []), ...(waitingAcceptance || []), ...(upcomingScheduled || [])].forEach(b => {
+      if (!allIds.has(b.id)) { allIds.add(b.id); upcoming.push(b); }
+    });
+
+    if (upcoming && upcoming.length > 0) {
+      const studentIds = [...new Set(upcoming.map(b => b.student_id))];
+      const { data: studentProfiles } = await supabase
+        .from("public_profiles")
+        .select("user_id, full_name")
+        .in("user_id", studentIds);
+      const profileMap = new Map((studentProfiles ?? []).map(p => [p.user_id, p]));
+      setSchedule(upcoming.map(b => ({ ...b, student_profile: profileMap.get(b.student_id) })));
+    } else {
+      setSchedule([]);
+    }
+
+    const { count: studentCount } = await supabase
+      .from("bookings")
+      .select("student_id", { count: "exact", head: true })
+      .eq("teacher_id", user.id);
+
+    // Calculate current month earnings from teacher_earnings table
+    const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const { data: monthEarnings } = await supabase
+      .from("teacher_earnings")
+      .select("amount")
+      .eq("teacher_id", user.id)
+      .eq("month", currentMonth);
+    const totalMonthEarnings = (monthEarnings || []).reduce((sum, e) => sum + Number(e.amount), 0);
+
+    setStats({
+      earnings: totalMonthEarnings,
+      students: studentCount || 0,
+      sessions: tp?.total_sessions || 0,
+      rating: Number(tp?.avg_rating) || 0,
+    });
+      // جلب آخر 5 حصص مكتملة لروابط الدردشة
+      const { data: completedSess } = await supabase
+        .from("bookings")
+        .select("id, student_id, scheduled_at, subjects(name)")
+        .eq("teacher_id", user.id)
+        .eq("status", "completed")
+        .order("scheduled_at", { ascending: false })
+        .limit(5);
+      if (completedSess && completedSess.length > 0) {
+        const sIds = [...new Set(completedSess.map((b: any) => b.student_id))];
+        const { data: sProfs } = await supabase
+          .from("public_profiles")
+          .select("user_id, full_name")
+          .in("user_id", sIds);
+        const pMap = new Map((sProfs ?? []).map((p: any) => [p.user_id, p.full_name]));
+      }
+
+    } catch (fetchErr) {
+      console.error("[teacher-dashboard] fetchData error:", fetchErr);
+      // Transient network error (e.g. edge-function crash dropped HTTP/2 connection).
+      // Silently retry once after 2s so the dashboard recovers automatically.
+      setTimeout(() => {
+        if (user) fetchData();
+      }, 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const displayName = profile?.full_name || "معلم";
+  const isApproved = teacherProfile?.is_approved;
+
+  // Show loading state (unified with global PageLoader to avoid stacked loaders)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <BrandLoader />
+      </div>
+    );
+  }
+
+  // Show pending approval screen if teacher is not approved
+  if (teacherProfile && !isApproved) {
+    return (
+      <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+        <Navbar />
+        <div className="container py-16 flex items-center justify-center">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full">
+            <Card className="border-0 shadow-card text-center">
+              <CardContent className="p-10 space-y-6">
+                <div className="w-20 h-20 rounded-2xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center mx-auto">
+                  <AlertCircle className="h-10 w-10 text-amber-600" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black text-foreground mb-2">مرحباً، {displayName} 👋</h1>
+                  <p className="text-lg font-bold text-amber-600 mb-2">حسابك في انتظار الموافقة</p>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    تم استلام طلبك بنجاح وسيتم مراجعته من قبل الإدارة. ستتمكن من استخدام لوحة التحكم بعد الموافقة على حسابك.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button variant="outline" className="rounded-xl gap-2" asChild>
+                    <Link to="/profile"><Settings className="h-4 w-4" /> أكمل ملفك الشخصي</Link>
+                  </Button>
+                  <Button variant="ghost" className="rounded-xl gap-2" onClick={() => window.location.href = "/support"}>
+                    <MessageSquare className="h-4 w-4" /> تواصل مع خدمة العملاء
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/30 pb-16 md:pb-0">
+      <Navbar />
+      <div className="container py-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <h1 className="text-2xl md:text-3xl font-black text-foreground">مرحباً، {displayName} 👋</h1>
+            <p className="text-muted-foreground">
+              لديك {openRequestsCount} طلب متاح و {schedule.length} حصة قادمة
+            </p>
+          </motion.div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-xl gap-2" asChild>
+              <Link to="/teacher/wallet">💳 المحفظة</Link>
+            </Button>
+            <Button variant="outline" className="rounded-xl gap-2" asChild>
+              <Link to="/profile"><Settings className="h-4 w-4" /> إعدادات الحساب</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats - removed pricing/hourly rate */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { icon: DollarSign, label: "أرباح الشهر", value: `${stats.earnings.toLocaleString()} ر.س`, color: "text-secondary", bg: "bg-secondary/10" },
+            { icon: Users, label: "عدد الطلاب", value: stats.students.toString(), color: "text-primary", bg: "bg-primary/10" },
+            { icon: CalendarCheck, label: "إجمالي الحصص", value: stats.sessions.toString(), color: "text-accent-foreground", bg: "bg-accent" },
+            { icon: Star, label: "التقييم", value: stats.rating.toFixed(1), color: "text-gold", bg: "bg-gold/10" },
+          ].map((s, i) => (
+            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <Card className="border-0 shadow-card hover:shadow-card-hover transition-all duration-300">
+                <CardContent className="p-5">
+                  <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center mb-3`}>
+                    <s.icon className={`h-5 w-5 ${s.color}`} />
+                  </div>
+                  <p className="text-2xl font-black text-foreground">{s.value}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mb-6">
+          <Link to="/teacher/assignments">
+            <Card className="border-0 shadow-card hover:shadow-lg transition cursor-pointer bg-gradient-to-l from-primary/10 to-secondary/10">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                    <CalendarCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold">الواجبات والاختبارات</h3>
+                    <p className="text-xs text-muted-foreground">أنشئ واجبات وراجع حلول الطلاب بمساعدة AI</p>
+                  </div>
+                </div>
+                <Badge>جديد</Badge>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <BookingRequests onAccepted={fetchData} />
+
+          {/* Upcoming Sessions */}
+          <Card className="border-0 shadow-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2 font-bold">
+                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-secondary" />
+                </div>
+                الحصص القادمة
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {schedule.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">لا توجد حصص قادمة</p>
+              ) : (
+                schedule.map((s: any, i: number) => {
+                  const isToday = new Date(s.scheduled_at).toDateString() === new Date().toDateString();
+                  return (
+                    <motion.div key={s.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.05 }}
+                      className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 rounded-2xl ${isToday ? "bg-accent border border-secondary/20" : "bg-muted/50"}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isToday ? "gradient-cta text-secondary-foreground" : "bg-card border"}`}>
+                          <Users className={`h-5 w-5 ${!isToday ? "text-primary" : ""}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-foreground truncate">{s.student_profile?.full_name || "طالب"} - {s.subjects?.name || ""}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {isToday ? "اليوم" : new Date(s.scheduled_at).toLocaleDateString("ar-SA", { weekday: "long" })} • {new Date(s.scheduled_at).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })} • {s.duration_minutes} دقيقة
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <Button size="sm" variant="outline" className="rounded-xl gap-1.5 px-3 relative" asChild>
+                          <Link to={`/chat?booking=${s.id}`}>
+                            <MessageSquare className="h-5 w-5" />
+                            <span className="text-xs font-medium">دردشة</span>
+                            {(unreadCounts[s.id] || 0) > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center font-bold">
+                                {unreadCounts[s.id]}
+                              </span>
+                            )}
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl gap-1.5 px-3 border-secondary/30 text-secondary hover:bg-secondary/10"
+                          onClick={async () => {
+                            await supabase.from("bookings").update({ session_status: "in_progress" }).eq("id", s.id);
+                            toast.success(`تم قبول الجلسة — ابدأ الحصة الآن`, {
+                              duration: 8000,
+                              action: {
+                                label: "ابدأ الحصة",
+                                onClick: () => navigate(`/session?booking=${s.id}`),
+                              },
+                            });
+                          }}
+                        >
+                          <Play className="h-4 w-4" />
+                          <span className="text-xs font-medium">قبول وبدء</span>
+                        </Button>
+                        {isPhone ? (
+                          <Button
+                            size="sm"
+                            className="gradient-cta text-secondary-foreground rounded-xl shadow-button opacity-60"
+                            onClick={() =>
+                              toast.error("بدء الحصة غير متاح على الهاتف. يرجى استخدام الكمبيوتر أو اللاب توب لبدء الجلسة.")
+                            }
+                          >
+                            ابدأ الحصة
+                          </Button>
+                        ) : (
+                          <Button size="sm" className="gradient-cta text-secondary-foreground rounded-xl shadow-button" asChild>
+                            <Link to={`/session?booking=${s.id}`}>ابدأ الحصة</Link>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl h-8 w-8 p-0 border-destructive/30 text-destructive hover:bg-destructive/10"
+                          title="رفض الحصة"
+                          onClick={() => setCancelTarget({ id: s.id, studentId: s.student_id })}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Teacher Schedule Table */}
+          <TeacherScheduleTable onInstantSessionSent={fetchData} />
+
+          {/* Interactive scheduled sessions table with countdown + 1h reminder */}
+          <ScheduledSessionsCalendar role="teacher" />
+
+          {/* Withdrawal Section */}
+          <WithdrawalSection />
+
+          {/* Teaching Materials */}
+          <TeacherSessionMaterials />
+
+          {/* Warnings & Violations */}
+          <WarningsSection />
+
+          {/* Performance summary removed per request */}
+        </div>
+      </div>
+      <TeacherCustomerServiceButton />
+      <CancelSessionDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => !v && setCancelTarget(null)}
+        bookingId={cancelTarget?.id ?? null}
+        studentId={cancelTarget?.studentId ?? null}
+        onCancelled={() => {
+          setCancelTarget(null);
+          fetchData();
+        }}
+      />
+      <BottomNav />
+    </div>
+  );
+};
+
+export default TeacherDashboard;

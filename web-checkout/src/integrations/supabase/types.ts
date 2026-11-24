@@ -1,0 +1,3186 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.4"
+  }
+  public: {
+    Tables: {
+      active_sessions: {
+        Row: {
+          booking_id: string
+          created_at: string
+          device_id: string
+          disconnected_at: string | null
+          id: string
+          is_connected: boolean
+          last_heartbeat: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          device_id: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_heartbeat?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          device_id?: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_heartbeat?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          actor_name: string | null
+          actor_role: string | null
+          after_data: Json | null
+          before_data: Json | null
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          target_id: string | null
+          target_table: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          actor_name?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_table?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          actor_name?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          target_id?: string | null
+          target_table?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      ai_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          subject: string | null
+          tokens_used: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          subject?: string | null
+          tokens_used?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          subject?: string | null
+          tokens_used?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_logs: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          error_message: string | null
+          evaluator_feedback: string | null
+          feature_name: string
+          id: string
+          input_summary: string | null
+          is_regenerated: boolean | null
+          output_summary: string | null
+          quality_score: number | null
+          response_time_ms: number | null
+          retry_count: number | null
+          status: string
+          usefulness_score: number | null
+          user_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          evaluator_feedback?: string | null
+          feature_name: string
+          id?: string
+          input_summary?: string | null
+          is_regenerated?: boolean | null
+          output_summary?: string | null
+          quality_score?: number | null
+          response_time_ms?: number | null
+          retry_count?: number | null
+          status?: string
+          usefulness_score?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          evaluator_feedback?: string | null
+          feature_name?: string
+          id?: string
+          input_summary?: string | null
+          is_regenerated?: boolean | null
+          output_summary?: string | null
+          quality_score?: number | null
+          response_time_ms?: number | null
+          retry_count?: number | null
+          status?: string
+          usefulness_score?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      assignment_submissions: {
+        Row: {
+          ai_breakdown: Json | null
+          ai_feedback: string | null
+          ai_score: number | null
+          answers: Json | null
+          assignment_id: string
+          audio_url: string | null
+          created_at: string
+          final_score: number | null
+          graded_at: string | null
+          id: string
+          image_urls: Json | null
+          reviewed_at: string | null
+          status: string
+          student_id: string
+          submitted_at: string
+          teacher_feedback: string | null
+          teacher_score: number | null
+          text_answer: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_breakdown?: Json | null
+          ai_feedback?: string | null
+          ai_score?: number | null
+          answers?: Json | null
+          assignment_id: string
+          audio_url?: string | null
+          created_at?: string
+          final_score?: number | null
+          graded_at?: string | null
+          id?: string
+          image_urls?: Json | null
+          reviewed_at?: string | null
+          status?: string
+          student_id: string
+          submitted_at?: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+          text_answer?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_breakdown?: Json | null
+          ai_feedback?: string | null
+          ai_score?: number | null
+          answers?: Json | null
+          assignment_id?: string
+          audio_url?: string | null
+          created_at?: string
+          final_score?: number | null
+          graded_at?: string | null
+          id?: string
+          image_urls?: Json | null
+          reviewed_at?: string | null
+          status?: string
+          student_id?: string
+          submitted_at?: string
+          teacher_feedback?: string | null
+          teacher_score?: number | null
+          text_answer?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignments: {
+        Row: {
+          allow_audio: boolean | null
+          allow_image: boolean | null
+          allow_text: boolean | null
+          attachments: Json
+          booking_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          questions: Json
+          status: string
+          student_id: string | null
+          subject_id: string | null
+          teacher_id: string
+          teaching_stage: string | null
+          title: string
+          total_points: number
+          updated_at: string
+        }
+        Insert: {
+          allow_audio?: boolean | null
+          allow_image?: boolean | null
+          allow_text?: boolean | null
+          attachments?: Json
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          questions?: Json
+          status?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id: string
+          teaching_stage?: string | null
+          title: string
+          total_points?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_audio?: boolean | null
+          allow_image?: boolean | null
+          allow_text?: boolean | null
+          attachments?: Json
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          questions?: Json
+          status?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id?: string
+          teaching_stage?: string | null
+          title?: string
+          total_points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      badges: {
+        Row: {
+          created_at: string
+          description_ar: string | null
+          icon: string | null
+          id: string
+          name: string
+          name_ar: string
+          points_required: number | null
+        }
+        Insert: {
+          created_at?: string
+          description_ar?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          name_ar: string
+          points_required?: number | null
+        }
+        Update: {
+          created_at?: string
+          description_ar?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          name_ar?: string
+          points_required?: number | null
+        }
+        Relationships: []
+      }
+      booking_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          duration_minutes: number
+          expires_at: string | null
+          group_id: string | null
+          id: string
+          price: number | null
+          scheduled_at: string
+          status: string
+          student_id: string
+          subject_id: string | null
+          teaching_stage: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          expires_at?: string | null
+          group_id?: string | null
+          id?: string
+          price?: number | null
+          scheduled_at: string
+          status?: string
+          student_id: string
+          subject_id?: string | null
+          teaching_stage?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          expires_at?: string | null
+          group_id?: string | null
+          id?: string
+          price?: number | null
+          scheduled_at?: string
+          status?: string
+          student_id?: string
+          subject_id?: string | null
+          teaching_stage?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_requests_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          duration_minutes: number
+          id: string
+          meeting_link: string | null
+          notes: string | null
+          price: number | null
+          scheduled_at: string
+          session_status: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          student_id: string
+          subject_id: string | null
+          subscription_id: string | null
+          teacher_id: string
+          updated_at: string
+          used_subscription: boolean | null
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          meeting_link?: string | null
+          notes?: string | null
+          price?: number | null
+          scheduled_at: string
+          session_status?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          student_id: string
+          subject_id?: string | null
+          subscription_id?: string | null
+          teacher_id: string
+          updated_at?: string
+          used_subscription?: boolean | null
+        }
+        Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          meeting_link?: string | null
+          notes?: string | null
+          price?: number | null
+          scheduled_at?: string
+          session_status?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          student_id?: string
+          subject_id?: string | null
+          subscription_id?: string | null
+          teacher_id?: string
+          updated_at?: string
+          used_subscription?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_logs: {
+        Row: {
+          booking_id: string | null
+          cost: number | null
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          error_message: string | null
+          estimated_minutes: number | null
+          id: string
+          status: string
+          student_id: string | null
+          student_phone: string | null
+          teacher_id: string
+          twilio_call_sid: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          cost?: number | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          status?: string
+          student_id?: string | null
+          student_phone?: string | null
+          teacher_id: string
+          twilio_call_sid?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          cost?: number | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          status?: string
+          student_id?: string | null
+          student_phone?: string | null
+          teacher_id?: string
+          twilio_call_sid?: string | null
+        }
+        Relationships: []
+      }
+      call_transcripts: {
+        Row: {
+          call_log_id: string | null
+          created_at: string
+          id: string
+          is_violation: boolean
+          segment_end_ms: number | null
+          segment_start_ms: number | null
+          speaker: string
+          text: string
+          twilio_call_sid: string
+          violation_type: string | null
+        }
+        Insert: {
+          call_log_id?: string | null
+          created_at?: string
+          id?: string
+          is_violation?: boolean
+          segment_end_ms?: number | null
+          segment_start_ms?: number | null
+          speaker?: string
+          text: string
+          twilio_call_sid: string
+          violation_type?: string | null
+        }
+        Update: {
+          call_log_id?: string | null
+          created_at?: string
+          id?: string
+          is_violation?: boolean
+          segment_end_ms?: number | null
+          segment_start_ms?: number | null
+          speaker?: string
+          text?: string
+          twilio_call_sid?: string
+          violation_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_transcripts_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          booking_id: string
+          content: string
+          created_at: string
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          is_filtered: boolean | null
+          sender_id: string
+        }
+        Insert: {
+          booking_id: string
+          content: string
+          created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_filtered?: boolean | null
+          sender_id: string
+        }
+        Update: {
+          booking_id?: string
+          content?: string
+          created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_filtered?: boolean | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      domain_ssl_checks: {
+        Row: {
+          cert_issuer: string | null
+          cert_subject: string | null
+          cert_valid: boolean | null
+          cert_valid_from: string | null
+          cert_valid_to: string | null
+          checked_at: string
+          checked_by: string | null
+          days_until_expiry: number | null
+          domain: string
+          error_message: string | null
+          https_enabled: boolean
+          id: string
+          protocol: string | null
+          response_time_ms: number | null
+          status_code: number | null
+        }
+        Insert: {
+          cert_issuer?: string | null
+          cert_subject?: string | null
+          cert_valid?: boolean | null
+          cert_valid_from?: string | null
+          cert_valid_to?: string | null
+          checked_at?: string
+          checked_by?: string | null
+          days_until_expiry?: number | null
+          domain: string
+          error_message?: string | null
+          https_enabled?: boolean
+          id?: string
+          protocol?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+        }
+        Update: {
+          cert_issuer?: string | null
+          cert_subject?: string | null
+          cert_valid?: boolean | null
+          cert_valid_from?: string | null
+          cert_valid_to?: string | null
+          checked_at?: string
+          checked_by?: string | null
+          days_until_expiry?: number | null
+          domain?: string
+          error_message?: string | null
+          https_enabled?: boolean
+          id?: string
+          protocol?: string | null
+          response_time_ms?: number | null
+          status_code?: number | null
+        }
+        Relationships: []
+      }
+      featured_teachers: {
+        Row: {
+          badge_label: string | null
+          created_at: string
+          display_order: number
+          hide_price: boolean
+          id: string
+          image_url: string | null
+          is_active: boolean
+          price: number | null
+          rating_override: number | null
+          sessions_count: number | null
+          students_count: number | null
+          subject_label: string | null
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          badge_label?: string | null
+          created_at?: string
+          display_order?: number
+          hide_price?: boolean
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number | null
+          rating_override?: number | null
+          sessions_count?: number | null
+          students_count?: number | null
+          subject_label?: string | null
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          badge_label?: string | null
+          created_at?: string
+          display_order?: number
+          hide_price?: boolean
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number | null
+          rating_override?: number | null
+          sessions_count?: number | null
+          students_count?: number | null
+          subject_label?: string | null
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      financial_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string | null
+          after_data: Json | null
+          amount: number | null
+          before_data: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          amount?: number | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string | null
+          after_data?: Json | null
+          amount?: number | null
+          before_data?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      financial_months: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          id: string
+          month: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      financial_reconciliation: {
+        Row: {
+          actual_total: number
+          created_at: string
+          details: Json | null
+          difference: number
+          expected_total: number
+          id: string
+          run_date: string
+          sessions_count: number
+          status: string
+        }
+        Insert: {
+          actual_total?: number
+          created_at?: string
+          details?: Json | null
+          difference?: number
+          expected_total?: number
+          id?: string
+          run_date?: string
+          sessions_count?: number
+          status?: string
+        }
+        Update: {
+          actual_total?: number
+          created_at?: string
+          details?: Json | null
+          difference?: number
+          expected_total?: number
+          id?: string
+          run_date?: string
+          sessions_count?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      financial_settings: {
+        Row: {
+          auto_close_months_after_days: number
+          enable_auto_reconciliation: boolean
+          id: string
+          large_withdrawal_threshold: number
+          min_withdrawal_amount: number
+          platform_fee_rate: number
+          updated_at: string
+          updated_by: string | null
+          vat_rate: number
+        }
+        Insert: {
+          auto_close_months_after_days?: number
+          enable_auto_reconciliation?: boolean
+          id?: string
+          large_withdrawal_threshold?: number
+          min_withdrawal_amount?: number
+          platform_fee_rate?: number
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
+        }
+        Update: {
+          auto_close_months_after_days?: number
+          enable_auto_reconciliation?: boolean
+          id?: string
+          large_withdrawal_threshold?: number
+          min_withdrawal_amount?: number
+          platform_fee_rate?: number
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number
+        }
+        Relationships: []
+      }
+      invoice_zatca_log: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          invoice_id: string
+          metadata: Json
+          reason: string | null
+          to_status: string
+          zatca_hash: string | null
+          zatca_uuid: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          invoice_id: string
+          metadata?: Json
+          reason?: string | null
+          to_status: string
+          zatca_hash?: string | null
+          zatca_uuid?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          invoice_id?: string
+          metadata?: Json
+          reason?: string | null
+          to_status?: string
+          zatca_hash?: string | null
+          zatca_uuid?: string | null
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          currency: string
+          hours_purchased: number
+          id: string
+          invoice_number: string | null
+          issued_at: string
+          metadata: Json
+          net_amount: number
+          payment_record_id: string | null
+          plan_id: string | null
+          qr_code: string | null
+          stripe_session_id: string | null
+          student_id: string
+          subscription_id: string | null
+          total_amount: number
+          updated_at: string
+          vat_amount: number
+          vat_rate: number
+          zatca_hash: string | null
+          zatca_status: string
+          zatca_uuid: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          hours_purchased?: number
+          id?: string
+          invoice_number?: string | null
+          issued_at?: string
+          metadata?: Json
+          net_amount?: number
+          payment_record_id?: string | null
+          plan_id?: string | null
+          qr_code?: string | null
+          stripe_session_id?: string | null
+          student_id: string
+          subscription_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          zatca_hash?: string | null
+          zatca_status?: string
+          zatca_uuid?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          hours_purchased?: number
+          id?: string
+          invoice_number?: string | null
+          issued_at?: string
+          metadata?: Json
+          net_amount?: number
+          payment_record_id?: string | null
+          plan_id?: string | null
+          qr_code?: string | null
+          stripe_session_id?: string | null
+          student_id?: string
+          subscription_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          vat_amount?: number
+          vat_rate?: number
+          zatca_hash?: string | null
+          zatca_status?: string
+          zatca_uuid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_payment_record_id_fkey"
+            columns: ["payment_record_id"]
+            isOneToOne: false
+            referencedRelation: "payment_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          file_name: string | null
+          file_url: string | null
+          id: string
+          is_read: boolean | null
+          link: string | null
+          title: string
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          title: string
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          title?: string
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      parent_students: {
+        Row: {
+          created_at: string
+          id: string
+          parent_id: string
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parent_id: string
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parent_id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      payment_records: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          metadata: Json | null
+          payment_type: string | null
+          plan_id: string | null
+          status: string | null
+          stripe_payment_intent: string | null
+          stripe_session_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_payment_intent?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_type?: string | null
+          plan_id?: string | null
+          status?: string | null
+          stripe_payment_intent?: string | null
+          stripe_session_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_records_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_records_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          free_trial_used: boolean | null
+          full_name: string
+          id: string
+          level: string | null
+          notify_after_session: boolean | null
+          notify_before_session: boolean | null
+          notify_subscription_expiry: boolean | null
+          phone: string | null
+          referral_code: string | null
+          teaching_stage: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          free_trial_used?: boolean | null
+          full_name?: string
+          id?: string
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          free_trial_used?: boolean | null
+          full_name?: string
+          id?: string
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      question_bank: {
+        Row: {
+          correct_answer: string | null
+          created_at: string
+          difficulty: string | null
+          explanation: string | null
+          id: string
+          is_public: boolean | null
+          options: Json | null
+          points: number | null
+          question_text: string
+          question_type: string
+          subject_id: string | null
+          teacher_id: string
+          teaching_stage: string | null
+          updated_at: string
+        }
+        Insert: {
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          is_public?: boolean | null
+          options?: Json | null
+          points?: number | null
+          question_text: string
+          question_type?: string
+          subject_id?: string | null
+          teacher_id: string
+          teaching_stage?: string | null
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string | null
+          explanation?: string | null
+          id?: string
+          is_public?: boolean | null
+          options?: Json | null
+          points?: number | null
+          question_text?: string
+          question_type?: string
+          subject_id?: string | null
+          teacher_id?: string
+          teaching_stage?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          booking_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          booking_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          booking_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_compensations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          incident_id: string | null
+          minutes_credited: number
+          reason: string | null
+          session_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          minutes_credited?: number
+          reason?: string | null
+          session_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          minutes_credited?: number
+          reason?: string | null
+          session_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_compensations_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "session_quality_incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          device_id: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      session_materials: {
+        Row: {
+          attachments: Json | null
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          expires_at: string
+          id: string
+          is_deleted: boolean
+          recording_url: string | null
+          session_id: string
+          student_id: string
+          teacher_id: string
+          title: string
+          whiteboard_data: Json | null
+        }
+        Insert: {
+          attachments?: Json | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          expires_at?: string
+          id?: string
+          is_deleted?: boolean
+          recording_url?: string | null
+          session_id: string
+          student_id: string
+          teacher_id: string
+          title?: string
+          whiteboard_data?: Json | null
+        }
+        Update: {
+          attachments?: Json | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          expires_at?: string
+          id?: string
+          is_deleted?: boolean
+          recording_url?: string | null
+          session_id?: string
+          student_id?: string
+          teacher_id?: string
+          title?: string
+          whiteboard_data?: Json | null
+        }
+        Relationships: []
+      }
+      session_quality_incidents: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          duration_ms: number | null
+          id: string
+          incident_type: string
+          jitter_ms: number | null
+          metadata: Json | null
+          packet_loss: number | null
+          rtt_ms: number | null
+          session_id: string
+          severity: string
+          user_id: string
+          was_compensated: boolean | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          incident_type: string
+          jitter_ms?: number | null
+          metadata?: Json | null
+          packet_loss?: number | null
+          rtt_ms?: number | null
+          session_id: string
+          severity?: string
+          user_id: string
+          was_compensated?: boolean | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          incident_type?: string
+          jitter_ms?: number | null
+          metadata?: Json | null
+          packet_loss?: number | null
+          rtt_ms?: number | null
+          session_id?: string
+          severity?: string
+          user_id?: string
+          was_compensated?: boolean | null
+        }
+        Relationships: []
+      }
+      session_reminders_sent: {
+        Row: {
+          booking_id: string
+          id: string
+          reminder_type: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          booking_id: string
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          ai_report: string | null
+          booking_id: string
+          created_at: string
+          deducted_minutes: number | null
+          duration_minutes: number | null
+          ended_at: string | null
+          gross_amount: number | null
+          id: string
+          net_amount: number | null
+          platform_fee: number | null
+          platform_fee_rate_snapshot: number | null
+          recording_url: string | null
+          room_id: string | null
+          short_session: boolean | null
+          started_at: string | null
+          teacher_base_amount: number | null
+          teacher_earning: number | null
+          vat_amount: number | null
+          vat_rate_snapshot: number | null
+        }
+        Insert: {
+          ai_report?: string | null
+          booking_id: string
+          created_at?: string
+          deducted_minutes?: number | null
+          duration_minutes?: number | null
+          ended_at?: string | null
+          gross_amount?: number | null
+          id?: string
+          net_amount?: number | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
+          recording_url?: string | null
+          room_id?: string | null
+          short_session?: boolean | null
+          started_at?: string | null
+          teacher_base_amount?: number | null
+          teacher_earning?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
+        }
+        Update: {
+          ai_report?: string | null
+          booking_id?: string
+          created_at?: string
+          deducted_minutes?: number | null
+          duration_minutes?: number | null
+          ended_at?: string | null
+          gross_amount?: number | null
+          id?: string
+          net_amount?: number | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
+          recording_url?: string | null
+          room_id?: string | null
+          short_session?: boolean | null
+          started_at?: string | null
+          teacher_base_amount?: number | null
+          teacher_earning?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_settings: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          key: string
+          label_ar: string | null
+          type: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          key: string
+          label_ar?: string | null
+          type?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          key?: string
+          label_ar?: string | null
+          type?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
+      student_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_levels: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          max_points: number
+          min_points: number
+          name: string
+          name_ar: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          max_points: number
+          min_points?: number
+          name: string
+          name_ar: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          max_points?: number
+          min_points?: number
+          name?: string
+          name_ar?: string
+        }
+        Relationships: []
+      }
+      student_points: {
+        Row: {
+          created_at: string
+          id: string
+          last_activity_at: string | null
+          streak_days: number | null
+          total_points: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_activity_at?: string | null
+          streak_days?: number | null
+          total_points?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_activity_at?: string | null
+          streak_days?: number | null
+          total_points?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      subscription_plans: {
+        Row: {
+          assigned_user_id: string | null
+          created_at: string
+          features: Json | null
+          has_ai_tutor: boolean | null
+          has_priority_booking: boolean | null
+          has_recording: boolean | null
+          id: string
+          is_active: boolean | null
+          name_ar: string
+          price: number
+          session_duration_minutes: number
+          sessions_count: number
+          stripe_error: string | null
+          stripe_last_synced_at: string | null
+          stripe_price_id: string | null
+          stripe_product_id: string | null
+          stripe_sync_status: string | null
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          created_at?: string
+          features?: Json | null
+          has_ai_tutor?: boolean | null
+          has_priority_booking?: boolean | null
+          has_recording?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          name_ar: string
+          price: number
+          session_duration_minutes?: number
+          sessions_count: number
+          stripe_error?: string | null
+          stripe_last_synced_at?: string | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          stripe_sync_status?: string | null
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_user_id?: string | null
+          created_at?: string
+          features?: Json | null
+          has_ai_tutor?: boolean | null
+          has_priority_booking?: boolean | null
+          has_recording?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          name_ar?: string
+          price?: number
+          session_duration_minutes?: number
+          sessions_count?: number
+          stripe_error?: string | null
+          stripe_last_synced_at?: string | null
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          stripe_sync_status?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          content: string
+          created_at: string
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          is_admin: boolean
+          sender_id: string
+          ticket_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_admin?: boolean
+          sender_id: string
+          ticket_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_admin?: boolean
+          sender_id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_at: string | null
+          assigned_to: string | null
+          category: string
+          created_at: string
+          id: string
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_logs: {
+        Row: {
+          created_at: string
+          id: string
+          level: string
+          message: string
+          metadata: Json | null
+          source: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          metadata?: Json | null
+          source?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json | null
+          source?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      teacher_certificates: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          file_url: string
+          id: string
+          name: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          file_url: string
+          id?: string
+          name: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          file_url?: string
+          id?: string
+          name?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      teacher_daily_stats: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          teacher_id: string
+          total_minutes: number
+          total_sessions: number
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          teacher_id: string
+          total_minutes?: number
+          total_sessions?: number
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          teacher_id?: string
+          total_minutes?: number
+          total_sessions?: number
+        }
+        Relationships: []
+      }
+      teacher_earnings: {
+        Row: {
+          added_by_admin: string
+          amount: number
+          created_at: string
+          gross_amount: number | null
+          hours: number | null
+          id: string
+          invoice_id: string | null
+          minutes_snapshot: number | null
+          month: string
+          net_amount: number | null
+          notes: string | null
+          platform_fee: number | null
+          platform_fee_rate_snapshot: number | null
+          status: string
+          teacher_base_amount: number | null
+          teacher_id: string
+          total_sessions_snapshot: number | null
+          vat_amount: number | null
+          vat_rate_snapshot: number | null
+        }
+        Insert: {
+          added_by_admin: string
+          amount: number
+          created_at?: string
+          gross_amount?: number | null
+          hours?: number | null
+          id?: string
+          invoice_id?: string | null
+          minutes_snapshot?: number | null
+          month: string
+          net_amount?: number | null
+          notes?: string | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
+          status?: string
+          teacher_base_amount?: number | null
+          teacher_id: string
+          total_sessions_snapshot?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
+        }
+        Update: {
+          added_by_admin?: string
+          amount?: number
+          created_at?: string
+          gross_amount?: number | null
+          hours?: number | null
+          id?: string
+          invoice_id?: string | null
+          minutes_snapshot?: number | null
+          month?: string
+          net_amount?: number | null
+          notes?: string | null
+          platform_fee?: number | null
+          platform_fee_rate_snapshot?: number | null
+          status?: string
+          teacher_base_amount?: number | null
+          teacher_id?: string
+          total_sessions_snapshot?: number | null
+          vat_amount?: number | null
+          vat_rate_snapshot?: number | null
+        }
+        Relationships: []
+      }
+      teacher_first_impressions: {
+        Row: {
+          id: string
+          shown_at: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          id?: string
+          shown_at?: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          id?: string
+          shown_at?: string
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      teacher_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          payment_method: string | null
+          teacher_id: string
+          withdrawal_request_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          teacher_id: string
+          withdrawal_request_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          teacher_id?: string
+          withdrawal_request_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_payments_withdrawal_request_id_fkey"
+            columns: ["withdrawal_request_id"]
+            isOneToOne: false
+            referencedRelation: "withdrawal_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_profiles: {
+        Row: {
+          account_holder_name: string | null
+          available_days: string[] | null
+          available_from: string | null
+          available_to: string | null
+          avg_rating: number | null
+          balance: number
+          bank_name: string | null
+          bio: string | null
+          created_at: string
+          hourly_rate: number
+          iban: string | null
+          id: string
+          is_approved: boolean | null
+          is_verified: boolean | null
+          nationality: string | null
+          tax_id: string | null
+          teaching_stages: string[] | null
+          total_reviews: number | null
+          total_sessions: number | null
+          updated_at: string
+          user_id: string
+          vat_enabled: boolean
+          years_experience: number | null
+        }
+        Insert: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string
+          hourly_rate?: number
+          iban?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          tax_id?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string
+          user_id: string
+          vat_enabled?: boolean
+          years_experience?: number | null
+        }
+        Update: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string
+          hourly_rate?: number
+          iban?: string | null
+          id?: string
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          tax_id?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string
+          user_id?: string
+          vat_enabled?: boolean
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+      teacher_subjects: {
+        Row: {
+          id: string
+          subject_id: string
+          teacher_id: string
+        }
+        Insert: {
+          id?: string
+          subject_id: string
+          teacher_id: string
+        }
+        Update: {
+          id?: string
+          subject_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "my_teacher_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "public_teacher_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_active_session: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          last_seen: string
+          session_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          last_seen?: string
+          session_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          last_seen?: string
+          session_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_permissions: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          id: string
+          notes: string | null
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          id?: string
+          notes?: string | null
+          permission: Database["public"]["Enums"]["app_permission"]
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          notes?: string | null
+          permission?: Database["public"]["Enums"]["app_permission"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          auto_renew: boolean | null
+          created_at: string
+          ends_at: string
+          id: string
+          is_active: boolean | null
+          plan_id: string | null
+          remaining_minutes: number
+          sessions_remaining: number
+          starts_at: string
+          total_hours: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_renew?: boolean | null
+          created_at?: string
+          ends_at: string
+          id?: string
+          is_active?: boolean | null
+          plan_id?: string | null
+          remaining_minutes?: number
+          sessions_remaining?: number
+          starts_at?: string
+          total_hours?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_renew?: boolean | null
+          created_at?: string
+          ends_at?: string
+          id?: string
+          is_active?: boolean | null
+          plan_id?: string | null
+          remaining_minutes?: number
+          sessions_remaining?: number
+          starts_at?: string
+          total_hours?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_warnings: {
+        Row: {
+          banned_until: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_banned: boolean | null
+          user_id: string
+          warning_count: number
+          warning_type: string
+        }
+        Insert: {
+          banned_until?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_banned?: boolean | null
+          user_id: string
+          warning_count?: number
+          warning_type?: string
+        }
+        Update: {
+          banned_until?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_banned?: boolean | null
+          user_id?: string
+          warning_count?: number
+          warning_type?: string
+        }
+        Relationships: []
+      }
+      violations: {
+        Row: {
+          booking_id: string | null
+          confidence_score: number | null
+          created_at: string
+          detected_text: string
+          id: string
+          is_false_positive: boolean | null
+          is_reviewed: boolean | null
+          original_message: string | null
+          review_notes: string | null
+          reviewed_by: string | null
+          source: string
+          timestamp_in_session: number | null
+          user_id: string
+          violation_type: string
+        }
+        Insert: {
+          booking_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_text: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_reviewed?: boolean | null
+          original_message?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          source?: string
+          timestamp_in_session?: number | null
+          user_id: string
+          violation_type?: string
+        }
+        Update: {
+          booking_id?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          detected_text?: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_reviewed?: boolean | null
+          original_message?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          source?: string
+          timestamp_in_session?: number | null
+          user_id?: string
+          violation_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "violations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string | null
+          id: string
+          reference_id: string | null
+          stripe_session_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          stripe_session_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          reference_id?: string | null
+          stripe_session_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webrtc_signals: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          payload: Json
+          sender_id: string
+          signal_type: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          sender_id: string
+          signal_type: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          sender_id?: string
+          signal_type?: string
+        }
+        Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          attachment_name: string | null
+          attachment_url: string | null
+          created_at: string
+          id: string
+          net_amount: number | null
+          paid_at: string | null
+          paid_by: string | null
+          processing_at: string | null
+          status: string
+          teacher_id: string
+          teacher_notes: string | null
+          updated_at: string
+          vat_amount: number | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
+          created_at?: string
+          id?: string
+          net_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          processing_at?: string | null
+          status?: string
+          teacher_id: string
+          teacher_notes?: string | null
+          updated_at?: string
+          vat_amount?: number | null
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
+          created_at?: string
+          id?: string
+          net_amount?: number | null
+          paid_at?: string | null
+          paid_by?: string | null
+          processing_at?: string | null
+          status?: string
+          teacher_id?: string
+          teacher_notes?: string | null
+          updated_at?: string
+          vat_amount?: number | null
+        }
+        Relationships: []
+      }
+      withdrawal_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          notes: string | null
+          to_status: string
+          withdrawal_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          to_status: string
+          withdrawal_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          to_status?: string
+          withdrawal_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      my_profile: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          free_trial_used: boolean | null
+          full_name: string | null
+          id: string | null
+          level: string | null
+          notify_after_session: boolean | null
+          notify_before_session: boolean | null
+          notify_subscription_expiry: boolean | null
+          phone: string | null
+          referral_code: string | null
+          teaching_stage: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          free_trial_used?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          free_trial_used?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          notify_after_session?: boolean | null
+          notify_before_session?: boolean | null
+          notify_subscription_expiry?: boolean | null
+          phone?: string | null
+          referral_code?: string | null
+          teaching_stage?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      my_teacher_profile: {
+        Row: {
+          account_holder_name: string | null
+          available_days: string[] | null
+          available_from: string | null
+          available_to: string | null
+          avg_rating: number | null
+          balance: number | null
+          bank_name: string | null
+          bio: string | null
+          created_at: string | null
+          hourly_rate: number | null
+          iban: string | null
+          id: string | null
+          is_approved: boolean | null
+          is_verified: boolean | null
+          nationality: string | null
+          teaching_stages: string[] | null
+          total_reviews: number | null
+          total_sessions: number | null
+          updated_at: string | null
+          user_id: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number | null
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          iban?: string | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          account_holder_name?: string | null
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          balance?: number | null
+          bank_name?: string | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          iban?: string | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+      public_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          level: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          level?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      public_teacher_profiles: {
+        Row: {
+          available_days: string[] | null
+          available_from: string | null
+          available_to: string | null
+          avg_rating: number | null
+          bio: string | null
+          created_at: string | null
+          hourly_rate: number | null
+          id: string | null
+          is_approved: boolean | null
+          is_verified: boolean | null
+          nationality: string | null
+          teaching_stages: string[] | null
+          total_reviews: number | null
+          total_sessions: number | null
+          updated_at: string | null
+          user_id: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          available_days?: string[] | null
+          available_from?: string | null
+          available_to?: string | null
+          avg_rating?: number | null
+          bio?: string | null
+          created_at?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          is_approved?: boolean | null
+          is_verified?: boolean | null
+          nationality?: string | null
+          teaching_stages?: string[] | null
+          total_reviews?: number | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      accept_booking_group: {
+        Args: { _group_id: string; _teacher_id: string }
+        Returns: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          duration_minutes: number
+          expires_at: string | null
+          group_id: string | null
+          id: string
+          price: number | null
+          scheduled_at: string
+          status: string
+          student_id: string
+          subject_id: string | null
+          teaching_stage: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "booking_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      accept_booking_request: {
+        Args: { _request_id: string; _teacher_id: string }
+        Returns: boolean
+      }
+      auto_close_old_financial_months: { Args: never; Returns: number }
+      auto_expire_stale_bookings: {
+        Args: never
+        Returns: {
+          details: Json
+          expired_count: number
+        }[]
+      }
+      cleanup_old_chat_messages: { Args: never; Returns: number }
+      credit_wallet_balance: {
+        Args: {
+          _amount: number
+          _description: string
+          _stripe_session_id: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      deduct_wallet_balance: {
+        Args: {
+          _amount: number
+          _description: string
+          _reference_id: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      get_call_wallet_summary: {
+        Args: { _month?: string }
+        Returns: {
+          call_usage_count: number
+          current_wallet_balance: number
+          inflow_total: number
+          net_balance: number
+          outflow_total: number
+          refund_count: number
+          refunds_total: number
+          topup_count: number
+        }[]
+      }
+      get_platform_revenue_summary: {
+        Args: { _month?: string }
+        Returns: {
+          invoices_count: number
+          minutes_total: number
+          net_profit: number
+          sessions_count: number
+          total_platform_earnings: number
+          total_revenue: number
+          total_teacher_payouts: number
+          total_vat: number
+        }[]
+      }
+      get_profile_phone: { Args: { _user_id: string }; Returns: string }
+      get_teacher_earnings_breakdown: {
+        Args: { _teacher_id: string }
+        Returns: {
+          available_for_withdrawal: number
+          confirmed_total: number
+          paid_total: number
+          pending_total: number
+          total_minutes: number
+          total_sessions: number
+        }[]
+      }
+      get_teacher_financial_breakdown: {
+        Args: { _month?: string; _teacher_id: string }
+        Returns: {
+          gross_total: number
+          minutes_total: number
+          net_total: number
+          platform_fee_total: number
+          sessions_count: number
+          teacher_base_total: number
+          vat_total: number
+        }[]
+      }
+      get_teacher_financials: {
+        Args: { _teacher_id: string }
+        Returns: {
+          account_holder_name: string
+          balance: number
+          bank_name: string
+          iban: string
+        }[]
+      }
+      get_teacher_net_summary: {
+        Args: { _month?: string; _teacher_id: string }
+        Returns: {
+          minutes_total: number
+          net_total: number
+          sessions_count: number
+        }[]
+      }
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["app_permission"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      list_all_students: {
+        Args: never
+        Returns: {
+          full_name: string
+          user_id: string
+        }[]
+      }
+      list_call_wallet_transactions: {
+        Args: { _month?: string }
+        Returns: {
+          amount: number
+          balance_after: number
+          category: string
+          created_at: string
+          description: string
+          id: string
+          reference_id: string
+          stripe_session_id: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      log_admin_action:
+        | {
+            Args: {
+              _action: string
+              _after?: Json
+              _before?: Json
+              _category?: string
+              _description?: string
+              _metadata?: Json
+              _target_id?: string
+              _target_table?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _action: string
+              _after?: Json
+              _before?: Json
+              _category?: string
+              _description?: string
+              _ip_address?: string
+              _metadata?: Json
+              _target_id?: string
+              _target_table?: string
+              _user_agent?: string
+            }
+            Returns: string
+          }
+      run_financial_reconciliation: { Args: never; Returns: string }
+      set_new_user_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: undefined
+      }
+      teacher_monthly_cancellations: {
+        Args: { _teacher_id: string }
+        Returns: number
+      }
+    }
+    Enums: {
+      app_permission:
+        | "customer_support"
+        | "manage_bookings"
+        | "manage_teachers"
+        | "manage_content"
+        | "view_reports"
+        | "manage_payments"
+        | "manage_coupons"
+        | "view_overview"
+        | "manage_users"
+        | "view_teacher_performance"
+        | "manage_session_reports"
+        | "manage_session_pricing"
+        | "manage_materials"
+        | "manage_plans"
+        | "manage_withdrawals"
+        | "manage_teacher_payments"
+        | "manage_teacher_earnings"
+        | "manage_wallets"
+        | "manage_violations"
+        | "manage_ai_audit"
+        | "manage_notifications"
+        | "manage_admins"
+        | "view_advanced_analytics"
+        | "manage_featured_teachers"
+        | "manage_student_profiles"
+        | "manage_teacher_profiles"
+        | "manage_pending_teachers"
+        | "manage_sessions_status"
+        | "view_call_transcripts"
+        | "manage_domain_ssl"
+        | "manage_audit_log"
+      app_role: "student" | "teacher" | "parent" | "admin"
+      booking_status: "pending" | "confirmed" | "completed" | "cancelled"
+      subscription_tier: "basic" | "standard" | "premium" | "free"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_permission: [
+        "customer_support",
+        "manage_bookings",
+        "manage_teachers",
+        "manage_content",
+        "view_reports",
+        "manage_payments",
+        "manage_coupons",
+        "view_overview",
+        "manage_users",
+        "view_teacher_performance",
+        "manage_session_reports",
+        "manage_session_pricing",
+        "manage_materials",
+        "manage_plans",
+        "manage_withdrawals",
+        "manage_teacher_payments",
+        "manage_teacher_earnings",
+        "manage_wallets",
+        "manage_violations",
+        "manage_ai_audit",
+        "manage_notifications",
+        "manage_admins",
+        "view_advanced_analytics",
+        "manage_featured_teachers",
+        "manage_student_profiles",
+        "manage_teacher_profiles",
+        "manage_pending_teachers",
+        "manage_sessions_status",
+        "view_call_transcripts",
+        "manage_domain_ssl",
+        "manage_audit_log",
+      ],
+      app_role: ["student", "teacher", "parent", "admin"],
+      booking_status: ["pending", "confirmed", "completed", "cancelled"],
+      subscription_tier: ["basic", "standard", "premium", "free"],
+    },
+  },
+} as const

@@ -1,0 +1,1 @@
+ALTER TABLE public.booking_requests ALTER COLUMN expires_at SET DEFAULT (now() + interval '60 minutes');
