@@ -1,3 +1,4 @@
+import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,6 +109,8 @@ const LiveSession = () => {
   const [bothJoined, setBothJoined] = useState(false);
   const sessionEndingRef = useRef(false);
   const startInProgressRef = useRef(false);
+  const privateRows = usePrivateStorageRows(messages, "fileUrl", "chat-files");
+
   useEffect(() => {
     const confirmPageExit = (event: BeforeUnloadEvent) => {
       if (!meetingStarted || sessionEndingRef.current) return;
@@ -2560,7 +2563,7 @@ const LiveSession = () => {
                      <p className="text-sm font-black text-foreground">لا توجد رسائل في هذه المحادثة</p>
                      <p className="mt-1 text-xs leading-5 text-muted-foreground">ستظهر الرسائل القديمة والجديدة هنا تلقائيًا.</p>
                    </div>
-                 ) : messages.map((m, i) => (
+                 ) : privateRows.map((m, i) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.05, 0.5) }} className={`${m.me ? "mr-auto" : "ml-auto"} max-w-[80%]`}>
                     <div className={`p-3 rounded-2xl text-sm ${m.me ? "bg-secondary/10 text-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}

@@ -1,3 +1,4 @@
+import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { loadPairChatHistory } from "@/lib/pairChatHistory";
 import { useState, useEffect, useRef } from "react";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
@@ -19,17 +20,6 @@ const isImageType = (t?: string | null) => !!t && t.startsWith("image/");
 const isPdfType = (t?: string | null, n?: string | null) =>
   t === "application/pdf" || (!!n && n.toLowerCase().endsWith(".pdf"));
 
-const resolveChatMediaUrl = (storedUrl: string) => {
-  const value = storedUrl.trim();
-  if (/^https?:\/\//i.test(value)) return value;
-
-  const path = value
-    .replace(/^\/?storage\/v1\/object\/public\/chat-files\//i, "")
-    .replace(/^\/+/, "")
-    .replace(/^chat-files\//i, "");
-
-  return supabase.storage.from("chat-files").getPublicUrl(path).data.publicUrl;
-};
 
 interface ChatMessage {
   id: string;
@@ -241,6 +231,8 @@ const Chat = () => {
 
   const [allBookingIds, setAllBookingIds] = useState<string[]>([]);
   const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
+
+  const privateRows = usePrivateStorageRows(messages, "file_url", "chat-files");
 
   useEffect(() => {
     if (!bookingId || !user) return;
@@ -494,7 +486,7 @@ const Chat = () => {
     const isImg = msg.file_type?.startsWith("image/");
     const isPdf = msg.file_type === "application/pdf" || msg.file_name?.endsWith(".pdf");
     const isMe = msg.sender_id === user?.id;
-    const mediaUrl = isAudio || isImg ? resolveChatMediaUrl(msg.file_url) : msg.file_url;
+    const mediaUrl = isAudio || isImg ? msg.file_url : msg.file_url;
 
     if (isAudio) return <VoicePlayer url={mediaUrl} />;
 
@@ -596,7 +588,7 @@ const Chat = () => {
             <p className="text-muted-foreground text-sm">ابدأ المحادثة! 👋</p>
           </div>
         ) : (
-          messages.map(msg => {
+          privateRows.map(msg => {
             const isMe = msg.sender_id === user?.id;
             // Detect assignment marker [[ASSIGNMENT:/path]]
             const assignMatch = !msg.is_filtered && msg.content?.match(/^\[\[ASSIGNMENT:([^\]]+)\]\]\s*([\s\S]*)$/);

@@ -1,3 +1,4 @@
+import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
@@ -53,6 +54,8 @@ const SupportChat = () => {
   const { play: playSupportSound } = useNotificationSound();
 
   const backPath = roles.includes("teacher") ? "/teacher" : "/student";
+
+  const privateRows = usePrivateStorageRows(messages, "file_url", "support-files");
 
   useEffect(() => {
     if (!user) return;
@@ -372,7 +375,7 @@ const SupportChat = () => {
             <p className="text-muted-foreground text-sm">ابدأ المحادثة مع فريق الدعم 👋</p>
           </div>
         ) : (
-          messages.map(msg => {
+          privateRows.map(msg => {
             const isMe = !msg.is_admin;
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-start" : "justify-end"}`}>

@@ -1,3 +1,5 @@
+import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
+import { useMemo } from "react";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,6 +83,9 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
+
+  const attachmentRows = useMemo(() => messages.map(m => ({...m, privateUrl:m.attachment?.url})), [messages]);
+  const privateMessages = usePrivateStorageRows(attachmentRows, "privateUrl", "support-files");
 
   // Load persisted history
   useEffect(() => {
@@ -283,7 +288,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
         if (m.attachment?.textContent) {
           content += `\n\n[📎 محتوى الملف "${m.attachment.name}"]:\n${m.attachment.textContent}`;
         } else if (m.attachment) {
-          content += `\n\n[📎 رفع المستخدم ملفاً: ${m.attachment.name} (${m.attachment.type}). الرابط: ${m.attachment.url}]`;
+          content += `\n\n[📎 رفع المستخدم ملفاً: ${m.attachment.name} (${m.attachment.type}).]`;
         }
         return { role: m.role, content };
       });
@@ -395,7 +400,7 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
           </div>
         )}
 
-        {messages.map((m, i) => (
+        {privateMessages.map((m, i) => (
           <div
             key={i}
             className={cn(
@@ -419,9 +424,9 @@ const AIAssistantChat = ({ onCreateTicket, onTicketCreated, compact = false }: P
               {m.attachment && (
                 <div className="mb-2">
                   {isImage(m.attachment.type) ? (
-                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer">
+                    <a href={m.privateUrl || undefined} target="_blank" rel="noopener noreferrer">
                       <img
-                        src={m.attachment.url}
+                        src={m.privateUrl || undefined}
                         alt={m.attachment.name}
                         className="max-w-[220px] rounded-lg border border-border/30"
                         loading="lazy"
