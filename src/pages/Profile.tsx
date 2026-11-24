@@ -1,4 +1,3 @@
-import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
@@ -64,8 +63,6 @@ const Profile = () => {
   const [certFile, setCertFile] = useState<File | null>(null);
   const [uploadingCert, setUploadingCert] = useState(false);
   const certFileRef = useRef<HTMLInputElement>(null);
-
-  const privateRows = usePrivateStorageRows(certificates, "file_url", "support-files");
 
   useEffect(() => {
     if (profile) {
@@ -736,7 +733,7 @@ const Profile = () => {
                 {/* List */}
                 {certificates.length > 0 && (
                   <div className="space-y-2">
-                    {privateRows.map((c: any) => (
+                    {certificates.map((c: any) => (
                       <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
                         <div className="flex items-center gap-2">
                           <Award className="h-4 w-4 text-primary" />

@@ -1,4 +1,3 @@
-import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
@@ -84,8 +83,6 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
   const [transferReloadKey, setTransferReloadKey] = useState(0);
   const [transferNote, setTransferNote] = useState("");
   const [transferring, setTransferring] = useState(false);
-
-  const privateRows = usePrivateStorageRows(messages, "file_url", "support-files");
 
   useEffect(() => {
     if (!transferOpen) return;
@@ -927,7 +924,7 @@ const SupportTicketsTab = ({ initialUser, onInitialUserHandled }: SupportTickets
                   <MessageSquare className="h-10 w-10 opacity-30 mb-2" />
                   <p className="text-sm">لا توجد رسائل بعد</p>
                 </div>
-              ) : privateRows.map(msg => {
+              ) : messages.map(msg => {
                 const isMyMessage = msg.is_admin && msg.sender_id === user?.id;
                 return (
                   <div key={msg.id} className={`flex ${msg.is_admin ? "justify-start" : "justify-end"} gap-2`}>

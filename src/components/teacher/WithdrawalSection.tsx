@@ -1,4 +1,3 @@
-import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ export default function WithdrawalSection() {
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const privateWithdrawals = usePrivateStorageRows(withdrawals, "attachment_url", "support-files");
   useEffect(() => {
     if (!user) return;
     void fetchData();
@@ -391,7 +389,7 @@ export default function WithdrawalSection() {
         {withdrawals.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-bold text-foreground">سجل الطلبات</p>
-            {privateWithdrawals.map((w: any) => {
+            {withdrawals.map((w: any) => {
               const s = statusMap[w.status] || statusMap.pending;
               return (
                 <div key={w.id} className="p-3 rounded-xl bg-muted/50 space-y-2">

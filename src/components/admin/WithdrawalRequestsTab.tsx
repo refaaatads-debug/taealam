@@ -1,4 +1,3 @@
-import { usePrivateStorageRows } from "@/hooks/usePrivateStorageRows";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,8 +35,6 @@ export default function WithdrawalRequestsTab() {
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  const privateRows = usePrivateStorageRows(requests, "attachment_url", "support-files");
 
   useEffect(() => {
     fetchData();
@@ -248,7 +245,7 @@ export default function WithdrawalRequestsTab() {
     rejected: { label: "مرفوض", variant: "destructive" },
   };
 
-  const filtered = privateRows.filter(r => {
+  const filtered = requests.filter(r => {
     if (searchQuery && !(r.teacher_name || "").toLowerCase().includes(searchQuery.toLowerCase())) return false;
     const created = new Date(r.created_at);
     if (dateFrom && created < new Date(dateFrom)) return false;
@@ -261,9 +258,9 @@ export default function WithdrawalRequestsTab() {
     <div className="space-y-4">
       <AdminKPIBar kpis={[
         { label: "إجمالي الطلبات", value: requests.length, icon: DollarSign },
-        { label: "طلبات معلقة", value: privateRows.filter(r => r.status === "pending").length, icon: Clock },
-        { label: "مبلغ انتظار الصرف", value: privateRows.filter(r => r.status === "pending").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CreditCard },
-        { label: "إجمالي المدفوع", value: privateRows.filter(r => r.status === "paid").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CheckCircle },
+        { label: "طلبات معلقة", value: requests.filter(r => r.status === "pending").length, icon: Clock },
+        { label: "مبلغ انتظار الصرف", value: requests.filter(r => r.status === "pending").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CreditCard },
+        { label: "إجمالي المدفوع", value: requests.filter(r => r.status === "paid").reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(0) + " ر.س", icon: CheckCircle },
       ]} />
       <Input aria-label="ابحث باسم المعلم" placeholder="ابحث باسم المعلم..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
       {/* Admin Adjustments (Bonuses/Deductions) */}
