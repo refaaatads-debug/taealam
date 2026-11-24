@@ -1,3 +1,5 @@
+Update 09:07: source-only hardening prepared in separate commits. Account read errors now fail closed locally, sensitive attachment views use authenticated five-minute signed URLs without public fallback, and API push images exclude private/signed links. Clean local suite now web318/API73, typechecks and builds pass. No real staging, bucket/policy change or deploy. See STAGING-PRIVACY-PROPOSAL.md in companion web PR34 for current USD0-first plan and remaining cutover gates. Earlier findings below describe the unchanged live system, not the newly prepared source.
+
 # Non-deploying release gates, 24 November 2026
 
 Scope: combined web source 79d96da and API 2f9e445, followed by this evidence/test-only commit. Nothing deployed, merged into main/replit-dev, written on the VPS, or mutated in the database. Read-only catalogs contain definitions, not customer records. No customer attachments downloaded.
