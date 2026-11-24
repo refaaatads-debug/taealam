@@ -1,0 +1,421 @@
+{
+  "run": "privacy-20261124-1114",
+  "bucket": "ajyal-private-test-20261124-1114",
+  "checks": [
+    {
+      "name": "certificate sign owner",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read owner",
+      "pass": true
+    },
+    {
+      "name": "certificate sign outsider",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read outsider",
+      "pass": true
+    },
+    {
+      "name": "certificate sign counterpart",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read counterpart",
+      "pass": true
+    },
+    {
+      "name": "certificate sign admin",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read admin",
+      "pass": true
+    },
+    {
+      "name": "certificate sign manager",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read manager",
+      "pass": true
+    },
+    {
+      "name": "certificate sign assignee",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read assignee",
+      "pass": true
+    },
+    {
+      "name": "certificate sign anonymous",
+      "pass": true
+    },
+    {
+      "name": "certificate jwt read anonymous",
+      "pass": true
+    },
+    {
+      "name": "certificate anonymous public denied",
+      "pass": true
+    },
+    {
+      "name": "certificate valid bearer read",
+      "pass": true
+    },
+    {
+      "name": "certificate expired bearer denied",
+      "pass": true
+    },
+    {
+      "name": "ai sign owner",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read owner",
+      "pass": true
+    },
+    {
+      "name": "ai sign outsider",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read outsider",
+      "pass": true
+    },
+    {
+      "name": "ai sign counterpart",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read counterpart",
+      "pass": true
+    },
+    {
+      "name": "ai sign admin",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read admin",
+      "pass": true
+    },
+    {
+      "name": "ai sign manager",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read manager",
+      "pass": true
+    },
+    {
+      "name": "ai sign assignee",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read assignee",
+      "pass": true
+    },
+    {
+      "name": "ai sign anonymous",
+      "pass": true
+    },
+    {
+      "name": "ai jwt read anonymous",
+      "pass": true
+    },
+    {
+      "name": "ai anonymous public denied",
+      "pass": true
+    },
+    {
+      "name": "ai valid bearer read",
+      "pass": true
+    },
+    {
+      "name": "ai expired bearer denied",
+      "pass": true
+    },
+    {
+      "name": "ticket sign owner",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read owner",
+      "pass": true
+    },
+    {
+      "name": "ticket sign outsider",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read outsider",
+      "pass": true
+    },
+    {
+      "name": "ticket sign counterpart",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read counterpart",
+      "pass": true
+    },
+    {
+      "name": "ticket sign admin",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read admin",
+      "pass": true
+    },
+    {
+      "name": "ticket sign manager",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read manager",
+      "pass": true
+    },
+    {
+      "name": "ticket sign assignee",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read assignee",
+      "pass": true
+    },
+    {
+      "name": "ticket sign anonymous",
+      "pass": true
+    },
+    {
+      "name": "ticket jwt read anonymous",
+      "pass": true
+    },
+    {
+      "name": "ticket anonymous public denied",
+      "pass": true
+    },
+    {
+      "name": "ticket valid bearer read",
+      "pass": true
+    },
+    {
+      "name": "ticket expired bearer denied",
+      "pass": true
+    },
+    {
+      "name": "chat sign owner",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read owner",
+      "pass": true
+    },
+    {
+      "name": "chat sign outsider",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read outsider",
+      "pass": true
+    },
+    {
+      "name": "chat sign counterpart",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read counterpart",
+      "pass": true
+    },
+    {
+      "name": "chat sign admin",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read admin",
+      "pass": true
+    },
+    {
+      "name": "chat sign manager",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read manager",
+      "pass": true
+    },
+    {
+      "name": "chat sign assignee",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read assignee",
+      "pass": true
+    },
+    {
+      "name": "chat sign anonymous",
+      "pass": true
+    },
+    {
+      "name": "chat jwt read anonymous",
+      "pass": true
+    },
+    {
+      "name": "chat anonymous public denied",
+      "pass": true
+    },
+    {
+      "name": "chat valid bearer read",
+      "pass": true
+    },
+    {
+      "name": "chat expired bearer denied",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign owner",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read owner",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign outsider",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read outsider",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign counterpart",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read counterpart",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign admin",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read admin",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign manager",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read manager",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign assignee",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read assignee",
+      "pass": true
+    },
+    {
+      "name": "withdrawal sign anonymous",
+      "pass": true
+    },
+    {
+      "name": "withdrawal jwt read anonymous",
+      "pass": true
+    },
+    {
+      "name": "withdrawal anonymous public denied",
+      "pass": true
+    },
+    {
+      "name": "withdrawal valid bearer read",
+      "pass": true
+    },
+    {
+      "name": "withdrawal expired bearer denied",
+      "pass": true
+    },
+    {
+      "name": "upload owner 9c5faeb5-46d3-4601-a17c-95a844aec570",
+      "pass": true
+    },
+    {
+      "name": "upload outsider 9c5faeb5-46d3-4601-a17c-95a844aec570",
+      "pass": true
+    },
+    {
+      "name": "upload owner certificates/9c5faeb5-46d3-4601-a17c-95a844aec570",
+      "pass": true
+    },
+    {
+      "name": "upload outsider ai-support/9c5faeb5-46d3-4601-a17c-95a844aec570",
+      "pass": true
+    },
+    {
+      "name": "outsider list has no objects",
+      "pass": true
+    }
+  ],
+  "limitations": [
+    "Withdrawal record not created: finance triggers would allocate earnings/audit. Withdrawal path linkage is a synthetic policy binding only.",
+    "Booking not created: avoid session/notification triggers. Chat pair binding is synthetic, not real booking RLS proof.",
+    "No existing bucket, policy, mobile app or production client changed."
+  ],
+  "cleanup": {
+    "actions": [
+      {
+        "objectsDeleteStatus": 200
+      },
+      {
+        "bucketDeleteStatus": 200
+      },
+      {
+        "user": "f1fa9740-15f3-4d71-94ab-b2bc105c0095",
+        "deleteStatus": 200
+      },
+      {
+        "user": "8362f312-36f5-4da9-aa43-36301d775f0e",
+        "deleteStatus": 200
+      },
+      {
+        "user": "abc4a94f-1dd9-4540-bc1b-40648615af44",
+        "deleteStatus": 200
+      },
+      {
+        "user": "066a196f-e3c5-45e4-b052-ff796e42be32",
+        "deleteStatus": 200
+      },
+      {
+        "user": "942ecbc0-6f2d-45b0-8f47-055ee855f2a5",
+        "deleteStatus": 200
+      },
+      {
+        "user": "9c5faeb5-46d3-4601-a17c-95a844aec570",
+        "deleteStatus": 200
+      }
+    ],
+    "remaining": {
+      "authUsers": 0,
+      "profiles": 0,
+      "wallets": 0,
+      "roles": 0,
+      "permissions": 0,
+      "bucket": 0,
+      "objects": 0,
+      "policies": 0,
+      "certificates": 0,
+      "tickets": 0
+    }
+  },
+  "originalStoragePoliciesMd5": "3802baaf0d58e41640b578228527b623",
+  "testPolicySha256": "d4d9f5b15fa4cffb3e9bbe7d5522135b1be77e1d95062008fcbcb8f510f972ab",
+  "result": "completed",
+  "existingStoragePoliciesUnchanged": true
+}

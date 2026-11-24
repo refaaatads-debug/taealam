@@ -1,0 +1,50 @@
+-- REVIEW ONLY. NOT APPLIED. Existing bucket metadata remains unchanged.
+-- This is a proposed replacement SELECT diff, NOT complete cutover SQL.
+-- Requires separate approval, transaction-time precondition hashes, and additional
+-- relational/mobile/client tests documented in README.md before execution.
+BEGIN;
+DROP POLICY "Chat file participants can read" ON storage.objects;
+DROP POLICY "Admins can read chat files" ON storage.objects;
+DROP POLICY "Support file owner can read" ON storage.objects;
+DROP POLICY "Admins can read support files" ON storage.objects;
+
+CREATE POLICY "Private chat participants exact booking path"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+ bucket_id='chat-files' AND auth.uid() IS NOT NULL AND
+ name ~ '^[0-9a-f-]{36}/[A-Za-z0-9_.-]+$' AND
+ (public.has_role(auth.uid(),'admin'::public.app_role)
+ OR EXISTS (SELECT 1 FROM public.bookings b
+  WHERE b.id::text=(storage.foldername(name))[1]
+  AND auth.uid() IN (b.student_id,b.teacher_id)))
+);
+
+CREATE POLICY "Private support structural owner or linked record"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+ bucket_id='support-files' AND auth.uid() IS NOT NULL AND
+ (public.has_role(auth.uid(),'admin'::public.app_role)
+ OR (name ~ '^certificates/[0-9a-f-]{36}/[A-Za-z0-9_.-]+$'
+     AND (storage.foldername(name))[2]=auth.uid()::text)
+ OR (name ~ '^ai-support/[0-9a-f-]{36}/[A-Za-z0-9_.-]+$'
+     AND (storage.foldername(name))[2]=auth.uid()::text)
+ OR (name ~ '^[0-9a-f-]{36}/[A-Za-z0-9_.-]+$' AND EXISTS (
+      SELECT 1 FROM public.support_tickets t
+      WHERE t.id::text=(storage.foldername(name))[1] AND t.user_id=auth.uid()))
+ OR (name ~ '^[0-9a-f-]{36}/[A-Za-z0-9_.-]+$' AND EXISTS (
+      SELECT 1 FROM public.withdrawal_requests w
+      WHERE w.teacher_id::text=(storage.foldername(name))[1]
+      AND (w.teacher_id=auth.uid() OR public.has_permission(auth.uid(),'manage_withdrawals'::public.app_permission))
+      AND w.attachment_url IN (
+       name,
+       'support-files/' || name,
+       'https://ajyalalmaerifa.com/storage/v1/object/public/support-files/' || name
+      )))
+ )
+);
+COMMIT;
+-- Deliberately NO UPDATE storage.buckets, no helper function, no legacy decode,
+-- no anonymous grants, no all-staff/assigned_to grant and no substring LIKE.
+-- Percent-encoded, space/unicode or old signed stored references are NOT matched
+-- by this proposal. Inventory and canonicalize only explicitly reviewed rows,
+-- or adjust the design after tests. Do not broaden with substring/URL decoding.
