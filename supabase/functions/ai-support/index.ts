@@ -198,7 +198,22 @@ async function runTool(name: string, args: any, ctx: { supabase: any; userId: st
         console.error("get_teacher_earnings query failed:", error);
         return { error: "تعذر جلب بيانات الأرباح حالياً" };
       }
-      return { profile: profile ?? null, recent_months: earnings ?? [] };
+      return {
+        currency: "SAR",
+        currency_label: "ريال سعودي (ر.س)",
+        withdrawable_balance: profile?.balance ?? null,
+        hourly_rate: profile?.hourly_rate ?? null,
+        total_sessions: profile?.total_sessions ?? null,
+        monthly_earnings: (earnings ?? []).map((row: any) => ({
+          month: row.month,
+          amount: row.amount,
+          hours: row.hours,
+          status: row.status === "confirmed" ? "مؤكد"
+            : row.status === "unconfirmed" ? "قيد الإقرار"
+            : row.status,
+        })),
+        note: "كل المبالغ بالريال السعودي. الرصيد المتاح للسحب يختلف عن ارباح الشهر المؤكدة.",
+      };
     }
     case "create_support_ticket": {
       const subject = String(args?.subject || "").slice(0, 80) || "طلب دعم";
@@ -261,7 +276,9 @@ function buildSystemPrompt(role: string, fullName: string): string {
     "## تنسيق البيانات\n" +
     '- الدقائق: اكتب مثلا "720 دقيقة (نحو 12 ساعة)"\n' +
     "- التواريخ: استخدم الصيغة المنسقة التي تاتي من الاداة\n" +
-    "- الروابط: اعرضها فقط اذا جاءت من الاداة -- لا تضع روابط وهمية ابدا"
+    "- الروابط: اعرضها فقط اذا جاءت من الاداة -- لا تضع روابط وهمية ابدا\n" +
+    '- العملة: كل المبالغ في المنصة بالريال السعودي (ر.س) -- لا تذكر الدولار او اي عملة اخرى ابدا\n' +
+    '- الارباح: فرّق دائما بين "الرصيد المتاح للسحب" (withdrawable_balance) و"ارباح الشهر" (monthly_earnings) -- لا تسمّ ارباح شهر رصيدا متاحا'
   );
 }
 
