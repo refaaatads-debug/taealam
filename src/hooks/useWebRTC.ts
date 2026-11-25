@@ -108,6 +108,9 @@ export function useWebRTC({
   const makingOfferRef = useRef(false);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const reconnectAttemptsRef = useRef(0);
+  const agoraRejoinAttemptsRef = useRef(0);
+  const agoraRejoinTimerRef = useRef<number | null>(null);
+  const agoraRejoiningRef = useRef(false);
   const transportProviderRef = useRef<"webrtc" | "agora">("webrtc");
   const agoraClientRef = useRef<any>(null);
   const agoraAudioTrackRef = useRef<any>(null);
@@ -797,11 +800,69 @@ export function useWebRTC({
         setConnectionState("disconnected");
         onConnectionStateRef.current?.("disconnected");
       });
+      // App-level rejoin: the Agora SDK reconnects internally for a while, then
+      // gives up in the DISCONNECTED state. Without this, only a manual page
+      // re-entry recovers the session. We leave() first so a stale half-open
+      // connection with the same uid cannot kick the fresh join (same-uid joins
+      // kick each other), then re-join with a freshly minted token and re-publish.
+      const rejoinAgora = async () => {
+        if (agoraRejoiningRef.current) return;
+        if (agoraClientRef.current !== client) return; // torn down by stop()
+        agoraRejoiningRef.current = true;
+        try {
+          await Promise.resolve(client.leave()).catch(() => {});
+          const { data: renewed, error: renewalError } = await supabase.functions.invoke("session-transport-token", {
+            body: { bookingId },
+          });
+          if (agoraClientRef.current !== client) return; // torn down while awaiting
+          if (renewalError || renewed?.provider !== "agora" || !renewed?.token) {
+            throw renewalError || new Error("Agora rejoin token response is incomplete");
+          }
+          await client.join(renewed.appId, renewed.channel, renewed.token, renewed.uid);
+          if (agoraAudioTrackRef.current) {
+            try { await client.publish([agoraAudioTrackRef.current]); } catch (e) { console.warn("[agora] audio re-publish failed", e); }
+          }
+          if (agoraScreenTrackRef.current) {
+            try { await client.publish([agoraScreenTrackRef.current]); } catch (e) { console.warn("[agora] screen re-publish failed", e); }
+          }
+        } catch (error) {
+          console.error("[agora] rejoin failed", error);
+          scheduleAgoraRejoin();
+        } finally {
+          agoraRejoiningRef.current = false;
+        }
+      };
+      const scheduleAgoraRejoin = () => {
+        if (agoraRejoinTimerRef.current != null) return; // already scheduled
+        if (agoraClientRef.current !== client) return; // torn down
+        const attempt = agoraRejoinAttemptsRef.current;
+        if (attempt >= 8) {
+          console.error("[agora] rejoin attempts exhausted — manual re-entry required");
+          setConnectionState("failed");
+          onConnectionStateRef.current?.("failed");
+          return;
+        }
+        const delay = Math.min(2000 * Math.pow(2, attempt), 20000); // backoff, max 20s
+        agoraRejoinAttemptsRef.current = attempt + 1;
+        console.log(`[agora] disconnected — rejoin attempt ${attempt + 1} in ${delay}ms`);
+        agoraRejoinTimerRef.current = window.setTimeout(() => {
+          agoraRejoinTimerRef.current = null;
+          void rejoinAgora();
+        }, delay);
+      };
       client.on("connection-state-change", (current: string) => {
         if (current === "RECONNECTING" || current === "DISCONNECTED") {
           setConnectionState("disconnected");
           onConnectionStateRef.current?.("disconnected");
+          if (current === "DISCONNECTED") scheduleAgoraRejoin();
         } else if (current === "CONNECTED" || current === "CONNECTING") {
+          if (current === "CONNECTED") {
+            agoraRejoinAttemptsRef.current = 0;
+            if (agoraRejoinTimerRef.current != null) {
+              clearTimeout(agoraRejoinTimerRef.current);
+              agoraRejoinTimerRef.current = null;
+            }
+          }
           setConnectionState(current === "CONNECTED" ? "connected" : "connecting");
           onConnectionStateRef.current?.(current === "CONNECTED" ? "connected" : "connecting");
         }
@@ -1047,7 +1108,19 @@ export function useWebRTC({
       try {
         const sdk = await import("agora-rtc-sdk-ng");
         const AgoraRTC: any = (sdk as any).default || sdk;
-        const track = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: videoTrack });
+        // Screen share encoder config: the previous version published the raw
+        // 1080p/30-60 capture with SDK defaults, which starved the encoder and
+        // built up viewer-side delay (and dropped the call on weaker machines).
+        // Cap the send side at 1080p/15 with an explicit bitrate window and
+        // detail optimization (slides/text stay sharp; fps drops first under load).
+        // The local recording keeps using the original full-quality stream.
+        const track = AgoraRTC.createCustomVideoTrack({
+          mediaStreamTrack: videoTrack,
+          optimizationMode: "detail",
+          frameRate: 15,
+          bitrateMax: 2500,
+          bitrateMin: 800,
+        });
         agoraScreenTrackRef.current = track;
         await client.publish([track]);
         screenStreamRef.current = stream;
@@ -1550,6 +1623,8 @@ export function useWebRTC({
       await sendSignal("leave", { userId });
     }
     if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+    if (agoraRejoinTimerRef.current != null) { clearTimeout(agoraRejoinTimerRef.current); agoraRejoinTimerRef.current = null; }
+    agoraRejoinAttemptsRef.current = 0;
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -1606,6 +1681,7 @@ export function useWebRTC({
   useEffect(() => {
     return () => {
       if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+      if (agoraRejoinTimerRef.current != null) { clearTimeout(agoraRejoinTimerRef.current); agoraRejoinTimerRef.current = null; }
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
