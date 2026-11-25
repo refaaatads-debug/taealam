@@ -38,6 +38,8 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaKey, setCaptchaKey] = useState(0);
+  const [needsConfirm, setNeedsConfirm] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const navigate = useNavigate();
 
   const isInIframe = () => {
@@ -105,6 +107,28 @@ const Login = () => {
 
   const redirectByRole = (userRole?: string) => goToDashboard(userRole);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleResendConfirmation = async () => {
+    if (!needsConfirm || resendCooldown > 0) return;
+    setResendCooldown(60);
+    try {
+      const { error } = await withAuthTimeout(supabase.auth.resend({
+        type: "signup",
+        email: needsConfirm,
+        options: { emailRedirectTo: window.location.origin },
+      }));
+      if (error) throw error;
+      toast.success("تم إرسال رسالة التأكيد مرة أخرى. تحقق من بريدك (وملف الرسائل غير المرغوبة)");
+    } catch (e) {
+      toast.error(getAuthErrorMessage(e));
+    }
+  };
+
   const handleEmailAuth = async () => {
     if (!captchaToken) {
       toast.error("يرجى إكمال التحقق الأمني أولاً");
@@ -118,7 +142,14 @@ const Login = () => {
           password,
           options: { captchaToken },
         }));
-        if (error) throw error;
+        if (error) {
+          if (/email not confirmed/i.test(error.message)) {
+            setNeedsConfirm(email);
+            toast.error("لم يتم تأكيد بريدك بعد. افتح رسالة التأكيد أو اطلب إرسالها مرة أخرى.");
+            return;
+          }
+          throw error;
+        }
 
         toast.success("تم تسجيل الدخول بنجاح!");
         // Fetch role with timeout fallback to prevent hanging
@@ -146,9 +177,12 @@ const Login = () => {
         }));
         if (error) throw error;
 
+        // Email confirmation: no session yet means the user must confirm by email first.
+        if (!data.session) setNeedsConfirm(email);
+
         // Role is assigned automatically by DB trigger from metadata
         if (role === "teacher") {
-          toast.success("تم إنشاء حسابك كمعلم! سيتم مراجعته والموافقة عليه قريباً", { duration: 6000 });
+          toast.success("تم إنشاء حسابك كمعلم. الخطوة 1: أكّد بريدك من الرسالة التي وصلتك. الخطوة 2: انتظر موافقة الإدارة على حسابك.", { duration: 10000 });
         } else {
           toast.success("تم إنشاء الحساب! تحقق من بريدك الإلكتروني");
         }
@@ -404,6 +438,16 @@ const Login = () => {
                   )}
                 </Button>
               </form>
+
+              {needsConfirm && (
+                <div className="mt-4 rounded-xl border border-[#188779]/30 bg-[#188779]/5 p-3 text-center text-sm text-[#102f50]" role="status">
+                  <p className="font-bold">أرسلنا رسالة تأكيد إلى {needsConfirm}</p>
+                  <p className="mt-1 text-[#102f50]/70">افتح الرسالة واضغط على رابط التأكيد، ثم سجّل الدخول.</p>
+                  <button type="button" onClick={handleResendConfirmation} disabled={resendCooldown > 0} className="mt-2 font-black text-[#188779] hover:underline disabled:opacity-50">
+                    {resendCooldown > 0 ? `إعادة الإرسال بعد ${resendCooldown} ثانية` : "لم تصلك الرسالة؟ أعد الإرسال"}
+                  </button>
+                </div>
+              )}
 
               <p className="mt-6 text-center text-sm text-[#102f50]/55">
                 {isLogin ? "ليس لديك حساب؟" : "لديك حساب بالفعل؟"}{" "}
