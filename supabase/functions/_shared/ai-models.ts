@@ -103,7 +103,7 @@ export async function getGeminiModel(apiKey: string): Promise<string> {
   const runtime = await getRuntimeConfig("gemini");
   const override = runtime.selected_model?.trim() || Deno.env.get("GEMINI_MODEL")?.trim();
   const now = Date.now();
-  if (!apiKey) return override || "gemini-2.5-flash";
+  if (!apiKey) return override || "gemini-3.8-flash";
   if (!geminiCache || geminiCache.expiresAt <= now) {
     try {
       const catalog = await readCatalog(
@@ -115,14 +115,17 @@ export async function getGeminiModel(apiKey: string): Promise<string> {
       console.log("Gemini catalog refreshed:", usable.join(", "));
     } catch (error) {
       console.warn("Gemini catalog refresh failed; using safe default:", error);
-      geminiCache = { expiresAt: now + 60_000, models: ["gemini-2.5-flash"] };
+      geminiCache = { expiresAt: now + 60_000, models: ["gemini-3.8-flash"] };
     }
   }
 
+  // gemini-2.5-flash is retired by the provider (generateContent 404).
+  // Preference order confirmed against the live model catalog on 2026-11-25.
   const candidates = [
     override,
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
   ].filter((model): model is string => Boolean(model));
-  return candidates.find((model) => geminiCache!.models.includes(model)) || geminiCache.models[0] || "gemini-2.5-flash";
+  return candidates.find((model) => geminiCache!.models.includes(model)) || geminiCache.models[0] || "gemini-3.8-flash";
 }

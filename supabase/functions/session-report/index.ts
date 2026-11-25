@@ -34,13 +34,13 @@ async function callAIWithRetry(apiKey: string, body: any, maxRetries = 3) {
   throw lastError || new Error("Max retries exceeded");
 }
 
-async function evaluateOutput(apiKey: string, inputContext: string, aiOutput: string): Promise<{ usefulness_score: number; feedback: string }> {
+async function evaluateOutput(apiKey: string, model: string, inputContext: string, aiOutput: string): Promise<{ usefulness_score: number; feedback: string }> {
   try {
     const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model,
         messages: [
           { role: "system", content: `أنت مقيّم جودة. قيّم التقرير بناءً على: 1) هل يحتوي timeline زمني واضح؟ 2) هل كل جملة مرتبطة بدليل؟ 3) هل يتجنب العبارات العامة؟ 4) هل يكشف الفجوات التعليمية؟ أجب بالأداة فقط.` },
           { role: "user", content: `--- Input ---\n${inputContext.slice(0, 800)}\n\n--- Output ---\n${aiOutput.slice(0, 1500)}` },
@@ -327,6 +327,7 @@ serve(async (req) => {
 
     const GEMINI_API_KEY = await getProviderApiKey("gemini", "GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+    const geminiModel = await getGeminiModel(GEMINI_API_KEY);
 
     const rawStats = {
       duration_minutes: durationMin,
@@ -443,7 +444,7 @@ ${extractedTopics.length > 0 ? extractedTopics.join("، ") : "لم يتم اكت
 
     try {
       const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
-        model: "gemini-2.5-flash",
+        model: geminiModel,
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: inputContext }],
       });
 
@@ -452,14 +453,14 @@ ${extractedTopics.length > 0 ? extractedTopics.join("، ") : "لم يتم اكت
       responseTime = aiResult.responseTime;
       qualityScore = calculateQualityScore(reportText);
 
-      const evaluation = await evaluateOutput(GEMINI_API_KEY, inputContext, reportText);
+      const evaluation = await evaluateOutput(GEMINI_API_KEY, geminiModel, inputContext, reportText);
       usefulnessScore = evaluation.usefulness_score;
       evaluatorFeedback = evaluation.feedback;
 
       if (usefulnessScore < 6) {
         isRegenerated = true;
         const regenResult = await callAIWithRetry(GEMINI_API_KEY, {
-          model: "gemini-2.5-flash",
+          model: geminiModel,
           messages: [
             { role: "system", content: `التقرير السابق ضعيف: "${evaluatorFeedback}". أعد كتابته بصرامة: كل جملة إما اقتباس حرفي بين "..." من Timeline مع [MM:SS]، أو رقم من الإحصائيات. ممنوع أي معلومة عامة عن المادة أو نصائح خارج إطار الجلسة. ممنوع اختراع أي شيء لم يَرِد حرفياً. المادة: ${subjectName}. درجة الأداء: ${performanceScore}/100.` },
             { role: "user", content: inputContext },
@@ -469,7 +470,7 @@ ${extractedTopics.length > 0 ? extractedTopics.join("، ") : "لم يتم اكت
         retryCount += regenResult.retryCount + 1;
         responseTime += regenResult.responseTime;
         qualityScore = calculateQualityScore(reportText);
-        const reEval = await evaluateOutput(GEMINI_API_KEY, inputContext, reportText);
+        const reEval = await evaluateOutput(GEMINI_API_KEY, geminiModel, inputContext, reportText);
         usefulnessScore = reEval.usefulness_score;
         evaluatorFeedback = reEval.feedback;
       }
