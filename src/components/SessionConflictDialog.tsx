@@ -36,7 +36,9 @@ const SessionConflictDialog = () => {
 
   const handleSignOut = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
+    // Keep logout local to this browser session so it does not revoke the
+    // user's mobile authentication token.
+    await supabase.auth.signOut({ scope: "local" });
     localStorage.removeItem("session_token");
     sessionStorage.removeItem("session_token");
     window.location.href = "/login";

@@ -375,7 +375,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       localStorage.removeItem(lastUserKey);
     } catch { /* ignore */ }
-    await supabase.auth.signOut();
+    // A session owner signing out of the web app must not revoke the same
+    // account's mobile token. Global logout deletes sessions on every device,
+    // which makes mobile API and Edge Function calls fail with 401.
+    await supabase.auth.signOut({ scope: "local" });
     sessionStorage.removeItem("session_token");
     setProfile(null);
     setRoles([]);

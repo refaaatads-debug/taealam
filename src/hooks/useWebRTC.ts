@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AGORA_REJOIN_MAX_ATTEMPTS,
+  agoraRejoinDelayMs,
+  shouldScheduleAgoraRejoin,
+} from "@/lib/agoraRejoinPolicy";
 
 // ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
 // useinbandfec=1        → forward error correction (masks packet loss, prevents cuts)
@@ -112,6 +117,11 @@ export function useWebRTC({
   const agoraClientRef = useRef<any>(null);
   const agoraAudioTrackRef = useRef<any>(null);
   const agoraScreenTrackRef = useRef<any>(null);
+  const agoraConnectionStateRef = useRef<string>("new");
+  const agoraRejoinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agoraRejoinAttemptsRef = useRef(0);
+  const agoraRejoinInFlightRef = useRef(false);
+  const agoraSessionDeviceIdRef = useRef(`agora_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const isRestartingRef      = useRef(false);   // mutex — prevents concurrent ICE restarts
   const disconnectTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNegotiatingRef     = useRef(false);   // true while onnegotiationneeded offer/answer in flight
@@ -612,33 +622,99 @@ export function useWebRTC({
     }
   }, [userId, sendSignal, createPeerConnection]);
 
+  const logAgoraEvent = useCallback((eventType: string, metadata?: Record<string, any>) => {
+    if (!bookingId || !userId) return;
+    void supabase.from("session_events" as any).insert({
+      user_id: userId,
+      booking_id: bookingId,
+      event_type: eventType,
+      device_id: agoraSessionDeviceIdRef.current,
+      metadata: metadata || {},
+    } as any).then(({ error }: any) => {
+      if (error) console.warn("[agora] connection telemetry insert failed", error);
+    });
+  }, [bookingId, userId]);
+
+  const getSessionTransportData = useCallback(async () => {
+    let tokenResponse = await supabase.functions.invoke("session-transport-token", {
+      body: { bookingId },
+    });
+    let status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
+    if (status === 401) {
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !refreshed.session?.access_token) {
+        throw new Error("انتهت صلاحية تسجيل الدخول. سجّل الدخول مجددًا قبل الانضمام.");
+      }
+      tokenResponse = await supabase.functions.invoke("session-transport-token", {
+        body: { bookingId },
+        headers: { Authorization: `Bearer ${refreshed.session.access_token}` },
+      });
+      status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
+    }
+    if (tokenResponse.error) throw tokenResponse.error;
+    return tokenResponse.data;
+  }, [bookingId]);
+
+  const publishAgoraTracks = useCallback(async (client: any) => {
+    const tracks = [agoraAudioTrackRef.current, agoraScreenTrackRef.current].filter(Boolean);
+    if (tracks.length > 0) await client.publish(tracks);
+  }, []);
+
+  const rejoinAgoraRef = useRef<((reason: string) => Promise<void>) | null>(null);
+  const scheduleAgoraRejoin = useCallback((reason: string) => {
+    if (transportProviderRef.current !== "agora" || !agoraClientRef.current) return;
+    if (agoraRejoinInFlightRef.current) return;
+    if (agoraRejoinTimerRef.current) clearTimeout(agoraRejoinTimerRef.current);
+    const attempt = agoraRejoinAttemptsRef.current + 1;
+    agoraRejoinTimerRef.current = setTimeout(() => {
+      agoraRejoinTimerRef.current = null;
+      void rejoinAgoraRef.current?.(reason);
+    }, agoraRejoinDelayMs(attempt));
+  }, []);
+
+  const rejoinAgora = useCallback(async (reason: string) => {
+    const client = agoraClientRef.current;
+    if (!client || agoraRejoinInFlightRef.current) return;
+    agoraRejoinInFlightRef.current = true;
+    const attempt = agoraRejoinAttemptsRef.current + 1;
+    agoraRejoinAttemptsRef.current = attempt;
+    logAgoraEvent("agora_auto_rejoin_started", { reason, attempt });
+    try {
+      const data = await getSessionTransportData();
+      if (data?.provider !== "agora" || !data?.token || !data?.appId || !data?.channel || !data?.uid) {
+        throw new Error("Agora session token response is incomplete");
+      }
+      await Promise.resolve(client.leave()).catch(() => undefined);
+      await client.join(data.appId, data.channel, data.token, data.uid);
+      await publishAgoraTracks(client);
+      agoraRejoinAttemptsRef.current = 0;
+      logAgoraEvent("agora_auto_rejoin_succeeded", { reason, attempt });
+    } catch (error) {
+      console.error("[agora] auto rejoin failed", error);
+      logAgoraEvent("agora_auto_rejoin_failed", {
+        reason,
+        attempt,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      if (attempt < AGORA_REJOIN_MAX_ATTEMPTS) {
+        scheduleAgoraRejoin(`retry_${attempt}`);
+      } else {
+        setConnectionState("failed");
+        onConnectionStateRef.current?.("failed");
+      }
+    } finally {
+      agoraRejoinInFlightRef.current = false;
+    }
+  }, [getSessionTransportData, logAgoraEvent, publishAgoraTracks, scheduleAgoraRejoin]);
+  rejoinAgoraRef.current = rejoinAgora;
+
   const start = useCallback(async () => {
     transportProviderRef.current = "webrtc";
     setTransportProvider("unknown");
     let transportData: any = null;
     try {
-      let tokenResponse = await supabase.functions.invoke("session-transport-token", {
-        body: { bookingId },
-      });
-      let status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
-      if (status === 401) {
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshed.session?.access_token) {
-          throw new Error("انتهت صلاحية تسجيل الدخول. سجّل الدخول مجددًا قبل الانضمام.");
-        }
-        tokenResponse = await supabase.functions.invoke("session-transport-token", {
-          body: { bookingId },
-          headers: { Authorization: `Bearer ${refreshed.session.access_token}` },
-        });
-        status = Number((tokenResponse.error as any)?.context?.status ?? (tokenResponse.error as any)?.status);
-      }
-      if (tokenResponse.error) {
-        if (status === 401) throw new Error("انتهت صلاحية تسجيل الدخول. أعد تحميل الصفحة وسجّل الدخول مجددًا.");
-        if (status === 403) throw new Error("هذا الحساب غير مخوّل للانضمام إلى هذه الحصة.");
-        throw tokenResponse.error;
-      }
-      const { data } = tokenResponse;
-      transportData = data;
+      transportData = await getSessionTransportData();
+      const data = transportData;
       if (data?.provider === "agora" && data?.token && data?.appId && data?.channel && data?.uid) {
         transportProviderRef.current = "agora";
         setTransportProvider("agora");
@@ -797,28 +873,42 @@ export function useWebRTC({
         setConnectionState("disconnected");
         onConnectionStateRef.current?.("disconnected");
       });
-      client.on("connection-state-change", (current: string) => {
+      client.on("connection-state-change", (current: string, previous?: string, reason?: string) => {
+        agoraConnectionStateRef.current = current;
+        logAgoraEvent("agora_connection_state_changed", { current, previous, reason });
         if (current === "RECONNECTING" || current === "DISCONNECTED") {
           setConnectionState("disconnected");
           onConnectionStateRef.current?.("disconnected");
+          if (shouldScheduleAgoraRejoin(current, agoraRejoinAttemptsRef.current)) {
+            scheduleAgoraRejoin(`state_${current.toLowerCase()}`);
+          }
         } else if (current === "CONNECTED" || current === "CONNECTING") {
+          if (current === "CONNECTED") {
+            agoraRejoinAttemptsRef.current = 0;
+            if (agoraRejoinTimerRef.current) {
+              clearTimeout(agoraRejoinTimerRef.current);
+              agoraRejoinTimerRef.current = null;
+            }
+          }
           setConnectionState(current === "CONNECTED" ? "connected" : "connecting");
           onConnectionStateRef.current?.(current === "CONNECTED" ? "connected" : "connecting");
         }
       });
       client.on("token-privilege-will-expire", async () => {
+        logAgoraEvent("agora_token_will_expire");
         try {
-          const { data: renewed, error: renewalError } = await supabase.functions.invoke("session-transport-token", {
-            body: { bookingId },
-          });
-          if (renewalError || renewed?.provider !== "agora" || !renewed?.token) {
-            throw renewalError || new Error("Agora token renewal response is incomplete");
+          const renewed = await getSessionTransportData();
+          if (renewed?.provider !== "agora" || !renewed?.token) {
+            throw new Error("Agora token renewal response is incomplete");
           }
           await client.renewToken(renewed.token);
+          logAgoraEvent("agora_token_renewed");
         } catch (error) {
           console.error("[agora] token renewal failed", error);
-          setConnectionState("failed");
-          onConnectionStateRef.current?.("failed");
+          logAgoraEvent("agora_token_renewal_failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
+          scheduleAgoraRejoin("token_renewal_failed");
         }
       });
       setConnectionState("connecting");
@@ -827,8 +917,9 @@ export function useWebRTC({
         mediaStreamTrack: localStreamRef.current.getAudioTracks()[0],
       });
       agoraAudioTrackRef.current = microphone;
-      await client.publish([microphone]);
+      await publishAgoraTracks(client);
       setIceTransportType("Agora");
+      logAgoraEvent("agora_joined");
       return;
     }
 
@@ -849,7 +940,7 @@ export function useWebRTC({
       _retryCount++;
       await sendSignal("join", { userId, retry: _retryCount });
     }, 3000);
-  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal, sendDataMessage]);
+  }, [bookingId, userId, initLocalMedia, createPeerConnection, handleSignal, waitForChannelSubscription, sendSignal, sendDataMessage, getSessionTransportData, logAgoraEvent, publishAgoraTracks, scheduleAgoraRejoin]);
 
   const restartConnection = useCallback(async () => {
     if (isRestartingRef.current) return; // prevent concurrent restarts
@@ -1546,6 +1637,13 @@ export function useWebRTC({
   }, []);
 
   const stop = useCallback(async () => {
+    if (agoraRejoinTimerRef.current) {
+      clearTimeout(agoraRejoinTimerRef.current);
+      agoraRejoinTimerRef.current = null;
+    }
+    agoraRejoinAttemptsRef.current = 0;
+    agoraRejoinInFlightRef.current = false;
+    agoraConnectionStateRef.current = "stopped";
     if (transportProviderRef.current === "webrtc") {
       await sendSignal("leave", { userId });
     }
@@ -1591,6 +1689,7 @@ export function useWebRTC({
         agoraScreenTrackRef.current = null;
       }
     }
+    logAgoraEvent("agora_left");
     transportProviderRef.current = "webrtc";
     setTransportProvider("unknown");
     pcRef.current?.close();
@@ -1601,11 +1700,12 @@ export function useWebRTC({
     screenStreamRef.current = null;
     stopDirectScreenRecorder();
     if (isRecording) stopRecording();
-  }, [userId, isRecording, stopRecording, stopDirectScreenRecorder, sendSignal]);
+  }, [userId, isRecording, stopRecording, stopDirectScreenRecorder, sendSignal, logAgoraEvent]);
 
   useEffect(() => {
     return () => {
       if (joinRetryIntervalRef.current) { clearInterval(joinRetryIntervalRef.current); joinRetryIntervalRef.current = null; }
+      if (agoraRejoinTimerRef.current) { clearTimeout(agoraRejoinTimerRef.current); agoraRejoinTimerRef.current = null; }
       pcRef.current?.close();
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
