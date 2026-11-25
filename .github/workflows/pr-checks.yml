@@ -38,7 +38,6 @@ jobs:
     name: Lint (info only)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,4 +46,5 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-fund
       - name: Lint (known backlog, does not block merging yet)
+        continue-on-error: true
         run: npm run lint
