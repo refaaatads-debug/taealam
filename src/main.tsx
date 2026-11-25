@@ -1,4 +1,5 @@
 // v1778408831 — cache bust
+import "./lib/sentry";
 import { createRoot } from "react-dom/client";
 
 // ── Stale-chunk guard ──────────────────────────────────────────────────────
