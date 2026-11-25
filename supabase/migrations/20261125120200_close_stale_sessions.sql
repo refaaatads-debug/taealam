@@ -24,7 +24,7 @@
 -- already close themselves when ended_at appears (web: realtime postgres_changes
 -- on the sessions row; mobile: 5s lifecycle poll), so no client change is
 -- needed for the end signal.
-CREATE OR REPLACE FUNCTION public.close_stale_sessions(p_stale_after interval DEFAULT interval '3 minutes')
+CREATE OR REPLACE FUNCTION public.close_stale_sessions(p_stale_after interval DEFAULT interval '10 minutes')
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
