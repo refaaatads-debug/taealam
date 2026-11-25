@@ -1138,7 +1138,15 @@ export function useWebRTC({
       try {
         const sdk = await import("agora-rtc-sdk-ng");
         const AgoraRTC: any = (sdk as any).default || sdk;
-        const track = AgoraRTC.createCustomVideoTrack({ mediaStreamTrack: videoTrack });
+        // Cap screen-share send side at 1080p/15 with an explicit bitrate window (detail mode);
+        // local recording keeps the full-quality stream.
+        const track = AgoraRTC.createCustomVideoTrack({
+          mediaStreamTrack: videoTrack,
+          optimizationMode: "detail",
+          frameRate: 15,
+          bitrateMax: 2500,
+          bitrateMin: 800,
+        });
         agoraScreenTrackRef.current = track;
         await client.publish([track]);
         screenStreamRef.current = stream;
