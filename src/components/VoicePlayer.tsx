@@ -22,32 +22,50 @@ export default function VoicePlayer({ url, fileName, className }: Props) {
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   // Static pseudo-waveform bars (visual only)
   const bars = useRef<number[]>(
     Array.from({ length: 32 }, () => 0.3 + Math.random() * 0.7)
   ).current;
 
+  // Reset when a different message renders into this slot
+  useEffect(() => { setFailed(false); setReady(false); setPlaying(false); setProgress(0); setCurrent(0); setDuration(0); }, [url]);
+
   useEffect(() => {
     const a = audioRef.current;
-    if (!a) return;
+    if (!a || failed) return;
     const onLoaded = () => { setDuration(a.duration || 0); setReady(true); };
     const onTime = () => {
       setCurrent(a.currentTime);
       setProgress(a.duration > 0 ? a.currentTime / a.duration : 0);
     };
     const onEnd = () => { setPlaying(false); setProgress(0); setCurrent(0); a.currentTime = 0; };
+    // Fail once, never retry: missing files on the storage volume return 500 and
+    // the browser otherwise retries every failed media load several times,
+    // flooding the console and the network inside live sessions.
+    const onError = () => { setFailed(true); };
     a.addEventListener("loadedmetadata", onLoaded);
     a.addEventListener("durationchange", onLoaded);
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("ended", onEnd);
+    a.addEventListener("error", onError);
     return () => {
       a.removeEventListener("loadedmetadata", onLoaded);
       a.removeEventListener("durationchange", onLoaded);
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("ended", onEnd);
+      a.removeEventListener("error", onError);
     };
-  }, [url]);
+  }, [url, failed]);
+
+  if (failed) {
+    return (
+      <div className={`mt-2 flex items-center gap-2 bg-muted/40 border border-border/40 rounded-2xl px-3 py-2 max-w-[280px] ${className || ""}`}>
+        <span className="text-[11px] text-muted-foreground">التسجيل الصوتي غير متاح (ربما حُذف من التخزين)</span>
+      </div>
+    );
+  }
 
   const toggle = async () => {
     const a = audioRef.current;
@@ -71,7 +89,7 @@ export default function VoicePlayer({ url, fileName, className }: Props) {
 
   return (
     <div className={`mt-2 flex items-center gap-2 bg-background/80 border border-border/40 rounded-2xl px-2.5 py-1.5 max-w-[280px] ${className || ""}`}>
-      <audio ref={audioRef} src={url} preload="metadata" className="hidden" />
+      <audio ref={audioRef} src={failed ? undefined : url} preload="metadata" className="hidden" />
       <button
         type="button"
         onClick={toggle}

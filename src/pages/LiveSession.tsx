@@ -50,6 +50,27 @@ import {
   restoreSessionClock,
 } from "@/lib/sessionClock";
 
+/** Chat image that fails once and shows a note instead of letting the browser
+ *  retry a missing file (storage returns 500 for deleted objects, and each
+ *  retry is a console error + network hit during a live session). */
+const ChatImage = ({ url, fileName, onOpen, onDownload }: { url: string; fileName?: string; onOpen: () => void; onDownload: () => void }) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [url]);
+  if (failed) {
+    return <p className="mt-2 text-[11px] text-muted-foreground">الصورة غير متاحة (ربما حُذفت من التخزين)</p>;
+  }
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={onOpen} className="block">
+        <img src={url} alt={fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" onError={() => setFailed(true)} />
+      </button>
+      <button type="button" onClick={onDownload} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
+        <Download className="h-3 w-3" /> تحميل
+      </button>
+    </div>
+  );
+};
+
 const LiveSession = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -2566,14 +2587,12 @@ const LiveSession = () => {
                       {!m.me && <p className="text-xs font-bold mb-1 text-secondary">{m.sender}</p>}
                       <p>{m.text}</p>
                       {m.fileUrl && m.fileType?.startsWith("image/") && (
-                        <div className="mt-2">
-                          <button type="button" onClick={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)} className="block">
-                            <img src={m.fileUrl} alt={m.fileName || "صورة"} className="max-w-[200px] rounded-lg border border-border/30" loading="lazy" />
-                          </button>
-                          <button type="button" onClick={() => downloadFile(m.fileUrl!, m.fileName || "image")} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-1">
-                            <Download className="h-3 w-3" /> تحميل
-                          </button>
-                        </div>
+                        <ChatImage
+                          url={m.fileUrl}
+                          fileName={m.fileName}
+                          onOpen={() => openFileInNewTab(m.fileUrl!, m.fileName, m.fileType)}
+                          onDownload={() => downloadFile(m.fileUrl!, m.fileName || "image")}
+                        />
                       )}
                       {m.fileUrl && (m.fileType === "application/pdf" || m.fileName?.endsWith(".pdf")) && (
                         <div className="mt-2 flex items-center gap-2 bg-muted/50 rounded-lg px-2 py-1.5">
