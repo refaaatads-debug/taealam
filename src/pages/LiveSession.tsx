@@ -995,6 +995,19 @@ const LiveSession = () => {
     }
   }, [bothJoined, remoteStream, isRecording, startAutoRecording]);
 
+  // Liveness heartbeat for the server-side sweeper: if both clients die without
+  // ending the session, the server closes it from the last heartbeat and bills
+  // exactly up to the last sign of life. Beat every 30s while the meeting is live.
+  useEffect(() => {
+    if (!bookingId || !meetingStarted) return;
+    const beat = () => {
+      void (supabase.rpc as any)("heartbeat_session", { p_booking_id: bookingId }).then(() => undefined, () => undefined);
+    };
+    beat();
+    const interval = window.setInterval(beat, 30_000);
+    return () => window.clearInterval(interval);
+  }, [bookingId, meetingStarted]);
+
   // Recover any stranded local backups from previous failed sessions (teacher only)
   const backupRecoveryAttemptedRef = useRef(false);
   useEffect(() => {
@@ -1820,22 +1833,27 @@ const LiveSession = () => {
     void (async () => {
       const fastTasks: Promise<any>[] = [mediaStopPromise, cleanupSession()];
       if (currentBookingId) {
-        fastTasks.push(
-          supabase.from("bookings")
-            .update({ status: "completed", session_status: "completed" })
-            .eq("id", currentBookingId) as any
-        );
-        // Per billing spec: always send timer-based duration (never rely on wall-clock in DB)
+        // Single settlement path (same as the mobile app): the end_live_session
+        // RPC is participant-checked and idempotent server-side. Direct writes
+        // remain only as a fallback if the RPC is unreachable.
         const sessionUpdate: any = {
           ended_at: new Date().toISOString(),
           duration_seconds: durationSeconds,    // precise seconds for billing
           duration_minutes: durationMinutes,    // CEIL(seconds/60) — used by trigger
         };
-        fastTasks.push(
-          supabase.from("sessions")
-            .update(sessionUpdate)
-            .eq("booking_id", currentBookingId) as any
-        );
+        fastTasks.push((async () => {
+          const { error: rpcError } = await (supabase.rpc as any)("end_live_session", { p_booking_id: currentBookingId });
+          if (!rpcError) return;
+          console.warn("end_live_session RPC failed, falling back to direct writes", rpcError);
+          await Promise.allSettled([
+            supabase.from("bookings")
+              .update({ status: "completed", session_status: "completed" })
+              .eq("id", currentBookingId) as any,
+            supabase.from("sessions")
+              .update(sessionUpdate)
+              .eq("booking_id", currentBookingId) as any,
+          ]);
+        })());
       }
       await Promise.allSettled(fastTasks);
       try { logEvent("end_session", { elapsed_seconds: durationSeconds }); } catch {}
