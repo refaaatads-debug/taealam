@@ -1,0 +1,50 @@
+name: PR checks
+
+# Runs on pull requests only. Does not touch production and does not
+# affect the deploy workflow, which still runs on push to main.
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install
+        run: npm ci --ignore-scripts --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests
+        env:
+          VITE_SUPABASE_URL: https://validation.invalid
+          VITE_SUPABASE_PUBLISHABLE_KEY: validation-public-placeholder
+        run: npm test
+
+  lint:
+    name: Lint (info only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-fund
+      - name: Lint (known backlog, does not block merging yet)
+        run: npm run lint
