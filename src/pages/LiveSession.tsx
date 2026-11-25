@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
+import { withWebmDuration } from "@/lib/webmDuration";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
@@ -1028,6 +1029,7 @@ const LiveSession = () => {
   const chunkUploadFileNameRef = useRef<string | null>(null);
   const chunkUploadOwnerKeyRef = useRef<string | null>(null);
   const chunkUploadInFlightRef = useRef(false);
+  const chunkUploadPromiseRef = useRef<Promise<void> | null>(null);
   const chunkUploadIntervalRef = useRef<number | null>(null);
   const lastUploadedSizeRef = useRef(0);
 
@@ -1131,11 +1133,33 @@ const LiveSession = () => {
     chunkUploadInFlightRef.current = false;
   }, [isTeacher, bookingId, user, getRecordingBlob]);
 
+  const queueCumulativeChunk = useCallback(() => {
+    if (chunkUploadPromiseRef.current) return chunkUploadPromiseRef.current;
+    const uploadPromise = uploadCumulativeChunk().finally(() => {
+      if (chunkUploadPromiseRef.current === uploadPromise) {
+        chunkUploadPromiseRef.current = null;
+      }
+    });
+    chunkUploadPromiseRef.current = uploadPromise;
+    return uploadPromise;
+  }, [uploadCumulativeChunk]);
+
+  const stopCumulativeUploadsAndWait = useCallback(async () => {
+    if (chunkUploadIntervalRef.current) {
+      clearInterval(chunkUploadIntervalRef.current);
+      chunkUploadIntervalRef.current = null;
+    }
+    const inFlightUpload = chunkUploadPromiseRef.current;
+    if (inFlightUpload) {
+      await inFlightUpload.catch(() => undefined);
+    }
+  }, []);
+
   // Run periodic uploads while recording.
   useEffect(() => {
     if (!isRecording || !isTeacher) return;
     chunkUploadIntervalRef.current = window.setInterval(() => {
-      uploadCumulativeChunk();
+      void queueCumulativeChunk();
     }, 60_000);
     return () => {
       if (chunkUploadIntervalRef.current) {
@@ -1143,18 +1167,18 @@ const LiveSession = () => {
         chunkUploadIntervalRef.current = null;
       }
     };
-  }, [isRecording, isTeacher, uploadCumulativeChunk]);
+  }, [isRecording, isTeacher, queueCumulativeChunk]);
 
   // Best-effort upload on tab close / refresh.
   useEffect(() => {
-    const handler = () => { uploadCumulativeChunk(); };
+    const handler = () => { void queueCumulativeChunk(); };
     window.addEventListener("pagehide", handler);
     window.addEventListener("beforeunload", handler);
     return () => {
       window.removeEventListener("pagehide", handler);
       window.removeEventListener("beforeunload", handler);
     };
-  }, [uploadCumulativeChunk]);
+  }, [queueCumulativeChunk]);
 
   // ───────────────────────────────────────────────────────────
   //  Precise Session Counter — Fail-safe accumulator
@@ -1641,12 +1665,12 @@ const LiveSession = () => {
     } catch (e) { console.warn("markRecordingFailed:", e); }
   };
 
-  const uploadRecording = async () => {
-    const blob = getRecordingBlob();
-    if (!blob || blob.size === 0 || !bookingId || !user) {
+  const uploadRecording = async (durationMs?: number) => {
+    const rawBlob = getRecordingBlob();
+    if (!rawBlob || rawBlob.size === 0 || !bookingId || !user) {
       console.warn("[uploadRecording] Skipped - recording data unavailable", {
-        hasBlob: !!blob,
-        size: blob?.size ?? 0,
+        hasBlob: !!rawBlob,
+        size: rawBlob?.size ?? 0,
         hasBooking: !!bookingId,
         hasUser: !!user,
       });
@@ -1655,11 +1679,19 @@ const LiveSession = () => {
       return;
     }
     setRecordingUploading(true);
-    let stage = "backup";
+    let stage = "wait-periodic-upload";
     const fileName = chunkUploadFileNameRef.current
       || `${user.id}/${bookingId}_${Date.now()}.webm`;
     try {
+      // Serialize the final write with the 60s cumulative uploader. Both write
+      // the same object key, and overlapping standard uploads caused the final
+      // blob to race an older in-flight upload and fail with 413.
+      await stopCumulativeUploadsAndWait();
+      stage = "duration-metadata";
+      const blob = await withWebmDuration(rawBlob, durationMs);
+
       // Save the final complete blob before network work, even when no 60s chunk ran.
+      stage = "backup";
       const { saveRecordingBackup } = await import("@/lib/recordingBackup");
       await saveRecordingBackup({
         bookingId,
@@ -1716,6 +1748,9 @@ const LiveSession = () => {
       }
 
       if (!saved) throw lastError || new Error("Recording upload failed");
+      lastUploadedSizeRef.current = blob.size;
+      setUploadStatus("synced");
+      setLastUploadAt(Date.now());
       console.log("[uploadRecording] Saved successfully");
 
       // Clear local backup once final upload is confirmed
@@ -1823,7 +1858,7 @@ const LiveSession = () => {
         try {
           const blob = getRecordingBlob();
           if (blob && blob.size > 0) {
-            await uploadRecording();
+            await uploadRecording(durationSeconds * 1000);
           } else {
             await markRecordingFailed(wasRecording ? "لم يتم التقاط أي بيانات فيديو" : "لم يبدأ التسجيل");
           }
