@@ -253,6 +253,27 @@ export default function BookingRequests({ onAccepted, embedded = false }: Bookin
     if (!error) setImpressionFor(studentName);
   };
 
+  // Finds the student's active plan with 15+ minutes. Uses a DB function so it also works for
+  // first-time students (RLS hides their plan from a teacher until a booking exists).
+  // If the function is not installed yet, fall back to the old direct read.
+  const findStudentActiveSub = async (studentId: string): Promise<{ id: string; remaining_minutes: number } | null> => {
+    const { data: rpcData, error: rpcError } = await supabase.rpc("get_request_student_active_subscription" as any, { _student_id: studentId });
+    if (!rpcError) {
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      return row ? { id: (row as any).id, remaining_minutes: Number((row as any).remaining_minutes) } : null;
+    }
+    const { data } = await supabase
+      .from("user_subscriptions")
+      .select("id, remaining_minutes")
+      .eq("user_id", studentId)
+      .eq("is_active", true)
+      .gte("remaining_minutes", 15)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return (data as any) ?? null;
+  };
+
   const handleAcceptGroup = async (group: RequestGroup) => {
     if (!user) return;
     if (new Date(group.earliest_expires_at).getTime() <= Date.now()) {
@@ -274,6 +295,17 @@ export default function BookingRequests({ onAccepted, embedded = false }: Bookin
         toast.error(`لديك حصة محجوزة بنفس وقت ${new Date(r.scheduled_at).toLocaleString("ar-SA")}. لا يمكن قبول هذا الطلب.`);
         return;
       }
+    }
+
+    // Check the student's balance BEFORE claiming the request. Claiming first left the
+    // request stuck as "accepted" with no booking when the balance was too low.
+    const preSub = await findStudentActiveSub(group.student_id);
+    if (!preSub) {
+      toast.error(`لا يمكن قبول طلب ${group.student_name}`, {
+        description: "الطالب لا يمتلك باقة نشطة أو رصيده أقل من 15 دقيقة. لم يتم قبول الطلب.",
+        duration: 6000,
+      });
+      return;
     }
 
     setAccepting(group.key);
@@ -311,16 +343,8 @@ export default function BookingRequests({ onAccepted, embedded = false }: Bookin
         acceptedRequests = [r];
       }
 
-      // Get active subscription — must have >= 15 remaining minutes
-      const { data: activeSub } = await supabase
-        .from("user_subscriptions")
-        .select("id, remaining_minutes")
-        .eq("user_id", group.student_id)
-        .eq("is_active", true)
-        .gte("remaining_minutes", 15)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Active plan (already checked before the claim; read again in case it changed).
+      const activeSub = (await findStudentActiveSub(group.student_id)) ?? preSub;
 
       // Block acceptance if student has no active subscription with enough balance
       if (!activeSub) {

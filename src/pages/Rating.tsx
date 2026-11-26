@@ -68,11 +68,13 @@ const Rating = () => {
         }
       }
 
-      // Mark free trial as used if this was the first session
-      await supabase
-        .from("profiles")
-        .update({ free_trial_used: true })
-        .eq("user_id", user.id);
+      // Mark free trial as used only when this rating was newly saved.
+      if (!error) {
+        await supabase
+          .from("profiles")
+          .update({ free_trial_used: true })
+          .eq("user_id", user.id);
+      }
 
       setSubmitted(true);
       toast.success("شكراً لتقييمك! 🎉");

@@ -37,6 +37,7 @@ const TeacherDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [openRequestsCount, setOpenRequestsCount] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPhone = useIsPhoneDevice();
   const todayKey = getSaudiDayKey(new Date());
   const todaySessions = schedule.filter((session) => localDayKey(new Date(session.scheduled_at)) === todayKey);
@@ -50,6 +51,15 @@ const TeacherDashboard = () => {
     if (!user) return;
     fetchData();
 
+    // Several realtime events often arrive together; refresh once for the burst.
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) return;
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        void fetchData();
+      }, 800);
+    };
+
     const channel = supabase
       .channel("teacher-bookings")
       .on("postgres_changes", {
@@ -58,7 +68,7 @@ const TeacherDashboard = () => {
         table: "bookings",
         filter: `teacher_id=eq.${user.id}`,
       }, (payload) => {
-        fetchData();
+        scheduleRefresh();
         // Only toast on INSERT (truly new booking).
         // Cancellations / status updates come through the notifications table with proper Arabic text,
         // so we avoid a generic "booking updated" message here.
@@ -76,7 +86,7 @@ const TeacherDashboard = () => {
         schema: "public",
         table: "booking_requests",
       }, (payload) => {
-        fetchData();
+        scheduleRefresh();
         if (payload.eventType === "INSERT") toast.info("طلب حجز جديد! 🔔");
       })
       .subscribe();
@@ -103,10 +113,14 @@ const TeacherDashboard = () => {
         schema: "public",
         table: "teacher_earnings",
         filter: `teacher_id=eq.${user.id}`,
-      }, () => fetchData())
+      }, () => scheduleRefresh())
       .subscribe();
 
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
