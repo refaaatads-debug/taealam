@@ -12,3 +12,4 @@ CREATE POLICY "Admins manage own seen marks" ON public.admin_seen_tabs
   USING (auth.uid() = user_id AND public.has_role(auth.uid(), 'admin'::public.app_role))
   WITH CHECK (auth.uid() = user_id AND public.has_role(auth.uid(), 'admin'::public.app_role));
 REVOKE ALL ON public.admin_seen_tabs FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.admin_seen_tabs TO authenticated;
