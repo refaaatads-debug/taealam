@@ -21,6 +21,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import FeaturedTeachersTab from "@/components/admin/FeaturedTeachersTab";
 import TeacherPromotionsTab from "@/components/admin/TeacherPromotionsTab";
+import TeacherQualityTab from "@/components/admin/TeacherQualityTab";
 import DomainSSLTab from "@/components/admin/DomainSSLTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
@@ -151,6 +152,7 @@ const TAB_TITLES: Record<string, string> = {
   advanced_analytics: "التحليلات المتقدمة",
   featured_teachers: "المدرسون المميزون",
   teacher_promotions: "إعلانات المعلمين",
+  teacher_quality: "جودة المعلمين",
   financial_hub: "المركز المالي",
   domain_ssl: "تقرير حالة HTTPS / SSL",
   platform_health: "صحة المنصة وجودة البيانات",
@@ -578,6 +580,7 @@ const AdminDashboard = () => {
     teacher_performance: "view_teacher_performance",
     featured_teachers: "manage_featured_teachers",
     teacher_promotions: "manage_featured_teachers",
+    teacher_quality: "manage_teacher_profiles",
     bookings: "manage_bookings",
     sessions_status: "manage_sessions_status",
     session_reports: "manage_session_reports",
@@ -639,6 +642,7 @@ const AdminDashboard = () => {
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
       case "teacher_promotions": return <TeacherPromotionsTab />;
+      case "teacher_quality": return <TeacherQualityTab />;
        case "support": return <SupportTicketsTab initialUser={supportTarget} onInitialUserHandled={() => setSupportTarget(null)} />;
       case "session_reports": return <SessionReportsTab />;
       case "ai_audit": return <AIAuditTab />;

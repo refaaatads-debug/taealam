@@ -77,6 +77,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
         { id: "teacher_promotions", title: "إعلانات المعلمين", icon: Megaphone, permission: "manage_featured_teachers" },
+        { id: "teacher_quality", title: "جودة المعلمين", icon: ShieldCheck, permission: "manage_teacher_profiles" },
       ],
     },
     {
