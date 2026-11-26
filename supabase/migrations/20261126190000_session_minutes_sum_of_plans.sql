@@ -1,4 +1,4 @@
--- PREVIEW ONLY. Not applied. Apply manually in one transaction after a backup.
+-- APPLIED to production on 2026-11-26 (backup pre_session_sum_plans_20261126.dump). Apply in one transaction after a backup.
 -- Session minutes: use the SUM of the student's active plans for both the server auto-close
 -- and settlement (billing), like the live screen does. Before this, both used ONE plan.
 -- Rollback: rollbacks_20261126190000_session_minutes_sum_of_plans.sql (restores previous definitions).
