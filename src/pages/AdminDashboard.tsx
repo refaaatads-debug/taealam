@@ -57,6 +57,7 @@ import AdvancedAnalyticsTab from "@/components/admin/AdvancedAnalyticsTab";
 import AdminQuickSearch from "@/components/admin/AdminQuickSearch";
 import AdminLiveAlerts from "@/components/admin/AdminLiveAlerts";
 import AdminUrgentTasks from "@/components/admin/AdminUrgentTasks";
+import OverviewDashboard from "@/components/admin/overview/OverviewDashboard";
 import AdminPeriodFilter, { AdminPeriod, getPeriodStart } from "@/components/admin/AdminPeriodFilter";
 import TeacherCertificatesList from "@/components/admin/TeacherCertificatesList";
 import AdminBookingsTab from "@/components/admin/AdminBookingsTab";
@@ -625,7 +626,7 @@ const AdminDashboard = () => {
       );
     }
     switch (activeTab) {
-      case "overview": return <OverviewContent stats={stats} overview={overview} monthlyBookings={monthlyBookings} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} badgeCounts={badgeCounts} />;
+      case "overview": return <OverviewDashboard stats={stats} overview={overview} bookingStatusData={bookingStatusData} pieData={pieData} period={period} setPeriod={setPeriod} onOpenTab={handleTabChange} badgeCounts={badgeCounts} />;
       case "users": return <UserManagementTab />;
       case "student_profiles": return <StudentProfilesTab />;
       case "teacher_profiles": return <TeacherProfilesTab />;
@@ -739,190 +740,6 @@ const timeAgo = (iso: string) => {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `منذ ${hours} ساعة`;
   return `منذ ${Math.floor(hours / 24)} يوم`;
-};
-
-const CHART_PALETTE = ["hsl(var(--primary))", "#64748b", "#94a3b8", "#cbd5e1"];
-
-const Kpi = ({ label, value, icon: Icon, hint, tone = "default" }: { label: string; value: string | number; icon: React.ElementType; hint?: string; tone?: "default" | "alert" }) => (
-  <div className="flex flex-col gap-2 p-5">
-    <div className="flex items-center justify-between text-slate-500">
-      <span className="text-sm font-semibold">{label}</span>
-      <Icon className="h-4 w-4" />
-    </div>
-    <span className={`text-3xl font-black tracking-tight tabular-nums ${tone === "alert" ? "text-rose-700" : "text-slate-900"}`}>{value}</span>
-    {hint && <span className="text-xs text-slate-500">{hint}</span>}
-  </div>
-);
-
-const Panel = ({ title, icon: Icon, children, action }: { title: string; icon: React.ElementType; children: React.ReactNode; action?: React.ReactNode }) => (
-  <Card className="border border-slate-200 bg-white shadow-none">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-slate-100 px-5 py-3.5">
-      <CardTitle className="flex items-center gap-2 text-[15px] font-bold text-slate-800"><Icon className="h-4 w-4 text-slate-500" />{title}</CardTitle>
-      {action}
-    </CardHeader>
-    <CardContent className="p-5">{children}</CardContent>
-  </Card>
-);
-
-const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab, badgeCounts }: any) => {
-  const pendingTasks = (badgeCounts?.withdrawals || 0) + (badgeCounts?.support || 0) + (badgeCounts?.pendingBookings || 0) + (badgeCounts?.unreviewed || 0);
-  const firstTab = (badgeCounts?.pendingBookings || 0) > 0 ? "bookings" : (badgeCounts?.support || 0) > 0 ? "support" : (badgeCounts?.withdrawals || 0) > 0 ? "withdrawals" : "violations";
-  return (
-  <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 className="text-xl font-black text-slate-900">نظرة عامة</h2>
-        <p className="mt-0.5 text-sm text-slate-500">مؤشرات المنصة حسب الفترة المختارة</p>
-      </div>
-      <AdminPeriodFilter value={period} onChange={setPeriod} />
-    </div>
-
-    {/* Attention strip: single accent */}
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 border-r-4 border-r-primary bg-white p-4 md:flex-row md:items-center md:justify-between">
-      <div>
-        <p className="text-base font-bold text-slate-900">{pendingTasks > 0 ? `لديك ${formatNumber(pendingTasks)} مهام تحتاج مراجعة` : "لا توجد مهام معلقة"}</p>
-        <p className="mt-0.5 text-sm text-slate-500">حجوزات، دعم، سحب أرباح ومخالفات بانتظار الإجراء.</p>
-      </div>
-      {pendingTasks > 0 && (
-        <Button onClick={() => onOpenTab(firstTab)} className="gap-2 rounded-lg">فتح أول مهمة <ArrowLeft className="h-4 w-4" /></Button>
-      )}
-    </div>
-
-    {/* KPI strip */}
-    <Card className="overflow-hidden border border-slate-200 bg-white shadow-none">
-      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-slate-100 lg:grid-cols-4">
-        <Kpi label="إجمالي المستخدمين" value={formatNumber(stats.users)} icon={Users} />
-        <Kpi label="المعلمون المسجلون" value={formatNumber(stats.teachers)} icon={GraduationCap} />
-        <Kpi label="إجمالي الحجوزات" value={formatNumber(stats.bookings)} icon={BookOpen} />
-        <Kpi label="الإيرادات المحصلة" value={formatMoney(stats.revenue)} icon={DollarSign} />
-      </div>
-      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-slate-100 border-t border-slate-100 lg:grid-cols-4">
-        <Kpi label="طلبات معلمين معلقة" value={formatNumber(stats.pendingTeachers)} icon={UserCheck} />
-        <Kpi label="حصص مكتملة" value={formatNumber(stats.completedSessions)} icon={CheckCircle} />
-        <Kpi label="حجوزات ملغاة" value={formatNumber(stats.cancelledBookings)} icon={XCircle} />
-        <Kpi label="مخالفات غير مراجعة" value={formatNumber(stats.violations)} icon={ShieldAlert} tone={stats.violations > 0 ? "alert" : "default"} />
-      </div>
-    </Card>
-
-    {/* Urgent tasks + Live alerts */}
-    <div className="grid gap-5 lg:grid-cols-2">
-      <AdminUrgentTasks onOpenTab={onOpenTab} />
-      <AdminLiveAlerts onOpenTab={onOpenTab} />
-    </div>
-
-    {/* Period activity and queue */}
-    <div className="grid gap-5 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <Panel title="نشاط الفترة" icon={Activity}>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              { label: "تسجيلات المستخدمين", value: overview.newUsers, icon: UserPlus, tab: "users" },
-              { label: "طلبات المعلمين", value: overview.newTeachers, icon: GraduationCap, tab: "teachers" },
-              { label: "تذاكر دعم جديدة", value: overview.newSupportTickets, icon: MessageSquare, tab: "support" },
-              { label: "حجوزات جديدة", value: overview.newBookings, icon: BookOpen, tab: "bookings" },
-            ].map(item => (
-              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="rounded-lg border border-slate-200 p-3 text-right transition-colors hover:bg-slate-50">
-                <div className="flex items-center justify-between gap-2 text-slate-500"><item.icon className="h-4 w-4" /><span className="text-2xl font-black text-slate-900 tabular-nums">{formatNumber(item.value)}</span></div>
-                <p className="mt-2 text-xs font-semibold text-slate-500">{item.label}</p>
-              </button>
-            ))}
-          </div>
-        </Panel>
-      </div>
-      <Panel title="طابور الإجراءات" icon={TicketCheck}>
-        <div className="space-y-1">
-          {[
-            { label: "تذاكر دعم مفتوحة", value: overview.openSupportTickets, tab: "support", icon: MessageSquare },
-            { label: "طلبات سحب معلقة", value: overview.pendingWithdrawals, tab: "withdrawals", icon: CreditCard },
-            { label: "مخالفات غير مراجعة", value: overview.unreviewedViolations, tab: "violations", icon: ShieldAlert },
-          ].map(item => (
-            <button key={item.label} onClick={() => onOpenTab(item.tab)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-slate-50">
-              <span className="flex items-center gap-2 text-sm text-slate-600"><item.icon className="h-4 w-4 text-slate-400" />{item.label}</span>
-              <span className={`min-w-[2rem] rounded-full px-2.5 py-0.5 text-center text-sm font-bold tabular-nums ${item.value > 0 ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500"}`}>{formatNumber(item.value)}</span>
-            </button>
-          ))}
-        </div>
-      </Panel>
-    </div>
-
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Panel title="آخر النشاط" icon={Clock}>
-        {overview.recentEvents.length === 0 ? (
-          <p className="py-10 text-center text-sm text-slate-500">لا توجد أحداث في الفترة المحددة</p>
-        ) : (
-          <div className="-mx-2 divide-y divide-slate-100">
-            {overview.recentEvents.map((event: OverviewEvent) => (
-              <button key={event.id} onClick={() => onOpenTab(event.tab)} className="flex w-full items-center gap-3 px-2 py-3 text-right transition-colors hover:bg-slate-50">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-slate-800">{event.label}</span>
-                  <span className="block truncate text-xs text-slate-500">{event.detail}</span>
-                </span>
-                <span className="whitespace-nowrap text-xs text-slate-400">{timeAgo(event.created_at)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </Panel>
-      <Panel title="التحصيل المالي في الفترة" icon={DollarSign}>
-        <div className="space-y-5">
-          <div className="flex items-end justify-between gap-3">
-            <div><p className="text-3xl font-black text-slate-900 tabular-nums">{formatMoney(overview.paymentTotal)}</p><p className="mt-1 text-sm text-slate-500">مدفوعات مكتملة فقط</p></div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{formatNumber(overview.newPayments)} عملية</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-slate-200 p-3"><span className="text-sm text-slate-500">حصص مكتملة</span><strong className="mt-1 block text-xl text-slate-900 tabular-nums">{formatNumber(overview.completedBookings)}</strong></div>
-            <div className="rounded-lg border border-slate-200 p-3"><span className="text-sm text-slate-500">حجوزات ملغاة</span><strong className="mt-1 block text-xl text-slate-900 tabular-nums">{formatNumber(overview.cancelledBookings)}</strong></div>
-          </div>
-          <p className="text-xs text-slate-500">رسائل الدعم المسجلة: {formatNumber(overview.supportMessages)}</p>
-        </div>
-      </Panel>
-    </div>
-
-    {/* Charts: one accent plus greys */}
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Panel title="الحجوزات والإيرادات الشهرية" icon={BarChart3}>
-        {monthlyBookings.length === 0 ? (
-          <p className="py-16 text-center text-sm text-slate-500">لا توجد بيانات بعد</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthlyBookings}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "none" }} />
-              <Bar dataKey="حجوزات" fill={CHART_PALETTE[0]} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="إيرادات" fill={CHART_PALETTE[2]} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Panel>
-      <Panel title="توزيع المستخدمين" icon={Users}>
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie data={pieData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} strokeWidth={2}>
-              {pieData.map((_: any, i: number) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
-      </Panel>
-    </div>
-
-    {bookingStatusData.length > 0 && (
-      <Panel title="توزيع حالة الحجوزات" icon={Clock}>
-        <ResponsiveContainer width="100%" height={260}>
-          <PieChart>
-            <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, value }) => `${name}: ${value}`} strokeWidth={2}>
-              {bookingStatusData.map((_: any, i: number) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
-      </Panel>
-    )}
-  </div>
-  );
 };
 
 const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => {
