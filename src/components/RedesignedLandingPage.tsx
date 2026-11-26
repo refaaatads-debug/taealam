@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -12,9 +13,6 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import heroBanner from "@/assets/ajyal-homepage-hero.jpg";
 import mobileAppPreview from "@/assets/mobile-app-preview.png";
-import teacher1 from "@/assets/teacher-1.jpg";
-import teacher2 from "@/assets/teacher-2.jpg";
-import teacher3 from "@/assets/teacher-3.jpg";
 
 export type LandingTeacher = {
   name: string;
@@ -22,7 +20,7 @@ export type LandingTeacher = {
   rating: number;
   students: number;
   price: number;
-  img: string;
+  img: string | null;
   badge: string;
   sessions: number;
   hidePrice?: boolean;
@@ -40,7 +38,20 @@ const steps = [
   ["02", "استكشف الخيارات", "تعرّف على المدرسين والمواد المتاحة."],
   ["03", "ابدأ التعلّم", "اختر الوقت المناسب وانطلق في حصتك."],
 ];
-const fallbackImages = [teacher1, teacher2, teacher3];
+const teacherInitials = (name: string) => {
+  const parts = name.replace(/^(أ\.|د\.)\s*/, "").trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] || "?").slice(0, 2)).toUpperCase();
+};
+
+// Real photo when there is one; otherwise a neutral initials tile (never a stock photo of a person).
+export const TeacherPhoto = ({ src, name }: { src: string | null; name: string }) => {
+  const [failed, setFailed] = useState(false);
+  const cls = "h-[220px] w-full rounded-t-[1.05rem]";
+  if (!src || failed) {
+    return <div role="img" aria-label={name} className={`${cls} flex items-center justify-center bg-[#dfe9e4] text-6xl font-black text-[#176d64]`}>{teacherInitials(name)}</div>;
+  }
+  return <img src={src} alt={name} onError={() => setFailed(true)} className={`${cls} object-cover object-top transition-transform duration-300 group-hover:scale-[1.025]`} loading="lazy" />;
+};
 
 export default function RedesignedLandingPage({ user, teachers }: Props) {
   const reduceMotion = useReducedMotion();
@@ -138,7 +149,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
             const bookingUrl = `/booking?subject=${encodeURIComponent(teacher.subject)}&day=0`;
             const targetUrl = user ? bookingUrl : `/login?redirect=${encodeURIComponent(bookingUrl)}`;
             return <Link key={`${teacher.name}-${i}`} to={targetUrl} className="group overflow-hidden rounded-[1.45rem] border border-[#17344d]/10 bg-white transition duration-200 hover:-translate-y-1 hover:shadow-[0_22px_48px_-32px_rgba(23,52,77,.55)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#16776c]/25">
-              <div className={`relative overflow-hidden p-3 pb-0 ${i === 1 ? "bg-[#e9edf2]" : i === 2 ? "bg-[#f3ecdf]" : "bg-[#e7f2ed]"}`}><img src={teacher.img} alt={teacher.name} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = fallbackImages[i % fallbackImages.length]; }} className="h-[220px] w-full rounded-t-[1.05rem] object-cover object-top transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" /><span className="absolute right-6 top-6 rounded-full bg-[#fffefa]/95 px-3 py-1.5 text-[10px] font-extrabold text-[#176d64] shadow-sm">{teacher.badge}</span></div>
+              <div className={`relative overflow-hidden p-3 pb-0 ${i === 1 ? "bg-[#e9edf2]" : i === 2 ? "bg-[#f3ecdf]" : "bg-[#e7f2ed]"}`}><TeacherPhoto src={teacher.img} name={teacher.name} /><span className="absolute right-6 top-6 rounded-full bg-[#fffefa]/95 px-3 py-1.5 text-[10px] font-extrabold text-[#176d64] shadow-sm">{teacher.badge}</span></div>
               <div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-base font-extrabold">{teacher.name}</p><p className="mt-1.5 text-xs text-[#17344d]/60">{teacher.subject}</p></div><div className="flex items-center gap-1 rounded-lg bg-[#faf4e7] px-2.5 py-1.5 text-xs font-extrabold text-[#8b6a31]"><Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />{teacher.rating.toFixed(1)}</div></div>
                 <div className="mt-4 flex items-center gap-4 border-t border-[#17344d]/[.08] pt-4 text-[11px] text-[#17344d]/60"><span>{teacher.sessions.toLocaleString("ar-SA")} حصة</span><span>{teacher.students.toLocaleString("ar-SA")} طالب</span>{!teacher.hidePrice && <span className="mr-auto font-extrabold text-[#17344d]">{teacher.price.toLocaleString("ar-SA")} ر.س / ساعة</span>}</div>
                 <span className="mt-5 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#16776c]/25 py-3 text-xs font-extrabold text-[#176d64] transition group-hover:bg-[#e8f3ee]">استكشف الحصص <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /></span>
