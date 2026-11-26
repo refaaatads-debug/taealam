@@ -79,7 +79,6 @@ async function fetchAllRows<T = any>(build: () => any, pageSize = 1000, maxPages
   return out;
 }
 
-const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
 type OverviewEvent = {
   id: string;
@@ -731,25 +730,6 @@ const AdminDashboard = () => {
    Sub-components for each section
    ============================================================ */
 
-const StatCard = ({ label, value, icon: Icon, color, subtitle }: { label: string; value: string | number; icon: React.ElementType; color: string; subtitle?: string }) => (
-  <Card className="border border-border/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative bg-gradient-to-br from-card to-card/80">
-    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`} />
-    <CardContent className="p-5 relative">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5 min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide truncate">{label}</p>
-          <p className="text-3xl font-black text-foreground tracking-tight">{value}</p>
-          {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
-        </div>
-        <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center shrink-0 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
-          <Icon className="h-5 w-5 text-primary-foreground" />
-        </div>
-      </div>
-      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${color} opacity-0 group-hover:opacity-100 transition-opacity`} />
-    </CardContent>
-  </Card>
-);
-
 const formatNumber = (value: number) => new Intl.NumberFormat("ar-SA").format(value);
 const formatMoney = (value: number) => `${new Intl.NumberFormat("ar-SA", { maximumFractionDigits: 0 }).format(value)} ر.س`;
 const timeAgo = (iso: string) => {
@@ -761,217 +741,189 @@ const timeAgo = (iso: string) => {
   return `منذ ${Math.floor(hours / 24)} يوم`;
 };
 
-const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab, badgeCounts }: any) => (
-  <div className="space-y-6">
-    {/* Period filter */}
-    <div className="flex items-center justify-between flex-wrap gap-3">
+const CHART_PALETTE = ["hsl(var(--primary))", "#64748b", "#94a3b8", "#cbd5e1"];
+
+const Kpi = ({ label, value, icon: Icon, hint, tone = "default" }: { label: string; value: string | number; icon: React.ElementType; hint?: string; tone?: "default" | "alert" }) => (
+  <div className="flex flex-col gap-2 p-5">
+    <div className="flex items-center justify-between text-slate-500">
+      <span className="text-sm font-semibold">{label}</span>
+      <Icon className="h-4 w-4" />
+    </div>
+    <span className={`text-3xl font-black tracking-tight tabular-nums ${tone === "alert" ? "text-rose-700" : "text-slate-900"}`}>{value}</span>
+    {hint && <span className="text-xs text-slate-500">{hint}</span>}
+  </div>
+);
+
+const Panel = ({ title, icon: Icon, children, action }: { title: string; icon: React.ElementType; children: React.ReactNode; action?: React.ReactNode }) => (
+  <Card className="border border-slate-200 bg-white shadow-none">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-slate-100 px-5 py-3.5">
+      <CardTitle className="flex items-center gap-2 text-[15px] font-bold text-slate-800"><Icon className="h-4 w-4 text-slate-500" />{title}</CardTitle>
+      {action}
+    </CardHeader>
+    <CardContent className="p-5">{children}</CardContent>
+  </Card>
+);
+
+const OverviewContent = ({ stats, overview, monthlyBookings, bookingStatusData, pieData, period, setPeriod, onOpenTab, badgeCounts }: any) => {
+  const pendingTasks = (badgeCounts?.withdrawals || 0) + (badgeCounts?.support || 0) + (badgeCounts?.pendingBookings || 0) + (badgeCounts?.unreviewed || 0);
+  const firstTab = (badgeCounts?.pendingBookings || 0) > 0 ? "bookings" : (badgeCounts?.support || 0) > 0 ? "support" : (badgeCounts?.withdrawals || 0) > 0 ? "withdrawals" : "violations";
+  return (
+  <div className="space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="text-lg font-black text-foreground">نظرة عامة</h2>
-        <p className="text-xs text-muted-foreground">إحصائيات محدّثة حسب الفترة المختارة</p>
+        <h2 className="text-xl font-black text-slate-900">نظرة عامة</h2>
+        <p className="mt-0.5 text-sm text-slate-500">مؤشرات المنصة حسب الفترة المختارة</p>
       </div>
       <AdminPeriodFilter value={period} onChange={setPeriod} />
     </div>
 
-    <Card className="border-0 bg-gradient-to-l from-[#123d6b] via-[#174f79] to-[#168276] text-white shadow-lg">
-      <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-[11px] font-bold text-white/70">مركز التشغيل · الإجراء التالي</p>
-          <h2 className="mt-1 text-xl font-black">لديك {formatNumber((badgeCounts?.withdrawals || 0) + (badgeCounts?.support || 0) + (badgeCounts?.pendingBookings || 0) + (badgeCounts?.unreviewed || 0))} مهام تحتاج مراجعة</h2>
-          <p className="mt-1 text-xs text-white/75">ابدأ بالحجوزات والطلبات العاجلة ثم انتقل إلى الدعم والعمليات المالية.</p>
-        </div>
-        <Button onClick={() => onOpenTab((badgeCounts?.pendingBookings || 0) > 0 ? "bookings" : (badgeCounts?.support || 0) > 0 ? "support" : (badgeCounts?.withdrawals || 0) > 0 ? "withdrawals" : "violations")} className="gap-2 rounded-xl bg-white text-primary hover:bg-white/90">
-          فتح أول مهمة <ArrowLeft className="h-4 w-4" />
-        </Button>
-      </CardContent>
+    {/* Attention strip: single accent */}
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 border-r-4 border-r-primary bg-white p-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p className="text-base font-bold text-slate-900">{pendingTasks > 0 ? `لديك ${formatNumber(pendingTasks)} مهام تحتاج مراجعة` : "لا توجد مهام معلقة"}</p>
+        <p className="mt-0.5 text-sm text-slate-500">حجوزات، دعم، سحب أرباح ومخالفات بانتظار الإجراء.</p>
+      </div>
+      {pendingTasks > 0 && (
+        <Button onClick={() => onOpenTab(firstTab)} className="gap-2 rounded-lg">فتح أول مهمة <ArrowLeft className="h-4 w-4" /></Button>
+      )}
+    </div>
+
+    {/* KPI strip */}
+    <Card className="overflow-hidden border border-slate-200 bg-white shadow-none">
+      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-slate-100 lg:grid-cols-4">
+        <Kpi label="إجمالي المستخدمين" value={formatNumber(stats.users)} icon={Users} />
+        <Kpi label="المعلمون المسجلون" value={formatNumber(stats.teachers)} icon={GraduationCap} />
+        <Kpi label="إجمالي الحجوزات" value={formatNumber(stats.bookings)} icon={BookOpen} />
+        <Kpi label="الإيرادات المحصلة" value={formatMoney(stats.revenue)} icon={DollarSign} />
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-slate-100 border-t border-slate-100 lg:grid-cols-4">
+        <Kpi label="طلبات معلمين معلقة" value={formatNumber(stats.pendingTeachers)} icon={UserCheck} />
+        <Kpi label="حصص مكتملة" value={formatNumber(stats.completedSessions)} icon={CheckCircle} />
+        <Kpi label="حجوزات ملغاة" value={formatNumber(stats.cancelledBookings)} icon={XCircle} />
+        <Kpi label="مخالفات غير مراجعة" value={formatNumber(stats.violations)} icon={ShieldAlert} tone={stats.violations > 0 ? "alert" : "default"} />
+      </div>
     </Card>
 
     {/* Urgent tasks + Live alerts */}
-    <div className="grid lg:grid-cols-2 gap-6">
+    <div className="grid gap-5 lg:grid-cols-2">
       <AdminUrgentTasks onOpenTab={onOpenTab} />
       <AdminLiveAlerts onOpenTab={onOpenTab} />
     </div>
 
-    {/* Stats Grid */}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-       <StatCard label="إجمالي المستخدمين" value={formatNumber(stats.users)} icon={Users} color="from-primary to-primary/70" />
-       <StatCard label="المعلمين المسجلين" value={formatNumber(stats.teachers)} icon={GraduationCap} color="from-secondary to-secondary/70" />
-       <StatCard label="إجمالي الحجوزات" value={formatNumber(stats.bookings)} icon={BookOpen} color="from-info to-info/70" />
-       <StatCard label="الإيرادات المحصلة" value={formatMoney(stats.revenue)} icon={DollarSign} color="from-success to-success/70" />
-    </div>
-
-    {/* Secondary Stats */}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-       <StatCard label="طلبات معلمين معلقة" value={formatNumber(stats.pendingTeachers)} icon={UserCheck} color="from-warning to-warning/70" />
-       <StatCard label="حصص مكتملة" value={formatNumber(stats.completedSessions)} icon={CheckCircle} color="from-success to-success/70" />
-       <StatCard label="حجوزات ملغاة" value={formatNumber(stats.cancelledBookings)} icon={XCircle} color="from-destructive to-destructive/70" />
-       <StatCard label="مخالفات غير مراجعة" value={formatNumber(stats.violations)} icon={ShieldAlert} color="from-destructive to-destructive/70" />
-    </div>
-
-    {/* Period activity and actionable queues */}
-    <div className="grid lg:grid-cols-3 gap-4">
-      <Card className="lg:col-span-2 border border-border/50 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            ملخص النشاط في الفترة
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: "تسجيلات المستخدمين", value: overview.newUsers, icon: UserPlus, color: "text-primary", tab: "users" },
-            { label: "طلبات المعلمين", value: overview.newTeachers, icon: GraduationCap, color: "text-secondary", tab: "teachers" },
-            { label: "تذاكر دعم جديدة", value: overview.newSupportTickets, icon: MessageSquare, color: "text-info", tab: "support" },
-            { label: "حجوزات جديدة", value: overview.newBookings, icon: BookOpen, color: "text-accent-foreground", tab: "bookings" },
-          ].map(item => {
-            const Icon = item.icon;
-            return (
-              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="rounded-xl border border-border/50 bg-muted/20 p-3 text-right hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between gap-2">
-                  <Icon className={`h-4 w-4 ${item.color}`} />
-                  <span className="text-2xl font-black">{formatNumber(item.value)}</span>
-                </div>
-                <p className="mt-2 text-[11px] font-semibold text-muted-foreground">{item.label}</p>
+    {/* Period activity and queue */}
+    <div className="grid gap-5 lg:grid-cols-3">
+      <div className="lg:col-span-2">
+        <Panel title="نشاط الفترة" icon={Activity}>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              { label: "تسجيلات المستخدمين", value: overview.newUsers, icon: UserPlus, tab: "users" },
+              { label: "طلبات المعلمين", value: overview.newTeachers, icon: GraduationCap, tab: "teachers" },
+              { label: "تذاكر دعم جديدة", value: overview.newSupportTickets, icon: MessageSquare, tab: "support" },
+              { label: "حجوزات جديدة", value: overview.newBookings, icon: BookOpen, tab: "bookings" },
+            ].map(item => (
+              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="rounded-lg border border-slate-200 p-3 text-right transition-colors hover:bg-slate-50">
+                <div className="flex items-center justify-between gap-2 text-slate-500"><item.icon className="h-4 w-4" /><span className="text-2xl font-black text-slate-900 tabular-nums">{formatNumber(item.value)}</span></div>
+                <p className="mt-2 text-xs font-semibold text-slate-500">{item.label}</p>
               </button>
-            );
-          })}
-        </CardContent>
-      </Card>
-      <Card className="border border-border/50 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <TicketCheck className="h-4 w-4 text-warning" />
-            طابور الإجراءات
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+            ))}
+          </div>
+        </Panel>
+      </div>
+      <Panel title="طابور الإجراءات" icon={TicketCheck}>
+        <div className="space-y-1">
           {[
             { label: "تذاكر دعم مفتوحة", value: overview.openSupportTickets, tab: "support", icon: MessageSquare },
             { label: "طلبات سحب معلقة", value: overview.pendingWithdrawals, tab: "withdrawals", icon: CreditCard },
             { label: "مخالفات غير مراجعة", value: overview.unreviewedViolations, tab: "violations", icon: ShieldAlert },
-          ].map(item => {
-            const Icon = item.icon;
-            return (
-              <button key={item.label} onClick={() => onOpenTab(item.tab)} className="w-full flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-muted/50 transition-colors">
-                <span className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{item.label}</span>
-                <Badge variant={item.value > 0 ? "destructive" : "secondary"}>{formatNumber(item.value)}</Badge>
+          ].map(item => (
+            <button key={item.label} onClick={() => onOpenTab(item.tab)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-slate-50">
+              <span className="flex items-center gap-2 text-sm text-slate-600"><item.icon className="h-4 w-4 text-slate-400" />{item.label}</span>
+              <span className={`min-w-[2rem] rounded-full px-2.5 py-0.5 text-center text-sm font-bold tabular-nums ${item.value > 0 ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500"}`}>{formatNumber(item.value)}</span>
+            </button>
+          ))}
+        </div>
+      </Panel>
+    </div>
+
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Panel title="آخر النشاط" icon={Clock}>
+        {overview.recentEvents.length === 0 ? (
+          <p className="py-10 text-center text-sm text-slate-500">لا توجد أحداث في الفترة المحددة</p>
+        ) : (
+          <div className="-mx-2 divide-y divide-slate-100">
+            {overview.recentEvents.map((event: OverviewEvent) => (
+              <button key={event.id} onClick={() => onOpenTab(event.tab)} className="flex w-full items-center gap-3 px-2 py-3 text-right transition-colors hover:bg-slate-50">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-800">{event.label}</span>
+                  <span className="block truncate text-xs text-slate-500">{event.detail}</span>
+                </span>
+                <span className="whitespace-nowrap text-xs text-slate-400">{timeAgo(event.created_at)}</span>
               </button>
-            );
-          })}
-        </CardContent>
-      </Card>
-    </div>
-
-    <div className="grid lg:grid-cols-2 gap-6">
-      <Card className="border border-border/50 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold flex items-center gap-2"><Clock className="h-4 w-4 text-primary" />آخر النشاط</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {overview.recentEvents.length === 0 ? (
-            <p className="px-5 py-12 text-center text-sm text-muted-foreground">لا توجد أحداث في الفترة المحددة</p>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {overview.recentEvents.map((event: OverviewEvent) => (
-                <button key={event.id} onClick={() => onOpenTab(event.tab)} className="w-full flex items-center gap-3 px-5 py-3 text-right hover:bg-muted/30 transition-colors">
-                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-bold truncate">{event.label}</span>
-                    <span className="block text-[11px] text-muted-foreground truncate">{event.detail}</span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{timeAgo(event.created_at)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="border border-border/50 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold flex items-center gap-2"><DollarSign className="h-4 w-4 text-success" />التحصيل المالي في الفترة</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+            ))}
+          </div>
+        )}
+      </Panel>
+      <Panel title="التحصيل المالي في الفترة" icon={DollarSign}>
+        <div className="space-y-5">
           <div className="flex items-end justify-between gap-3">
-            <div><p className="text-3xl font-black">{formatMoney(overview.paymentTotal)}</p><p className="text-xs text-muted-foreground mt-1">مدفوعات مكتملة فقط</p></div>
-            <Badge variant="secondary">{formatNumber(overview.newPayments)} عملية</Badge>
+            <div><p className="text-3xl font-black text-slate-900 tabular-nums">{formatMoney(overview.paymentTotal)}</p><p className="mt-1 text-sm text-slate-500">مدفوعات مكتملة فقط</p></div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{formatNumber(overview.newPayments)} عملية</span>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="rounded-lg bg-success/10 p-3"><span className="text-muted-foreground">حصص مكتملة</span><strong className="block text-lg mt-1">{formatNumber(overview.completedBookings)}</strong></div>
-            <div className="rounded-lg bg-destructive/10 p-3"><span className="text-muted-foreground">حجوزات ملغاة</span><strong className="block text-lg mt-1">{formatNumber(overview.cancelledBookings)}</strong></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-200 p-3"><span className="text-sm text-slate-500">حصص مكتملة</span><strong className="mt-1 block text-xl text-slate-900 tabular-nums">{formatNumber(overview.completedBookings)}</strong></div>
+            <div className="rounded-lg border border-slate-200 p-3"><span className="text-sm text-slate-500">حجوزات ملغاة</span><strong className="mt-1 block text-xl text-slate-900 tabular-nums">{formatNumber(overview.cancelledBookings)}</strong></div>
           </div>
-          <p className="text-[11px] text-muted-foreground">رسائل الدعم المسجلة: {formatNumber(overview.supportMessages)}</p>
-        </CardContent>
-      </Card>
+          <p className="text-xs text-slate-500">رسائل الدعم المسجلة: {formatNumber(overview.supportMessages)}</p>
+        </div>
+      </Panel>
     </div>
 
-    {/* Charts */}
-    <div className="grid lg:grid-cols-2 gap-6">
-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            الحجوزات والإيرادات الشهرية
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {monthlyBookings.length === 0 ? (
-            <p className="text-center py-16 text-muted-foreground text-sm">لا توجد بيانات بعد</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyBookings}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
-                <Bar dataKey="حجوزات" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="إيرادات" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Users className="h-4 w-4 text-secondary" />
-            توزيع المستخدمين
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    {/* Charts: one accent plus greys */}
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Panel title="الحجوزات والإيرادات الشهرية" icon={BarChart3}>
+        {monthlyBookings.length === 0 ? (
+          <p className="py-16 text-center text-sm text-slate-500">لا توجد بيانات بعد</p>
+        ) : (
           <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} strokeWidth={2}>
-                {pieData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
+            <BarChart data={monthlyBookings}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", boxShadow: "none" }} />
+              <Bar dataKey="حجوزات" fill={CHART_PALETTE[0]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="إيرادات" fill={CHART_PALETTE[2]} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        )}
+      </Panel>
+      <Panel title="توزيع المستخدمين" icon={Users}>
+        <ResponsiveContainer width="100%" height={280}>
+          <PieChart>
+            <Pie data={pieData} cx="50%" cy="50%" innerRadius={65} outerRadius={95} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} strokeWidth={2}>
+              {pieData.map((_: any, i: number) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </Panel>
     </div>
 
     {bookingStatusData.length > 0 && (
-      <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Clock className="h-4 w-4 text-accent-foreground" />
-            توزيع حالة الحجوزات
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, value }) => `${name}: ${value}`} strokeWidth={2}>
-                {bookingStatusData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      <Panel title="توزيع حالة الحجوزات" icon={Clock}>
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={bookingStatusData} cx="50%" cy="50%" outerRadius={95} dataKey="value" label={({ name, value }) => `${name}: ${value}`} strokeWidth={2}>
+              {bookingStatusData.map((_: any, i: number) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </Panel>
     )}
   </div>
-);
+  );
+};
 
 const TeachersContent = ({ teachers, teacherDateFrom, teacherDateTo, setTeacherDateFrom, setTeacherDateTo, approveTeacher, rejectTeacher, openTeacherSupport }: any) => {
   const [teacherSearch, setTeacherSearch] = useState("");

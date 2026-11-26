@@ -20,21 +20,21 @@ type AlertItem = {
 };
 
 const SOURCES: { value: AlertItem["source"] | "all"; label: string; icon: any; color: string }[] = [
-  { value: "all", label: "الكل", icon: Bell, color: "text-foreground" },
-  { value: "withdrawal", label: "سحوبات", icon: CreditCard, color: "text-warning" },
-  { value: "support", label: "دعم", icon: MessageSquare, color: "text-info" },
-  { value: "violation", label: "مخالفات", icon: ShieldAlert, color: "text-destructive" },
-  { value: "booking", label: "حجوزات", icon: BookOpen, color: "text-primary" },
-  { value: "teacher", label: "معلمين", icon: UserCheck, color: "text-secondary" },
+  { value: "all", label: "الكل", icon: Bell, color: "text-slate-600" },
+  { value: "withdrawal", label: "سحوبات", icon: CreditCard, color: "text-slate-600" },
+  { value: "support", label: "دعم", icon: MessageSquare, color: "text-slate-600" },
+  { value: "violation", label: "مخالفات", icon: ShieldAlert, color: "text-slate-600" },
+  { value: "booking", label: "حجوزات", icon: BookOpen, color: "text-slate-600" },
+  { value: "teacher", label: "معلمين", icon: UserCheck, color: "text-slate-600" },
 ];
 
 const sourceMeta = (s: AlertItem["source"]) => {
   switch (s) {
-    case "withdrawal": return { icon: CreditCard, color: "from-warning/20 to-warning/5", text: "text-warning", label: "سحب أرباح" };
-    case "support": return { icon: MessageSquare, color: "from-info/20 to-info/5", text: "text-info", label: "دعم فني" };
-    case "violation": return { icon: ShieldAlert, color: "from-destructive/20 to-destructive/5", text: "text-destructive", label: "مخالفة" };
-    case "booking": return { icon: BookOpen, color: "from-primary/20 to-primary/5", text: "text-primary", label: "حجز جديد" };
-    case "teacher": return { icon: UserCheck, color: "from-secondary/20 to-secondary/5", text: "text-secondary", label: "معلم جديد" };
+    case "withdrawal": return { icon: CreditCard, color: "from-slate-100 to-slate-100", text: "text-slate-600", label: "سحب أرباح" };
+    case "support": return { icon: MessageSquare, color: "from-slate-100 to-slate-100", text: "text-slate-600", label: "دعم فني" };
+    case "violation": return { icon: ShieldAlert, color: "from-slate-100 to-slate-100", text: "text-slate-600", label: "مخالفة" };
+    case "booking": return { icon: BookOpen, color: "from-slate-100 to-slate-100", text: "text-slate-600", label: "حجز جديد" };
+    case "teacher": return { icon: UserCheck, color: "from-slate-100 to-slate-100", text: "text-slate-600", label: "معلم جديد" };
   }
 };
 
@@ -158,7 +158,7 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
 
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      <CardHeader className="pb-3 bg-gradient-to-l from-primary/5 to-transparent">
+      <CardHeader className="pb-3 border-b border-slate-100">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <div className="relative">
@@ -195,7 +195,7 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
                 onClick={() => setFilter(s.value)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
                   active
-                    ? "bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-sm"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-muted/50 hover:bg-muted text-muted-foreground"
                 }`}
               >
