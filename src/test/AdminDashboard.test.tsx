@@ -37,6 +37,8 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("recharts", () => ({
+  AreaChart: ({ children }: any) => <div>{children}</div>,
+  Area: () => <div />,
   BarChart: ({ children }: any) => <div>{children}</div>,
   Bar: () => <div />,
   XAxis: () => <div />,

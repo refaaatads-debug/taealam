@@ -44,13 +44,17 @@ function useCountUp(target: number, duration = 700) {
 
 async function fetchRows(table: string, columns: string, sinceIso: string, extra?: (q: any) => any): Promise<any[]> {
   const out: any[] = [];
-  for (let p = 0; p < 20; p++) {
-    let q = (supabase as any).from(table).select(columns).gte("created_at", sinceIso).order("created_at", { ascending: true }).order("id", { ascending: true }).range(p * 1000, p * 1000 + 999);
-    if (extra) q = extra(q);
-    const { data, error } = await q;
-    if (error) return out;
-    out.push(...(data ?? []));
-    if (!data || data.length < 1000) break;
+  try {
+    for (let p = 0; p < 20; p++) {
+      let q = (supabase as any).from(table).select(columns).gte("created_at", sinceIso);
+      if (extra) q = extra(q);
+      const { data, error } = await q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(p * 1000, p * 1000 + 999);
+      if (error) return out;
+      out.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+  } catch {
+    return out;
   }
   return out;
 }
@@ -221,7 +225,7 @@ export default function OverviewDashboard({ stats, overview, bookingStatusData, 
             <p className="mt-0.5 text-xs opacity-80">حجوزات، دعم، سحب أرباح ومخالفات</p>
           </div>
           {pending > 0 && (
-            <Button onClick={() => onOpenTab(firstTab)} variant="secondary" size="sm" className="shrink-0 gap-1.5 rounded-lg transition-transform active:scale-95">ابدأ <ArrowLeft className="h-4 w-4" /></Button>
+            <Button onClick={() => onOpenTab(firstTab)} size="sm" className="shrink-0 gap-1.5 rounded-lg bg-white text-primary transition-transform hover:bg-white/90 active:scale-95">ابدأ <ArrowLeft className="h-4 w-4" /></Button>
           )}
         </div>
       </div>
