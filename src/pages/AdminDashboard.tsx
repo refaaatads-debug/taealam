@@ -39,6 +39,7 @@ import AIAuditTab from "@/components/admin/AIAuditTab";
 import AIModelsManagementTab from "@/components/admin/AIModelsManagementTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import FinancialHubTab from "@/components/admin/FinancialHubTab";
+import RefundsDisputesTab from "@/components/admin/RefundsDisputesTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import LearningMaterialsSection from "@/components/learning-materials/LearningMaterialsSection";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
@@ -152,6 +153,7 @@ const TAB_TITLES: Record<string, string> = {
   featured_teachers: "المدرسون المميزون",
   teacher_promotions: "إعلانات المعلمين",
   financial_hub: "المركز المالي",
+  refunds_disputes: "الاسترداد والنزاعات",
   domain_ssl: "تقرير حالة HTTPS / SSL",
   platform_health: "صحة المنصة وجودة البيانات",
 };
@@ -636,6 +638,7 @@ const AdminDashboard = () => {
       case "teacher_payments": return <TeacherPaymentsTab />;
       case "teacher_earnings": return <TeacherEarningsTab />;
       case "financial_hub": return <FinancialHubTab />;
+      case "refunds_disputes": return <RefundsDisputesTab />;
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
       case "teacher_promotions": return <TeacherPromotionsTab />;
