@@ -67,4 +67,6 @@ CREATE TRIGGER trg_teacher_promotion_is_teacher
   BEFORE INSERT ON public.teacher_promotions
   FOR EACH ROW EXECUTE FUNCTION public.enforce_promotion_is_teacher();
 
-REVOKE INSERT, UPDATE, DELETE ON public.teacher_promotions FROM anon;
+-- Table grants (RLS above decides who can actually read/write).
+GRANT SELECT ON public.teacher_promotions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.teacher_promotions TO authenticated;
