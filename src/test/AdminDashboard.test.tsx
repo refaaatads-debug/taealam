@@ -11,6 +11,8 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
   fn.in = () => chainable(terminal);
   fn.order = () => chainable(terminal);
   fn.limit = () => Promise.resolve(terminal);
+  fn.range = () => Promise.resolve(terminal);
+  fn.upsert = () => Promise.resolve(terminal);
   fn.maybeSingle = () => Promise.resolve(terminal);
   fn.single = () => Promise.resolve(terminal);
   fn.gte = () => chainable(terminal);
@@ -25,7 +27,7 @@ const chainable = (terminal = { data: [], error: null, count: 0 }) => {
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => chainable(),
-    channel: () => ({ on: () => ({ subscribe: () => ({}) }), unsubscribe: vi.fn() }),
+    channel: () => { const ch: any = { on: () => ch, subscribe: () => ch, unsubscribe: vi.fn() }; return ch; },
     removeChannel: vi.fn(),
   },
 }));
