@@ -21,7 +21,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, KeyRound, Lock, Star, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
+  Bell, LogOut, ShieldCheck, KeyRound, Lock, Star, Megaphone, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,6 +76,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "teacher_profiles", title: "ملفات المعلمين", icon: FolderOpen, permission: "manage_teacher_profiles" },
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
+        { id: "teacher_promotions", title: "إعلانات المعلمين", icon: Megaphone, permission: "manage_featured_teachers" },
       ],
     },
     {
