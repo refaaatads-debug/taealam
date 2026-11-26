@@ -206,15 +206,17 @@ const LiveSession = () => {
     };
   }, [isFullscreen]);
 
-  // End session for BOTH parties when user presses browser back arrow
+  // Browser back arrow / back swipe: ask "end the session?" instead of ending it at once.
+  // Choosing "continue" keeps the session running; "end" ends it for both parties.
   useEffect(() => {
     if (!meetingStarted) return;
     // Push a sentinel state so the first back press triggers popstate instead of leaving
     window.history.pushState({ liveSession: true }, "");
     const onPopState = () => {
       if (sessionEndingRef.current) return;
-      toast.info("تم الرجوع — جارٍ إنهاء الحصة للطرفين...");
-      endSession();
+      // Put the sentinel back so another back press is caught again, then ask.
+      window.history.pushState({ liveSession: true }, "");
+      setEndConfirmOpen(true);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
