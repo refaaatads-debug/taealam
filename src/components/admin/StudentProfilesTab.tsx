@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Users, GraduationCap, Clock, AlertCircle,
-  ExternalLink, RefreshCw, TicketCheck,
+  ExternalLink, RefreshCw, TicketCheck, Timer, UserPlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -111,6 +111,8 @@ const StudentProfilesTab = () => {
     total: rows.length,
     active: rows.filter((r) => r.active_subscription).length,
     inactive: rows.filter((r) => !r.active_subscription).length,
+    withMinutes: rows.filter((r) => (r.remaining_minutes ?? 0) > 0).length,
+    newMonth: rows.filter((r) => r.created_at && Date.now() - new Date(r.created_at).getTime() <= 30 * 24 * 3600 * 1000).length,
     issues: rows.filter((r) => r.open_tickets > 0).length,
   }), [rows]);
 
@@ -178,10 +180,13 @@ const StudentProfilesTab = () => {
     <div className="space-y-4">
       {/* KPIs */}
       <AdminKPIBar
+        cols={6}
         kpis={[
           { label: "إجمالي الطلاب", value: stats.total.toLocaleString("ar-SA"), icon: Users, accent: "bg-blue-50", iconClass: "text-blue-600" },
           { label: "باقة نشطة", value: stats.active.toLocaleString("ar-SA"), icon: GraduationCap, accent: "bg-emerald-50", iconClass: "text-emerald-600" },
           { label: "بدون باقة", value: stats.inactive.toLocaleString("ar-SA"), icon: Clock, accent: "bg-amber-50", iconClass: "text-amber-600" },
+          { label: "لديهم رصيد دقائق", value: stats.withMinutes.toLocaleString("ar-SA"), icon: Timer, accent: "bg-violet-50", iconClass: "text-violet-600" },
+          { label: "طلاب جدد (خلال شهر)", value: stats.newMonth.toLocaleString("ar-SA"), icon: UserPlus, accent: "bg-sky-50", iconClass: "text-sky-600" },
           { label: "لديهم تذاكر مفتوحة", value: stats.issues.toLocaleString("ar-SA"), icon: TicketCheck, accent: "bg-rose-50", iconClass: "text-rose-600" },
         ]}
       />

@@ -134,7 +134,7 @@ export default function RedesignedLandingPage({ user, teachers }: Props) {
 
         <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-24">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-extrabold tracking-[.12em] text-[#16776c]">مدرسون يساعدونك على التقدم</p><h2 className="mt-3 text-3xl font-black md:text-4xl">ابدأ مع مدرس يناسبك</h2><p className="mt-3 max-w-xl text-sm leading-7 text-[#17344d]/60">تعرّف على مجموعة من المدرسين واختر من يساعدك على التقدم في مادتك.</p></div><Link to="/search" className="inline-flex items-center gap-1 self-start text-xs font-extrabold text-[#16776c] sm:self-auto">تصفح المدرسين <ChevronLeft className="h-4 w-4" aria-hidden="true" /></Link></div>
-          {teachers.length > 0 ? <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{teachers.slice(0, 3).map((teacher, i) => {
+          {teachers.length > 0 ? <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{teachers.slice(0, 6).map((teacher, i) => {
             const bookingUrl = `/booking?subject=${encodeURIComponent(teacher.subject)}&day=0`;
             const targetUrl = user ? bookingUrl : `/login?redirect=${encodeURIComponent(bookingUrl)}`;
             return <Link key={`${teacher.name}-${i}`} to={targetUrl} className="group overflow-hidden rounded-[1.45rem] border border-[#17344d]/10 bg-white transition duration-200 hover:-translate-y-1 hover:shadow-[0_22px_48px_-32px_rgba(23,52,77,.55)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#16776c]/25">

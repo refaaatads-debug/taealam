@@ -17,6 +17,7 @@ import {
   Shield, DollarSign, AlertTriangle, KeyRound, Plus, Minus, FileText, CreditCard, Ban, ShieldCheck, FolderOpen, RotateCcw,
   CheckCircle2, CircleOff, Timer, CalendarDays, Sparkles, IdCard
 } from "lucide-react";
+import { AdminKPIBar } from "./AdminKPIBar";
 import { Switch } from "@/components/ui/switch";
 import ExportCSVButton from "./ExportCSVButton";
 import StatusFilter from "./StatusFilter";
@@ -120,7 +121,37 @@ export default function UserManagementTab() {
   useEffect(() => {
     fetchUsers();
     fetchPlans();
+    void fetchStats();
   }, []);
+
+  const [stats, setStats] = useState<{
+    total: number; students: number; teachers: number; admins: number;
+    banned: number; deleted: number; newMonth: number;
+  } | null>(null);
+
+  // Exact counts from the database, independent of the list filters and the 200-row page.
+  const fetchStats = async () => {
+    try {
+      const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const count = (q: any) => q.then((r: any) => (r.error ? null : (r.count as number) ?? 0));
+      const [total, students, teachers, admins, deleted, newMonth, bans] = await Promise.all([
+        count(supabase.from("profiles").select("id", { count: "exact", head: true })),
+        count(supabase.from("user_roles").select("user_id", { count: "exact", head: true }).eq("role", "student")),
+        count(supabase.from("user_roles").select("user_id", { count: "exact", head: true }).eq("role", "teacher")),
+        count(supabase.from("user_roles").select("user_id", { count: "exact", head: true }).eq("role", "admin")),
+        count((supabase as any).from("profiles").select("id", { count: "exact", head: true }).eq("is_deleted", true)),
+        count(supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", monthAgo)),
+        supabase.from("user_warnings").select("user_id").eq("warning_type", "admin_ban").eq("is_banned", true),
+      ]);
+      setStats({
+        total: total ?? 0, students: students ?? 0, teachers: teachers ?? 0, admins: admins ?? 0,
+        deleted: deleted ?? 0, newMonth: newMonth ?? 0,
+        banned: bans.error ? 0 : new Set((bans.data ?? []).map((b: any) => b.user_id)).size,
+      });
+    } catch (error) {
+      console.error("Failed to load user stats:", error);
+    }
+  };
 
   const [bannedUsers, setBannedUsers] = useState<Set<string>>(new Set());
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
@@ -519,6 +550,20 @@ export default function UserManagementTab() {
 
   return (
     <>
+      {stats && (
+        <AdminKPIBar
+          cols={6}
+          className="mb-4"
+          kpis={[
+            { label: "إجمالي المستخدمين", value: stats.total.toLocaleString("ar-SA"), icon: Users, accent: "bg-blue-50", iconClass: "text-blue-600" },
+            { label: "الطلاب", value: stats.students.toLocaleString("ar-SA"), icon: GraduationCap, accent: "bg-emerald-50", iconClass: "text-emerald-600" },
+            { label: "المعلمون", value: stats.teachers.toLocaleString("ar-SA"), icon: Sparkles, accent: "bg-violet-50", iconClass: "text-violet-600" },
+            { label: "المسؤولون", value: stats.admins.toLocaleString("ar-SA"), icon: ShieldCheck, accent: "bg-amber-50", iconClass: "text-amber-600" },
+            { label: "جدد خلال شهر", value: stats.newMonth.toLocaleString("ar-SA"), icon: CalendarDays, accent: "bg-sky-50", iconClass: "text-sky-600" },
+            { label: "محظورون / محذوفون", value: `${stats.banned.toLocaleString("ar-SA")} / ${stats.deleted.toLocaleString("ar-SA")}`, icon: Ban, accent: "bg-rose-50", iconClass: "text-rose-600" },
+          ]}
+        />
+      )}
       <Card className="border-0 shadow-card">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FolderOpen, Search, Users, Sparkles, AlertCircle, GraduationCap, Filter, Star } from "lucide-react";
+import { FolderOpen, Search, Users, Sparkles, AlertCircle, GraduationCap, Filter, Star, Clock, XCircle, MapPin } from "lucide-react";
+import { AdminKPIBar } from "./AdminKPIBar";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { getTeacherApprovalState } from "@/lib/teacherApprovalState";
@@ -102,6 +103,9 @@ const TeacherProfilesTab = () => {
   const stats = useMemo(() => ({
     total: rows.length,
     approved: rows.filter((r) => r.is_approved).length,
+    pending: rows.filter((r) => !r.is_approved && r.approval_status !== "rejected").length,
+    rejected: rows.filter((r) => r.approval_status === "rejected").length,
+    inPerson: rows.filter((r) => r.in_person_approval_status === "approved").length,
     issues: rows.filter((r) => r.open_tickets > 0).length,
   }), [rows]);
 
@@ -120,41 +124,17 @@ const TeacherProfilesTab = () => {
         <Button variant="outline" onClick={loadTeachers}>تحديث</Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">إجمالي المعلمين</div>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-secondary/20 bg-gradient-to-br from-secondary/5 to-transparent">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-secondary/10 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-secondary" />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">معتمدون</div>
-              <div className="text-2xl font-bold">{stats.approved}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-destructive/20 bg-gradient-to-br from-destructive/5 to-transparent">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">لديهم تذاكر مفتوحة</div>
-              <div className="text-2xl font-bold">{stats.issues}</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <AdminKPIBar
+        cols={6}
+        kpis={[
+          { label: "إجمالي المعلمين", value: stats.total.toLocaleString("ar-SA"), icon: Users, accent: "bg-blue-50", iconClass: "text-blue-600" },
+          { label: "معتمدون", value: stats.approved.toLocaleString("ar-SA"), icon: Sparkles, accent: "bg-emerald-50", iconClass: "text-emerald-600" },
+          { label: "بانتظار الاعتماد", value: stats.pending.toLocaleString("ar-SA"), icon: Clock, accent: "bg-amber-50", iconClass: "text-amber-600" },
+          { label: "مرفوضون", value: stats.rejected.toLocaleString("ar-SA"), icon: XCircle, accent: "bg-rose-50", iconClass: "text-rose-600" },
+          { label: "معتمدون للحضوري", value: stats.inPerson.toLocaleString("ar-SA"), icon: MapPin, accent: "bg-violet-50", iconClass: "text-violet-600" },
+          { label: "لديهم تذاكر مفتوحة", value: stats.issues.toLocaleString("ar-SA"), icon: AlertCircle, accent: "bg-orange-50", iconClass: "text-orange-600" },
+        ]}
+      />
 
       <Card>
         <CardHeader className="pb-3">
