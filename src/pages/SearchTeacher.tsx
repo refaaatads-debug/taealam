@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { arabicBookingError } from "@/lib/arabicBookingError";
 import InPersonStudentPanel from "@/components/inPerson/StudentPanel";
+import { fetchPromotedTeacherIds, promotedFirst } from "@/lib/teacherPromotions";
 import { useInPersonFeatureGate } from "@/hooks/useInPersonFeatureGate";
 
 interface TeacherResult {
@@ -62,6 +63,8 @@ const SearchTeacher = () => {
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("all");
   const [sort, setSort] = useState("rating");
+  const [promotedIds, setPromotedIds] = useState<string[]>([]);
+  useEffect(() => { fetchPromotedTeacherIds("online").then(setPromotedIds); }, []);
   const [teachers, setTeachers] = useState<TeacherResult[]>([]);
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,7 +241,7 @@ const SearchTeacher = () => {
     setLoading(false);
   };
 
-  const filtered = teachers
+  const filteredBase = teachers
     .filter((t) => {
       const name = t.profile?.full_name || "";
       const matchSearch = name.includes(search) || t.subjects.some(s => s.includes(search));
@@ -250,6 +253,8 @@ const SearchTeacher = () => {
       return matchSearch && matchSubject && matchFilterName && matchFilterSubject && matchFilterStage;
     })
     .sort((a, b) => sort === "rating" ? b.avg_rating - a.avg_rating : a.hourly_rate - b.hourly_rate);
+  // Admin-promoted teachers ("إعلان") appear first; the rest keep the chosen sort.
+  const filtered = promotedFirst(filteredBase, (t) => t.user_id, promotedIds);
 
   const isAvailableNow = (t: TeacherResult) => {
     if (!t.available_from || !t.available_to) return false;
@@ -984,6 +989,7 @@ const SearchTeacher = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 mb-0.5">
                               <h3 className="font-bold text-foreground text-sm md:text-base truncate">{t.profile?.full_name}</h3>
+                              {promotedIds.includes(t.user_id) && <Badge className="bg-amber-500/15 text-amber-700 border-0 text-[10px] font-bold px-2 py-0.5 shrink-0">إعلان</Badge>}
                               {t.is_verified && <CheckCircle className="h-4 w-4 text-secondary fill-secondary/20 shrink-0" />}
                             </div>
                             <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground mb-1">

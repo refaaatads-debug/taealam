@@ -13,6 +13,8 @@ import { ArrowLeft, BadgeCheck, Check, LoaderCircle, MapPin, MapPinOff, RefreshC
 
 type Option = { id: string; name: string; enabled?: boolean };
 type Address = Option & { city_id: string; district?: string | null; latitude: number; longitude: number };
+import { fetchPromotedTeacherIds, promotedFirst } from "@/lib/teacherPromotions";
+
 type Teacher = { teacher_id: string; full_name: string; avg_rating: number; distance_km: number; service_radius_km: number };
 const teachingStages = ["رياض الأطفال", "الابتدائية", "المتوسطة", "الثانوية", "قدرات", "تحصيلي"];
 
@@ -61,6 +63,7 @@ export default function InPersonStudentPanel() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [promotedIds, setPromotedIds] = useState<string[]>([]);
   const [cityId, setCityId] = useState("");
   const [addressId, setAddressId] = useState("");
   const [subjectId, setSubjectId] = useState("");
@@ -191,7 +194,9 @@ export default function InPersonStudentPanel() {
       return;
     }
     setSearchError("");
-    setTeachers((data || []) as Teacher[]);
+    const promoted = await fetchPromotedTeacherIds("in_person");
+    setPromotedIds(promoted);
+    setTeachers(promotedFirst((data || []) as Teacher[], (t) => t.teacher_id, promoted));
     setSelectedTeachers([]);
     setHasSearched(true);
     if (!data?.length) toast.info("لا يوجد معلمون متاحون لهذه المادة في مدينتك حاليًا.");
@@ -557,7 +562,7 @@ export default function InPersonStudentPanel() {
                           <span className="flex items-start gap-3">
                             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-lg font-extrabold text-white shadow-sm">{teacher.full_name?.trim().charAt(0) || "م"}</span>
                             <span className="min-w-0 flex-1">
-                              <span className="flex flex-wrap items-center gap-1.5 font-bold text-foreground">{teacher.full_name}<BadgeCheck className="h-4 w-4 text-secondary" /></span>
+                              <span className="flex flex-wrap items-center gap-1.5 font-bold text-foreground">{teacher.full_name}<BadgeCheck className="h-4 w-4 text-secondary" />{promotedIds.includes(teacher.teacher_id) && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700">إعلان</span>}</span>
                               <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                 <span className="inline-flex items-center gap-1 text-amber-600"><Star className="h-3.5 w-3.5 fill-current" />{Number(teacher.avg_rating || 0).toFixed(1)}</span>
                                 <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />يبعد {teacher.distance_km} كم</span>
