@@ -21,6 +21,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import SiteSettingsTab from "@/components/admin/SiteSettingsTab";
 import FeaturedTeachersTab from "@/components/admin/FeaturedTeachersTab";
 import TeacherPromotionsTab from "@/components/admin/TeacherPromotionsTab";
+import TeacherQualityTab from "@/components/admin/TeacherQualityTab";
 import DomainSSLTab from "@/components/admin/DomainSSLTab";
 import PlansManagementTab from "@/components/admin/PlansManagementTab";
 import WithdrawalRequestsTab from "@/components/admin/WithdrawalRequestsTab";
@@ -40,6 +41,7 @@ import AIModelsManagementTab from "@/components/admin/AIModelsManagementTab";
 import TeacherEarningsTab from "@/components/admin/TeacherEarningsTab";
 import FinancialHubTab from "@/components/admin/FinancialHubTab";
 import RefundsDisputesTab from "@/components/admin/RefundsDisputesTab";
+import ReportsCenterTab from "@/components/admin/ReportsCenterTab";
 import MaterialsMonitorTab from "@/components/admin/MaterialsMonitorTab";
 import LearningMaterialsSection from "@/components/learning-materials/LearningMaterialsSection";
 import SessionPricingTab from "@/components/admin/SessionPricingTab";
@@ -152,8 +154,10 @@ const TAB_TITLES: Record<string, string> = {
   advanced_analytics: "التحليلات المتقدمة",
   featured_teachers: "المدرسون المميزون",
   teacher_promotions: "إعلانات المعلمين",
+  teacher_quality: "جودة المعلمين",
   financial_hub: "المركز المالي",
   refunds_disputes: "الاسترداد والنزاعات",
+  reports_center: "مركز التقارير",
   domain_ssl: "تقرير حالة HTTPS / SSL",
   platform_health: "صحة المنصة وجودة البيانات",
 };
@@ -580,6 +584,7 @@ const AdminDashboard = () => {
     teacher_performance: "view_teacher_performance",
     featured_teachers: "manage_featured_teachers",
     teacher_promotions: "manage_featured_teachers",
+    teacher_quality: "manage_teacher_profiles",
     bookings: "manage_bookings",
     sessions_status: "manage_sessions_status",
     session_reports: "manage_session_reports",
@@ -639,9 +644,11 @@ const AdminDashboard = () => {
       case "teacher_earnings": return <TeacherEarningsTab />;
       case "financial_hub": return <FinancialHubTab />;
       case "refunds_disputes": return <RefundsDisputesTab />;
+      case "reports_center": return <ReportsCenterTab />;
       case "site": return <SiteSettingsTab />;
       case "featured_teachers": return <FeaturedTeachersTab />;
       case "teacher_promotions": return <TeacherPromotionsTab />;
+      case "teacher_quality": return <TeacherQualityTab />;
        case "support": return <SupportTicketsTab initialUser={supportTarget} onInitialUserHandled={() => setSupportTarget(null)} />;
       case "session_reports": return <SessionReportsTab />;
       case "ai_audit": return <AIAuditTab />;
