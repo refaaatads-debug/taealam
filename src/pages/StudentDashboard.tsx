@@ -100,9 +100,28 @@ const StudentDashboard = () => {
       if (!hasLoadedDashboardRef.current) setLoading(true);
       try {
         const now = new Date().toISOString();
-        const completedHistoryPromise = supabase.from("bookings")
+        // Latest 10 completed classes (full rows) for the list.
+        const recentCompletedPromise = supabase.from("bookings")
           .select("*, subjects(name), reviews(rating), sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
-          .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false });
+          .eq("student_id", user.id).eq("status", "completed").order("scheduled_at", { ascending: false }).limit(10);
+        // Total learning time needs every completed class, but only a few small columns,
+        // read in pages so the 1000-row API limit never cuts the total short.
+        const completedTotalPromise = (async () => {
+          const pageSize = 1000;
+          let totalSeconds = 0;
+          for (let from = 0; ; from += pageSize) {
+            const { data: rows, error: rowsError } = await supabase.from("bookings")
+              .select("id, delivery_mode, duration_minutes, instruction_duration_minutes, sessions(started_at,ended_at,duration_minutes,duration_seconds,deducted_minutes)")
+              .eq("student_id", user.id).eq("status", "completed").order("id").range(from, from + pageSize - 1);
+            if (rowsError) return { error: rowsError, totalSeconds: 0 };
+            (rows ?? []).forEach((booking: any) => {
+              const session = Array.isArray(booking.sessions) ? booking.sessions[0] : booking.sessions;
+              totalSeconds += completedTeachingSeconds(booking, session);
+            });
+            if (!rows || rows.length < pageSize) break;
+          }
+          return { error: null, totalSeconds };
+        })();
         const stripeStatusPromise = supabase.functions.invoke("check-subscription")
           .catch((error) => ({ data: null, error }));
         const [
@@ -185,21 +204,22 @@ const StudentDashboard = () => {
           inPersonCount: inPersonCompletedResult.count ?? 0,
           progress: Math.min(((completedCountResult.count ?? 0) / 20) * 100, 100),
         }));
-        void completedHistoryPromise.then(({ data, error }) => {
+        void recentCompletedPromise.then(({ data, error }) => {
           if (disposed || requestId !== latestRequest) return;
           if (error) {
             setDashboardLoadError(true);
             console.error("Student dashboard completed bookings failed to load", error);
             return;
           }
-          const completed = data ?? [];
-          setPastClasses(completed.slice(0, 10));
-          let totalActualSeconds = 0;
-          completed.forEach((booking: any) => {
-            const session = Array.isArray(booking.sessions) ? booking.sessions[0] : booking.sessions;
-            totalActualSeconds += completedTeachingSeconds(booking, session);
-          });
-          setStats((previous) => ({ ...previous, actualSeconds: totalActualSeconds }));
+          setPastClasses(data ?? []);
+        });
+        void completedTotalPromise.then(({ error, totalSeconds }) => {
+          if (disposed || requestId !== latestRequest) return;
+          if (error) {
+            console.error("Student dashboard learning time failed to load", error);
+            return;
+          }
+          setStats((previous) => ({ ...previous, actualSeconds: totalSeconds }));
         });
 
         if (cancelledResult.error) {

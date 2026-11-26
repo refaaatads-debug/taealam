@@ -78,7 +78,7 @@ export default function CancelSessionDialog({
         });
         if (error) throw error;
       } else {
-        const { error: updateErr } = await supabase
+        const { data: updatedRows, error: updateErr } = await supabase
           .from("bookings")
           .update({
             status: "cancelled",
@@ -88,8 +88,13 @@ export default function CancelSessionDialog({
             cancelled_by: user.id,
           } as any)
           .eq("id", bookingId)
-          .eq("teacher_id", user.id);
+          .eq("teacher_id", user.id)
+          .not("status", "in", "(completed,cancelled)")
+          .select("id");
         if (updateErr) throw updateErr;
+        if (!updatedRows || updatedRows.length === 0) {
+          throw new Error("هذه الحصة لم تعد قابلة للإلغاء (مكتملة أو ملغاة بالفعل)");
+        }
       }
 
       const newCount = monthCount + 1;
@@ -106,8 +111,10 @@ export default function CancelSessionDialog({
         },
       });
 
+      // The cancellation is already saved at this point. A failed admin notification
+      // must not look like a failed cancellation.
       if (notifyAdminsError) {
-        throw notifyAdminsError;
+        console.error("[cancel-session] admin notification failed", notifyAdminsError);
       }
 
       if (newCount > MONTHLY_LIMIT) {
