@@ -77,6 +77,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
         { id: "teacher_promotions", title: "إعلانات المعلمين", icon: Megaphone, permission: "manage_featured_teachers" },
+        { id: "teacher_quality", title: "جودة المعلمين", icon: ShieldCheck, permission: "manage_teacher_profiles" },
       ],
     },
     {
@@ -103,6 +104,8 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       items: [
         { id: "financial_hub", title: "المركز المالي والمطابقة", icon: ShieldCheck, permission: "manage_teacher_earnings" },
         { id: "server_status", title: "النسخ الاحتياطي والقرص", icon: FileText, permission: "manage_teacher_earnings" },
+        { id: "refunds_disputes", title: "الاسترداد والنزاعات", icon: FileText, permission: "manage_teacher_earnings" },
+        { id: "reports_center", title: "مركز التقارير", icon: FileText, permission: "manage_teacher_earnings" },
         { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
         { id: "coupons", title: "الكوبونات والعروض", icon: Tag, permission: "manage_coupons" },
         { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
