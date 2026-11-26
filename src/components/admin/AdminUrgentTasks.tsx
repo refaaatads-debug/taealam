@@ -36,8 +36,8 @@ interface Props {
 
 const PRIORITY_META: Record<Priority, { label: string; color: string; ring: string }> = {
   high: { label: "عاجل", color: "bg-destructive/10 text-destructive border-destructive/30", ring: "ring-destructive/30" },
-  medium: { label: "متوسط", color: "bg-warning/10 text-warning border-warning/30", ring: "ring-warning/20" },
-  low: { label: "عادي", color: "bg-info/10 text-info border-info/30", ring: "ring-info/20" },
+  medium: { label: "متوسط", color: "bg-slate-100 text-slate-700 border-slate-200", ring: "ring-slate-200" },
+  low: { label: "عادي", color: "bg-slate-50 text-slate-500 border-slate-200", ring: "ring-slate-100" },
 };
 
 const ageHours = (iso: string) => (Date.now() - +new Date(iso)) / 3_600_000;
@@ -53,10 +53,10 @@ const computePriority = (kind: TaskItem["kind"], created_at: string): Priority =
 
 const kindMeta = (k: TaskItem["kind"]) => {
   switch (k) {
-    case "teacher": return { icon: GraduationCap, label: "معلم", tab: "teachers", color: "text-secondary" };
-    case "withdrawal": return { icon: CreditCard, label: "سحب", tab: "withdrawals", color: "text-warning" };
-    case "support": return { icon: MessageSquare, label: "دعم", tab: "support", color: "text-info" };
-    case "violation": return { icon: ShieldAlert, label: "مخالفة", tab: "violations", color: "text-destructive" };
+    case "teacher": return { icon: GraduationCap, label: "معلم", tab: "teachers", color: "text-slate-600" };
+    case "withdrawal": return { icon: CreditCard, label: "سحب", tab: "withdrawals", color: "text-slate-600" };
+    case "support": return { icon: MessageSquare, label: "دعم", tab: "support", color: "text-slate-600" };
+    case "violation": return { icon: ShieldAlert, label: "مخالفة", tab: "violations", color: "text-slate-600" };
   }
 };
 
@@ -299,8 +299,8 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   };
 
   return (
-    <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      <CardHeader className="pb-3 bg-gradient-to-l from-destructive/5 via-transparent to-warning/5">
+    <Card className="border border-border/50 shadow-sm shadow-none overflow-hidden">
+      <CardHeader className="pb-3 border-b border-slate-100">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Flame className="h-4 w-4 text-destructive" />
@@ -357,7 +357,7 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
               return (
                 <div
                   key={t.id}
-                  className={`p-4 hover:bg-muted/30 transition-colors ${t.priority === "high" ? "border-r-4 border-destructive" : t.priority === "medium" ? "border-r-4 border-warning" : ""}`}
+                  className={`p-4 hover:bg-muted/30 transition-colors ${t.priority === "high" ? "border-r-4 border-destructive" : t.priority === "medium" ? "border-r-4 border-slate-300" : ""}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`shrink-0 w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center ring-2 ${prio.ring}`}>
