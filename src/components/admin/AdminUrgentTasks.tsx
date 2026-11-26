@@ -299,114 +299,74 @@ export default function AdminUrgentTasks({ onOpenTab }: Props) {
   };
 
   return (
-    <Card className="border border-border/50 shadow-sm shadow-none overflow-hidden">
-      <CardHeader className="pb-3 border-b border-slate-100">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Flame className="h-4 w-4 text-destructive" />
-            المهام العاجلة
-            {!permLoading && (
-              <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-primary/5 text-primary border-primary/20">
-                {roleLabel}
-              </Badge>
-            )}
-            {highCount > 0 && (
-              <Badge className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] h-5 px-1.5 gap-1">
-                <AlertTriangle className="h-2.5 w-2.5" />
-                {highCount} عاجل
-              </Badge>
-            )}
-          </CardTitle>
-
-          <div className="flex items-center gap-1.5">
-            {(["all", "high", "medium", "low"] as const).map(p => {
-              const active = filter === p;
-              const labels = { all: "الكل", high: "عاجل", medium: "متوسط", low: "عادي" } as const;
-              return (
-                <button
-                  key={p}
-                  onClick={() => setFilter(p)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                    active
-                      ? "bg-foreground text-background shadow-sm"
-                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  {labels[p]}
-                </button>
-              );
-            })}
-          </div>
+    <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-none">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          المهام
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 tabular-nums">{filtered.length}</span>
+          {highCount > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{highCount} عاجل</span>}
+          {!permLoading && <span className="text-xs font-normal text-slate-400">{roleLabel}</span>}
+        </p>
+        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
+          {(["all", "high", "medium", "low"] as const).map(p => {
+            const labels = { all: "الكل", high: "عاجل", medium: "متوسط", low: "عادي" } as const;
+            return (
+              <button key={p} onClick={() => setFilter(p)} className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${filter === p ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}>{labels[p]}</button>
+            );
+          })}
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="p-0">
-        {loading ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">جاري تحميل المهام...</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-12 text-center space-y-2">
-            <CheckCircle className="h-10 w-10 mx-auto text-success opacity-60" />
-            <p className="text-sm text-muted-foreground">لا توجد مهام عاجلة 🎉</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50 max-h-[420px] overflow-y-auto">
-            {filtered.map(t => {
-              const meta = kindMeta(t.kind);
-              const Icon = meta.icon;
-              const prio = PRIORITY_META[t.priority];
-              return (
-                <div
-                  key={t.id}
-                  className={`p-4 hover:bg-muted/30 transition-colors ${t.priority === "high" ? "border-r-4 border-destructive" : t.priority === "medium" ? "border-r-4 border-slate-300" : ""}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`shrink-0 w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center ring-2 ${prio.ring}`}>
-                      <Icon className={`h-5 w-5 ${meta.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-foreground truncate">{t.title}</p>
-                        <Badge variant="outline" className={`text-[9px] h-4 px-1.5 ${prio.color}`}>{prio.label}</Badge>
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-muted/50">{meta.label}</Badge>
-                      </div>
-                      {t.subtitle && <p className="text-xs text-muted-foreground truncate">{t.subtitle}</p>}
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5" /> {timeAgo(t.created_at)}
-                      </p>
-                    </div>
+      {loading ? (
+        <div className="py-10 text-center text-sm text-slate-500">جاري تحميل المهام...</div>
+      ) : filtered.length === 0 ? (
+        <div className="space-y-2 py-10 text-center">
+          <CheckCircle className="mx-auto h-8 w-8 text-slate-300" />
+          <p className="text-sm text-slate-500">لا توجد مهام عاجلة</p>
+        </div>
+      ) : (
+        <ul className="max-h-[440px] divide-y divide-slate-100 overflow-y-auto">
+          {filtered.map(t => {
+            const meta = kindMeta(t.kind);
+            const Icon = meta.icon;
+            const prio = PRIORITY_META[t.priority];
+            return (
+              <li key={t.id} className="relative px-4 py-3 transition-colors hover:bg-slate-50/70 motion-safe:animate-fade-in">
+                {t.priority === "high" && <span className="absolute inset-y-3 right-0 w-0.5 rounded-full bg-primary" />}
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                    <Icon className="h-4 w-4 text-slate-600" />
                   </div>
-
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    {canActOn(t.kind) ? (
-                      <>
-                        <Button size="sm" onClick={() => approve(t)} className="h-7 text-[11px] gap-1 bg-success hover:bg-success/90 text-success-foreground rounded-lg">
-                          <CheckCircle className="h-3 w-3" /> {t.kind === "withdrawal" ? "اعتماد وصرف" : "موافقة"}
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => reject(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                          <XCircle className="h-3 w-3" /> رفض
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => postpone(t)} className="h-7 text-[11px] gap-1 rounded-lg">
-                          <Clock className="h-3 w-3" /> تأجيل
-                        </Button>
-                      </>
-                    ) : (
-                      <Badge variant="outline" className="h-7 text-[10px] px-2 gap-1 bg-muted/40 text-muted-foreground border-dashed">
-                        <ShieldAlert className="h-3 w-3" />
-                        لا تملك صلاحية اتخاذ إجراء — للعرض فقط
-                      </Badge>
-                    )}
-                    {onOpenTab && (
-                      <Button size="sm" variant="ghost" onClick={() => onOpenTab(meta.tab)} className="h-7 text-[11px] gap-1 mr-auto">
-                        التفاصيل <ArrowLeft className="h-3 w-3" />
-                      </Button>
-                    )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-bold text-slate-900">{t.title}</p>
+                      {t.priority === "high" && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[11px] font-bold text-primary">{prio.label}</span>}
+                    </div>
+                    <p className="truncate text-xs text-slate-500">{[meta.label, t.subtitle].filter(Boolean).join(" · ")}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><Clock className="h-3 w-3" /> {timeAgo(t.created_at)}</p>
                   </div>
+                  {onOpenTab && (
+                    <button onClick={() => onOpenTab(meta.tab)} className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="التفاصيل"><ArrowLeft className="h-4 w-4" /></button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 pr-12">
+                  {canActOn(t.kind) ? (
+                    <>
+                      <Button size="sm" onClick={() => approve(t)} className="h-8 gap-1 rounded-lg px-3 text-xs transition-transform active:scale-95">
+                        {t.kind === "withdrawal" ? "اعتماد وصرف" : "موافقة"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => reject(t)} className="h-8 rounded-lg px-3 text-xs transition-transform active:scale-95">رفض</Button>
+                      <Button size="sm" variant="ghost" onClick={() => postpone(t)} className="h-8 rounded-lg px-3 text-xs text-slate-500 transition-transform active:scale-95">تأجيل</Button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-400">للعرض فقط، لا تملك صلاحية الإجراء</span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Card>
   );
 }

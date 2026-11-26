@@ -41,7 +41,7 @@ export default function AdminPeriodFilter({ value, onChange }: Props) {
           onClick={() => onChange(opt.value)}
           className={`h-8 px-3 text-xs font-semibold rounded-lg transition-all ${
             value === opt.value
-              ? "bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-md hover:opacity-95"
+              ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >

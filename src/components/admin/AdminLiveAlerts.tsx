@@ -157,19 +157,19 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
   };
 
   return (
-    <Card className="border border-border/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+    <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-none">
       <CardHeader className="pb-3 border-b border-slate-100">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-800">
             <div className="relative">
               <BellRing className="h-4 w-4 text-primary" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary" />
               )}
             </div>
             التنبيهات الفورية
             {unreadCount > 0 && (
-              <Badge className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] h-5 px-1.5">
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-[11px] h-5 px-1.5">
                 {unreadCount} جديد
               </Badge>
             )}
@@ -209,7 +209,7 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
       </CardHeader>
 
       <CardContent className="p-0">
-        <ScrollArea className="h-[360px]">
+        <ScrollArea className="h-[300px]">
           {loading ? (
             <div className="py-12 text-center text-sm text-muted-foreground">جاري تحميل التنبيهات...</div>
           ) : filtered.length === 0 ? (
@@ -226,11 +226,11 @@ export default function AdminLiveAlerts({ onOpenTab }: Props) {
                   <button
                     key={item.id}
                     onClick={() => handleOpen(item)}
-                    className={`w-full flex items-start gap-3 p-3.5 text-right hover:bg-muted/30 transition-colors group ${
+                    className={`w-full flex items-start gap-3 p-3.5 text-right hover:bg-slate-50 active:bg-slate-100 transition-colors group ${
                       !item.is_read ? "bg-primary/5" : ""
                     }`}
                   >
-                    <div className={`shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br ${meta.color} flex items-center justify-center`}>
+                    <div className={`shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center`}>
                       <Icon className={`h-4 w-4 ${meta.text}`} />
                     </div>
                     <div className="flex-1 min-w-0 space-y-0.5">
