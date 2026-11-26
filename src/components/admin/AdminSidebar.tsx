@@ -21,7 +21,7 @@ import {
   BarChart3, Users, UserCheck, Clock, ShieldAlert, DollarSign,
   Tag, TrendingUp, MessageSquare, Settings, FileText, BookOpen,
   AlertTriangle, Shield, CreditCard, Wallet, Brain, Monitor,
-  Bell, LogOut, ShieldCheck, KeyRound, Lock, Star, Megaphone, FolderOpen, Cpu, Activity, CalendarDays, MapPin,
+  Bell, LogOut, ShieldCheck, KeyRound, Lock, Star, Megaphone, FolderOpen, Cpu, Activity, CalendarDays, MapPin, HardDrive, Undo2, FileBarChart, Scale,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,18 +66,25 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       items: [
         { id: "overview", title: "نظرة عامة", icon: BarChart3, permission: "view_overview" },
         { id: "advanced_analytics", title: "التحليلات المتقدمة", icon: TrendingUp, permission: "view_advanced_analytics" },
+        { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
       ],
     },
     {
-      label: "المستخدمون والكوادر",
+      label: "المستخدمون",
       items: [
         { id: "users", title: "إدارة المستخدمين", icon: Users, permission: "manage_users" },
         { id: "student_profiles", title: "ملفات الطلاب", icon: FolderOpen, permission: "manage_student_profiles" },
         { id: "teacher_profiles", title: "ملفات المعلمين", icon: FolderOpen, permission: "manage_teacher_profiles" },
         { id: "teachers", title: "طلبات تسجيل المعلمين", icon: UserCheck, badge: pendingTeachersCount, permission: "manage_pending_teachers" },
+      ],
+    },
+    {
+      label: "المعلمون",
+      items: [
         { id: "featured_teachers", title: "المعلمون المميزون", icon: Star, permission: "manage_featured_teachers" },
         { id: "teacher_promotions", title: "إعلانات المعلمين", icon: Megaphone, permission: "manage_featured_teachers" },
         { id: "teacher_quality", title: "جودة المعلمين", icon: ShieldCheck, permission: "manage_teacher_profiles" },
+        { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
       ],
     },
     {
@@ -102,27 +109,36 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
     {
       label: "المالية والمدفوعات",
       items: [
-        { id: "financial_hub", title: "المركز المالي والمطابقة", icon: ShieldCheck, permission: "manage_teacher_earnings" },
-        { id: "server_status", title: "النسخ الاحتياطي والقرص", icon: FileText, permission: "manage_teacher_earnings" },
-        { id: "refunds_disputes", title: "الاسترداد والنزاعات", icon: FileText, permission: "manage_teacher_earnings" },
-        { id: "reports_center", title: "مركز التقارير", icon: FileText, permission: "manage_teacher_earnings" },
-        { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
-        { id: "coupons", title: "الكوبونات والعروض", icon: Tag, permission: "manage_coupons" },
-        { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
+        { id: "financial_hub", title: "المركز المالي والمطابقة", icon: Scale, permission: "manage_teacher_earnings" },
+        { id: "withdrawals", title: "طلبات سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
         { id: "teacher_payments", title: "مدفوعات المعلمين", icon: DollarSign, permission: "manage_teacher_payments" },
         { id: "teacher_earnings", title: "الأرباح اليدوية", icon: DollarSign, permission: "manage_teacher_earnings" },
-        { id: "teacher_performance", title: "أداء المعلمين", icon: TrendingUp, permission: "view_teacher_performance" },
-        { id: "withdrawals", title: "طلبات سحب الأرباح", icon: Wallet, badge: badgeCounts.withdrawals, permission: "manage_withdrawals" },
         { id: "wallets", title: "المحافظ والمكالمات", icon: Wallet, permission: "manage_wallets" },
+        { id: "refunds_disputes", title: "الاسترداد والنزاعات", icon: Undo2, permission: "manage_teacher_earnings" },
       ],
     },
     {
-      label: "المنصة والمحتوى",
+      label: "الباقات والأسعار",
+      items: [
+        { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
+        { id: "coupons", title: "الكوبونات والعروض", icon: Tag, permission: "manage_coupons" },
+        { id: "session_pricing", title: "تسعير الجلسات", icon: DollarSign, permission: "manage_session_pricing" },
+      ],
+    },
+    {
+      label: "التقارير والمتابعة",
+      items: [
+        { id: "reports_center", title: "مركز التقارير", icon: FileBarChart, permission: "manage_teacher_earnings" },
+        { id: "server_status", title: "النسخ الاحتياطي والقرص", icon: HardDrive, permission: "manage_teacher_earnings" },
+        { id: "domain_ssl", title: "تقرير حالة HTTPS / SSL", icon: Lock, permission: "manage_domain_ssl" },
+      ],
+    },
+    {
+      label: "المحتوى والإشعارات",
       items: [
         { id: "materials_monitor", title: "مركز مراقبة المواد التعليمية", icon: BookOpen, permission: "manage_materials" },
         { id: "learning_materials", title: "جهّز المادة العلمية", icon: BookOpen, permission: "manage_materials" },
         { id: "site", title: "إدارة محتوى المنصة", icon: Settings, permission: "manage_content" },
-        { id: "platform_health", title: "صحة المنصة وجودة البيانات", icon: Activity, permission: "view_overview" },
         { id: "admin_notifications", title: "إشعارات المنصة", icon: Bell, permission: "manage_notifications" },
       ],
     },
@@ -132,7 +148,6 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
         { id: "ai_models", title: "نماذج الذكاء الاصطناعي", icon: Cpu, permission: "manage_ai_models" },
         { id: "ai_audit", title: "تدقيق مخرجات الذكاء الاصطناعي", icon: Brain, permission: "manage_ai_audit" },
         { id: "call_transcripts", title: "تفريغ وتحليل المكالمات", icon: MessageSquare, permission: "view_call_transcripts" },
-        { id: "domain_ssl", title: "تقرير حالة HTTPS / SSL", icon: Lock, permission: "manage_domain_ssl" },
       ],
     },
     {
@@ -173,14 +188,14 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       <SidebarHeader className="border-b border-slate-200/70 p-4">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"><img src={platformLogo} alt="أجيال المعرفة" className="h-full w-full object-contain" /></div>
-          {!collapsed && (<div className="min-w-0 animate-fade-in"><h2 className="truncate text-sm font-black leading-tight text-[#12345d]">أجيال المعرفة</h2><p className="mt-1 text-[10px] font-semibold tracking-wide text-emerald-700/80">مركز إدارة المنصة</p></div>)}
+          {!collapsed && (<div className="min-w-0 animate-fade-in"><h2 className="truncate text-base font-black leading-tight text-[#12345d]">أجيال المعرفة</h2><p className="mt-1 text-xs font-semibold tracking-wide text-emerald-700/80">مركز إدارة المنصة</p></div>)}
         </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2.5 py-2">
         {menuGroups.map((group) => (
-          <SidebarGroup key={group.label} className="mb-1">
-            <SidebarGroupLabel className="mx-1 mb-2 rounded-lg border border-slate-200/80 bg-slate-100/80 px-3 py-2 text-[13px] font-black leading-5 tracking-wide text-[#123d6b] shadow-sm">
+          <SidebarGroup key={group.label} className="mb-3">
+            <SidebarGroupLabel className="mx-1 mb-2 rounded-lg border border-slate-200/80 bg-slate-100/80 px-3 py-2 text-[15px] font-black leading-6 tracking-wide text-[#123d6b] shadow-sm">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -194,14 +209,14 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                         onTabChange(canOpenOverview ? item.id : item.children?.[0]?.id || item.id);
                       }}
                       tooltip={item.title}
-                      className="relative h-11 rounded-xl text-[13px] font-semibold leading-5 text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
+                      className="relative h-12 rounded-xl text-[15px] font-semibold leading-6 text-slate-600 transition-all hover:bg-white hover:text-[#12345d] hover:shadow-sm data-[active=true]:bg-[#123d6b] data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-950/10"
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate text-[13px]">{item.title}</span>
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span className="truncate text-[15px]">{item.title}</span>
                       {item.badge && item.badge > 0 ? (
                         <Badge
                           variant="destructive"
-                          className="mr-auto text-[9px] px-1.5 py-0 h-4 min-w-[16px] flex items-center justify-center rounded-full"
+                          className="mr-auto text-[11px] px-1.5 py-0 h-5 min-w-[20px] flex items-center justify-center rounded-full"
                         >
                           {item.badge}
                         </Badge>
@@ -218,7 +233,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
                               href="#"
                               isActive={activeTab === child.id}
                               onClick={(event) => { event.preventDefault(); onTabChange(child.id); }}
-                              className="h-8 text-xs font-medium"
+                              className="h-9 text-[13px] font-medium"
                             >
                               <child.icon className="h-3.5 w-3.5" />
                               <span className="truncate">{child.title}</span>
@@ -240,7 +255,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout} tooltip="تسجيل الخروج" className="h-10 rounded-xl text-rose-600 hover:bg-rose-50 hover:text-rose-700">
               <LogOut className="h-4 w-4" />
-              <span className="text-[13px]">تسجيل الخروج</span>
+              <span className="text-[15px]">تسجيل الخروج</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
