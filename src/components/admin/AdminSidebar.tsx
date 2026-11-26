@@ -103,6 +103,7 @@ const AdminSidebar = ({ activeTab, onTabChange, badgeCounts, pendingTeachersCoun
       label: "المالية والمدفوعات",
       items: [
         { id: "financial_hub", title: "المركز المالي والمطابقة", icon: ShieldCheck, permission: "manage_teacher_earnings" },
+        { id: "server_status", title: "النسخ الاحتياطي والقرص", icon: FileText, permission: "manage_teacher_earnings" },
         { id: "refunds_disputes", title: "الاسترداد والنزاعات", icon: FileText, permission: "manage_teacher_earnings" },
         { id: "reports_center", title: "مركز التقارير", icon: FileText, permission: "manage_teacher_earnings" },
         { id: "plans", title: "الباقات والاشتراكات", icon: CreditCard, permission: "manage_plans" },
