@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BrandLoader from "@/components/BrandLoader";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +61,19 @@ import InPersonAdminPanel from "@/components/inPerson/AdminPanel";
 import AdminPanelErrorBoundary from "@/components/inPerson/AdminPanelErrorBoundary";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Lock } from "lucide-react";
+
+// Supabase returns at most 1000 rows per request. Page through the results so
+// totals and charts stay correct once the tables grow past that limit.
+async function fetchAllRows<T = any>(build: () => any, pageSize = 1000, maxPages = 50): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const { data, error } = await build().range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error || !data) break;
+    out.push(...(data as T[]));
+    if (data.length < pageSize) break;
+  }
+  return out;
+}
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -157,9 +170,35 @@ const AdminDashboard = () => {
   const [bookingStatusData, setBookingStatusData] = useState<any[]>([]);
   const [overview, setOverview] = useState<OverviewSnapshot>(EMPTY_OVERVIEW);
   const [badgeCounts, setBadgeCounts] = useState({ withdrawals: 0, support: 0, pendingBookings: 0, unreviewed: 0 });
+  // "Seen" marks are kept per admin account (table admin_seen_tabs) so badges match on every
+  // device. localStorage (keyed by user id) is the fallback if the table is not available yet.
+  const seenStorageKey = `admin_seen_tabs:${user?.id ?? "anon"}`;
   const [seenTimestamps, setSeenTimestamps] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem("admin_seen_tabs") || "{}"); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem(`admin_seen_tabs:${user?.id ?? "anon"}`) || "{}"); } catch { return {}; }
   });
+  const [seenLoaded, setSeenLoaded] = useState(false);
+  const seenRef = useRef(seenTimestamps);
+  seenRef.current = seenTimestamps;
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase as any).from("admin_seen_tabs").select("tab_key, seen_at").eq("user_id", user.id);
+      if (!cancelled) {
+        if (!error && data) {
+          const fromDb: Record<string, string> = {};
+          data.forEach((r: any) => { fromDb[r.tab_key] = r.seen_at; });
+          setSeenTimestamps(prev => {
+            const merged = { ...prev };
+            Object.entries(fromDb).forEach(([k, v]) => { if (!merged[k] || merged[k] < v) merged[k] = v; });
+            return merged;
+          });
+        }
+        setSeenLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
   const [supportTarget, setSupportTarget] = useState<{ user_id: string; full_name: string } | null>(null);
@@ -190,7 +229,7 @@ const AdminDashboard = () => {
   }, [user, navigate]);
 
   const fetchBadgeCounts = async () => {
-    const ts = seenTimestamps;
+    const ts = seenRef.current;
     let withdrawalsQuery = supabase.from("withdrawal_requests").select("id", { count: "exact", head: true }).eq("status", "pending");
     if (ts.withdrawals) withdrawalsQuery = withdrawalsQuery.gt("created_at", ts.withdrawals);
     let supportQuery = supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open");
@@ -203,11 +242,18 @@ const AdminDashboard = () => {
     setBadgeCounts({ withdrawals: withdrawalsRes.count ?? 0, support: supportRes.count ?? 0, pendingBookings: pendingBookingsRes.count ?? 0, unreviewed: unreviewedRes.count ?? 0 });
   };
 
+  useEffect(() => { if (seenLoaded) fetchBadgeCounts(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [seenLoaded]);
+
   const markTabSeen = (tabKey: string) => {
     const now = new Date().toISOString();
     const updated = { ...seenTimestamps, [tabKey]: now };
     setSeenTimestamps(updated);
-    localStorage.setItem("admin_seen_tabs", JSON.stringify(updated));
+    try { localStorage.setItem(seenStorageKey, JSON.stringify(updated)); } catch { /* storage full or blocked */ }
+    if (user?.id) {
+      (supabase as any).from("admin_seen_tabs")
+        .upsert({ user_id: user.id, tab_key: tabKey, seen_at: now }, { onConflict: "user_id,tab_key" })
+        .then(() => {}, () => {});
+    }
   };
 
   const handleTabChange = (val: string) => {
@@ -220,18 +266,21 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const refresh = () => { fetchBadgeCounts(); fetchData(true); };
+    // Many table changes can arrive in a burst (e.g. several bookings at once). Wait for a quiet
+    // moment, then refresh once instead of re-running every query for each change.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { fetchBadgeCounts(); fetchData(true); }, 3000);
+    };
 
-    const channels = [
-      supabase.channel("admin-withdrawals").on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, refresh),
-      supabase.channel("admin-support").on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, refresh),
-      supabase.channel("admin-bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, refresh),
-      supabase.channel("admin-violations").on("postgres_changes", { event: "*", schema: "public", table: "violations" }, refresh),
-      supabase.channel("admin-teacher-profiles").on("postgres_changes", { event: "*", schema: "public", table: "teacher_profiles" }, refresh),
-      supabase.channel("admin-payments").on("postgres_changes", { event: "*", schema: "public", table: "payment_records" }, refresh),
-    ];
-    channels.forEach(ch => ch.subscribe());
-    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
+    const tables = ["withdrawal_requests", "support_tickets", "bookings", "violations", "teacher_profiles", "payment_records"];
+    const channel = tables.reduce(
+      (ch, table) => ch.on("postgres_changes", { event: "*", schema: "public", table }, refresh),
+      supabase.channel("admin-dashboard-changes"),
+    );
+    channel.subscribe();
+    return () => { if (timer) clearTimeout(timer); supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
@@ -242,19 +291,22 @@ const AdminDashboard = () => {
       const periodFilterIso = periodStart ? periodStart.toISOString() : null;
 
       let bookingsCountQ = supabase.from("bookings").select("id", { count: "exact", head: true });
-      let paymentsQ = supabase.from("payment_records").select("amount, created_at").eq("status", "completed");
+      const buildPaymentsQ = () => {
+        let q = supabase.from("payment_records").select("amount, created_at").eq("status", "completed").order("created_at", { ascending: true }).order("id", { ascending: true });
+        if (periodFilterIso) q = q.gte("created_at", periodFilterIso);
+        return q;
+      };
       let violationsCountQ = (supabase as any).from("violations").select("id", { count: "exact", head: true });
       if (periodFilterIso) {
         bookingsCountQ = bookingsCountQ.gte("created_at", periodFilterIso);
-        paymentsQ = paymentsQ.gte("created_at", periodFilterIso);
         violationsCountQ = violationsCountQ.gte("created_at", periodFilterIso);
       }
 
-      const [profilesRes, teachersRes, bookingsRes, paymentsRes, violationsRes] = await Promise.all([
+      const [profilesRes, teachersRes, bookingsRes, paymentRows, violationsRes] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("teacher_profiles").select("id", { count: "exact", head: true }),
         bookingsCountQ,
-        paymentsQ,
+        fetchAllRows(buildPaymentsQ),
         violationsCountQ,
       ]);
 
@@ -275,7 +327,7 @@ const AdminDashboard = () => {
         supportMessagesRes,
       ] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
-        supabase.from("teacher_profiles").select("user_id, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
+        supabase.from("teacher_profiles").select("user_id, created_at, is_approved, approval_status", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
         supabase.from("support_tickets").select("id, subject, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
         supabase.from("support_tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
         supabase.from("bookings").select("id, status, created_at", { count: "exact" }).gte("created_at", periodFilterIso || "1970-01-01").order("created_at", { ascending: false }).limit(8),
@@ -298,7 +350,7 @@ const AdminDashboard = () => {
         ...(newTeachersRes.data ?? []).map((row: any) => ({
           id: `teacher-${row.user_id}`,
           label: "طلب تسجيل معلم",
-          detail: "بانتظار المراجعة",
+          detail: row.approval_status === "rejected" ? "مرفوض" : row.is_approved ? "معتمد" : "بانتظار المراجعة",
           created_at: row.created_at,
           tab: "teachers",
         })),
@@ -327,13 +379,13 @@ const AdminDashboard = () => {
         completedBookings: completedRes.count ?? 0,
         cancelledBookings: cancelledRes.count ?? 0,
         newPayments: newPaymentsRes.count ?? 0,
-        paymentTotal: (paymentsRes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
+        paymentTotal: paymentRows.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
         pendingWithdrawals: pendingWithdrawalsRes.count ?? 0,
         unreviewedViolations: unreviewedViolationsRes.count ?? 0,
         supportMessages: supportMessagesRes.count ?? 0,
         recentEvents: eventRows,
       });
-      const initialRevenue = (paymentsRes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
+      const initialRevenue = paymentRows.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
       setStats({
         users: profilesRes.count ?? 0,
         teachers: teachersRes.count ?? 0,
@@ -348,9 +400,11 @@ const AdminDashboard = () => {
       // complete; charts and detailed queues continue loading in the background.
       setLoading(false);
 
-      let allBookingsQ = supabase.from("bookings").select("created_at, status, price");
-      if (periodFilterIso) allBookingsQ = allBookingsQ.gte("created_at", periodFilterIso);
-      const { data: allBookingsData } = await allBookingsQ;
+      const allBookingsData = await fetchAllRows<any>(() => {
+        let q = supabase.from("bookings").select("created_at, status, price").order("created_at", { ascending: true }).order("id", { ascending: true });
+        if (periodFilterIso) q = q.gte("created_at", periodFilterIso);
+        return q;
+      });
       const monthMap = new Map<string, { bookings: number; revenue: number }>();
       const arabicMonths = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
       (allBookingsData ?? []).forEach(b => {
@@ -360,7 +414,7 @@ const AdminDashboard = () => {
         existing.bookings += 1;
         monthMap.set(key, existing);
       });
-      (paymentsRes.data ?? []).forEach((p: any) => {
+      paymentRows.forEach((p: any) => {
         const d = new Date(p.created_at);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         const existing = monthMap.get(key) || { bookings: 0, revenue: 0 };
