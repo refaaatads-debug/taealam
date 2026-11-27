@@ -827,6 +827,7 @@ export function useWebRTC({
       client.on("user-published", async (remoteUser: any, mediaType: "audio" | "video") => {
         const remoteUserId = String(remoteUser.uid);
         if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
+        logAgoraEvent("agora_user_published", { mediaType, uid: remoteUserId });
         // The teacher is the only legitimate screen publisher. If we are the teacher,
         // the remote is the student: ignore any video track they publish.
         if (mediaType === "video" && canShareScreenRef.current) return;
@@ -834,6 +835,7 @@ export function useWebRTC({
           await client.subscribe(remoteUser, mediaType);
         } catch (error) {
           console.error(`[agora] failed to subscribe to remote ${mediaType}`, error);
+          logAgoraEvent("agora_subscribe_failed", { mediaType, uid: remoteUserId, error: String((error as Error)?.message ?? error).slice(0, 200), setsDisconnected: true });
           setConnectionState("disconnected");
           onConnectionStateRef.current?.("disconnected");
           return;
@@ -857,6 +859,7 @@ export function useWebRTC({
         onConnectionStateRef.current?.("connected");
       });
       client.on("user-unpublished", (remoteUser: any, mediaType: "audio" | "video") => {
+        logAgoraEvent("agora_user_unpublished", { mediaType, uid: String(remoteUser.uid) });
         const track = mediaType === "audio"
           ? remoteUser.audioTrack?.getMediaStreamTrack()
           : remoteUser.videoTrack?.getMediaStreamTrack();
@@ -868,6 +871,7 @@ export function useWebRTC({
       client.on("user-joined", (remoteUser: any) => {
         const remoteUserId = String(remoteUser.uid);
         if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
+        logAgoraEvent("agora_user_joined", { uid: remoteUserId, ownState: agoraConnectionStateRef.current });
         remotePeerUserIdRef.current = remoteUserId;
         onRemoteJoinRef.current?.(remoteUserId);
         // Presence must not depend on the peer's microphone: a muted peer never publishes audio,
@@ -877,6 +881,11 @@ export function useWebRTC({
       client.on("user-left", (remoteUser: any) => {
         const remoteUserId = String(remoteUser.uid);
         if (remotePeerUserIdRef.current !== remoteUserId) return;
+        logAgoraEvent("agora_user_left", {
+          uid: remoteUserId,
+          ownState: agoraConnectionStateRef.current,
+          setsDisconnected: shouldMarkRtcDisconnectedOnPeerLeft(agoraConnectionStateRef.current),
+        });
         remotePeerUserIdRef.current = null;
         onRemoteLeaveRef.current?.(remoteUserId);
         remote.getTracks().forEach((track) => remote.removeTrack(track));
