@@ -88,6 +88,13 @@ interface UseWebRTCOptions {
   onDataMessage?: (msg: any) => void;
 }
 
+/**
+ * Recording video bitrate cap (bits/s), same for every recorder. The auto recorder already used 1 Mbps;
+ * the screen-share recorder used 2.5 Mbps (a 45 MB file came from a short screen-share session).
+ * Lower files = less upload, less storage, fewer failures on the storage size limit.
+ */
+export const RECORDING_VIDEO_BITS_PER_SECOND = 1_000_000;
+
 export function useWebRTC({
   bookingId,
   userId,
@@ -1065,8 +1072,8 @@ export function useWebRTC({
 
       console.log("[direct-recorder] starting, mimeType:", mimeType);
       const recorder = mimeType
-        ? new MediaRecorder(combined, { mimeType, videoBitsPerSecond: 2_500_000 })
-        : new MediaRecorder(combined, { videoBitsPerSecond: 2_500_000 });
+        ? new MediaRecorder(combined, { mimeType, videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND })
+        : new MediaRecorder(combined, { videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND });
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -1289,7 +1296,7 @@ export function useWebRTC({
       recordedChunksRef.current = [];
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
         ? "video/webm;codecs=vp9,opus" : "video/webm";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND });
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
@@ -1571,8 +1578,8 @@ export function useWebRTC({
             : "";
       console.log("[recording] starting with mimeType:", mimeType, "videoTracks:", canvasStream.getVideoTracks().length, "audioTracks:", audioTracks.length);
       const recorder = mimeType
-        ? new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 1_000_000 })
-        : new MediaRecorder(combinedStream, { videoBitsPerSecond: 1_000_000 });
+        ? new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND })
+        : new MediaRecorder(combinedStream, { videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND });
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           recordedChunksRef.current.push(e.data);
