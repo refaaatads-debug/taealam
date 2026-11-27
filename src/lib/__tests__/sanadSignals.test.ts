@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { hasSummaryContent, isTeacherVoiceSilent, shouldShowSanadToast } from "../sanadSignals";
+import { hasSummaryContent, nextSanadSilenceState, shouldShowSanadToast } from "../sanadSignals";
 
 describe("sanad signals", () => {
-  it("silence needs 4 minutes without teacher voice, not 2", () => {
-    expect(isTeacherVoiceSilent(0, 120_000)).toBe(false);
-    expect(isTeacherVoiceSilent(0, 239_000)).toBe(false);
-    expect(isTeacherVoiceSilent(0, 240_000)).toBe(true);
+  it("Sanad suggests silence at the same 240 s level as the teacher warning, once per stretch", () => {
+    expect(nextSanadSilenceState(239, false)).toEqual({ suggest: false, notified: false });
+    expect(nextSanadSilenceState(240, false)).toEqual({ suggest: true, notified: true });
+    expect(nextSanadSilenceState(280, true)).toEqual({ suggest: false, notified: true });
+  });
+  it("Sanad re-arms after the teacher speaks (clock drops)", () => {
+    expect(nextSanadSilenceState(3, true)).toEqual({ suggest: false, notified: false });
   });
   it("empty summary has no content", () => {
     expect(hasSummaryContent(null)).toBe(false);

@@ -107,6 +107,7 @@ const LiveSession = () => {
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const connectionHealthyRef = useRef(false);
   const teacherSilenceClockRef = useRef<SilenceClock>(initialSilenceClock());
+  const teacherSilenceSecondsRef = useRef(0);
   const teacherSilenceWarningShownRef = useRef(false);
   const teacherSilenceReportedRef = useRef(false);
   const teacherSilenceEventIdRef = useRef<string | null>(null);
@@ -623,6 +624,7 @@ const LiveSession = () => {
         measurable: canMeasureTeacherSilence,
         teacherSpeaking: localSpeaking,
       });
+      teacherSilenceSecondsRef.current = clockSilentSeconds(teacherSilenceClockRef.current);
       if (localSpeaking) {
         teacherSilenceWarningShownRef.current = false;
         teacherSilenceReportedRef.current = false;
@@ -636,6 +638,8 @@ const LiveSession = () => {
 
       if (silentForSeconds >= TEACHER_SILENCE_WARN_SECONDS && !teacherSilenceWarningShownRef.current) {
         teacherSilenceWarningShownRef.current = true;
+        // The 4 minute warning is stored as a session event (not a violation) so the admin can see it.
+        void supabase.from("session_events" as never).insert({ booking_id: bookingId, user_id: user?.id, event_type: "teacher_silence_warning", metadata: { seconds: silentForSeconds } } as never);
         toast.warning("لم يُرصد صوت من المعلم منذ أربع دقائق. سيُسجَّل تنبيه عند استمرار الصمت دقيقة إضافية.");
       }
 
@@ -2660,7 +2664,7 @@ const LiveSession = () => {
               elapsedSeconds={elapsed}
               isOpen={aiAssistantOpen}
               onClose={() => setAiAssistantOpen(false)}
-              teacherSpeakingSec={isTeacher ? teacherSpeakingSec : studentSpeakingSec}
+              silenceSecondsRef={teacherSilenceSecondsRef}
               onOpen={() => { setAiAssistantOpen(true); setBoardOpen(false); }}
             />
           )}
