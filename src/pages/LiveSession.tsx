@@ -2668,7 +2668,7 @@ const LiveSession = () => {
               isOpen={aiAssistantOpen}
               onClose={() => setAiAssistantOpen(false)}
               teacherSpeakingSec={isTeacher ? teacherSpeakingSec : studentSpeakingSec}
-              onOpen={() => { setAiAssistantOpen(true); setShowReport(false); setBoardOpen(false); }}
+              onOpen={() => { setAiAssistantOpen(true); setBoardOpen(false); }}
             />
           )}
         </AnimatePresence>
