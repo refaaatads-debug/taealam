@@ -1,3 +1,4 @@
+import { pollWhenVisible } from "@/lib/visiblePoll";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -219,7 +220,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
     fetchRows();
     // Realtime is normally enough, but polling keeps the calendar reliable
     // when a browser/tab misses the booking update that marks a session live.
-    const refreshTimer = window.setInterval(fetchRows, 15_000);
+    const stopPoll = pollWhenVisible(fetchRows, 30_000);
     const channel = supabase
       .channel(`sched-cal-${role}-${user.id}`)
       .on(
@@ -234,7 +235,7 @@ export default function ScheduledSessionsCalendar({ role }: Props) {
       )
       .subscribe();
     return () => {
-      window.clearInterval(refreshTimer);
+      stopPoll();
       supabase.removeChannel(channel);
     };
   }, [user, role, cursor, view, dateFilter]);
