@@ -11,6 +11,7 @@ import { ShieldAlert } from "lucide-react";
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, roles } = useAuth();
   const location = useLocation();
+  const rolesKey = [...roles].sort().join(",");
   const accessKey = `${user?.id || ""}:${[...roles].sort().join(",")}:${location.pathname}`;
   const [accessError, setAccessError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -89,7 +90,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     })();
 
     return () => { active = false; };
-  }, [user, roles, location.pathname, retry, accessKey]);
+    // Depend on stable identity values, not object references: a refocus can hand us new
+    // `user`/`roles` objects with the same content and must not re-run the check
+    // (it shows the loader and would unmount an active session).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, rolesKey, location.pathname, retry, accessKey]);
 
   if (loading || (user && checkedIdentity !== accessKey) || !banChecked || (roles.includes("teacher") && !roles.includes("admin") && !teacherStatusChecked)) {
     return (

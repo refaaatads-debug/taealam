@@ -284,7 +284,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
-        setUser(session?.user ?? null);
+        // Keep the same user object when only the token/event changed (tab refocus fires
+        // SIGNED_IN with a fresh object). A new reference re-ran ProtectedRoute's access
+        // check, which showed the loader and unmounted the live session page.
+        setUser((prev) => (session?.user && prev?.id === session.user.id ? prev : (session?.user ?? null)));
         if (session?.user) {
           // Skip noisy events that fire when switching tabs / refreshing tokens.
           // They cause the whole app to re-render with the loader.
