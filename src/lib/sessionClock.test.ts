@@ -8,6 +8,7 @@ import {
   resolveRemoteEndElapsed,
   restoreSessionClock,
   mergeRestoredElapsed,
+  shouldMarkRtcDisconnectedOnPeerLeft,
 } from "./sessionClock";
 
 const ready = {
@@ -81,5 +82,20 @@ describe("mergeRestoredElapsed", () => {
   it("returns null for zero, negative, NaN or missing values so the clock is never reset by bad data", () => {
     expect(mergeRestoredElapsed(0, null)).toBeNull();
     expect(mergeRestoredElapsed(-5, Number.NaN, undefined, "9")).toBeNull();
+  });
+});
+
+describe("peer left handling", () => {
+  it("keeps the RTC state when only the peer left and our Agora link is connected", () => {
+    expect(shouldMarkRtcDisconnectedOnPeerLeft("CONNECTED")).toBe(false);
+  });
+  it("still marks disconnected when our own Agora link is not connected", () => {
+    expect(shouldMarkRtcDisconnectedOnPeerLeft("RECONNECTING")).toBe(true);
+    expect(shouldMarkRtcDisconnectedOnPeerLeft("DISCONNECTED")).toBe(true);
+    expect(shouldMarkRtcDisconnectedOnPeerLeft(null)).toBe(true);
+  });
+  it("a peer that never published audio can still start the clock once counted as present", () => {
+    expect(canAccumulateSessionTime({ ...ready, expectedPeerReady: true })).toBe(true);
+    expect(canAccumulateSessionTime({ ...ready, expectedPeerReady: false })).toBe(false);
   });
 });

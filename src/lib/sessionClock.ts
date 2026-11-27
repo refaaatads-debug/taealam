@@ -73,3 +73,10 @@ export function mergeRestoredElapsed(...candidates: unknown[]) {
   }
   return best;
 }
+
+// When the expected peer leaves the Agora channel, only the peer is gone. Our own Agora connection
+// is still fine, so the RTC state must not be forced to "disconnected" (that paused the timer and
+// kept showing "reconnecting" even after the peer came back without publishing audio).
+export function shouldMarkRtcDisconnectedOnPeerLeft(ownAgoraState: string | null | undefined) {
+  return ownAgoraState !== "CONNECTED";
+}
