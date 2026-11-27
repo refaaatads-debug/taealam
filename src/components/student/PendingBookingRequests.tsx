@@ -1,3 +1,4 @@
+import { pollWhenVisible } from "@/lib/visiblePoll";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,10 +52,10 @@ export default function PendingBookingRequests({ embedded = false }: { embedded?
         fetchRequests();
       })
       .subscribe();
-    const refreshInterval = window.setInterval(fetchRequests, 15_000);
+    const stopPoll = pollWhenVisible(fetchRequests, 60_000);
 
     return () => {
-      window.clearInterval(refreshInterval);
+      stopPoll();
       supabase.removeChannel(channel);
     };
   }, [user]);

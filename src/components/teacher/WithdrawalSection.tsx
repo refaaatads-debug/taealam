@@ -1,3 +1,4 @@
+import { pollWhenVisible } from "@/lib/visiblePoll";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,11 +46,11 @@ export default function WithdrawalSection() {
       .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests", filter: `teacher_id=eq.${user.id}` }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "teacher_payments", filter: `teacher_id=eq.${user.id}` }, refresh)
       .subscribe();
-    const poll = window.setInterval(refresh, 15_000);
+    const stopPoll = pollWhenVisible(refresh, 60_000);
     window.addEventListener("focus", refresh);
     return () => {
       if (refreshTimer) clearTimeout(refreshTimer);
-      window.clearInterval(poll);
+      stopPoll();
       window.removeEventListener("focus", refresh);
       void supabase.removeChannel(channel);
     };

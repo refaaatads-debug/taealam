@@ -1,3 +1,4 @@
+import { pollWhenVisible } from "@/lib/visiblePoll";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,8 +63,7 @@ export default function InPersonTeacherPanel({ embedded = false }: { embedded?: 
 
   useEffect(() => {
     if (!user || !enabled) return;
-    const interval = window.setInterval(() => void refresh(), 15_000);
-    return () => window.clearInterval(interval);
+    return pollWhenVisible(() => void refresh(), 30_000);
   }, [user, enabled, refresh]);
 
   const accept = async (request: RequestRow) => {
