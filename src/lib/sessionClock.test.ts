@@ -7,6 +7,7 @@ import {
   isValidTimerRequest,
   resolveRemoteEndElapsed,
   restoreSessionClock,
+  mergeRestoredElapsed,
 } from "./sessionClock";
 
 const ready = {
@@ -63,5 +64,22 @@ describe("session clock readiness and recovery", () => {
     expect(resolveRemoteEndElapsed("student-1", "student-1", true, 50, 54)).toBe(54);
     expect(resolveRemoteEndElapsed("teacher-1", "teacher-1", false, 50, 54)).toBe(50);
     expect(resolveRemoteEndElapsed("stranger", "teacher-1", false, 50, 54)).toBeNull();
+  });
+});
+
+describe("mergeRestoredElapsed", () => {
+  it("takes the highest valid counted value", () => {
+    expect(mergeRestoredElapsed(120, 300)).toBe(300);
+    expect(mergeRestoredElapsed(300, 120)).toBe(300);
+  });
+  it("uses the server value when the browser has none (other device)", () => {
+    expect(mergeRestoredElapsed(null, 845.9)).toBe(845);
+  });
+  it("uses the browser value when the server column is missing", () => {
+    expect(mergeRestoredElapsed(77, null)).toBe(77);
+  });
+  it("returns null for zero, negative, NaN or missing values so the clock is never reset by bad data", () => {
+    expect(mergeRestoredElapsed(0, null)).toBeNull();
+    expect(mergeRestoredElapsed(-5, Number.NaN, undefined, "9")).toBeNull();
   });
 });

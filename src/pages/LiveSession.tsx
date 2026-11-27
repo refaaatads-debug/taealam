@@ -49,6 +49,7 @@ import {
   isValidTimerRequest,
   resolveRemoteEndElapsed,
   restoreSessionClock,
+  mergeRestoredElapsed,
 } from "@/lib/sessionClock";
 
 /** Chat image that fails once and shows a note instead of letting the browser
@@ -95,6 +96,7 @@ const LiveSession = () => {
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
   const shouldCountRef = useRef(false);
+  const countedHeartbeatSupportedRef = useRef(true);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [teacherSpeakingSec, setTeacherSpeakingSec] = useState(0);
   const [studentSpeakingSec, setStudentSpeakingSec] = useState(0);
@@ -1004,10 +1006,24 @@ const LiveSession = () => {
   useEffect(() => {
     if (!bookingId || !meetingStarted) return;
     const beat = () => {
-      void (supabase.rpc as any)("heartbeat_session", { p_booking_id: bookingId }).then(() => undefined, () => undefined);
+      const legacyBeat = () =>
+        void (supabase.rpc as any)("heartbeat_session", { p_booking_id: bookingId }).then(() => undefined, () => undefined);
+      if (!countedHeartbeatSupportedRef.current) { legacyBeat(); return; }
+      // Also report the counted (pause-aware) seconds so the server can bill and restore from the
+      // same second after an outage or a refresh on any device. Falls back to the plain heartbeat
+      // if the server function is not installed yet.
+      void (supabase.rpc as any)("heartbeat_session", {
+        p_booking_id: bookingId,
+        p_counted_seconds: Math.max(0, Math.floor(elapsedRef.current)),
+      }).then(
+        (res: { error?: unknown }) => {
+          if (res?.error) { countedHeartbeatSupportedRef.current = false; legacyBeat(); }
+        },
+        () => undefined,
+      );
     };
     beat();
-    const interval = window.setInterval(beat, 30_000);
+    const interval = window.setInterval(beat, 10_000);
     return () => window.clearInterval(interval);
   }, [bookingId, meetingStarted]);
 
@@ -1416,7 +1432,7 @@ const LiveSession = () => {
       const { elapsed: savedElapsed, ts } = JSON.parse(saved);
       const restored = restoreSessionClock(savedElapsed, ts, Date.now());
       if (restored === null) return;
-      setElapsed(restored);
+      setElapsed((prev) => Math.max(prev, restored));
       console.log(`[timer] restored elapsed from localStorage: ${restored}s`);
     } catch { /* ignore parse errors */ }
   }, [isTeacher, meetingStarted, bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1493,6 +1509,19 @@ const LiveSession = () => {
 
     const existingStartedAt = existingSess?.started_at;
 
+    // Counted (pause-aware) seconds saved on the server by the heartbeat. Lets a teacher or student
+    // who comes back after any delay, or on another device, continue from the same second.
+    let serverCounted: number | null = null;
+    if (existingStartedAt) {
+      try {
+        const { data: cs, error: csErr } = await (supabase.from("sessions") as any)
+          .select("counted_seconds")
+          .eq("booking_id", bookingId)
+          .maybeSingle();
+        if (!csErr && typeof cs?.counted_seconds === "number") serverCounted = cs.counted_seconds;
+      } catch { /* column not installed yet: keep the local checkpoint only */ }
+    }
+
     // Read locally persisted elapsed (respects pauses) — used on rejoin
     let persistedElapsed: number | null = null;
     try {
@@ -1534,10 +1563,13 @@ const LiveSession = () => {
             }),
           });
         }
-      } else if (persistedElapsed !== null) {
-        // Rejoin - restore exact elapsed from local persistence
-        setElapsed(persistedElapsed);
-        logEvent("rejoin_session", { role: "teacher", elapsed: persistedElapsed, source: "localStorage" });
+      } else {
+        // Rejoin - continue from the highest saved counted value (browser checkpoint or server)
+        const restoredElapsed = mergeRestoredElapsed(persistedElapsed, serverCounted);
+        if (restoredElapsed !== null) {
+          setElapsed((prev) => Math.max(prev, restoredElapsed));
+          logEvent("rejoin_session", { role: "teacher", elapsed: restoredElapsed, source: serverCounted !== null && serverCounted >= (persistedElapsed ?? 0) ? "server" : "localStorage" });
+        }
       }
       setSessionStartedAt(startedAtIso);
 
@@ -1547,9 +1579,10 @@ const LiveSession = () => {
       // Student: use authoritative started_at + persisted elapsed if available
       if (existingStartedAt) {
         setSessionStartedAt(existingStartedAt);
-        if (persistedElapsed !== null) {
-          setElapsed(persistedElapsed);
-          logEvent("rejoin_session", { role: "student", elapsed: persistedElapsed, source: "localStorage" });
+        const restoredElapsed = mergeRestoredElapsed(persistedElapsed, serverCounted);
+        if (restoredElapsed !== null) {
+          setElapsed((prev) => Math.max(prev, restoredElapsed));
+          logEvent("rejoin_session", { role: "student", elapsed: restoredElapsed, source: serverCounted !== null && serverCounted >= (persistedElapsed ?? 0) ? "server" : "localStorage" });
         }
         // Otherwise wait for teacher's `timer-sync` (sent on DataChannel ready)
       }
