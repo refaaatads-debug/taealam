@@ -58,3 +58,18 @@ export function restoreSessionClock(checkpoint: unknown, checkpointAt: unknown, 
   // Resume only accumulated time. Time while the tab was closed may include a peer/network outage.
   return Math.floor(elapsed);
 }
+
+/**
+ * Pick the counted-seconds value to continue from after a refresh, a long absence, or a switch of
+ * device. Takes the highest valid value among the browser checkpoint and the server's saved counted
+ * seconds. It never uses wall-clock time, so outage or pause time is never added.
+ */
+export function mergeRestoredElapsed(...candidates: unknown[]) {
+  let best: number | null = null;
+  for (const value of candidates) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    const whole = Math.floor(value);
+    if (best === null || whole > best) best = whole;
+  }
+  return best;
+}
