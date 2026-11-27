@@ -639,7 +639,7 @@ const LiveSession = () => {
       if (silentForSeconds >= TEACHER_SILENCE_WARN_SECONDS && !teacherSilenceWarningShownRef.current) {
         teacherSilenceWarningShownRef.current = true;
         // The 4 minute warning is stored as a session event (not a violation) so the admin can see it.
-        void supabase.from("session_events" as never).insert({ booking_id: bookingId, user_id: user?.id, event_type: "teacher_silence_warning", metadata: { seconds: silentForSeconds } } as never);
+        logEvent("teacher_silence_warning", { seconds: silentForSeconds });
         toast.warning("لم يُرصد صوت من المعلم منذ أربع دقائق. سيُسجَّل تنبيه عند استمرار الصمت دقيقة إضافية.");
       }
 
