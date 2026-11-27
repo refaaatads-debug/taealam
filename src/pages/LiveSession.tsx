@@ -1,3 +1,4 @@
+import { advanceSilenceClock, initialSilenceClock, silentSeconds as clockSilentSeconds, TEACHER_SILENCE_VIOLATION_SECONDS, TEACHER_SILENCE_WARN_SECONDS, type SilenceClock } from "@/lib/teacherSilence";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +106,7 @@ const LiveSession = () => {
   const [questionsDetected, setQuestionsDetected] = useState(0);
   const voiceActivityRef = useRef<{ localSpeaking: boolean; remoteSpeaking: boolean }>({ localSpeaking: false, remoteSpeaking: false });
   const connectionHealthyRef = useRef(false);
-  const teacherSilenceStartedAtRef = useRef<number | null>(null);
+  const teacherSilenceClockRef = useRef<SilenceClock>(initialSilenceClock());
   const teacherSilenceWarningShownRef = useRef(false);
   const teacherSilenceReportedRef = useRef(false);
   const teacherSilenceEventIdRef = useRef<string | null>(null);
@@ -601,12 +602,12 @@ const LiveSession = () => {
       }
       voiceActivityRef.current = { localSpeaking, remoteSpeaking };
 
-      // Only the teacher's own client can report this event. Require a live,
-      // unmuted teacher microphone and a healthy connection to avoid counting
-      // intentional mute or network failure as teacher silence.
-      const teacherTrack = isTeacher ? localStream?.getAudioTracks()[0] : null;
+      // Only the teacher's own client can report this event. The clock runs while the teacher is in a
+      // started session with a live, unmuted microphone, the student is present and the link is healthy.
+      // Any of those gaps PAUSES the clock (it does not reset it). Only the teacher speaking resets it.
+      if (!isTeacher) return;
+      const teacherTrack = localStream?.getAudioTracks()[0];
       const canMeasureTeacherSilence =
-        isTeacher &&
         meetingStarted &&
         bothJoined &&
         remoteConnected &&
@@ -616,38 +617,30 @@ const LiveSession = () => {
         teacherTrack.enabled &&
         !teacherTrack.muted;
 
-      if (!canMeasureTeacherSilence) {
-        teacherSilenceStartedAtRef.current = null;
-        teacherSilenceWarningShownRef.current = false;
-        teacherSilenceReportedRef.current = false;
-        teacherSilenceEventIdRef.current = null;
-        teacherSilenceLastAttemptRef.current = 0;
-        return;
-      }
-
-      const teacherSpeaking = isTeacher ? localSpeaking : remoteSpeaking;
       const now = performance.now();
-      if (teacherSpeaking) {
-        teacherSilenceStartedAtRef.current = now;
+      teacherSilenceClockRef.current = advanceSilenceClock(teacherSilenceClockRef.current, {
+        now,
+        measurable: canMeasureTeacherSilence,
+        teacherSpeaking: localSpeaking,
+      });
+      if (localSpeaking) {
         teacherSilenceWarningShownRef.current = false;
         teacherSilenceReportedRef.current = false;
         teacherSilenceEventIdRef.current = null;
         teacherSilenceLastAttemptRef.current = 0;
         return;
       }
+      if (!canMeasureTeacherSilence) return;
 
-      if (teacherSilenceStartedAtRef.current === null) {
-        teacherSilenceStartedAtRef.current = now;
-      }
-      const silentForSeconds = Math.floor((now - teacherSilenceStartedAtRef.current) / 1000);
+      const silentForSeconds = clockSilentSeconds(teacherSilenceClockRef.current);
 
-      if (silentForSeconds >= 240 && !teacherSilenceWarningShownRef.current) {
+      if (silentForSeconds >= TEACHER_SILENCE_WARN_SECONDS && !teacherSilenceWarningShownRef.current) {
         teacherSilenceWarningShownRef.current = true;
-        toast.warning("لم يُرصد صوت من المعلم منذ أربع دقائق. سيُسجَّل تنبيه عند استمرار الصمت دقيقة إضافية.");
+        toast.warning("لم يُرصد صوت من المعلم منذ أربع دقائق. سيُسجَّل تنبيه عند استمرار الصمت دقيقة إضافية.");
       }
 
       if (
-        silentForSeconds >= 300 &&
+        silentForSeconds >= TEACHER_SILENCE_VIOLATION_SECONDS &&
         !teacherSilenceReportedRef.current &&
         now - teacherSilenceLastAttemptRef.current >= 30_000
       ) {

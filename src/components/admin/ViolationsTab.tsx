@@ -50,6 +50,8 @@ const reasonForType = (type: string) => {
     profanity: "ألفاظ غير لائقة",
     harassment: "تحرش أو مضايقة",
     off_topic: "خروج عن موضوع الجلسة",
+    teacher_silence: "صمت المعلم أثناء الحصة (أكثر من 5 دقائق بدون صوت)",
+    teacher_late: "تأخر المعلم عن موعد الحصة",
   };
   return map[type] || "مخالفة لسياسات المنصة";
 };
