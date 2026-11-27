@@ -2673,7 +2673,7 @@ const LiveSession = () => {
                 <h3 className="font-bold text-foreground">تقرير الحصة</h3>
                 <button onClick={() => setShowReport(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors">✕</button>
               </div>
-              <SessionReport bookingId={bookingId || "demo"} />
+              <SessionReport bookingId={bookingId || "demo"} live={{ elapsedSeconds: elapsed, teacherSpeakingSec: isTeacher ? teacherSpeakingSec : studentSpeakingSec, studentSpeakingSec: isTeacher ? studentSpeakingSec : teacherSpeakingSec, messageCount: messages.length }} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -7,10 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
+import { buildLiveMeasuredStats, hasEnoughLiveData, type LiveReportInput } from "@/lib/liveReportView";
 
 interface Props {
   bookingId: string;
   existingReport?: string | null;
+  // Live measurements from the session page. When set, only measured values are shown.
+  live?: LiveReportInput;
 }
 
 interface RawStats {
@@ -73,7 +76,7 @@ const eventConfig: Record<string, { icon: string; label: string; color: string; 
   greeting: { icon: "👋", label: "تحية", color: "text-muted-foreground", dot: "bg-muted-foreground/50" },
 };
 
-export default function SessionReport({ bookingId, existingReport }: Props) {
+export default function SessionReport({ bookingId, existingReport, live }: Props) {
   const { user } = useAuth();
   const [report, setReport] = useState<StructuredReport | null>(null);
   const [rawReport, setRawReport] = useState(existingReport || "");
@@ -82,6 +85,8 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
   const [showRawStats, setShowRawStats] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showGaps, setShowGaps] = useState(false);
+  const [snapshot, setSnapshot] = useState<LiveReportInput | null>(null);
+  const [notEnough, setNotEnough] = useState(false);
 
   useEffect(() => {
     if (existingReport) {
@@ -101,9 +106,23 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
   }, [bookingId, user]);
 
   const generateReport = async () => {
+    if (live) {
+      // Decide with measured data first. Without enough data nothing is generated or saved.
+      if (!hasEnoughLiveData(live)) { setSnapshot(live); setNotEnough(true); return; }
+      setNotEnough(false);
+    }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("session-report", { body: { booking_id: bookingId } });
+      const body: Record<string, unknown> = { booking_id: bookingId };
+      if (live) {
+        setSnapshot(live);
+        body.session_stats = {
+          teacher_speaking_seconds: live.teacherSpeakingSec,
+          student_speaking_seconds: live.studentSpeakingSec,
+          duration_minutes: Math.max(1, Math.round(live.elapsedSeconds / 60)),
+        };
+      }
+      const { data, error } = await supabase.functions.invoke("session-report", { body });
       if (error) throw error;
       if (data.report) setReport(data.report);
     } catch { setRawReport("تعذر إنشاء التقرير. حاول مرة أخرى."); }
@@ -122,6 +141,8 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
     return <Badge className={`${m.cls} border-0 text-xs`}>{m.label}</Badge>;
   };
 
+  const liveMode = !!snapshot;
+  const measured = snapshot ? buildLiveMeasuredStats(snapshot) : null;
   const stats = report?.raw_stats;
   const timeline = report?.timeline || [];
   const gaps = report?.gap_warnings || [];
@@ -144,10 +165,16 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
           </Badge>
         )}
 
-        {report ? (
+        {notEnough ? (
+          <div className="text-center py-6">
+            <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-4">لا توجد بيانات كافية</p>
+            <Button variant="outline" onClick={generateReport} disabled={loading} className="rounded-xl">تحديث</Button>
+          </div>
+        ) : report ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
             {/* Badges */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {!liveMode && <div className="flex items-center gap-2 flex-wrap">
               {getDataLevelBadge(report.data_level)}
               {report.is_regenerated && <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">♻️ مُعاد التوليد</Badge>}
               {report.usefulness_score !== undefined && (
@@ -155,14 +182,14 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
                   جودة: {report.usefulness_score}/10
                 </Badge>
               )}
-            </div>
+            </div>}
 
-            {/* Performance Score */}
-            <div className="bg-muted/50 rounded-2xl p-4 text-center">
+            {/* Performance Score (hidden live: it was a formula, not a measurement) */}
+            {!liveMode && <div className="bg-muted/50 rounded-2xl p-4 text-center">
               <p className="text-sm text-muted-foreground mb-2">درجة الأداء</p>
               <p className={`text-4xl font-black ${getScoreColor(report.performance_score)}`}>{report.performance_score}/100</p>
               <Progress value={report.performance_score} className={`mt-2 h-2 ${getScoreBg(report.performance_score)}`} />
-            </div>
+            </div>}
 
             {/* Timeline Stats Chips */}
             {tStats && (
@@ -180,17 +207,17 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-muted/50 rounded-xl p-2.5 text-center">
                   <Clock className="h-4 w-4 text-secondary mx-auto mb-0.5" />
-                  <p className="text-lg font-black text-foreground">{stats.duration_minutes}</p>
+                  <p className="text-lg font-black text-foreground">{measured ? measured.elapsedMinutes : stats.duration_minutes}</p>
                   <p className="text-[10px] text-muted-foreground">دقيقة</p>
                 </div>
                 <div className="bg-muted/50 rounded-xl p-2.5 text-center">
                   <Mic className="h-4 w-4 text-green-500 mx-auto mb-0.5" />
-                  <p className="text-lg font-black text-foreground">{stats.teacher_speaking_minutes}د</p>
+                  <p className="text-lg font-black text-foreground">{measured ? measured.teacherSpeakingMinutes : stats.teacher_speaking_minutes}د</p>
                   <p className="text-[10px] text-muted-foreground">كلام المعلم</p>
                 </div>
                 <div className="bg-muted/50 rounded-xl p-2.5 text-center">
                   <Mic className="h-4 w-4 text-blue-500 mx-auto mb-0.5" />
-                  <p className="text-lg font-black text-foreground">{stats.student_speaking_minutes}د</p>
+                  <p className="text-lg font-black text-foreground">{measured ? measured.studentSpeakingMinutes : stats.student_speaking_minutes}د</p>
                   <p className="text-[10px] text-muted-foreground">كلام الطالب</p>
                 </div>
                 <div className="bg-muted/50 rounded-xl p-2.5 text-center">
@@ -205,7 +232,7 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
                 </div>
                 <div className="bg-muted/50 rounded-xl p-2.5 text-center">
                   <Volume2 className="h-4 w-4 text-muted-foreground mx-auto mb-0.5" />
-                  <p className="text-lg font-black text-foreground">{stats.silence_minutes}د</p>
+                  <p className="text-lg font-black text-foreground">{measured ? measured.silenceMinutes : stats.silence_minutes}د</p>
                   <p className="text-[10px] text-muted-foreground">صمت</p>
                 </div>
               </div>
@@ -322,10 +349,10 @@ export default function SessionReport({ bookingId, existingReport }: Props) {
                 </Button>
                 {showRawStats && (
                   <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground space-y-1 font-mono">
-                    <p>المدة: {stats.duration_minutes} دقيقة</p>
-                    <p>كلام المعلم: {stats.teacher_speaking_minutes} دقيقة</p>
-                    <p>كلام الطالب: {stats.student_speaking_minutes} دقيقة</p>
-                    <p>الصمت: {stats.silence_minutes} دقيقة</p>
+                    <p>المدة: {measured ? measured.elapsedMinutes : stats.duration_minutes} دقيقة</p>
+                    <p>كلام المعلم: {measured ? measured.teacherSpeakingMinutes : stats.teacher_speaking_minutes} دقيقة</p>
+                    <p>كلام الطالب: {measured ? measured.studentSpeakingMinutes : stats.student_speaking_minutes} دقيقة</p>
+                    <p>الصمت: {measured ? measured.silenceMinutes : stats.silence_minutes} دقيقة</p>
                     <p>الرسائل: {stats.total_messages} (معلم: {stats.teacher_messages_count}، طالب: {stats.student_messages_count})</p>
                     <p>الأسئلة: {stats.questions_detected} | المخالفات: {stats.violations_count}</p>
                   </div>
