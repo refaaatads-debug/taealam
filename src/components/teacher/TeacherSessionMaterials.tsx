@@ -1,3 +1,4 @@
+import StoredSessionReport from "@/components/StoredSessionReport";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -353,6 +354,7 @@ export default function TeacherSessionMaterials() {
                                     <p className="text-sm text-muted-foreground">يجري التحقق من التسجيل ومحاولة حفظه تلقائيًا.</p>
                                   </div>
                                 )}
+                                <StoredSessionReport aiReport={m.ai_report} showViolations />
                               </div>
                             </motion.div>
                           )}
