@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import siteLogo from "@/assets/logo.png";
+import { hasSummaryContent, isTeacherVoiceSilent, shouldShowSanadToast, SANAD_SILENCE_MS } from "@/lib/sanadSignals";
 
 interface ChatMessage {
   sender: string;
@@ -33,9 +34,12 @@ interface LiveAIAssistantProps {
   elapsedSeconds: number;
   isOpen: boolean;
   onClose: () => void;
+  // Teacher voice seconds so far (same counter the 4/5 minute silence rule uses).
+  teacherSpeakingSec?: number;
+  onOpen?: () => void;
 }
 
-const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }: LiveAIAssistantProps) => {
+const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, teacherSpeakingSec = 0, onOpen }: LiveAIAssistantProps) => {
   const [enabled, setEnabled] = useState(true);
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,13 +51,30 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
 
   const elapsedMinutes = Math.floor(elapsedSeconds / 60);
 
-  const addInsight = useCallback((insight: Omit<AIInsight, "id" | "timestamp">) => {
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+  const onOpenRef = useRef(onOpen);
+  useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
+  const lastToastAtRef = useRef(0);
+  const lastTeacherVoiceAtRef = useRef(Date.now());
+  const lastTeacherVoiceSecRef = useRef(0);
+
+  // Auto insights (not the manual buttons) also reach the teacher as a short toast when the panel is closed.
+  const addInsight = useCallback((insight: Omit<AIInsight, "id" | "timestamp">, opts?: { notify?: boolean }) => {
     const newInsight: AIInsight = {
       ...insight,
       id: crypto.randomUUID(),
       timestamp: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
     };
     setInsights(prev => [newInsight, ...prev].slice(0, 20));
+    if (opts?.notify && shouldShowSanadToast({ lastToastAt: lastToastAtRef.current, now: Date.now(), panelOpen: isOpenRef.current })) {
+      lastToastAtRef.current = Date.now();
+      toast.info(`سند: ${insight.title}`, {
+        description: insight.content?.slice(0, 120),
+        duration: 8000,
+        action: onOpenRef.current ? { label: "افتح سند", onClick: () => onOpenRef.current?.() } : undefined,
+      });
+    }
   }, []);
 
   // Analyze chat on new messages
@@ -79,14 +100,14 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
             title: "الطالب يبدو غير متأكد",
             content: data.suggestions?.[0] || "حاول إعادة الشرح بطريقة مختلفة",
             details: data.suggestions,
-          });
+          }, { notify: true });
         } else if (data.suggestions?.length > 0) {
           addInsight({
             type: "suggestion",
             title: "اقتراح تعليمي",
             content: data.suggestions[0],
             details: data.suggestions,
-          });
+          }, { notify: true });
         }
 
         if (data.key_question && data.key_question !== "null") {
@@ -94,7 +115,7 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
             type: "suggestion",
             title: "سؤال مهم من الطالب",
             content: data.key_question,
-          });
+          }, { notify: true });
         }
       } catch (e) {
         console.error("AI analysis error:", e);
@@ -118,14 +139,15 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
           body: { messages, subject, action: "mini_summary", elapsed_minutes: elapsedMinutes },
         });
         if (error) throw error;
-        if (!data) return;
+        // Nothing to say: show nothing (no placeholder summary).
+        if (!hasSummaryContent(data)) return;
 
         addInsight({
           type: "summary",
           title: `ملخص - دقيقة ${elapsedMinutes}`,
-          content: data.recommendation || "لا توجد توصيات",
+          content: data.recommendation || "",
           details: data.summary_points,
-        });
+        }, { notify: true });
       } catch (e) {
         console.error("Summary error:", e);
       }
@@ -134,36 +156,40 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose }:
     generateSummary();
   }, [elapsedMinutes, enabled, messages, subject, addInsight]);
 
-  // Silence detection (2 minutes of no activity)
+  // Track teacher voice: the counter grows only while the teacher's microphone is active.
+  useEffect(() => {
+    if (teacherSpeakingSec > lastTeacherVoiceSecRef.current) lastTeacherVoiceAtRef.current = Date.now();
+    lastTeacherVoiceSecRef.current = teacherSpeakingSec;
+  }, [teacherSpeakingSec]);
+
+  // Silence detection: no teacher voice for 4 minutes (same signal and threshold as the teacher silence warning).
   useEffect(() => {
     if (!enabled) return;
 
     silenceCheckerRef.current = window.setInterval(() => {
-      const silence = Date.now() - lastActivityRef.current;
-      if (silence >= 120_000) {
-        lastActivityRef.current = Date.now(); // Reset to avoid spam
+      if (!isTeacherVoiceSilent(lastTeacherVoiceAtRef.current, Date.now(), SANAD_SILENCE_MS)) return;
+      lastTeacherVoiceAtRef.current = Date.now(); // one suggestion per silent stretch
 
-        const suggest = async () => {
-          try {
-            const { data, error } = await supabase.functions.invoke("live-ai-assistant", {
-              body: { subject, action: "silence_suggestion", elapsed_minutes: elapsedMinutes },
-            });
-            if (error) throw error;
-            if (!data) return;
+      const suggest = async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("live-ai-assistant", {
+            body: { subject, action: "silence_suggestion", elapsed_minutes: elapsedMinutes },
+          });
+          if (error) throw error;
+          if (!data) return;
 
-            addInsight({
-              type: "silence",
-              title: "لاحظنا صمتاً في الجلسة",
-              content: data.suggested_question || "اطرح سؤالاً تفاعلياً على الطالب",
-              details: data.ice_breaker ? [data.ice_breaker] : undefined,
-            });
-          } catch (e) {
-            console.error("Silence suggestion error:", e);
-          }
-        };
+          addInsight({
+            type: "silence",
+            title: "لاحظنا صمتاً في الجلسة",
+            content: data.suggested_question || "اطرح سؤالاً تفاعلياً على الطالب",
+            details: data.ice_breaker ? [data.ice_breaker] : undefined,
+          }, { notify: true });
+        } catch (e) {
+          console.error("Silence suggestion error:", e);
+        }
+      };
 
-        suggest();
-      }
+      suggest();
     }, 30_000);
 
     return () => clearInterval(silenceCheckerRef.current);
