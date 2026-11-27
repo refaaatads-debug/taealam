@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Mic, MicOff, Monitor, MessageSquare,
-  PenTool, Phone, Send, Users, MoreVertical, Hand, FileText, Clock,
+  PenTool, Phone, Send, Users, Hand, FileText, Clock,
   Circle, Square, Wifi, WifiOff, RefreshCw, Headphones, ShieldAlert, AlertTriangle, VolumeX,
   Pen, Brain, Pause, Play, Paperclip, Download, Loader2, Image as ImageIcon, Maximize, Minimize
 } from "lucide-react";
@@ -23,7 +23,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getMinuteBalanceNotification } from "@/lib/minuteBalanceNotification";
 import { useAuth } from "@/contexts/AuthContext";
-import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { withWebmDuration } from "@/lib/webmDuration";
@@ -94,7 +93,6 @@ const LiveSession = () => {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [remoteHandRaised, setRemoteHandRaised] = useState(false);
-  const [showReport, setShowReport] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef(0);
@@ -2316,11 +2314,6 @@ const LiveSession = () => {
               className="h-7 text-[11px] rounded-lg bg-card/10 border-card/20 text-card hover:bg-card/20"
             />
           )}
-          {isTeacher && (
-            <Button size="icon" variant="ghost" className="text-card/50 hover:text-card hover:bg-card/10 h-8 w-8 rounded-lg" onClick={() => setShowReport(!showReport)}>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       </div>
 
@@ -2435,7 +2428,7 @@ const LiveSession = () => {
        <div className="flex-1 min-h-0 flex flex-col md:flex-row relative overflow-hidden bg-[#e9eee7]">
 
         {/* Main area */}
-         <div className={`order-0 md:order-1 min-h-0 min-w-0 flex-[1.2] md:flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-[#e9eee7] ${showReport ? "hidden md:flex" : ""}`}>
+         <div className={`order-0 md:order-1 min-h-0 min-w-0 flex-[1.2] md:flex-1 flex flex-col items-center justify-center relative ${workspaceSharing ? "p-0" : "p-2 md:p-4"} bg-[#e9eee7]`}>
           {meetingStarted ? (
               <div className={`absolute w-auto h-auto overflow-hidden bg-foreground flex items-center justify-center ${workspaceSharing ? "inset-0 rounded-none border-0 shadow-none" : "inset-2 md:inset-4 rounded-2xl md:rounded-3xl border border-border/50 shadow-lg shadow-foreground/10"}`}>
                {/* Workspace status: the active teaching surface is always explicit. */}
@@ -2665,19 +2658,6 @@ const LiveSession = () => {
 
         {/* Whiteboard Panel removed - drawing is now overlay on screen share */}
 
-        {/* Session Report Panel */}
-        <AnimatePresence>
-          {showReport && isTeacher && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="w-full md:w-96 bg-card border-r absolute md:relative inset-0 md:inset-auto z-10 overflow-y-auto p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-foreground">تقرير الحصة</h3>
-                <button onClick={() => setShowReport(false)} className="text-muted-foreground hover:text-foreground md:hidden transition-colors">✕</button>
-              </div>
-              <SessionReport bookingId={bookingId || "demo"} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* AI Assistant Panel - Teacher Only */}
         <AnimatePresence>
           {isTeacher && (
@@ -2821,7 +2801,7 @@ const LiveSession = () => {
               <Monitor className="h-4 w-4" />
               <span className="text-[10px] md:text-xs">{screenSharing ? "إيقاف المشاركة" : "مشاركة الشاشة"}</span>
             </Button>
-            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !boardOpen; setBoardOpen(next); setShowReport(false); sendDataMessage({ type: "whiteboard-toggle", open: next }); }} disabled={!meetingStarted} title="السبورة">
+            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${boardOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { const next = !boardOpen; setBoardOpen(next); sendDataMessage({ type: "whiteboard-toggle", open: next }); }} disabled={!meetingStarted} title="السبورة">
               <PenTool className="h-4 w-4" />
               <span className="text-[10px] md:text-xs">{boardOpen ? "إخفاء السبورة" : "السبورة"}</span>
             </Button>
@@ -2860,14 +2840,10 @@ const LiveSession = () => {
         {/* Teacher extra controls */}
         {isTeacher && (
           <>
-            <Button size="sm" className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${showReport ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`} onClick={() => { setShowReport(!showReport); setBoardOpen(false); setAiAssistantOpen(false); }} title="التقرير">
-              <FileText className="h-4 w-4" />
-              <span className="text-[10px] md:text-xs">تقرير الحصة</span>
-            </Button>
             <Button
               size="sm"
               className={`h-auto min-h-12 w-full md:w-auto flex-col md:flex-row gap-1.5 md:gap-2 rounded-xl px-2.5 py-2 shadow-md hover:scale-[1.02] transition-all ${aiAssistantOpen ? "gradient-cta text-secondary-foreground shadow-button border-0 ring-2 ring-secondary/40" : "bg-card/15 hover:bg-card/25 text-card border-0 ring-1 ring-card/20"}`}
-              onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setShowReport(false); setBoardOpen(false); }}
+              onClick={() => { setAiAssistantOpen(!aiAssistantOpen); setBoardOpen(false); }}
               disabled={!meetingStarted}
               title="سند"
             >
