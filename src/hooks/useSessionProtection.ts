@@ -2,30 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// ─── Regex patterns for personal data detection ───
-const PHONE_REGEX = /\d{7,}/g;
-const EMAIL_REGEX = /[\w.-]+@[\w.-]+\.\w{2,}/gi;
-const URL_REGEX = /(https?:\/\/|www\.|\.com|\.net|\.org|\.io|\.me|\.sa)/gi;
-const PLUS_PHONE_REGEX = /\+\d{8,}/g;
-
-// Arabic/English keywords indicating contact sharing intent
-const VOICE_KEYWORDS = [
-  "واتساب", "واتس", "whatsapp", "واتس اب",
-  "تليجرام", "تلجرام", "telegram",
-  "كلمني", "كلّمني", "ابعتلي", "ابعت لي",
-  "رقمك", "رقمي", "نمرتك", "نمرتي",
-  "ايميلك", "ايميلي", "بريدك",
-  "سناب", "سنابي", "snapchat", "snap",
-  "انستقرام", "انستا", "instagram",
-  "فيسبوك", "فيس", "facebook",
-  "تويتر", "twitter",
-  "تيك توك", "tiktok",
-  "ارسلي", "ارسل لي", "send me",
-  "add me", "اضفني",
-  "حسابي", "حسابك",
-  "my number", "your number",
-  "call me", "text me",
-];
+import { detectPersonalInfo, maskedEvidence, type PersonalInfoType } from "../../supabase/functions/_shared/personalInfo";
 
 interface ViolationRecord {
   type: "chat" | "voice";
@@ -60,6 +37,7 @@ export function useSessionProtection({
   const recognitionRef = useRef<any>(null);
   const analysisIntervalRef = useRef<number>();
   const transcriptBufferRef = useRef<string>("");
+  const previousVoiceWindowRef = useRef<string>("");
   const muteTimerRef = useRef<number>();
   const violationCountRef = useRef(0);
 
@@ -69,28 +47,10 @@ export function useSessionProtection({
   }, [violationCount]);
 
   // ─── Chat Filtering ───
-  const analyzeText = useCallback((text: string): { isViolation: boolean; detected: string } => {
-    const phones = text.match(PHONE_REGEX);
-    if (phones) return { isViolation: true, detected: `رقم هاتف: ${phones[0]}` };
-
-    const plusPhones = text.match(PLUS_PHONE_REGEX);
-    if (plusPhones) return { isViolation: true, detected: `رقم دولي: ${plusPhones[0]}` };
-
-    const emails = text.match(EMAIL_REGEX);
-    if (emails) return { isViolation: true, detected: `بريد إلكتروني: ${emails[0]}` };
-
-    const urls = text.match(URL_REGEX);
-    if (urls) return { isViolation: true, detected: `رابط: ${urls[0]}` };
-
-    // Check keywords
-    const lowerText = text.toLowerCase();
-    for (const keyword of VOICE_KEYWORDS) {
-      if (lowerText.includes(keyword.toLowerCase())) {
-        return { isViolation: true, detected: `كلمة محظورة: ${keyword}` };
-      }
-    }
-
-    return { isViolation: false, detected: "" };
+  // One shared detector (phones even when spaced or spelled out, emails, links, handles, addresses).
+  const analyzeText = useCallback((text: string): { isViolation: boolean; detected: string; type: PersonalInfoType | null } => {
+    const r = detectPersonalInfo(text);
+    return { isViolation: r.detected, detected: maskedEvidence(r), type: r.type };
   }, []);
 
   const filterChatMessage = useCallback((message: string): { allowed: boolean; reason?: string } => {
@@ -116,17 +76,12 @@ export function useSessionProtection({
     const record: ViolationRecord = { type, content: detected, timestamp: Date.now() };
     setViolations(prev => [...prev, record]);
 
-    // Save to DB
+    // Save through the server: normal users cannot insert into violations, and the server re-checks the text.
     try {
-      await supabase.from("violations").insert({
-        user_id: userId,
-        booking_id: bookingId,
-        violation_type: "contact_sharing",
-        detected_text: detected,
-        original_message: originalText || null,
-        source: type,
-        confidence_score: type === "chat" ? 1.0 : 0.8,
+      const { error } = await supabase.functions.invoke("record-personal-info-violation", {
+        body: { booking_id: bookingId, source: type, text: originalText || detected },
       });
+      if (error) console.error("Failed to record violation:", error);
     } catch (e) {
       console.error("Failed to record violation:", e);
     }
@@ -249,9 +204,14 @@ export function useSessionProtection({
       const buffer = transcriptBufferRef.current.trim();
       if (!buffer) return;
 
-      const result = analyzeText(buffer);
+      // Look at the previous window too, so a number spoken across two windows is still caught.
+      const combined = `${previousVoiceWindowRef.current} ${buffer}`.trim();
+      const result = analyzeText(combined);
       if (result.isViolation) {
-        recordViolation("voice", result.detected, buffer);
+        recordViolation("voice", result.detected, combined);
+        previousVoiceWindowRef.current = "";
+      } else {
+        previousVoiceWindowRef.current = buffer.slice(-200);
       }
 
       // Clear buffer
@@ -271,6 +231,7 @@ export function useSessionProtection({
       analysisIntervalRef.current = undefined;
     }
     transcriptBufferRef.current = "";
+    previousVoiceWindowRef.current = "";
   }, []);
 
   // Start/stop voice monitoring based on meeting state

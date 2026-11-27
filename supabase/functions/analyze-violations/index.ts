@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
+import { detectPersonalInfo } from "../_shared/personalInfo.ts";
 
 const ALLOWED_WORDS = [
   "رقم الصفحة", "رقم السؤال", "رقم التمرين", "صفحة رقم",
@@ -28,6 +29,9 @@ function regexPreCheck(text: string): { suspicious: boolean; matches: string[] }
     const found = text.match(p);
     if (found) matches.push(...found);
   }
+  // Shared detector: spaced/spelled digits, spoken emails, addresses.
+  const shared = detectPersonalInfo(text);
+  for (const h of shared.hits) if (!matches.includes(h.matched)) matches.push(h.matched);
   return { suspicious: matches.length > 0, matches };
 }
 
@@ -146,7 +150,7 @@ serve(async (req) => {
       }
 
       // AI analysis with retry
-      let analysis = { is_violation: true, confidence: 0.6, reason: "كشف بالأنماط (Regex)", violation_type: "contact_sharing" };
+      let analysis = { is_violation: true, confidence: 0.6, reason: "كشف بالأنماط (Regex)", violation_type: detectPersonalInfo(text).type === "address_sharing" ? "address_sharing" : "contact_sharing" };
       try {
         const geminiModel = await getGeminiModel(GEMINI_API_KEY);
         const aiResult = await callAIWithRetry(GEMINI_API_KEY, {
@@ -157,7 +161,7 @@ serve(async (req) => {
               content: `أنت نظام كشف مخالفات في منصة تعليمية. حلل الرسالة لاكتشاف مشاركة معلومات اتصال خارجية.
 المخالفات: أرقام هواتف، إيميلات، واتساب/تلغرام/سناب، عبارات "تواصل معي"/"رقمي"/"كلمني برا".
 ليس مخالفة: "رقم الصفحة"، أرقام تعليمية، ذكر تطبيقات بسياق عام.
-أجب بـ JSON: {"is_violation": bool, "confidence": 0-1, "reason": "سبب", "violation_type": "contact_sharing/platform_mention/coded_message/none"}`
+أجب بـ JSON: {"is_violation": bool, "confidence": 0-1, "reason": "سبب", "violation_type": "contact_sharing/address_sharing/platform_mention/coded_message/none"}`
             },
             { role: "user", content: `حلل:\n"${text}"\n\nأنماط regex: ${matches.join(", ")}` }
           ],
@@ -172,7 +176,7 @@ serve(async (req) => {
                   is_violation: { type: "boolean" },
                   confidence: { type: "number", minimum: 0, maximum: 1 },
                   reason: { type: "string" },
-                  violation_type: { type: "string", enum: ["contact_sharing", "platform_mention", "coded_message", "none"] },
+                  violation_type: { type: "string", enum: ["contact_sharing", "address_sharing", "platform_mention", "coded_message", "none"] },
                 },
                 required: ["is_violation", "confidence", "reason", "violation_type"],
                 additionalProperties: false,
