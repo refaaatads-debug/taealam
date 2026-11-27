@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import siteLogo from "@/assets/logo.png";
-import { hasSummaryContent, isTeacherVoiceSilent, shouldShowSanadToast, SANAD_SILENCE_MS } from "@/lib/sanadSignals";
+import { hasSummaryContent, nextSanadSilenceState, shouldShowSanadToast } from "@/lib/sanadSignals";
 
 interface ChatMessage {
   sender: string;
@@ -35,11 +35,12 @@ interface LiveAIAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   // Teacher voice seconds so far (same counter the 4/5 minute silence rule uses).
-  teacherSpeakingSec?: number;
+  // Shared teacher silence clock in seconds (same value the 4/5 minute rule uses).
+  silenceSecondsRef?: { current: number };
   onOpen?: () => void;
 }
 
-const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, teacherSpeakingSec = 0, onOpen }: LiveAIAssistantProps) => {
+const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, silenceSecondsRef, onOpen }: LiveAIAssistantProps) => {
   const [enabled, setEnabled] = useState(true);
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,8 +57,7 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, t
   const onOpenRef = useRef(onOpen);
   useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
   const lastToastAtRef = useRef(0);
-  const lastTeacherVoiceAtRef = useRef(Date.now());
-  const lastTeacherVoiceSecRef = useRef(0);
+  const silenceNotifiedRef = useRef(false);
 
   // Auto insights (not the manual buttons) also reach the teacher as a short toast when the panel is closed.
   const addInsight = useCallback((insight: Omit<AIInsight, "id" | "timestamp">, opts?: { notify?: boolean }) => {
@@ -156,19 +156,14 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, t
     generateSummary();
   }, [elapsedMinutes, enabled, messages, subject, addInsight]);
 
-  // Track teacher voice: the counter grows only while the teacher's microphone is active.
-  useEffect(() => {
-    if (teacherSpeakingSec > lastTeacherVoiceSecRef.current) lastTeacherVoiceAtRef.current = Date.now();
-    lastTeacherVoiceSecRef.current = teacherSpeakingSec;
-  }, [teacherSpeakingSec]);
-
-  // Silence detection: no teacher voice for 4 minutes (same signal and threshold as the teacher silence warning).
+  // Silence: reads the shared teacher silence clock (same one as the 4 min warning and 5 min violation).
   useEffect(() => {
     if (!enabled) return;
 
     silenceCheckerRef.current = window.setInterval(() => {
-      if (!isTeacherVoiceSilent(lastTeacherVoiceAtRef.current, Date.now(), SANAD_SILENCE_MS)) return;
-      lastTeacherVoiceAtRef.current = Date.now(); // one suggestion per silent stretch
+      const next = nextSanadSilenceState(silenceSecondsRef?.current ?? 0, silenceNotifiedRef.current);
+      silenceNotifiedRef.current = next.notified;
+      if (!next.suggest) return;
 
       const suggest = async () => {
         try {
@@ -190,10 +185,10 @@ const LiveAIAssistant = ({ messages, subject, elapsedSeconds, isOpen, onClose, t
       };
 
       suggest();
-    }, 30_000);
+    }, 5_000);
 
     return () => clearInterval(silenceCheckerRef.current);
-  }, [enabled, subject, elapsedMinutes, addInsight]);
+  }, [enabled, subject, elapsedMinutes, addInsight, silenceSecondsRef]);
 
   // Update activity on new messages
   useEffect(() => {
