@@ -1644,6 +1644,13 @@ export function useWebRTC({
     return new Blob(recordedChunksRef.current, { type: "video/webm" });
   }, []);
 
+  /** Which stream getRecordingBlob() is currently returning (the part uploader needs to know). */
+  const getRecordingSource = useCallback((): string | null => {
+    const directSize = directScreenChunksRef.current.reduce((s, b) => s + b.size, 0);
+    if (directSize > 0) return "direct";
+    return recordedChunksRef.current.length > 0 ? "canvas" : null;
+  }, []);
+
   const stop = useCallback(async () => {
     if (agoraRejoinTimerRef.current) {
       clearTimeout(agoraRejoinTimerRef.current);
@@ -1751,6 +1758,7 @@ export function useWebRTC({
     startAutoRecording,
     stopRecording,
     getRecordingBlob,
+    getRecordingSource,
     restartConnection,
     sendDataMessage,
     setVideoQuality,

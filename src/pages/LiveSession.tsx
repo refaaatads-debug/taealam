@@ -27,6 +27,10 @@ import SessionReport from "@/components/SessionReport";
 import { toast } from "sonner";
 import { safeErrorMessage } from "@/lib/safeErrorMessage";
 import { withWebmDuration } from "@/lib/webmDuration";
+import {
+  BACKUP_EVERY_MS, isRecordingPartsEnabled, newPartsState, partsFolderForFile,
+  recoverOrphanedParts, removePartsFolder, uploadNewParts, type PartsState,
+} from "@/lib/recordingParts";
 import { notificationTemplates } from "@/lib/notificationTemplates";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useConnectionQuality, type ConnectionQuality } from "@/hooks/useConnectionQuality";
@@ -369,6 +373,7 @@ const LiveSession = () => {
     startAutoRecording,
     stopRecording,
     getRecordingBlob,
+    getRecordingSource,
     restartConnection,
     sendDataMessage,
     setVideoQuality,
@@ -1037,7 +1042,6 @@ const LiveSession = () => {
         const { listAllBackups, clearRecordingBackup } = await import("@/lib/recordingBackup");
         const backups = await listAllBackups();
         const mine = backups.filter((b) => b.userId === user.id);
-        if (mine.length === 0) return;
         console.log(`[recording-backup] found ${mine.length} pending backup(s), retrying upload...`);
         for (const b of mine) {
           try {
@@ -1065,6 +1069,13 @@ const LiveSession = () => {
       } catch (e) {
         console.warn("[recording-backup] recovery init failed:", e);
       }
+      // Part-upload mode: rebuild any old session whose browser died before the final upload.
+      if (isRecordingPartsEnabled()) {
+        try {
+          const n = await recoverOrphanedParts(supabase as any, user.id);
+          if (n > 0) toast.success("تم استرداد تسجيل سابق من الأجزاء المحفوظة ✅");
+        } catch {}
+      }
     })();
   }, [isTeacher, user]);
 
@@ -1084,6 +1095,9 @@ const LiveSession = () => {
   const chunkUploadPromiseRef = useRef<Promise<void> | null>(null);
   const chunkUploadIntervalRef = useRef<number | null>(null);
   const lastUploadedSizeRef = useRef(0);
+  // Part-upload mode (off by default): per minute only the NEW bytes are sent.
+  const partsStateRef = useRef<PartsState>(newPartsState());
+  const lastLocalBackupAtRef = useRef(0);
 
   // Keep one object key from the first chunk through the final upload.
   useEffect(() => {
@@ -1093,6 +1107,8 @@ const LiveSession = () => {
       chunkUploadOwnerKeyRef.current = ownerKey;
       chunkUploadFileNameRef.current = `${user.id}/${bookingId}_${Date.now()}.webm`;
       lastUploadedSizeRef.current = 0;
+      partsStateRef.current = newPartsState();
+      lastLocalBackupAtRef.current = 0;
       console.log("[chunked-upload] filename set:", chunkUploadFileNameRef.current);
     }
   }, [isRecording, bookingId, user]);
@@ -1113,6 +1129,50 @@ const LiveSession = () => {
 
     chunkUploadInFlightRef.current = true;
     setUploadStatus("uploading");
+
+    if (isRecordingPartsEnabled()) {
+      // NEW path: upload only the bytes added since the last confirmed part. The full file is still
+      // uploaded once at the end (uploadRecording). The browser keeps a full local backup too.
+      try {
+        const folder = partsFolderForFile(fileName);
+        if (!folder) throw new Error("bad recording file name");
+        const ok = await uploadNewParts(
+          blob,
+          getRecordingSource(),
+          folder,
+          partsStateRef.current,
+          async (name, body) => {
+            const { error } = await supabase.storage
+              .from("session-recordings")
+              .upload(name, body, { contentType: "video/webm", upsert: true });
+            if (error) throw error;
+          },
+        );
+        // Local full backup every few minutes, and immediately whenever a part upload failed.
+        if (!ok || Date.now() - lastLocalBackupAtRef.current >= BACKUP_EVERY_MS) {
+          try {
+            const { saveRecordingBackup } = await import("@/lib/recordingBackup");
+            await saveRecordingBackup({ bookingId, userId: user.id, fileName, blob, size: blob.size, savedAt: Date.now() });
+            lastLocalBackupAtRef.current = Date.now();
+          } catch {}
+        }
+        if (ok) {
+          uploadFailureCountRef.current = 0;
+          lastUploadedSizeRef.current = blob.size;
+          setUploadStatus("synced");
+          setLastUploadAt(Date.now());
+        } else {
+          uploadFailureCountRef.current += 1;
+          setUploadStatus("queued");
+        }
+      } catch (e) {
+        console.warn("[part-upload] failed; local backup retained", e);
+        uploadFailureCountRef.current += 1;
+        setUploadStatus("queued");
+      }
+      chunkUploadInFlightRef.current = false;
+      return;
+    }
 
     // Always save a local backup BEFORE upload — guarantees recovery even if upload fails forever
     try {
@@ -1183,7 +1243,7 @@ const LiveSession = () => {
     }
 
     chunkUploadInFlightRef.current = false;
-  }, [isTeacher, bookingId, user, getRecordingBlob]);
+  }, [isTeacher, bookingId, user, getRecordingBlob, getRecordingSource]);
 
   const queueCumulativeChunk = useCallback(() => {
     if (chunkUploadPromiseRef.current) return chunkUploadPromiseRef.current;
@@ -1827,6 +1887,12 @@ const LiveSession = () => {
         const { clearRecordingBackup } = await import("@/lib/recordingBackup");
         await clearRecordingBackup(bookingId);
       } catch {}
+
+      // Part-upload mode: the full file is saved and linked, so the safety parts can go.
+      if (isRecordingPartsEnabled()) {
+        const partsFolder = partsFolderForFile(fileName);
+        if (partsFolder) void removePartsFolder(supabase as any, partsFolder);
+      }
 
       toast.success("تم حفظ تسجيل الحصة بنجاح ✅");
     } catch (error) {
