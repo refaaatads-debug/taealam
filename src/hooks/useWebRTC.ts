@@ -5,6 +5,7 @@ import {
   agoraRejoinDelayMs,
   shouldScheduleAgoraRejoin,
 } from "@/lib/agoraRejoinPolicy";
+import { shouldMarkRtcDisconnectedOnPeerLeft } from "@/lib/sessionClock";
 
 // ── Audio quality: inject Opus FEC + bitrate into SDP offers/answers ──────────
 // useinbandfec=1        → forward error correction (masks packet loss, prevents cuts)
@@ -869,6 +870,9 @@ export function useWebRTC({
         if (expectedRemoteUserIdRef.current && remoteUserId !== expectedRemoteUserIdRef.current) return;
         remotePeerUserIdRef.current = remoteUserId;
         onRemoteJoinRef.current?.(remoteUserId);
+        // Presence must not depend on the peer's microphone: a muted peer never publishes audio,
+        // so "joined the channel" is enough to treat the expected peer as present.
+        onRemoteReadyRef.current?.(remoteUserId);
       });
       client.on("user-left", (remoteUser: any) => {
         const remoteUserId = String(remoteUser.uid);
@@ -877,8 +881,11 @@ export function useWebRTC({
         onRemoteLeaveRef.current?.(remoteUserId);
         remote.getTracks().forEach((track) => remote.removeTrack(track));
         syncRemote();
-        setConnectionState("disconnected");
-        onConnectionStateRef.current?.("disconnected");
+        // Only the peer left. Keep our own RTC state while our Agora connection is still CONNECTED.
+        if (shouldMarkRtcDisconnectedOnPeerLeft(agoraConnectionStateRef.current)) {
+          setConnectionState("disconnected");
+          onConnectionStateRef.current?.("disconnected");
+        }
       });
       client.on("connection-state-change", (current: string, previous?: string, reason?: string) => {
         agoraConnectionStateRef.current = current;
