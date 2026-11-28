@@ -454,12 +454,7 @@ const LiveSession = () => {
     userId: user?.id || "",
     localStream,
     meetingStarted,
-    onMuteUser: () => {
-      localStream?.getAudioTracks().forEach(t => { t.enabled = false; });
-    },
-    onEndSession: () => {
-      endSession();
-    },
+    isTeacher,
   });
 
   // ─── Connection Quality Monitoring + Adaptive Bitrate ───

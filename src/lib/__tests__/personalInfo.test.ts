@@ -41,9 +41,19 @@ describe("personal info detector", () => {
     expect(type("الشارع في الخريطة اسمه ايه؟")).toBeNull();
     expect(type("حل التمرين ١٢ صفحة ٤٥")).toBeNull();
   });
+  it("evidence keeps only kinds and redacted fragments, never the sentence", () => {
+    const e1 = maskedEvidence(detectPersonalInfo("my mail is sara.t@example.com thanks"));
+    expect(e1).toBe("بريد إلكتروني: sa•••@e•••");
+    expect(e1).not.toContain("example");
+    const e2 = maskedEvidence(detectPersonalInfo("عنواني شارع الملك عمارة 5 شقة 3 حي النسيم"));
+    expect(e2).not.toContain("النسيم");
+    expect(e2).not.toContain("5");
+    expect(maskedEvidence(detectPersonalInfo("insta @sara_t99"))).toContain("@sa•••");
+    expect(maskedEvidence(detectPersonalInfo("صفر خمسة خمسة واحد اتنين تلاتة اربعة خمسة ستة سبعة"))).toBe("رقم هاتف: ••••••••67");
+  });
   it("masks digits in evidence, keeping the last two", () => {
     const r = detectPersonalInfo("0551234567");
-    expect(maskedEvidence(r)).toBe("••••••••67");
+    expect(maskedEvidence(r)).toBe("رقم هاتف: ••••••••67");
     expect(normalizeForDetection("٠١")).toBe("01");
   });
 });

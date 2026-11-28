@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle
 import { getGeminiModel, getProviderApiKey } from "../_shared/ai-models.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkEdgeRateLimit } from "../_shared/rate-limit.ts";
-import { detectPersonalInfo } from "../_shared/personalInfo.ts";
+import { detectPersonalInfo, maskedEvidence } from "../_shared/personalInfo.ts";
 
 const ALLOWED_WORDS = [
   "رقم الصفحة", "رقم السؤال", "رقم التمرين", "صفحة رقم",
@@ -207,34 +207,16 @@ serve(async (req) => {
       if (analysis.is_violation && analysis.confidence >= 0.5) {
         const violatorId = senderId || userId;
         if (booking_id && violatorId) {
+          // Redacted evidence only: never store the raw message. No warning or ban is created here;
+          // an admin confirms first (admin screen adds the warning on confirm).
+          const evidence = maskedEvidence(detectPersonalInfo(text), text);
           await adminClient.from("violations").insert({
             booking_id, user_id: violatorId,
-            detected_text: matches.join(", "),
-            original_message: text,
+            detected_text: evidence,
+            original_message: evidence,
             confidence_score: analysis.confidence,
             source, violation_type: analysis.violation_type || "contact_sharing",
           });
-
-          const { data: existing } = await adminClient
-            .from("user_warnings")
-            .select("id, warning_count")
-            .eq("user_id", violatorId)
-            .eq("warning_type", "contact_violation")
-            .single();
-
-          if (existing) {
-            const newCount = existing.warning_count + 1;
-            await adminClient.from("user_warnings").update({
-              warning_count: newCount,
-              is_banned: newCount >= 3,
-              banned_until: newCount >= 3 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null,
-            }).eq("id", existing.id);
-          } else {
-            await adminClient.from("user_warnings").insert({
-              user_id: violatorId, warning_type: "contact_violation",
-              description: `مخالفة مشاركة معلومات اتصال: ${analysis.reason}`, warning_count: 1,
-            });
-          }
 
           const { data: admins } = await adminClient.from("user_roles").select("user_id").eq("role", "admin");
           if (admins) {
@@ -242,7 +224,7 @@ serve(async (req) => {
               await adminClient.from("notifications").insert({
                 user_id: admin.user_id,
                 title: "⚠️ مخالفة مكتشفة",
-                body: `تم اكتشاف محاولة مشاركة معلومات اتصال: "${text.slice(0, 100)}"`,
+                body: `تم اكتشاف محاولة مشاركة معلومات اتصال: ${maskedEvidence(detectPersonalInfo(text), text)}`,
                 type: "violation",
               });
             }

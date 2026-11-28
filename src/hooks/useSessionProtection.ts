@@ -15,6 +15,8 @@ interface UseSessionProtectionOptions {
   userId: string;
   localStream: MediaStream | null;
   meetingStarted: boolean;
+  // Voice monitoring runs for the teacher only. Chat is checked for everyone.
+  isTeacher?: boolean;
   onMuteUser?: () => void;
   onEndSession?: () => void;
 }
@@ -24,8 +26,7 @@ export function useSessionProtection({
   userId,
   localStream,
   meetingStarted,
-  onMuteUser,
-  onEndSession,
+  isTeacher = false,
 }: UseSessionProtectionOptions) {
   const [violations, setViolations] = useState<ViolationRecord[]>([]);
   const [violationCount, setViolationCount] = useState(0);
@@ -95,61 +96,36 @@ export function useSessionProtection({
   }, [bookingId, userId]);
 
   // ─── Penalty System ───
+  // Detections never end a session, mute a microphone or ban anyone. They only warn, and a third
+  // CHAT hit pauses the chat for 60 s. Warnings and bans come from an admin after review.
   const applyPenalty = useCallback((count: number, type: string) => {
-    if (count <= 2) {
-      // Warning only
-      toast.warning(`⚠️ تحذير (${count}/5): يرجى عدم مشاركة بيانات شخصية`, { duration: 5000 });
-    } else if (count === 3) {
-      // Mute + block chat temporarily
-      toast.error("🔇 تم كتم الصوت ومنع الدردشة مؤقتاً (60 ثانية) بسبب تكرار المخالفات", { duration: 8000 });
-      setIsMutedBySystem(true);
+    if (type === "chat" && count >= 3 && !muteTimerRef.current) {
+      toast.error("تم إيقاف الدردشة مؤقتاً (60 ثانية) بسبب تكرار مشاركة بيانات شخصية", { duration: 8000 });
       setIsChatBlocked(true);
       setMuteCountdown(60);
-      onMuteUser?.();
-
-      // Start countdown
       muteTimerRef.current = window.setInterval(() => {
         setMuteCountdown(prev => {
           if (prev <= 1) {
             clearInterval(muteTimerRef.current);
-            setIsMutedBySystem(false);
+            muteTimerRef.current = undefined;
             setIsChatBlocked(false);
-            toast.info("تم رفع الحظر المؤقت. يرجى الالتزام بالقواعد.");
+            toast.info("تم رفع الإيقاف المؤقت. يرجى الالتزام بالقواعد.");
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    } else if (count >= 5) {
-      // End session
-      toast.error("🚫 تم إنهاء الجلسة بسبب تكرار المخالفات. سيتم إبلاغ الإدارة.", { duration: 10000 });
-
-      // Notify admin
-      supabase.from("notifications").insert({
-        user_id: userId,
-        title: "🚫 تم إنهاء جلسة بسبب مخالفات متكررة",
-        body: `تم إنهاء الجلسة (${bookingId}) تلقائياً بعد ${count} مخالفات.`,
-        type: "violation",
-      }).then(() => {});
-
-      // Log for admin
-      supabase.from("system_logs").insert({
-        level: "error",
-        message: `جلسة أُنهيت تلقائياً بسبب ${count} مخالفات`,
-        source: "session_protection",
-        user_id: userId,
-        metadata: { booking_id: bookingId, violation_count: count },
-      }).then(() => {});
-
-      setTimeout(() => onEndSession?.(), 2000);
+      return;
     }
-  }, [bookingId, userId, onMuteUser, onEndSession]);
+    toast.warning("تنبيه: يرجى عدم مشاركة بيانات شخصية أو وسائل تواصل خارج المنصة", { duration: 5000 });
+  }, []);
 
   // ─── Voice Monitoring (Speech-to-Text) ───
   const startVoiceMonitoring = useCallback(() => {
     // Disable on mobile/tablet devices: continuous SpeechRecognition triggers
     // the system mic-in-use indicator with repeated notification beeps every
     // few seconds (especially on Samsung/Android), which is intrusive during class.
+    if (!isTeacher) return;
     const ua = navigator.userAgent || "";
     const isMobileOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua);
     if (isMobileOrTablet) {
@@ -217,7 +193,7 @@ export function useSessionProtection({
       // Clear buffer
       transcriptBufferRef.current = "";
     }, 4000);
-  }, [meetingStarted, analyzeText, recordViolation]);
+  }, [meetingStarted, isTeacher, analyzeText, recordViolation]);
 
   const stopVoiceMonitoring = useCallback(() => {
     if (recognitionRef.current) {
@@ -242,7 +218,20 @@ export function useSessionProtection({
     return () => {
       stopVoiceMonitoring();
     };
-  }, [meetingStarted, localStream]);
+  }, [meetingStarted, localStream, isTeacher]);
+
+  // One clear notice per session about what is checked (shown to everyone).
+  const noticeShownRef = useRef(false);
+  useEffect(() => {
+    if (!meetingStarted || noticeShownRef.current) return;
+    noticeShownRef.current = true;
+    toast.info(
+      isTeacher
+        ? "تنبيه: تُفحص الدردشة وصوتك آلياً لمنع تبادل بيانات التواصل الشخصية خارج المنصة. يُحفظ مقتطف مخفي فقط عند المخالفة."
+        : "تنبيه: تُفحص الدردشة آلياً لمنع تبادل بيانات التواصل الشخصية خارج المنصة. يُحفظ مقتطف مخفي فقط عند المخالفة.",
+      { duration: 9000 },
+    );
+  }, [meetingStarted, isTeacher]);
 
   // Cleanup
   useEffect(() => {

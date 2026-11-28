@@ -180,7 +180,42 @@ export function detectPersonalInfo(rawText: string): PersonalInfoResult {
   return { detected: hits.length > 0, type: top, hits };
 }
 
-// Short, masked text that is safe to show in a list.
-export function maskedEvidence(result: PersonalInfoResult): string {
-  return result.hits.map((h) => maskDigits(h.matched)).join(" | ").slice(0, 200);
+const KIND_LABEL: Record<string, string> = {
+  phone_digits: "رقم هاتف",
+  email: "بريد إلكتروني",
+  link: "رابط",
+  handle: "حساب تواصل",
+  platform_word: "منصة تواصل",
+  contact_intent: "عبارة تواصل",
+  address_phrase: "عنوان",
+  address_terms: "عنوان",
+};
+
+// Hide most of the fragment but keep enough for an admin to recognise the kind of data.
+export function redactFragment(h: PersonalInfoHit): string {
+  const m = h.matched;
+  switch (h.kind) {
+    case "phone_digits":
+      return maskDigits(m).replace(/[\s.\-_,/()]+/g, "");
+    case "email": {
+      const at = m.indexOf("@");
+      if (at > 0) return `${m.slice(0, Math.min(2, at))}•••@${m.slice(at + 1, at + 2)}•••`;
+      return `${m.slice(0, 2)}•••`;
+    }
+    case "handle": {
+      const t = m.replace(/^@/, "");
+      return `@${t.slice(0, 2)}•••`;
+    }
+    case "link":
+      return `${m.slice(0, 12)}•••`;
+    default:
+      return m; // platform names, contact phrases and address keywords carry no identifying detail
+  }
+}
+
+// What is stored and shown: the kinds found and redacted fragments only. Never the surrounding sentence,
+// so a street name or number spoken next to an address phrase is not kept.
+export function maskedEvidence(result: PersonalInfoResult, fallbackText = ""): string {
+  if (result.hits.length === 0) return maskDigits(normalizeForDetection(fallbackText)).slice(0, 80);
+  return result.hits.map((h) => `${KIND_LABEL[h.kind] || "بيانات"}: ${redactFragment(h)}`).join(" | ").slice(0, 200);
 }

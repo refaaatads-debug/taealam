@@ -4,7 +4,7 @@ import { detectPersonalInfo, maskedEvidence } from "../_shared/personalInfo.ts";
 
 // Records a personal-info violation from the live session (chat or the user's own voice).
 // The browser only sends the text. The server re-runs the detector, checks the user is in the
-// booking, and writes with the service role (normal users cannot insert into violations).
+// booking, stores only redacted evidence, and writes with the service role (normal users cannot insert into violations).
 const ALLOWED_SOURCES = new Set(["chat", "voice"]);
 const HIGH_TYPES = new Set(["phone_number", "email", "contact_sharing", "address_sharing", "social_media_attempt", "external_link"]);
 
@@ -37,9 +37,16 @@ Deno.serve(async (req) => {
     const result = detectPersonalInfo(text);
     if (!result.detected || !result.type) return json({ recorded: false, reason: "not_detected" });
 
-    // Same text from the same user in the same booking is recorded once.
+    // Only the booking teacher's own voice is monitored. Chat is checked for both sides.
+    if (source === "voice" && booking.teacher_id !== userId) return json({ recorded: false, reason: "voice_teacher_only" });
+
+    // Store redacted evidence only (kinds + masked fragments). The raw sentence is never saved.
+    const evidence = maskedEvidence(result, text);
+
+    // Same evidence from the same user in the same booking within 2 minutes is recorded once.
+    const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: dup } = await admin.from("violations").select("id")
-      .eq("booking_id", bookingId).eq("user_id", userId).eq("original_message", text).limit(1);
+      .eq("booking_id", bookingId).eq("user_id", userId).eq("original_message", evidence).gte("created_at", since).limit(1);
     if (dup && dup.length > 0) return json({ recorded: false, duplicate: true });
 
     const seconds = Number(body.timestamp_in_session);
@@ -47,8 +54,8 @@ Deno.serve(async (req) => {
       booking_id: bookingId,
       user_id: userId,
       violation_type: result.type,
-      detected_text: maskedEvidence(result),
-      original_message: text,
+      detected_text: evidence,
+      original_message: evidence,
       confidence_score: source === "chat" ? 1 : 0.8,
       source,
       timestamp_in_session: Number.isFinite(seconds) ? Math.round(seconds) : null,
@@ -67,7 +74,7 @@ Deno.serve(async (req) => {
         await admin.from("notifications").insert({
           user_id: a.user_id,
           title: "⚠️ مخالفة مشاركة بيانات شخصية",
-          body: `${source === "voice" ? "صوت" : "دردشة"}: ${maskedEvidence(result)}`,
+          body: `${source === "voice" ? "صوت" : "دردشة"}: ${evidence}`,
           type: "violation",
         });
       }
