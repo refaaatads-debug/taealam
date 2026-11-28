@@ -1,4 +1,4 @@
-import { advanceSilenceClock, initialSilenceClock, silentSeconds as clockSilentSeconds, TEACHER_SILENCE_VIOLATION_SECONDS, TEACHER_SILENCE_WARN_SECONDS, type SilenceClock } from "@/lib/teacherSilence";
+import { advanceSilenceClock, initialSilenceClock, silentSeconds as clockSilentSeconds, restoreSilenceClock, silenceStorageKey, TEACHER_SILENCE_VIOLATION_SECONDS, TEACHER_SILENCE_WARN_SECONDS, type SilenceClock } from "@/lib/teacherSilence";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -602,16 +602,16 @@ const LiveSession = () => {
       // started session with a live, unmuted microphone, the student is present and the link is healthy.
       // Any of those gaps PAUSES the clock (it does not reset it). Only the teacher speaking resets it.
       if (!isTeacher) return;
-      const teacherTrack = localStream?.getAudioTracks()[0];
+      // A muted or missing microphone counts as silence (teacher decision, 2026-11-28).
       const canMeasureTeacherSilence =
         meetingStarted &&
         bothJoined &&
         remoteConnected &&
-        connectionHealthyRef.current &&
-        !!teacherTrack &&
-        teacherTrack.readyState === "live" &&
-        teacherTrack.enabled &&
-        !teacherTrack.muted;
+        connectionHealthyRef.current;
+      // Keep the clock across a page reload.
+      if (teacherSilenceClockRef.current.lastTickAt === null && teacherSilenceClockRef.current.silentMs === 0) {
+        try { teacherSilenceClockRef.current = restoreSilenceClock(sessionStorage.getItem(silenceStorageKey(bookingId))); } catch { /* ignore */ }
+      }
 
       const now = performance.now();
       teacherSilenceClockRef.current = advanceSilenceClock(teacherSilenceClockRef.current, {
@@ -620,6 +620,7 @@ const LiveSession = () => {
         teacherSpeaking: localSpeaking,
       });
       teacherSilenceSecondsRef.current = clockSilentSeconds(teacherSilenceClockRef.current);
+      try { sessionStorage.setItem(silenceStorageKey(bookingId), String(teacherSilenceClockRef.current.silentMs)); } catch { /* ignore */ }
       if (localSpeaking) {
         teacherSilenceWarningShownRef.current = false;
         teacherSilenceReportedRef.current = false;

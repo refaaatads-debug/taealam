@@ -1,11 +1,12 @@
 // Teacher voice-silence clock. Silence time accumulates only while the rule can measure it.
-// Harmless gaps (student briefly absent, short link problem, teacher mic muted) PAUSE the clock.
+// Harmless gaps (student briefly absent, short link problem) PAUSE the clock. A muted teacher microphone is NOT a gap: it counts as silence.
 // Only the teacher speaking resets it.
 
 export const TEACHER_SILENCE_WARN_SECONDS = 240;
 export const TEACHER_SILENCE_VIOLATION_SECONDS = 300;
-// A single tick never adds more than this, so a throttled background timer cannot jump the clock.
-export const TEACHER_SILENCE_MAX_TICK_MS = 5000;
+// A single tick never adds more than this. Browsers throttle timers in hidden tabs to about one tick a minute,
+// so the cap is above that and a hidden tab still counts real time. A laptop sleep adds at most this much once.
+export const TEACHER_SILENCE_MAX_TICK_MS = 65_000;
 
 export interface SilenceClock {
   silentMs: number;
@@ -26,3 +27,19 @@ export function advanceSilenceClock(
 }
 
 export const silentSeconds = (clock: SilenceClock): number => Math.floor(clock.silentMs / 1000);
+
+// ─── Keep the clock across a page reload (sessionStorage) ───
+// Only the silent time is kept. The time the page was away is not counted (the clock restarts ticking after the reload).
+export const silenceStorageKey = (bookingId: string): string => `teacher_silence_ms_${bookingId}`;
+
+export const restoreSilentMs = (raw: string | null | undefined): number => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  // Never trust more than the violation window; the server re-checks the duration anyway.
+  return Math.min(n, 10 * 60 * 1000);
+};
+
+export const restoreSilenceClock = (raw: string | null | undefined): SilenceClock => ({
+  silentMs: restoreSilentMs(raw),
+  lastTickAt: null,
+});
