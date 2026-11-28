@@ -8,12 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   AlertTriangle, ShieldAlert, Shield, FileWarning, Play, Pause,
-  Ban, Send, GraduationCap, BookOpen, Clock, Calendar,
+  Ban, Send, Archive, GraduationCap, BookOpen, Clock, Calendar,
 } from "lucide-react";
 import StatusFilter from "./StatusFilter";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import UserWarningsList from "./UserWarningsList";
+import { addConfirmedWarning, removeConfirmedWarning } from "@/lib/violationReview";
 import {
   VIOLATION_META, SEVERITY_LABELS, SOURCE_LABELS, DEFAULT_FILTERS, metaFor, severityOf,
   applyViolationFilters, sortBySeverityThenDate, type ViolationFilters, type ViolationSeverity,
@@ -251,12 +252,15 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
             <>
               <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
                 await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                if (v.is_reviewed && !v.is_false_positive) await removeConfirmedWarning(v.user_id);
                 await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة", body: "تمت مراجعة مخالفة وتم إلغاؤها.", type: "violation" });
                 setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
                 toast.success("تم إلغاء المخالفة (إنذار كاذب)");
               }}>إنذار كاذب</Button>
               <Button size="sm" variant="default" className="text-xs h-7 rounded-lg" onClick={async () => {
                 await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                // A warning is added only now, after an admin confirms. Detections alone never create one.
+                await addConfirmedWarning(v.user_id, `مخالفة مؤكدة: ${reasonForType(v.violation_type)}`);
                 setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
                 toast.success("تمت المراجعة وتأكيد المخالفة");
               }}>تمت المراجعة</Button>
@@ -267,6 +271,18 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
           </Button>
           <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={banUser}>
             <Ban className="h-3 w-3 ml-1" /> حظر مؤقت
+          </Button>
+          <Button size="sm" variant="ghost" className="text-xs h-7 rounded-lg text-muted-foreground" onClick={async () => {
+            const reason = window.prompt("سبب الأرشفة (يبقى في السجل ولا يظهر للمستخدم):");
+            if (!reason || !reason.trim()) return;
+            const { error } = await (supabase as any).from("violations")
+              .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id, delete_reason: reason.trim() }).eq("id", v.id);
+            if (error) { toast.error("تعذرت الأرشفة"); return; }
+            if (v.is_reviewed && !v.is_false_positive) await removeConfirmedWarning(v.user_id);
+            setViolations((prev: any[]) => prev.filter((item: any) => item.id !== v.id));
+            toast.success("تمت أرشفة المخالفة (محفوظة في السجل)");
+          }}>
+            <Archive className="h-3.5 w-3.5 ml-1" /> أرشفة
           </Button>
         </div>
       </div>
