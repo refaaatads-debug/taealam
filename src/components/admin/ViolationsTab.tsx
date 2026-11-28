@@ -7,13 +7,25 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  AlertTriangle, ShieldAlert, Shield, FileWarning, Trash2, Play, Pause,
-  Ban, Send, GraduationCap, BookOpen, Clock, Calendar,
+  AlertTriangle, ShieldAlert, Shield, FileWarning, Play, Pause,
+  Ban, Send, Archive, GraduationCap, BookOpen, Clock, Calendar,
 } from "lucide-react";
 import StatusFilter from "./StatusFilter";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import UserWarningsList from "./UserWarningsList";
+import { addConfirmedWarning, removeConfirmedWarning } from "@/lib/violationReview";
+import {
+  VIOLATION_META, SEVERITY_LABELS, SOURCE_LABELS, DEFAULT_FILTERS, metaFor, severityOf,
+  applyViolationFilters, sortBySeverityThenDate, type ViolationFilters, type ViolationSeverity,
+} from "@/lib/violationMeta";
+
+const SEVERITY_BADGE: Record<ViolationSeverity, string> = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-warning/15 text-warning",
+  high: "bg-destructive/15 text-destructive",
+  critical: "bg-destructive text-destructive-foreground",
+};
 
 interface ViolationsTabProps {
   violations: any[];
@@ -42,19 +54,7 @@ const formatDateTime = (iso: string) => {
   return `${d.toLocaleDateString("ar-SA")} - ${d.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
 };
 
-const reasonForType = (type: string) => {
-  const map: Record<string, string> = {
-    contact_sharing: "محاولة مشاركة معلومات اتصال شخصية",
-    platform_mention: "ذكر منصات تواصل خارجية",
-    coded_message: "استخدام رسائل مشفرة",
-    profanity: "ألفاظ غير لائقة",
-    harassment: "تحرش أو مضايقة",
-    off_topic: "خروج عن موضوع الجلسة",
-    teacher_silence: "صمت المعلم أثناء الحصة (أكثر من 5 دقائق بدون صوت)",
-    teacher_late: "تأخر المعلم عن موعد الحصة",
-  };
-  return map[type] || "مخالفة لسياسات المنصة";
-};
+const reasonForType = (type: string) => metaFor(type).reason;
 
 const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViolations: any }) => {
   const [audioOpen, setAudioOpen] = useState(false);
@@ -63,7 +63,7 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
   const sourceLabel =
     v.source === "chat" ? "💬 الدردشة" :
     v.source === "recording" ? "🎥 تسجيل الجلسة" :
-    v.source === "call" ? "📞 المكالمة الهاتفية" :
+    v.source === "call" || v.source === "phone_call" ? "📞 المكالمة الهاتفية" :
     v.source === "voice" ? "🎙️ صوت الجلسة" : v.source;
 
   const sendWarning = async () => {
@@ -126,6 +126,9 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
           </Badge>
           <Badge variant={v.is_false_positive ? "secondary" : v.is_reviewed ? "default" : "destructive"} className="text-[10px]">
             {v.is_false_positive ? "ملغاة" : v.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
+          </Badge>
+          <Badge className={`text-[10px] border-0 ${SEVERITY_BADGE[severityOf(v.violation_type)]}`}>
+            {SEVERITY_LABELS[severityOf(v.violation_type)]} · {metaFor(v.violation_type).label}
           </Badge>
           {v.is_banned && <Badge variant="destructive" className="text-[10px]">🚫 محظور</Badge>}
         </div>
@@ -249,12 +252,15 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
             <>
               <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={async () => {
                 await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: true, reviewed_by: user?.id }).eq("id", v.id);
+                if (v.is_reviewed && !v.is_false_positive) await removeConfirmedWarning(v.user_id);
                 await supabase.from("notifications").insert({ user_id: v.user_id, title: "✅ تم إلغاء مخالفة", body: "تمت مراجعة مخالفة وتم إلغاؤها.", type: "violation" });
                 setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: true } : item));
                 toast.success("تم إلغاء المخالفة (إنذار كاذب)");
               }}>إنذار كاذب</Button>
               <Button size="sm" variant="default" className="text-xs h-7 rounded-lg" onClick={async () => {
                 await (supabase as any).from("violations").update({ is_reviewed: true, is_false_positive: false, reviewed_by: user?.id }).eq("id", v.id);
+                // A warning is added only now, after an admin confirms. Detections alone never create one.
+                await addConfirmedWarning(v.user_id, `مخالفة مؤكدة: ${reasonForType(v.violation_type)}`);
                 setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, is_reviewed: true, is_false_positive: false } : item));
                 toast.success("تمت المراجعة وتأكيد المخالفة");
               }}>تمت المراجعة</Button>
@@ -266,13 +272,17 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
           <Button size="sm" variant="destructive" className="text-xs h-7 rounded-lg" onClick={banUser}>
             <Ban className="h-3 w-3 ml-1" /> حظر مؤقت
           </Button>
-          <Button size="sm" variant="ghost" className="text-xs h-7 rounded-lg text-destructive hover:bg-destructive/10" onClick={async () => {
-            if (!confirm("هل أنت متأكد من حذف هذه المخالفة نهائياً؟")) return;
-            await (supabase as any).from("violations").delete().eq("id", v.id);
+          <Button size="sm" variant="ghost" className="text-xs h-7 rounded-lg text-muted-foreground" onClick={async () => {
+            const reason = window.prompt("سبب الأرشفة (يبقى في السجل ولا يظهر للمستخدم):");
+            if (!reason || !reason.trim()) return;
+            const { error } = await (supabase as any).from("violations")
+              .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id, delete_reason: reason.trim() }).eq("id", v.id);
+            if (error) { toast.error("تعذرت الأرشفة"); return; }
+            if (v.is_reviewed && !v.is_false_positive) await removeConfirmedWarning(v.user_id);
             setViolations((prev: any[]) => prev.filter((item: any) => item.id !== v.id));
-            toast.success("تم حذف المخالفة");
+            toast.success("تمت أرشفة المخالفة (محفوظة في السجل)");
           }}>
-            <Trash2 className="h-3.5 w-3.5" />
+            <Archive className="h-3.5 w-3.5 ml-1" /> أرشفة
           </Button>
         </div>
       </div>
@@ -304,8 +314,11 @@ const ViolationsTab = ({
 }: ViolationsTabProps) => {
   const [activeRole, setActiveRole] = useState<"all" | "student" | "teacher">("all");
 
-  const studentItems = useMemo(() => violations.filter((v: any) => v.user_role !== "teacher"), [violations]);
-  const teacherItems = useMemo(() => violations.filter((v: any) => v.user_role === "teacher"), [violations]);
+  const [filters, setFilters] = useState<ViolationFilters>(DEFAULT_FILTERS);
+  const filtered = useMemo(() => sortBySeverityThenDate(applyViolationFilters(violations, filters)), [violations, filters]);
+  const studentItems = useMemo(() => filtered.filter((v: any) => v.user_role !== "teacher"), [filtered]);
+  const teacherItems = useMemo(() => filtered.filter((v: any) => v.user_role === "teacher"), [filtered]);
+  const selectCls = "h-9 rounded-xl border border-input bg-background px-2 text-sm";
 
   return (
     <Card className="border-0 shadow-sm">
@@ -322,13 +335,25 @@ const ViolationsTab = ({
               { value: "reviewed", label: "مؤكدة" },
               { value: "false_positive", label: "ملغاة" },
             ]} />
+            <select aria-label="الخطورة" className={selectCls} value={filters.severity} onChange={(e) => setFilters({ ...filters, severity: e.target.value as ViolationFilters["severity"] })}>
+              <option value="all">كل الخطورة</option>
+              {(Object.keys(SEVERITY_LABELS) as ViolationSeverity[]).map((k) => <option key={k} value={k}>{SEVERITY_LABELS[k]}</option>)}
+            </select>
+            <select aria-label="النوع" className={selectCls} value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
+              <option value="all">كل الأنواع</option>
+              {Object.entries(VIOLATION_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+            </select>
+            <select aria-label="المصدر" className={selectCls} value={filters.source} onChange={(e) => setFilters({ ...filters, source: e.target.value })}>
+              <option value="all">كل المصادر</option>
+              {Object.entries(SOURCE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
             <ExportCSVButton
               data={violations.map((v: any) => ({
                 user: v.user_name, role: v.user_role === "teacher" ? "معلم" : "طالب",
                 other_party: v.other_party_name || "—",
                 booking: v.booking_id || "—",
-                type: v.violation_type, text: v.original_message || v.detected_text,
+                type: metaFor(v.violation_type).label, severity: SEVERITY_LABELS[severityOf(v.violation_type)], text: v.original_message || v.detected_text,
                 source: v.source, confidence: Math.round((v.confidence_score || 0) * 100) + "%",
                 in_session: formatTimestampInSession(v.timestamp_in_session) || "—",
                 warnings: v.warning_count || 0,
@@ -338,7 +363,7 @@ const ViolationsTab = ({
               headers={[
                 { key: "user", label: "المستخدم" }, { key: "role", label: "الدور" },
                 { key: "other_party", label: "الطرف الآخر" }, { key: "booking", label: "الجلسة" },
-                { key: "type", label: "النوع" }, { key: "text", label: "النص" },
+                { key: "type", label: "النوع" }, { key: "severity", label: "الخطورة" }, { key: "text", label: "النص" },
                 { key: "source", label: "المصدر" }, { key: "confidence", label: "الثقة" },
                 { key: "in_session", label: "اللحظة" }, { key: "warnings", label: "التحذيرات" },
                 { key: "date", label: "التاريخ" }, { key: "status", label: "الحالة" },
@@ -351,14 +376,14 @@ const ViolationsTab = ({
       <CardContent>
         <Tabs value={activeRole} onValueChange={(v: any) => setActiveRole(v)} className="w-full">
           <TabsList className="grid grid-cols-4 w-full max-w-2xl mb-4">
-            <TabsTrigger value="all">الكل ({violations.length})</TabsTrigger>
+            <TabsTrigger value="all">الكل ({filtered.length})</TabsTrigger>
             <TabsTrigger value="student">🎓 الطلاب ({studentItems.length})</TabsTrigger>
             <TabsTrigger value="teacher">👨‍🏫 المعلمون ({teacherItems.length})</TabsTrigger>
             <TabsTrigger value="warnings" className="gap-1">
               <FileWarning className="h-3 w-3" /> التحذيرات والحظر
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="all"><ViolationsList items={violations} user={user} setViolations={setViolations} /></TabsContent>
+          <TabsContent value="all"><ViolationsList items={filtered} user={user} setViolations={setViolations} /></TabsContent>
           <TabsContent value="student"><ViolationsList items={studentItems} user={user} setViolations={setViolations} /></TabsContent>
           <TabsContent value="teacher"><ViolationsList items={teacherItems} user={user} setViolations={setViolations} /></TabsContent>
           <TabsContent value="warnings"><UserWarningsList roleFilter="all" /></TabsContent>
