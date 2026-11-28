@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-import { detectPersonalInfo, maskedEvidence, type PersonalInfoType } from "../../supabase/functions/_shared/personalInfo";
+import { detectPersonalInfo, maskedEvidence, type PersonalInfoType } from "@/lib/personalInfo";
 
 interface ViolationRecord {
   type: "chat" | "voice";
