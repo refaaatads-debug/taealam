@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
+import TeacherMonthViolations from "./TeacherMonthViolations";
 
 const formatDuration = (totalSeconds: number): string => {
   const h = Math.floor(totalSeconds / 3600);
@@ -646,6 +647,8 @@ export default function TeacherEarningsTab() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {selectedTeacher && month && <TeacherMonthViolations teacherId={selectedTeacher} month={month} />}
 
                 {selectedTeacher && month && (
                   <div className="md:col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
