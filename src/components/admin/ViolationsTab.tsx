@@ -14,6 +14,7 @@ import StatusFilter from "./StatusFilter";
 import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import UserWarningsList from "./UserWarningsList";
+import ViolationUserHistory from "./ViolationUserHistory";
 import { addConfirmedWarning, removeConfirmedWarning } from "@/lib/violationReview";
 import {
   VIOLATION_META, SEVERITY_LABELS, SOURCE_LABELS, DEFAULT_FILTERS, metaFor, severityOf,
@@ -56,7 +57,7 @@ const formatDateTime = (iso: string) => {
 
 const reasonForType = (type: string) => metaFor(type).reason;
 
-const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViolations: any }) => {
+const ViolationCard = ({ v, user, setViolations, allViolations }: { v: any; user: any; setViolations: any; allViolations: any[] }) => {
   const [audioOpen, setAudioOpen] = useState(false);
   const tsLabel = formatTimestampInSession(v.timestamp_in_session);
   const isTeacher = v.user_role === "teacher";
@@ -171,7 +172,7 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
 
       <div className="space-y-2 mb-3">
         <div className="bg-muted/50 rounded-lg p-3">
-          <p className="text-[10px] font-bold text-muted-foreground mb-1">النص الأصلي:</p>
+          <p className="text-[10px] font-bold text-muted-foreground mb-1">الدليل المحفوظ (مخفي، لا يُحفظ نص الرسالة الكامل):</p>
           <p className="text-sm text-foreground">{v.original_message || v.detected_text}</p>
         </div>
         {v.detected_text && v.original_message && v.detected_text !== v.original_message && (
@@ -266,6 +267,7 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
               }}>تمت المراجعة</Button>
             </>
           )}
+          <ViolationUserHistory userId={v.user_id} userName={v.user_name || "المستخدم"} violations={allViolations} />
           <Button size="sm" variant="outline" className="text-xs h-7 rounded-lg" onClick={sendWarning}>
             <Send className="h-3 w-3 ml-1" /> إرسال إنذار
           </Button>
@@ -290,7 +292,7 @@ const ViolationCard = ({ v, user, setViolations }: { v: any; user: any; setViola
   );
 };
 
-const ViolationsList = ({ items, user, setViolations }: { items: any[]; user: any; setViolations: any }) => {
+const ViolationsList = ({ items, user, setViolations, allViolations }: { items: any[]; user: any; setViolations: any; allViolations: any[] }) => {
   if (items.length === 0) {
     return (
       <div className="text-center py-12">
@@ -302,7 +304,7 @@ const ViolationsList = ({ items, user, setViolations }: { items: any[]; user: an
   }
   return (
     <div className="space-y-4">
-      {items.map((v: any) => <ViolationCard key={v.id} v={v} user={user} setViolations={setViolations} />)}
+      {items.map((v: any) => <ViolationCard key={v.id} v={v} user={user} setViolations={setViolations} allViolations={allViolations} />)}
     </div>
   );
 };
@@ -383,9 +385,9 @@ const ViolationsTab = ({
               <FileWarning className="h-3 w-3" /> التحذيرات والحظر
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="all"><ViolationsList items={filtered} user={user} setViolations={setViolations} /></TabsContent>
-          <TabsContent value="student"><ViolationsList items={studentItems} user={user} setViolations={setViolations} /></TabsContent>
-          <TabsContent value="teacher"><ViolationsList items={teacherItems} user={user} setViolations={setViolations} /></TabsContent>
+          <TabsContent value="all"><ViolationsList items={filtered} user={user} setViolations={setViolations} allViolations={violations} /></TabsContent>
+          <TabsContent value="student"><ViolationsList items={studentItems} user={user} setViolations={setViolations} allViolations={violations} /></TabsContent>
+          <TabsContent value="teacher"><ViolationsList items={teacherItems} user={user} setViolations={setViolations} allViolations={violations} /></TabsContent>
           <TabsContent value="warnings"><UserWarningsList roleFilter="all" /></TabsContent>
         </Tabs>
       </CardContent>
