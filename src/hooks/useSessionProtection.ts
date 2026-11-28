@@ -2,30 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// ─── Regex patterns for personal data detection ───
-const PHONE_REGEX = /\d{7,}/g;
-const EMAIL_REGEX = /[\w.-]+@[\w.-]+\.\w{2,}/gi;
-const URL_REGEX = /(https?:\/\/|www\.|\.com|\.net|\.org|\.io|\.me|\.sa)/gi;
-const PLUS_PHONE_REGEX = /\+\d{8,}/g;
-
-// Arabic/English keywords indicating contact sharing intent
-const VOICE_KEYWORDS = [
-  "واتساب", "واتس", "whatsapp", "واتس اب",
-  "تليجرام", "تلجرام", "telegram",
-  "كلمني", "كلّمني", "ابعتلي", "ابعت لي",
-  "رقمك", "رقمي", "نمرتك", "نمرتي",
-  "ايميلك", "ايميلي", "بريدك",
-  "سناب", "سنابي", "snapchat", "snap",
-  "انستقرام", "انستا", "instagram",
-  "فيسبوك", "فيس", "facebook",
-  "تويتر", "twitter",
-  "تيك توك", "tiktok",
-  "ارسلي", "ارسل لي", "send me",
-  "add me", "اضفني",
-  "حسابي", "حسابك",
-  "my number", "your number",
-  "call me", "text me",
-];
+import { detectPersonalInfo, maskedEvidence, type PersonalInfoType } from "../../supabase/functions/_shared/personalInfo";
 
 interface ViolationRecord {
   type: "chat" | "voice";
@@ -38,6 +15,8 @@ interface UseSessionProtectionOptions {
   userId: string;
   localStream: MediaStream | null;
   meetingStarted: boolean;
+  // Voice monitoring runs for the teacher only. Chat is checked for everyone.
+  isTeacher?: boolean;
   onMuteUser?: () => void;
   onEndSession?: () => void;
 }
@@ -47,8 +26,7 @@ export function useSessionProtection({
   userId,
   localStream,
   meetingStarted,
-  onMuteUser,
-  onEndSession,
+  isTeacher = false,
 }: UseSessionProtectionOptions) {
   const [violations, setViolations] = useState<ViolationRecord[]>([]);
   const [violationCount, setViolationCount] = useState(0);
@@ -60,6 +38,7 @@ export function useSessionProtection({
   const recognitionRef = useRef<any>(null);
   const analysisIntervalRef = useRef<number>();
   const transcriptBufferRef = useRef<string>("");
+  const previousVoiceWindowRef = useRef<string>("");
   const muteTimerRef = useRef<number>();
   const violationCountRef = useRef(0);
 
@@ -69,28 +48,10 @@ export function useSessionProtection({
   }, [violationCount]);
 
   // ─── Chat Filtering ───
-  const analyzeText = useCallback((text: string): { isViolation: boolean; detected: string } => {
-    const phones = text.match(PHONE_REGEX);
-    if (phones) return { isViolation: true, detected: `رقم هاتف: ${phones[0]}` };
-
-    const plusPhones = text.match(PLUS_PHONE_REGEX);
-    if (plusPhones) return { isViolation: true, detected: `رقم دولي: ${plusPhones[0]}` };
-
-    const emails = text.match(EMAIL_REGEX);
-    if (emails) return { isViolation: true, detected: `بريد إلكتروني: ${emails[0]}` };
-
-    const urls = text.match(URL_REGEX);
-    if (urls) return { isViolation: true, detected: `رابط: ${urls[0]}` };
-
-    // Check keywords
-    const lowerText = text.toLowerCase();
-    for (const keyword of VOICE_KEYWORDS) {
-      if (lowerText.includes(keyword.toLowerCase())) {
-        return { isViolation: true, detected: `كلمة محظورة: ${keyword}` };
-      }
-    }
-
-    return { isViolation: false, detected: "" };
+  // One shared detector (phones even when spaced or spelled out, emails, links, handles, addresses).
+  const analyzeText = useCallback((text: string): { isViolation: boolean; detected: string; type: PersonalInfoType | null } => {
+    const r = detectPersonalInfo(text);
+    return { isViolation: r.detected, detected: maskedEvidence(r), type: r.type };
   }, []);
 
   const filterChatMessage = useCallback((message: string): { allowed: boolean; reason?: string } => {
@@ -116,17 +77,12 @@ export function useSessionProtection({
     const record: ViolationRecord = { type, content: detected, timestamp: Date.now() };
     setViolations(prev => [...prev, record]);
 
-    // Save to DB
+    // Save through the server: normal users cannot insert into violations, and the server re-checks the text.
     try {
-      await supabase.from("violations").insert({
-        user_id: userId,
-        booking_id: bookingId,
-        violation_type: "contact_sharing",
-        detected_text: detected,
-        original_message: originalText || null,
-        source: type,
-        confidence_score: type === "chat" ? 1.0 : 0.8,
+      const { error } = await supabase.functions.invoke("record-personal-info-violation", {
+        body: { booking_id: bookingId, source: type, text: originalText || detected },
       });
+      if (error) console.error("Failed to record violation:", error);
     } catch (e) {
       console.error("Failed to record violation:", e);
     }
@@ -140,61 +96,36 @@ export function useSessionProtection({
   }, [bookingId, userId]);
 
   // ─── Penalty System ───
+  // Detections never end a session, mute a microphone or ban anyone. They only warn, and a third
+  // CHAT hit pauses the chat for 60 s. Warnings and bans come from an admin after review.
   const applyPenalty = useCallback((count: number, type: string) => {
-    if (count <= 2) {
-      // Warning only
-      toast.warning(`⚠️ تحذير (${count}/5): يرجى عدم مشاركة بيانات شخصية`, { duration: 5000 });
-    } else if (count === 3) {
-      // Mute + block chat temporarily
-      toast.error("🔇 تم كتم الصوت ومنع الدردشة مؤقتاً (60 ثانية) بسبب تكرار المخالفات", { duration: 8000 });
-      setIsMutedBySystem(true);
+    if (type === "chat" && count >= 3 && !muteTimerRef.current) {
+      toast.error("تم إيقاف الدردشة مؤقتاً (60 ثانية) بسبب تكرار مشاركة بيانات شخصية", { duration: 8000 });
       setIsChatBlocked(true);
       setMuteCountdown(60);
-      onMuteUser?.();
-
-      // Start countdown
       muteTimerRef.current = window.setInterval(() => {
         setMuteCountdown(prev => {
           if (prev <= 1) {
             clearInterval(muteTimerRef.current);
-            setIsMutedBySystem(false);
+            muteTimerRef.current = undefined;
             setIsChatBlocked(false);
-            toast.info("تم رفع الحظر المؤقت. يرجى الالتزام بالقواعد.");
+            toast.info("تم رفع الإيقاف المؤقت. يرجى الالتزام بالقواعد.");
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    } else if (count >= 5) {
-      // End session
-      toast.error("🚫 تم إنهاء الجلسة بسبب تكرار المخالفات. سيتم إبلاغ الإدارة.", { duration: 10000 });
-
-      // Notify admin
-      supabase.from("notifications").insert({
-        user_id: userId,
-        title: "🚫 تم إنهاء جلسة بسبب مخالفات متكررة",
-        body: `تم إنهاء الجلسة (${bookingId}) تلقائياً بعد ${count} مخالفات.`,
-        type: "violation",
-      }).then(() => {});
-
-      // Log for admin
-      supabase.from("system_logs").insert({
-        level: "error",
-        message: `جلسة أُنهيت تلقائياً بسبب ${count} مخالفات`,
-        source: "session_protection",
-        user_id: userId,
-        metadata: { booking_id: bookingId, violation_count: count },
-      }).then(() => {});
-
-      setTimeout(() => onEndSession?.(), 2000);
+      return;
     }
-  }, [bookingId, userId, onMuteUser, onEndSession]);
+    toast.warning("تنبيه: يرجى عدم مشاركة بيانات شخصية أو وسائل تواصل خارج المنصة", { duration: 5000 });
+  }, []);
 
   // ─── Voice Monitoring (Speech-to-Text) ───
   const startVoiceMonitoring = useCallback(() => {
     // Disable on mobile/tablet devices: continuous SpeechRecognition triggers
     // the system mic-in-use indicator with repeated notification beeps every
     // few seconds (especially on Samsung/Android), which is intrusive during class.
+    if (!isTeacher) return;
     const ua = navigator.userAgent || "";
     const isMobileOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk/i.test(ua);
     if (isMobileOrTablet) {
@@ -249,15 +180,20 @@ export function useSessionProtection({
       const buffer = transcriptBufferRef.current.trim();
       if (!buffer) return;
 
-      const result = analyzeText(buffer);
+      // Look at the previous window too, so a number spoken across two windows is still caught.
+      const combined = `${previousVoiceWindowRef.current} ${buffer}`.trim();
+      const result = analyzeText(combined);
       if (result.isViolation) {
-        recordViolation("voice", result.detected, buffer);
+        recordViolation("voice", result.detected, combined);
+        previousVoiceWindowRef.current = "";
+      } else {
+        previousVoiceWindowRef.current = buffer.slice(-200);
       }
 
       // Clear buffer
       transcriptBufferRef.current = "";
     }, 4000);
-  }, [meetingStarted, analyzeText, recordViolation]);
+  }, [meetingStarted, isTeacher, analyzeText, recordViolation]);
 
   const stopVoiceMonitoring = useCallback(() => {
     if (recognitionRef.current) {
@@ -271,6 +207,7 @@ export function useSessionProtection({
       analysisIntervalRef.current = undefined;
     }
     transcriptBufferRef.current = "";
+    previousVoiceWindowRef.current = "";
   }, []);
 
   // Start/stop voice monitoring based on meeting state
@@ -281,7 +218,20 @@ export function useSessionProtection({
     return () => {
       stopVoiceMonitoring();
     };
-  }, [meetingStarted, localStream]);
+  }, [meetingStarted, localStream, isTeacher]);
+
+  // One clear notice per session about what is checked (shown to everyone).
+  const noticeShownRef = useRef(false);
+  useEffect(() => {
+    if (!meetingStarted || noticeShownRef.current) return;
+    noticeShownRef.current = true;
+    toast.info(
+      isTeacher
+        ? "تنبيه: تُفحص الدردشة وصوتك آلياً لمنع تبادل بيانات التواصل الشخصية خارج المنصة. يُحفظ مقتطف مخفي فقط عند المخالفة."
+        : "تنبيه: تُفحص الدردشة آلياً لمنع تبادل بيانات التواصل الشخصية خارج المنصة. يُحفظ مقتطف مخفي فقط عند المخالفة.",
+      { duration: 9000 },
+    );
+  }, [meetingStarted, isTeacher]);
 
   // Cleanup
   useEffect(() => {
