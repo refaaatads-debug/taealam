@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import PersonAvatar from "@/components/PersonAvatar";
 import { CalendarCheck, Loader2, MessageSquare, Video, ChevronDown, ChevronUp, User, PhoneCall, Trash2, Eraser, RotateCcw } from "lucide-react";
 import { getHiddenBookings, hideBooking, hideAllBookings, clearHiddenBookings } from "@/lib/hiddenBookings";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +30,7 @@ interface BookingRow {
   session_status?: string | null;
   delivery_mode?: "online" | "in_person" | null;
   teacher_name?: string;
+  teacher_avatar?: string | null;
   subject_name?: string;
   teacher_id?: string;
   has_subscription?: boolean;
@@ -84,11 +86,11 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
   // All distinct teacher pairs (for "conversations" section even when schedule is hidden)
   const allTeacherPairs = useMemo(() => {
     const seen = new Set<string>();
-    const pairs: { teacherId: string; teacherName: string; bookingId: string }[] = [];
+    const pairs: { teacherId: string; teacherName: string; teacherAvatar?: string | null; bookingId: string }[] = [];
     bookings.forEach(b => {
       if (!seen.has(b.teacher_id)) {
         seen.add(b.teacher_id);
-        pairs.push({ teacherId: b.teacher_id, teacherName: b.teacher_name || "معلم", bookingId: b.id });
+        pairs.push({ teacherId: b.teacher_id, teacherName: b.teacher_name || "معلم", teacherAvatar: b.teacher_avatar, bookingId: b.id });
       }
     });
     return pairs;
@@ -164,7 +166,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
     for (let i = 0; i < teacherIds.length; i += CHUNK) tChunks.push(teacherIds.slice(i, i + CHUNK));
 
     const [profileResults, subResult] = await Promise.all([
-      Promise.all(tChunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
+      Promise.all(tChunks.map(c => supabase.from("public_profiles").select("user_id, full_name, avatar_url").in("user_id", c))),
       supabase.from("user_subscriptions").select("user_id, sessions_remaining, remaining_minutes, is_active").eq("user_id", user.id).eq("is_active", true),
     ]);
     if (data.some((booking) => (booking as any).delivery_mode === "in_person")) {
@@ -176,6 +178,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
     const profiles = profileResults.flatMap(r => r.data ?? []);
     const subs = subResult.data ?? [];
     const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
+    const avatarMap = new Map(profiles.map(p => [p.user_id, p.avatar_url as string | null]));
     const hasSub = subs.some(s => s.remaining_minutes > 4);
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
@@ -210,6 +213,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
         delivery_mode: b.delivery_mode,
         teacher_id: b.teacher_id,
         teacher_name: profileMap.get(b.teacher_id) || "معلم",
+        teacher_avatar: avatarMap.get(b.teacher_id) ?? null,
         subject_name: (b.subjects as any)?.name || (b as any).subject_name || "غير محددة",
         has_subscription: hasSub,
         actual_duration_minutes: actualMins,
@@ -407,12 +411,12 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
   };
 
   const groupedByTeacher = useMemo(() => {
-    const groups: Record<string, { teacherName: string; teacherId: string; bookings: BookingRow[] }> = {};
+    const groups: Record<string, { teacherName: string; teacherAvatar?: string | null; teacherId: string; bookings: BookingRow[] }> = {};
     // Build group keys from ALL bookings so the teacher group always appears (even if all bookings are hidden)
     bookings.forEach(b => {
       const key = b.teacher_id || "unknown";
       if (!groups[key]) {
-        groups[key] = { teacherName: b.teacher_name || "معلم", teacherId: key, bookings: [] };
+        groups[key] = { teacherName: b.teacher_name || "معلم", teacherAvatar: b.teacher_avatar, teacherId: key, bookings: [] };
       }
     });
     // Populate rows from visibleBookings only
@@ -540,7 +544,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                     return (
                       <Link key={pair.teacherId} to={`/chat?booking=${pair.bookingId}`}
                         className="relative inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-foreground">
-                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        <PersonAvatar src={pair.teacherAvatar} name={pair.teacherName} className="h-5 w-5 rounded-full" iconClassName="h-3 w-3" />
                         {pair.teacherName}
                         {unread > 0 && (
                           <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
@@ -574,9 +578,7 @@ export default function StudentScheduleTable({ historyOnly = false }: StudentSch
                     className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-right"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${hasLive ? "bg-secondary/20" : "bg-primary/10"}`}>
-                        <User className={`h-4 w-4 ${hasLive ? "text-secondary" : "text-primary"}`} />
-                      </div>
+                      <PersonAvatar src={group.teacherAvatar} name={group.teacherName} className="h-9 w-9 rounded-xl" fallbackClassName={hasLive ? "bg-secondary/20" : "bg-primary/10"} iconClassName={hasLive ? "text-secondary" : "text-primary"} />
                       <div>
                         <p className="text-sm font-bold text-foreground">
                           {group.teacherName}

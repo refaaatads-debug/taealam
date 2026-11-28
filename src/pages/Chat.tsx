@@ -232,6 +232,7 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [otherName, setOtherName] = useState("المحادثة");
+  const [otherAvatar, setOtherAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(true);
@@ -258,10 +259,10 @@ const Chat = () => {
         const otherId = isUserStudent ? booking.teacher_id : booking.student_id;
         const { data: profile } = await supabase
           .from("public_profiles")
-          .select("full_name")
+          .select("full_name, avatar_url")
           .eq("user_id", otherId)
           .single();
-        if (profile) setOtherName(profile.full_name || "المحادثة");
+        if (profile) { setOtherName(profile.full_name || "المحادثة"); setOtherAvatar(profile.avatar_url ?? null); }
 
         // Check student subscription status
         if (isUserStudent) {
@@ -572,9 +573,13 @@ const Chat = () => {
         <Button variant="ghost" size="icon" className="rounded-xl shrink-0" asChild>
           <Link to={dashboardPath}><ArrowRight className="h-5 w-5" /></Link>
         </Button>
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <MessageSquare className="h-5 w-5 text-primary" />
-        </div>
+        {otherAvatar ? (
+          <img src={otherAvatar} alt={otherName} className="w-10 h-10 rounded-full object-cover" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <MessageSquare className="h-5 w-5 text-primary" />
+          </div>
+        )}
         <div className="flex-1">
           <p className="font-bold text-foreground text-sm">{otherName}</p>
           <p className="text-xs text-muted-foreground">محادثة الحصة</p>

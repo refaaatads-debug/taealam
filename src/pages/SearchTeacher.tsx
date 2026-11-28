@@ -979,9 +979,13 @@ const SearchTeacher = () => {
                       <div className="p-4 md:p-5 pb-0">
                         <div className="flex items-start gap-3 md:gap-4 mb-3 md:mb-4">
                           <div className="relative">
-                            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl gradient-hero flex items-center justify-center shrink-0">
-                              <Users className="h-7 w-7 text-primary-foreground/70" />
-                            </div>
+                            {t.profile?.avatar_url ? (
+                              <img src={t.profile.avatar_url} alt={t.profile?.full_name || ""} loading="lazy" className="w-14 h-14 md:w-16 md:h-16 rounded-2xl object-cover shrink-0" />
+                            ) : (
+                              <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl gradient-hero flex items-center justify-center shrink-0">
+                                <Users className="h-7 w-7 text-primary-foreground/70" />
+                              </div>
+                            )}
                             {available && (
                               <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-secondary border-2 border-card" />
                             )}

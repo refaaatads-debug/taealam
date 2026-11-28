@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import PersonAvatar from "@/components/PersonAvatar";
 import { CalendarCheck, Loader2, MessageSquare, ChevronDown, ChevronUp, User, PhoneCall, Video, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +25,7 @@ interface BookingRow {
   session_status?: string | null;
   delivery_mode?: "online" | "in_person" | null;
   student_name?: string;
+  student_avatar?: string | null;
   subject_name?: string;
   student_id?: string;
   has_subscription?: boolean;
@@ -78,11 +80,11 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
   // All distinct student pairs (for "conversations" section even when schedule is hidden)
   const allStudentPairs = useMemo(() => {
     const seen = new Set<string>();
-    const pairs: { studentId: string; studentName: string; bookingId: string }[] = [];
+    const pairs: { studentId: string; studentName: string; studentAvatar?: string | null; bookingId: string }[] = [];
     bookings.forEach(b => {
       if (!seen.has(b.student_id)) {
         seen.add(b.student_id);
-        pairs.push({ studentId: b.student_id, studentName: b.student_name || "طالب", bookingId: b.id });
+        pairs.push({ studentId: b.student_id, studentName: b.student_name || "طالب", studentAvatar: b.student_avatar, bookingId: b.id });
       }
     });
     return pairs;
@@ -153,12 +155,13 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
     for (let i = 0; i < studentIds.length; i += CHUNK) chunks.push(studentIds.slice(i, i + CHUNK));
 
     const [profileResults, subResults] = await Promise.all([
-      Promise.all(chunks.map(c => supabase.from("public_profiles").select("user_id, full_name").in("user_id", c))),
+      Promise.all(chunks.map(c => supabase.from("public_profiles").select("user_id, full_name, avatar_url").in("user_id", c))),
       Promise.all(chunks.map(c => supabase.from("user_subscriptions").select("user_id, sessions_remaining, is_active").in("user_id", c).eq("is_active", true))),
     ]);
     const profiles = profileResults.flatMap(r => r.data ?? []);
     const subs = subResults.flatMap(r => r.data ?? []);
     const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
+    const avatarMap = new Map(profiles.map(p => [p.user_id, p.avatar_url as string | null]));
     const subSet = new Set(subs.filter(s => s.sessions_remaining > 0).map(s => s.user_id));
 
     const inProgress = data.filter(b => b.session_status === "in_progress").map(b => b.id);
@@ -193,6 +196,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
         delivery_mode: b.delivery_mode,
         student_id: b.student_id,
         student_name: profileMap.get(b.student_id) || "طالب",
+        student_avatar: avatarMap.get(b.student_id) ?? null,
         subject_name: (b.subjects as any)?.name || (b as any).subject_name || "غير محددة",
         has_subscription: subSet.has(b.student_id),
         actual_duration_minutes: actualMins,
@@ -302,12 +306,12 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
   };
 
   const groupedByStudent = useMemo(() => {
-    const groups: Record<string, { studentName: string; studentId: string; bookings: BookingRow[] }> = {};
+    const groups: Record<string, { studentName: string; studentAvatar?: string | null; studentId: string; bookings: BookingRow[] }> = {};
     // Build group keys from ALL bookings so the student group always appears (even if all bookings are hidden)
     bookings.forEach(b => {
       const key = b.student_id || "unknown";
       if (!groups[key]) {
-        groups[key] = { studentName: b.student_name || "طالب", studentId: key, bookings: [] };
+        groups[key] = { studentName: b.student_name || "طالب", studentAvatar: b.student_avatar, studentId: key, bookings: [] };
       }
     });
     // Populate rows from visibleBookings only
@@ -376,7 +380,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
                   return (
                     <Link key={pair.studentId} to={`/chat?booking=${pair.bookingId}`}
                       className="relative inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-foreground">
-                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      <PersonAvatar src={pair.studentAvatar} name={pair.studentName} className="h-5 w-5 rounded-full" iconClassName="h-3 w-3" />
                       {pair.studentName}
                       {unread > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center font-bold">
@@ -412,9 +416,7 @@ export default function TeacherScheduleTable({ onInstantSessionSent, historyOnly
                   className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-right"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${hasLive ? "bg-secondary/20" : "bg-primary/10"}`}>
-                      <User className={`h-4 w-4 ${hasLive ? "text-secondary" : "text-primary"}`} />
-                    </div>
+                    <PersonAvatar src={group.studentAvatar} name={group.studentName} className="h-9 w-9 rounded-xl" fallbackClassName={hasLive ? "bg-secondary/20" : "bg-primary/10"} iconClassName={hasLive ? "text-secondary" : "text-primary"} />
                     <div>
                       <p className="text-sm font-bold text-foreground">
                         {group.studentName}
