@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ShieldAlert, FileWarning, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { metaFor, SEVERITY_LABELS, severityOf } from "@/lib/violationMeta";
+import ViolationAppealButton, { type AppealRow } from "@/components/ViolationAppealButton";
 
 const VIOLATION_TYPE_LABELS: Record<string, string> = {
   contact_sharing: "مشاركة معلومات اتصال",
@@ -25,6 +27,7 @@ export default function WarningsSection() {
   const { user } = useAuth();
   const [warnings, setWarnings] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
+  const [appeals, setAppeals] = useState<Record<string, AppealRow>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -37,13 +40,21 @@ export default function WarningsSection() {
           .order("created_at", { ascending: false }),
         (supabase as any)
           .from("violations")
-          .select("*")
+          // Only what the user may see: no admin notes, no stored evidence.
+          .select("id, violation_type, created_at, is_reviewed, is_false_positive")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(10),
       ]);
       setWarnings(warningsRes.data || []);
       setViolations(violationsRes.data || []);
+      const ids = (violationsRes.data || []).map((v: any) => v.id);
+      if (ids.length > 0) {
+        const { data: ap } = await (supabase as any).from("violation_appeals").select("violation_id, status, admin_note").in("violation_id", ids);
+        const map: Record<string, AppealRow> = {};
+        for (const a of ap || []) map[a.violation_id] = a;
+        setAppeals(map);
+      }
     };
     fetchData();
   }, [user]);
@@ -135,7 +146,7 @@ export default function WarningsSection() {
               <div key={v.id} className="p-3 rounded-lg bg-muted/20 border border-border mb-2 last:mb-0">
                 <div className="flex items-center justify-between mb-1">
                   <Badge variant="outline" className="text-[10px]">
-                    {VIOLATION_TYPE_LABELS[v.violation_type] || v.violation_type}
+                    {VIOLATION_TYPE_LABELS[v.violation_type] || metaFor(v.violation_type).label} · {SEVERITY_LABELS[severityOf(v.violation_type)]}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
                     {new Date(v.created_at).toLocaleDateString("ar-SA")}
@@ -144,13 +155,24 @@ export default function WarningsSection() {
                 <div className="flex items-start gap-2 mt-1">
                   <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    {VIOLATION_REASONS[v.violation_type] || "مخالفة لسياسات المنصة"}
+                    {VIOLATION_REASONS[v.violation_type] || metaFor(v.violation_type).reason}
                   </p>
                 </div>
+                {!v.is_reviewed && (
+                  <Badge variant="secondary" className="text-[10px] mt-1">قيد مراجعة الإدارة</Badge>
+                )}
                 {v.is_reviewed && (
                   <Badge variant={v.is_false_positive ? "secondary" : "destructive"} className="text-[10px] mt-1">
                     {v.is_false_positive ? "تم إلغاء المخالفة" : "مخالفة مؤكدة"}
                   </Badge>
+                )}
+                {!v.is_false_positive && user && (
+                  <ViolationAppealButton
+                    violationId={v.id}
+                    userId={user.id}
+                    appeal={appeals[v.id]}
+                    onCreated={(a) => setAppeals((prev) => ({ ...prev, [v.id]: a }))}
+                  />
                 )}
               </div>
             ))}
