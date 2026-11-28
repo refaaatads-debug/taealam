@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyViolationFilters, DEFAULT_FILTERS, metaFor, severityOf, sortBySeverityThenDate } from "../violationMeta";
+import { monthRange, applyViolationFilters, DEFAULT_FILTERS, metaFor, severityOf, sortBySeverityThenDate } from "../violationMeta";
 
 const rows = [
   { id: 1, violation_type: "teacher_late", source: "session", created_at: "2026-11-01T10:00:00Z" },
@@ -25,5 +25,12 @@ describe("violationMeta", () => {
   });
   it("sorts highest severity first, then newest", () => {
     expect(sortBySeverityThenDate(rows).map((r) => r.id)).toEqual([3, 2, 4, 1]);
+  });
+  it("turns a month into a from/to range", () => {
+    expect(monthRange("2026-11")).toEqual({ from: "2026-11-01", to: "2026-11-30" });
+    expect(monthRange("2028-02")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+    expect(monthRange("2026-12").to).toBe("2026-12-31");
+    expect(monthRange("")).toEqual({ from: "", to: "" });
+    expect(monthRange("2026-13")).toEqual({ from: "", to: "" });
   });
 });

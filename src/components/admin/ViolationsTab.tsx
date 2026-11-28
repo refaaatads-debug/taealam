@@ -15,10 +15,11 @@ import DateFilter from "./DateFilter";
 import ExportCSVButton from "./ExportCSVButton";
 import UserWarningsList from "./UserWarningsList";
 import ViolationUserHistory from "./ViolationUserHistory";
+import ViolationAppealReview from "./ViolationAppealReview";
 import { addConfirmedWarning, removeConfirmedWarning } from "@/lib/violationReview";
 import {
   VIOLATION_META, SEVERITY_LABELS, SOURCE_LABELS, DEFAULT_FILTERS, metaFor, severityOf,
-  applyViolationFilters, sortBySeverityThenDate, type ViolationFilters, type ViolationSeverity,
+  applyViolationFilters, sortBySeverityThenDate, monthRange, type ViolationFilters, type ViolationSeverity,
 } from "@/lib/violationMeta";
 
 const SEVERITY_BADGE: Record<ViolationSeverity, string> = {
@@ -188,6 +189,12 @@ const ViolationCard = ({ v, user, setViolations, allViolations }: { v: any; user
         <p className="text-xs text-foreground">{reasonForType(v.violation_type)}</p>
       </div>
 
+      <ViolationAppealReview
+        violation={v}
+        adminId={user?.id}
+        onViolationChange={(patch) => setViolations((prev: any[]) => prev.map((item: any) => item.id === v.id ? { ...item, ...patch } : item))}
+      />
+
       {v.warning_count > 0 && (
         <div className={`rounded-lg p-3 mb-3 ${v.warning_count >= 3 ? "bg-destructive/10 border border-destructive/20" : "bg-warning/10 border border-warning/20"}`}>
           <div className="flex items-center gap-2 mb-1">
@@ -349,9 +356,12 @@ const ViolationsTab = ({
               <option value="all">كل المصادر</option>
               {Object.entries(SOURCE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
+            <Input type="month" aria-label="الشهر" title="اختر شهراً" className="w-40 rounded-xl text-sm h-9"
+              value={dateFrom && dateFrom.slice(0, 7) === dateTo.slice(0, 7) && dateFrom.endsWith("-01") ? dateFrom.slice(0, 7) : ""}
+              onChange={(e: any) => { const r = monthRange(e.target.value); setDateFrom(r.from); setDateTo(r.to); }} />
             <DateFilter dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} />
             <ExportCSVButton
-              data={violations.map((v: any) => ({
+              data={filtered.map((v: any) => ({
                 user: v.user_name, role: v.user_role === "teacher" ? "معلم" : "طالب",
                 other_party: v.other_party_name || "—",
                 booking: v.booking_id || "—",

@@ -78,3 +78,15 @@ export function sortBySeverityThenDate<T extends { violation_type?: string | nul
     return (b.created_at || "").localeCompare(a.created_at || "");
   });
 }
+
+// "2026-11" -> { from: "2026-11-01", to: "2026-11-30" } for the date filter. Empty or bad input -> empty range.
+export function monthRange(month: string): { from: string; to: string } {
+  const m = /^(\d{4})-(\d{2})$/.exec(month || "");
+  if (!m) return { from: "", to: "" };
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  if (mo < 1 || mo > 12) return { from: "", to: "" };
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { from: `${y}-${pad(mo)}-01`, to: `${y}-${pad(mo)}-${pad(last)}` };
+}

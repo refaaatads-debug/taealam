@@ -473,7 +473,7 @@ const AdminDashboard = () => {
       } else { setRecentBookings([]); }
 
       // Violations — enrich with booking, other party, and session recording
-      const { data: violAll } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(200);
+      const { data: violAll } = await (supabase as any).from("violations").select("*").order("created_at", { ascending: false }).limit(2000);
       // Archived (soft-deleted) rows stay in the database for audit but are hidden from the list.
       const viol = (violAll || []).filter((v: any) => !v.deleted_at);
       if (viol && viol.length > 0) {
