@@ -105,26 +105,8 @@ export default function AdminNotificationsTab() {
 
     setSending(true);
     try {
-      let targetUsers: string[] = [];
-
-      if (targetType === "specific") {
-        if (!specificUserId) {
-          toast.error("يرجى اختيار المستخدم");
-          setSending(false);
-          return;
-        }
-        targetUsers = [specificUserId];
-      } else if (targetType === "all") {
-        const { data: allProfiles } = await supabase.from("profiles").select("user_id");
-        targetUsers = (allProfiles ?? []).map(p => p.user_id);
-      } else {
-        const targetRole = targetType === "all_students" ? "student" : "teacher";
-        const { data: roleData } = await supabase.from("user_roles").select("user_id").eq("role", targetRole);
-        targetUsers = (roleData ?? []).map(r => r.user_id);
-      }
-
-      if (targetUsers.length === 0) {
-        toast.error("لا يوجد مستخدمين في هذه الفئة");
+      if (targetType === "specific" && !specificUserId) {
+        toast.error("يرجى اختيار المستخدم");
         setSending(false);
         return;
       }
@@ -139,25 +121,54 @@ export default function AdminNotificationsTab() {
         }
       }
 
-      const notifications = targetUsers.map(uid => ({
-        user_id: uid,
-        title: title.trim(),
-        body: body.trim(),
-        type: "admin_broadcast",
-        file_url: fileData?.url || null,
-        file_name: fileData?.name || null,
-      }));
-
-      // Insert in batches of 100
-      for (let i = 0; i < notifications.length; i += 100) {
-        const batch = notifications.slice(i, i + 100);
-        const { error } = await supabase.from("notifications").insert(batch as any);
+      let sentCount = 0;
+      if (targetType === "specific") {
+        const { error } = await supabase.from("notifications").insert({
+          user_id: specificUserId,
+          title: title.trim(),
+          body: body.trim(),
+          type: "admin_broadcast",
+          file_url: fileData?.url || null,
+          file_name: fileData?.name || null,
+        } as any);
         if (error) throw error;
+        sentCount = 1;
+      } else {
+        // Broadcast to a group runs on the server: it reads recipients page by page and
+        // saves its progress, so it can resume if this tab closes or a page fails.
+        const target = targetType === "all" ? "all" : targetType === "all_students" ? "all_students" : "all_teachers";
+        const created = await supabase.functions.invoke("admin-broadcast", {
+          body: { action: "create", title: title.trim(), body: body.trim(), target, file_url: fileData?.url || null, file_name: fileData?.name || null },
+        });
+        if (created.error || !created.data?.id) {
+          toast.error("لا يوجد مستخدمين في هذه الفئة أو تعذر بدء الإرسال");
+          setSending(false);
+          return;
+        }
+        const broadcastId = created.data.id as string;
+        const total = (created.data.total as number) ?? 0;
+        let done = false;
+        let failures = 0;
+        while (!done) {
+          const step = await supabase.functions.invoke("admin-broadcast", { body: { action: "run", id: broadcastId } });
+          if (step.error || step.data?.error) {
+            failures += 1;
+            if (failures >= 3) throw new Error(`توقف الإرسال عند ${step.data?.sent ?? sentCount} من ${total}. يمكن استكماله لاحقاً.`);
+            await new Promise((resolve) => setTimeout(resolve, 2000 * failures));
+            continue;
+          }
+          failures = 0;
+          sentCount = step.data?.sent ?? sentCount;
+          done = Boolean(step.data?.done) || step.data?.status === "done";
+          if (step.data?.busy && !done) await new Promise((resolve) => setTimeout(resolve, 3000));
+          if (!done) toast.message(`جارٍ الإرسال: ${sentCount} من ${total}`, { id: "broadcast-progress" });
+        }
+        toast.dismiss("broadcast-progress");
       }
 
       await fetchSentHistory();
 
-      toast.success(`تم إرسال الإشعار إلى ${targetUsers.length} مستخدم`);
+      toast.success(`تم إرسال الإشعار إلى ${sentCount} مستخدم`);
       setTitle("");
       setBody("");
       setFile(null);
