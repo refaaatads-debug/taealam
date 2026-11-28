@@ -86,7 +86,7 @@ const TeacherMonthViolations = ({ teacherId, month }: { teacherId: string; month
               <span className="font-bold text-foreground shrink-0">{metaFor(r.violation_type).label}</span>
               <span className="text-[10px] text-muted-foreground shrink-0">({SEVERITY_LABELS[severityOf(r.violation_type)]})</span>
               <span className="truncate text-muted-foreground flex-1" title="دليل مخفي">{r.original_message || r.detected_text}</span>
-              <Badge variant={r.is_reviewed ? "default" : "secondary"} className="text-[10px] shrink-0">
+              <Badge className={`text-[10px] shrink-0 border-0 ${r.is_reviewed ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning"}`}>
                 {r.is_reviewed ? "مؤكدة" : "قيد المراجعة"}
               </Badge>
             </li>
