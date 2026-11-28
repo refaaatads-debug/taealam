@@ -17,6 +17,8 @@ import { toggleTeacherSubjectSelection } from "@/lib/teacherSubjects";
 import { toast } from "sonner";
 import GoogleMapLocationPicker, { type MapLocation } from "@/components/profile/GoogleMapLocationPicker";
 
+import { prepareAvatar, validateAvatarInput } from "@/lib/avatarImage";
+
 const Profile = () => {
   const { user, profile, roles, signOut, refreshProfile } = useAuth();
   const isTeacher = roles.includes("teacher");
@@ -63,6 +65,37 @@ const Profile = () => {
   const [certFile, setCertFile] = useState<File | null>(null);
   const [uploadingCert, setUploadingCert] = useState(false);
   const certFileRef = useRef<HTMLInputElement>(null);
+
+  // Profile photo
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !user) return;
+    const problem = validateAvatarInput(file);
+    if (problem) { toast.error(problem); return; }
+    setUploadingAvatar(true);
+    try {
+      // Crop and shrink on this device first. Nothing is enhanced and nothing is sent to an AI service.
+      const blob = await prepareAvatar(file);
+      const ext = blob.type === "image/webp" ? "webp" : "jpg";
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: blob.type, cacheControl: "3600" });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: `${urlData.publicUrl}?v=${Date.now()}` }).eq("user_id", user.id);
+      if (dbErr) throw dbErr;
+      await refreshProfile();
+      toast.success("تم تحديث الصورة");
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      toast.error("تعذر رفع الصورة، حاول مرة أخرى");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -371,12 +404,17 @@ const Profile = () => {
             <CardContent className="p-5 md:p-6 flex flex-col items-center -mt-14">
               <div className="relative mb-4">
                 <div className="w-24 h-24 md:w-28 md:h-28 rounded-3xl bg-card p-1 shadow-card-hover">
-                  <div className="w-full h-full rounded-[1.25rem] gradient-hero flex items-center justify-center">
-                    <Users className="h-12 w-12 text-primary-foreground/90" />
-                  </div>
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="الصورة الشخصية" className="w-full h-full rounded-[1.25rem] object-cover" />
+                  ) : (
+                    <div className="w-full h-full rounded-[1.25rem] gradient-hero flex items-center justify-center">
+                      <Users className="h-12 w-12 text-primary-foreground/90" />
+                    </div>
+                  )}
                 </div>
-                <button className="absolute -bottom-1 -left-1 w-9 h-9 rounded-2xl gradient-cta flex items-center justify-center text-secondary-foreground shadow-button hover:scale-110 transition-transform">
-                  <Camera className="h-4 w-4" />
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarPicked} />
+                <button type="button" aria-label="تغيير الصورة" disabled={uploadingAvatar} onClick={() => avatarInputRef.current?.click()} className="absolute -bottom-1 -left-1 w-9 h-9 rounded-2xl gradient-cta flex items-center justify-center text-secondary-foreground shadow-button hover:scale-110 transition-transform disabled:opacity-60">
+                  {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 </button>
               </div>
               <h2 className="font-black text-xl md:text-2xl text-foreground text-center">{profile?.full_name || "مستخدم"}</h2>
