@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ShieldAlert, FileWarning, Info } from "lucide-react";
+import { AlertTriangle, ShieldAlert, FileWarning, Info, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { metaFor, SEVERITY_LABELS, severityOf } from "@/lib/violationMeta";
+import { metaFor, SEVERITY_LABELS, severityOf, VIOLATION_META } from "@/lib/violationMeta";
 import ViolationAppealButton, { type AppealRow } from "@/components/ViolationAppealButton";
 
 const VIOLATION_TYPE_LABELS: Record<string, string> = {
@@ -13,7 +13,13 @@ const VIOLATION_TYPE_LABELS: Record<string, string> = {
   coded_message: "رسالة مشفرة",
   chat_violation: "مخالفة محادثة",
   contact_violation: "مخالفة مشاركة اتصال",
+  phone_call_violation: "مخالفة في مكالمة",
+  admin_ban: "حظر من الإدارة",
 };
+
+// Never show a raw code like "phone_number" to a user.
+const typeLabel = (t: string | null | undefined): string =>
+  (t && (VIOLATION_TYPE_LABELS[t] || VIOLATION_META[t]?.label)) || "تحذير من الإدارة";
 
 const VIOLATION_REASONS: Record<string, string> = {
   contact_sharing: "محاولة مشاركة أرقام هواتف أو بريد إلكتروني بهدف التواصل خارج المنصة",
@@ -28,6 +34,7 @@ export default function WarningsSection() {
   const [warnings, setWarnings] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
   const [appeals, setAppeals] = useState<Record<string, AppealRow>>({});
+  const [open, setOpen] = useState(false); // collapsed by default
 
   useEffect(() => {
     if (!user) return;
@@ -66,16 +73,17 @@ export default function WarningsSection() {
 
   return (
     <Card className="border-0 shadow-card border-destructive/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 font-bold">
+      <CardHeader className={open ? "pb-2 pt-3" : "py-3"}>
+        <CardTitle className="text-base flex items-center gap-2 font-bold cursor-pointer select-none" onClick={() => setOpen((o) => !o)} role="button" aria-expanded={open}>
           <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
             <ShieldAlert className="h-4 w-4 text-destructive" />
           </div>
           التحذيرات والمخالفات
           <Badge className="mr-auto bg-destructive/10 text-destructive border-0 text-xs">{totalWarnings}</Badge>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {open && <CardContent className="space-y-2 pt-0">
         {/* Ban status banner */}
         {isBanned && (
           <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex items-center gap-2">
@@ -91,8 +99,8 @@ export default function WarningsSection() {
         )}
 
         {/* Warning progress */}
-        <div className="bg-muted/30 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-2">
+        <div className="bg-muted/30 rounded-xl px-3 py-2">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-bold text-foreground">مستوى التحذيرات</span>
             <span className="text-xs text-muted-foreground">{totalWarnings} / 3</span>
           </div>
@@ -102,17 +110,17 @@ export default function WarningsSection() {
               style={{ width: `${Math.min((totalWarnings / 3) * 100, 100)}%` }}
             />
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">عند الوصول إلى 3 تحذيرات يتم حظر الحساب تلقائياً</p>
+          <p className="text-[10px] text-muted-foreground mt-1">تُضاف التحذيرات بعد مراجعة الإدارة، والحظر قرار تتخذه الإدارة يدوياً</p>
         </div>
 
         {/* Warnings list */}
         {warnings.map((w) => (
-          <div key={w.id} className="flex items-start gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/10">
+          <div key={w.id} className="flex items-start gap-3 p-3 rounded-xl bg-destructive/5 border border-destructive/10">
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
                 <p className="font-bold text-sm text-foreground">
-                  {VIOLATION_TYPE_LABELS[w.warning_type] || w.warning_type}
+                  {typeLabel(w.warning_type)}
                 </p>
                 <span className="text-[10px] text-muted-foreground">
                   {new Date(w.created_at).toLocaleDateString("ar-SA")}
@@ -146,7 +154,7 @@ export default function WarningsSection() {
               <div key={v.id} className="p-3 rounded-lg bg-muted/20 border border-border mb-2 last:mb-0">
                 <div className="flex items-center justify-between mb-1">
                   <Badge variant="outline" className="text-[10px]">
-                    {VIOLATION_TYPE_LABELS[v.violation_type] || metaFor(v.violation_type).label} · {SEVERITY_LABELS[severityOf(v.violation_type)]}
+                    {typeLabel(v.violation_type)} · {SEVERITY_LABELS[severityOf(v.violation_type)]}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
                     {new Date(v.created_at).toLocaleDateString("ar-SA")}
@@ -178,7 +186,7 @@ export default function WarningsSection() {
             ))}
           </div>
         )}
-      </CardContent>
+      </CardContent>}
     </Card>
   );
 }
