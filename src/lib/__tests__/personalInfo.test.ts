@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { detectPersonalInfo, maskedEvidence, normalizeForDetection } from "../../../supabase/functions/_shared/personalInfo";
+import { readFileSync } from "node:fs";
+import { detectPersonalInfo, maskedEvidence, normalizeForDetection } from "../personalInfo";
 
 const type = (s: string) => detectPersonalInfo(s).type;
 
@@ -55,5 +56,14 @@ describe("personal info detector", () => {
     const r = detectPersonalInfo("0551234567");
     expect(maskedEvidence(r)).toBe("رقم هاتف: ••••••••67");
     expect(normalizeForDetection("٠١")).toBe("01");
+  });
+});
+
+describe("detector copies", () => {
+  it("the edge-function copy is identical to the web copy (apart from the header note)", () => {
+    const strip = (t: string) => t.split("\n").filter((l) => !l.startsWith("// CANONICAL") && !l.startsWith("// Personal-info detector")).join("\n");
+    const web = readFileSync("src/lib/personalInfo.ts", "utf8");
+    const fn = readFileSync("supabase/functions/_shared/personalInfo.ts", "utf8");
+    expect(strip(web)).toBe(strip(fn));
   });
 });
